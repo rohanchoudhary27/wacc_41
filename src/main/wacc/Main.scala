@@ -7,7 +7,7 @@ object Main {
         println("hello WACC!")
 
         args.headOption match {
-            case Some(expr) => parser.parse(args.head) match {
+            case Some(expr) => parser.parse(expr) match {
                 case Success(x) => println(s"$expr = $x")
                 case Failure(msg) => println(msg)
             }
