@@ -1,6 +1,4 @@
-.bsp/
 .metals/
+.bsp/
 .scala-build/
 .vscode/
-.idea/
-wacc-compiler
