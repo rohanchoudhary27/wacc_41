@@ -29,6 +29,7 @@ change its name.
 
 Your Makefile should be edited so that running 'make' in the root directory
 builds your WACC compiler. Currently running 'make' will call
-`scala-cli --power package . --server=false --jvm system --force`, producing a file called
+`scala --power package . --server=false --jvm system --graalvm-jvm-id graalvm-java21 --native-image --force -o wacc-compiler`, producing a file called
 `wacc-compiler`
-in the root directory of the project.
+in the root directory of the project. If this doesn't work for whatever reason, there are a few
+different alternatives you can try in the makefile. **Do not use the makefile as you're working, it's for labts/CI!**
