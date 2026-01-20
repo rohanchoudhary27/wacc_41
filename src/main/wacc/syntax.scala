@@ -1,4 +1,3 @@
-type Stmts = List[Stmt]
 type Args = List[Expr]
 
 // Traits
@@ -37,9 +36,10 @@ enum Stmt {
     case Exit(expr: Expr)
     case Print(expr: Expr)
     case Println(expr: Expr)
-    case If(cond: Expr, ifStmts: Stmts, elseStmts: Stmts)
-    case While(cond: Expr, stmts: Stmts)
-    case Scope(stmts: Stmts)
+    case If(cond: Expr, ifBlock: Stmt, elseBlock: Stmt)
+    case While(cond: Expr, stmt: Stmt)
+    case Scope(stmt: Stmt)
+    case Block(stmts: List[Stmt])
 }
 
 // Operator nodes
