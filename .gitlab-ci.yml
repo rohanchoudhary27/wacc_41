@@ -55,7 +55,7 @@ unit_tests:
   stage: test
   script:
     - echo "Running Unit Tests..."
-    - scala test . --server=false | tee unit-test.log
+    - scala test .  --test-only "wacc.frontend.unit.*" --server=false | tee unit-test.log
   artifacts:
     when: always
     paths:
@@ -66,7 +66,7 @@ integration_tests:
   stage: test
   script:
     - echo "Running Integration Tests..."
-    - scala test . --server=false -- -u target/test-reports -oD | tee integration-test.log
+    - scala test . --test-only "wacc.frontend.integration.*"  --server=false -- -u target/test-reports -oD | tee integration-test.log
   artifacts:
     when: always
     reports:
