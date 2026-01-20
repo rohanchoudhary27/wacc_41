@@ -41,3 +41,24 @@ enum Stmt {
     case While(cond: Expr, stmts: Stmts)
     case Scope(stmts: Stmts)
 }
+
+// Operator nodes
+case class UnaryExpr(op: UnaryOperator, expr: Expr) extends Expr
+case class BinaryExpr(op: BinaryOperator, left: Expr, right: Expr) extends Expr
+
+// LValues and reference access
+case class Ident(ident: String) extends LValue with Expr
+case class ArrayElem(ident: Ident, expr: Expr) extends LValue with Expr
+case class PairElem(isFst: Boolean, lval: LValue) extends LValue with RValue
+
+// Complex RValues
+case class NewPair(e1: Expr, e2: Expr) extends RValue
+case class Call(ident: Ident, argList: Args) extends RValue
+
+// Literal nodes
+case class ArrayLiter(e1: Expr, e2: Expr) extends RValue
+case class IntLiter(value: Int) extends Expr
+case class BoolLiter(value: Boolean) extends Expr
+case class CharLiter(value: Char) extends Expr
+case class StrLiter(value: String) extends Expr
+case object PairLiter extends Expr
