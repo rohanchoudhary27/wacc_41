@@ -57,12 +57,16 @@ object lexer {
         spaceDesc = SpaceDesc.plain.copy(
             lineCommentStart = "#",
         ),
-
     )
 
     private val lexer = Lexer(desc)
 
+    // Primitive parsers for use in parser.scala
     val integer = lexer.lexeme.integer.decimal
     val implicits = lexer.lexeme.symbol.implicits
+    val ident = lexer.lexeme.names.identifier
+    val string = lexer.lexeme.string.fullUtf16
+    val char = lexer.lexeme.character.fullUtf16
+
     def fully[A](p: Parsley[A]): Parsley[A] = lexer.fully(p)
 }
