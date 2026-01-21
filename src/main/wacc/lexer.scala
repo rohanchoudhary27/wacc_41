@@ -67,6 +67,10 @@ object lexer {
     val ident = lexer.lexeme.names.identifier
     val string = lexer.lexeme.string.fullUtf16
     val char = lexer.lexeme.character.fullUtf16
+    val nullLiter = lexer.lexeme.symbol("null").void
+    val boolLiter =
+      lexer.lexeme.symbol("true") #> true |
+      lexer.lexeme.symbol("false") #> false
 
     def fully[A](p: Parsley[A]): Parsley[A] = lexer.fully(p)
 }
