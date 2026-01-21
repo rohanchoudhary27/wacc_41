@@ -40,6 +40,8 @@ lint_project:
         --config "${CONF_ARGS[@]}" \
         --files "${FILES[@]}"
   allow_failure: true
+  tags:
+    - vm-runner
 
 build:
   stage: build
@@ -50,6 +52,8 @@ build:
     paths:
       - wacc-compiler
     expire_in: 1 hour
+  tags:
+    - vm-runner
   
 unit_tests:
   stage: test
@@ -61,6 +65,8 @@ unit_tests:
     paths:
       - unit-test.log
     expire_in: 1 hour
+  tags:
+    - vm-runner
 
 integration_tests:
   stage: test
@@ -75,3 +81,5 @@ integration_tests:
       - integration-test.log
       - target/test-reports/
     expire_in: 1 hour
+  tags:
+    - vm-runner
