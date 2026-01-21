@@ -1,0 +1,85 @@
+cache:
+  key: "global-coursier-cache"
+  paths:
+    - .coursier-cache/
+  policy: pull-push
+
+stages:
+  - lint
+  - build
+  - test
+
+lint_project:
+  stage: lint
+  script:
+    - |
+      if [ ! -d "src" ]; then
+        echo "src/ directory not found; skipping scalafix."
+        exit 0
+      fi
+
+      # find all scala files (.sc or .scala) under src and store their full paths in
+      # the array FILES
+      mapfile -d '' FILES < <(
+        find src -type f \( -name '*.scala' -o -name '*.sc' \) -print0
+      )
+
+      if [ "${#FILES[@]}" -eq 0 ]; then
+        echo "No Scala files found under src/; skipping scalafix."
+        exit 0
+      fi
+
+      if [ -f ".scalafix.conf" ]; then
+        CONF_ARGS=(--config .scalafix.conf)
+      else
+        CONF_ARGS=(--rules DisableSyntax)
+      fi
+
+      scalafix \
+        --check \
+        --config "${CONF_ARGS[@]}" \
+        --files "${FILES[@]}"
+  allow_failure: true
+  tags:
+    - vm-runner
+
+build:
+  stage: build
+  script:
+    - echo "Compiling and packaging application..."
+    - scala --power package . --assembly -o wacc-compiler --server=false
+  artifacts:
+    paths:
+      - wacc-compiler
+    expire_in: 1 hour
+  tags:
+    - vm-runner
+  
+unit_tests:
+  stage: test
+  script:
+    - echo "Running Unit Tests..."
+    - scala test .  --test-only "wacc.frontend.unit.*" --server=false | tee unit-test.log
+  artifacts:
+    when: always
+    paths:
+      - unit-test.log
+    expire_in: 1 hour
+  tags:
+    - vm-runner
+
+integration_tests:
+  stage: test
+  script:
+    - echo "Running Integration Tests..."
+    - scala test . --test-only "wacc.frontend.integration.*"  --server=false -- -u target/test-reports -oD | tee integration-test.log
+  artifacts:
+    when: always
+    reports:
+      junit: target/test-reports/*.xml
+    paths:
+      - integration-test.log
+      - target/test-reports/
+    expire_in: 1 hour
+  tags:
+    - vm-runner
