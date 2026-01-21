@@ -5,6 +5,7 @@ import parsley.token.Lexer
 import parsley.token.descriptions.*
 import parsley.token.Basic
 import parsley.token.descriptions.ExponentDesc.NoExponents
+import parsley.token.errors.ErrorConfig
 
 object lexer {
     private val desc = LexicalDesc.plain.copy(
@@ -59,7 +60,10 @@ object lexer {
         ),
     )
 
-    private val lexer = Lexer(desc)
+    // stub for now
+    private val errorConfig = new ErrorConfig {}
+
+    private val lexer = Lexer(desc, errorConfig)
 
     // Primitive parsers for use in parser.scala
     val integer = lexer.lexeme.integer.decimal
