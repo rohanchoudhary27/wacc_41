@@ -1,3 +1,5 @@
+package wacc
+
 import scala.collection.mutable.Map
 
 // Just for compilation, remove once merged.
