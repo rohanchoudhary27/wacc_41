@@ -2,19 +2,19 @@ package wacc
 
 type Args[A] = List[Expr[A]]
 
-// Traits
+/* Traits */
 sealed trait LValue[A] { val info: A }
 sealed trait RValue[A] { val info: A }
 sealed trait Expr[A] extends RValue[A] { val info: A }
 
-// The WACC type system
+/* The WACC syntactic type system */
 enum SyntaxType {
     case Int, Bool, Char, String, ErasedPair
     case Pair(fst: SyntaxType, snd: SyntaxType)
     case Array(arrType: SyntaxType)
 }
 
-// WACC operators
+/* WACC operators */
 enum BinaryOperator {
     case Add, Sub, Mul, Div, Mod
     case GT, GTE, LT, LTE, EQ, NEQ
@@ -44,20 +44,20 @@ enum Stmt[A] {
     case Block(stmts: List[Stmt[A]], info: A)
 }
 
-// Operator nodes
+/* Operator nodes */
 case class UnaryExpr[A](op: UnaryOperator, expr: Expr[A], info: A) extends Expr[A]
 case class BinaryExpr[A](op: BinaryOperator, left: Expr[A], right: Expr[A], info: A) extends Expr[A]
 
-// LValues and reference access
+/* LValues and reference access */
 case class Ident[A](ident: String, info: A) extends LValue[A] with Expr[A]
 case class ArrayElem[A](ident: Ident[A], indices: List[Expr[A]], info: A) extends LValue[A] with Expr[A]
 case class PairElem[A](isFst: Boolean, lval: LValue[A], info: A) extends LValue[A] with RValue[A]
 
-// Complex RValues
+/* Complex RValues */
 case class NewPair[A](e1: Expr[A], e2: Expr[A], info: A) extends RValue[A]
 case class Call[A](ident: Ident[A], argList: Args[A], info: A) extends RValue[A]
 
-// Literal nodes
+/* Literal nodes */
 case class ArrayLiter[A](elements: List[Expr[A]], info: A) extends RValue[A]
 case class IntLiter[A](value: Int, info: A) extends Expr[A]
 case class BoolLiter[A](value: Boolean, info: A) extends Expr[A]
