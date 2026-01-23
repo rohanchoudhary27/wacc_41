@@ -1,3 +1,5 @@
+package wacc
+
 type Args[A] = List[Expr[A]]
 
 // Traits

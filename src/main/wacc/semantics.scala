@@ -12,3 +12,17 @@ enum SemanticType {
     case Null        // corresponding to a pair literal
     case EmptyArray  // corresponding to an empty array literal
 }
+
+enum SemanticData {
+
+  case Pos(pos: SourcePos)
+
+  case Var(pos: SourcePos, renameId: Int, semType: SemanticType)
+
+  case Func(pos: SourcePos,
+            name: String,
+            returnType: SemanticType,
+            params: List[SemanticType])
+  
+  case TopLevel(funcTable: SymbolTable[Func])
+}
