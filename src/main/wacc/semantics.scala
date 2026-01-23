@@ -1,6 +1,7 @@
 package wacc
 
 import scala.collection.immutable.Map
+import scala.collection.mutable.ListBuffer
 
 enum SemanticType {
 
@@ -30,4 +31,19 @@ enum SemanticData {
   case Expr(pos: SourcePos, semType: SemanticType)
   
   case TopLevel(funcTable: Map[String, Func])
+
+  case Error(pos: SourcePos)
 }
+
+case class SemanticError(pos: SourcePos, msg: String)
+
+case class SemanticErrorLogger() {
+  val errors = ListBuffer[SemanticError]()
+
+  def logError(pos: SourcePos, msg: String) = errors += SemanticError(pos, msg)
+
+  def retrieveAllErrors(): List[SemanticError] = errors.toList 
+
+  def hasErrors(): Boolean = errors.nonEmpty
+}
+

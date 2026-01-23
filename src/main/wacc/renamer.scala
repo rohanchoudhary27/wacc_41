@@ -16,7 +16,7 @@ class Renamer {
     id
   }
 
-  def rename(prog: Program[SourcePos]): Program[SemanticData] = {
+  def rename(prog: Program[SourcePos], errorLogger: SemanticErrorLogger): Program[SemanticData] = {
 
     val varSymbolTable = new SymbolTable(None)
 
