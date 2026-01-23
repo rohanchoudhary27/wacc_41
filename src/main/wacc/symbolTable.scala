@@ -1,6 +1,7 @@
 package wacc
 
 import scala.collection.mutable.Map
+import scala.annotation.tailrec
 
 /**
 * Linked list of maps(name, SymbolInfo).
@@ -39,6 +40,7 @@ final class SymbolTable(val prev: Option[SymbolTable]) {
     *
     * @return Option[SymbolInfo]: Returns Some(SymbolInfo) if the key is in the linked list, else None.
     */
+    @tailrec
     def get(name: String): Option[SymbolInfo] = {
         mapForScope.get(name) match {
             case Some(info) => Some(info)
