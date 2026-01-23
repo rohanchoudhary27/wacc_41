@@ -8,7 +8,7 @@ import scala.collection.mutable.Map
 *
 * @param prev: pointer to previous scope symbol table. The global scope has None as prev.
 */
-class SymbolTable(val prev: Option[SymbolTable]) {
+final class SymbolTable(val prev: Option[SymbolTable]) {
     
     /**
     * The hashmap for the current scope
@@ -55,4 +55,4 @@ class SymbolTable(val prev: Option[SymbolTable]) {
 *
 * @param declaredType: The type of the variable.
 */
-case class SymbolInfo(declaredType: Type)
+final case class SymbolInfo(declaredType: Type)
