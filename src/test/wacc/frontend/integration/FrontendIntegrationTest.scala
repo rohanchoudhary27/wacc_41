@@ -77,25 +77,29 @@ final class FrontendIntegrationSpec extends AnyFlatSpec with Matchers {
     }
 
     private def isEnabled(file: Path): Boolean = {
-        if (enabledScopes.isEmpty) return false
-        val scopeKey = scopeFor(file)
-        enabledScopes.exists { s =>
-            val scope = s.stripSuffix("/")
-            scopeKey == scope || scopeKey.startsWith(scope + "/")
+        if (enabledScopes.isEmpty) false
+        else {
+            val scopeKey = scopeFor(file)
+            enabledScopes.exists { s =>
+                val scope = s.stripSuffix("/")
+                scopeKey == scope || scopeKey.startsWith(scope + "/")
+            }
         }
     }
 
     // scope key is the parent directory relative to examples
     // e.g. examples/invalid/syntaxErr/basic/skpErr.wacc -> "invalid/syntaxErr/basic"
     private def scopeFor(file: Path): String = {
-        val parent = file.getParent
-        if (parent == null) "" else examplesRoot.relativize(parent).toString
+        Option(file.getParent) match {
+            case Some(parent) => examplesRoot.relativize(parent).toString
+            case None => ""
+        }
     }
 
     // read the scopes in the configuration file
     private def readScopes(path: Path): Set[String] = {
-        if (!Files.exists(path)) return Set.empty
-        Files.readAllLines(path).asScala
+        if (!Files.exists(path)) Set.empty
+        else Files.readAllLines(path).asScala
             .map(_.trim)
             .filter(s => s.nonEmpty)
             .toSet
@@ -103,10 +107,10 @@ final class FrontendIntegrationSpec extends AnyFlatSpec with Matchers {
 
     // return all .wacc files under dir
     private def getWaccProgramsUnder(dir: Path): Seq[Path] = {
-        if (!Files.isDirectory(dir)) return Seq.empty
-        Files.walk(dir).toScala(List)
-        .filter(p => Files.isRegularFile(p)) 
-        .filter(p => extensionOf(p).contains(programExtension))
+        if (!Files.isDirectory(dir)) Seq.empty
+        else Files.walk(dir).toScala(List)
+            .filter(p => Files.isRegularFile(p)) 
+            .filter(p => extensionOf(p).contains(programExtension))
     }
 
     private def extensionOf(p: Path): Option[String] = {
