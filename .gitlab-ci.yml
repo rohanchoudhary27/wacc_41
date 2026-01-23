@@ -9,37 +9,11 @@ stages:
   - build
   - test
 
-lint_project:
+scalafix_check:
   stage: lint
   script:
-    - |
-      if [ ! -d "src" ]; then
-        echo "src/ directory not found; skipping scalafix."
-        exit 0
-      fi
-
-      # find all scala files (.sc or .scala) under src and store their full paths in
-      # the array FILES
-      mapfile -d '' FILES < <(
-        find src -type f \( -name '*.scala' -o -name '*.sc' \) -print0
-      )
-
-      if [ "${#FILES[@]}" -eq 0 ]; then
-        echo "No Scala files found under src/; skipping scalafix."
-        exit 0
-      fi
-
-      if [ -f ".scalafix.conf" ]; then
-        CONF_ARGS=(--config .scalafix.conf)
-      else
-        CONF_ARGS=(--rules DisableSyntax)
-      fi
-
-      scalafix \
-        --check \
-        --config "${CONF_ARGS[@]}" \
-        --files "${FILES[@]}"
-  allow_failure: true
+    - echo "Running scalafix checks..."
+    - scala --power fix --check .
   tags:
     - vm-runner
 
