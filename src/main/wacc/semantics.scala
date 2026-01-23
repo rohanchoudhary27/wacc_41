@@ -25,6 +25,9 @@ enum SemanticData {
             name: String,
             returnType: SemanticType,
             params: List[SemanticType])
+
+  // Used by the type checker to fill in types of expressions
+  case Expr(pos: SourcePos, semType: SemanticType)
   
   case TopLevel(funcTable: Map[String, Func])
 }
