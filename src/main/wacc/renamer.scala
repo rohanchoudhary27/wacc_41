@@ -1,11 +1,20 @@
 package wacc
 
+import scala.collection.mutable.Map
+
 // temp stub - generic type output for parser AST
 type SourcePos = (Int, Int)
 
 object Renamer {
 
+  private val variableIdMap = Map[String, Int]()
   private val funcSymbolTable: SymbolTable[SemanticData.Func] = new SymbolTable(None)
+
+  def getNextId(varStr: String) = {
+    val id = variableIdMap.getOrElse(varStr, 0)
+    variableIdMap(varStr) = id + 1
+    id
+  }
 
   def rename(prog: Program[SourcePos]): Program[SemanticData] = {
 
@@ -45,6 +54,7 @@ object Renamer {
     }
   }
   
+
   def renameFunc(func: Func[SourcePos]): Func[SemanticData] = ???
   def renameStmt(stmt: Stmt[SourcePos],
                  symbolTable: SymbolTable[SemanticData.Var]): Stmt[SemanticData] = ???
