@@ -5,12 +5,12 @@ import scala.collection.mutable.Map
 // temp stub - generic type output for parser AST
 type SourcePos = (Int, Int)
 
-object Renamer {
+class Renamer {
 
   private val variableIdMap = Map[String, Int]()
   private val funcSignatureTable = Map[String, SemanticData.Func]()
 
-  def getNextId(varStr: String) = {
+  private def getNextId(varStr: String) = {
     val id = variableIdMap.getOrElse(varStr, 0)
     variableIdMap(varStr) = id + 1
     id
@@ -43,7 +43,7 @@ object Renamer {
     Program(newFuncs, newStmt, SemanticData.TopLevel(funcSignatureTable.toMap))
   }
 
-  def syntaxToSemantics(synType: SyntaxType): SemanticType = {
+  private def syntaxToSemantics(synType: SyntaxType): SemanticType = {
     synType match {
       case SyntaxType.Int => SemanticType.Int
       case SyntaxType.Bool => SemanticType.Bool
@@ -57,7 +57,7 @@ object Renamer {
     }
   }
 
-  def renameFunc(func: Func[SourcePos]): Func[SemanticData] = ???
-  def renameStmt(stmt: Stmt[SourcePos],
+  private def renameFunc(func: Func[SourcePos]): Func[SemanticData] = ???
+  private def renameStmt(stmt: Stmt[SourcePos],
                  symbolTable: SymbolTable): Stmt[SemanticData] = ???
 }
