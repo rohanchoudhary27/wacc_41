@@ -1,0 +1,86 @@
+#!/bin/bash
+# Commit message validator for Conventional Commits with shortcodes
+# Format: [shortcode1, shortcode2, ...] type(scope): description
+# See: https://www.conventionalcommits.org/en/v1.0.0/
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+COMMIT_MSG_FILE=$1
+COMMIT_MSG=$(cat "$COMMIT_MSG_FILE")
+
+# Skip validation for merge commits
+if grep -qE '^Merge ' "$COMMIT_MSG_FILE"; then
+  exit 0
+fi
+
+# Skip validation for revert commits (they're auto-generated)
+if grep -qE '^Revert ' "$COMMIT_MSG_FILE"; then
+  exit 0
+fi
+
+# Valid types according to conventional commits
+VALID_TYPES="feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert"
+
+# Regex pattern for commit format with shortcodes:
+# [shortcode1, shortcode2, ...] type(scope)!: description
+# Shortcodes: alphanumeric, can contain numbers, separated by commas and spaces
+PATTERN="^\[[a-zA-Z0-9]+(,\s*[a-zA-Z0-9]+)*\] ($VALID_TYPES)(\([a-z0-9/_-]+\))?(!)?: .+"
+
+if ! echo "$COMMIT_MSG" | head -n1 | grep -qE "$PATTERN"; then
+  echo -e "${RED}Invalid commit message format${NC}"
+  echo ""
+  echo "Your commit message must start with shortcodes in square brackets,"
+  echo "followed by a conventional commit message:"
+  echo -e "  ${GREEN}[shortcode1, shortcode2, ...] <type>[optional scope]: <description>${NC}"
+  echo ""
+  echo "Examples:"
+  echo "  [skk24] feat(parser): add while loop support"
+  echo "  [sak24, eh924] fix(lexer): handle escaped quotes in strings"
+  echo "  [skk24, sak24, eh924, rc2824] feat(ast): add semantic analysis pass"
+  echo ""
+  echo "Valid types:"
+  echo "  feat     - New feature"
+  echo "  fix      - Bug fix"
+  echo "  docs     - Documentation changes"
+  echo "  style    - Code style/formatting changes"
+  echo "  refactor - Code refactoring"
+  echo "  perf     - Performance improvements"
+  echo "  test     - Adding or updating tests"
+  echo "  build    - Build system changes"
+  echo "  ci       - CI configuration changes"
+  echo "  chore    - Other changes (maintenance, etc.)"
+  echo "  revert   - Revert a previous commit"
+  echo ""
+  echo "Shortcodes:"
+  echo "  - Must be at the start in square brackets: [shortcode1, shortcode2]"
+  echo "  - Multiple shortcodes separated by commas"
+  echo "  - At least one shortcode is required"
+  echo ""
+  echo "Optional scope in parentheses: (parser), (lexer), (ast), (codegen), etc."
+  echo "Use ! before : to indicate breaking changes: feat!: breaking change"
+  echo ""
+  echo -e "${RED}Your commit message:${NC}"
+  echo "$COMMIT_MSG" | head -n1
+  echo ""
+  exit 1
+fi
+
+# Check if description is at least 3 characters (after shortcodes, type and scope)
+DESCRIPTION=$(echo "$COMMIT_MSG" | head -n1 | sed -E "s/^\[[a-zA-Z0-9]+(,\s*[a-zA-Z0-9]+)*\] ($VALID_TYPES)(\([a-z0-9/_-]+\))?(!)?: //")
+if [ ${#DESCRIPTION} -lt 3 ]; then
+  echo -e "${RED}Commit description too short${NC}"
+  echo "Description must be at least 3 characters long."
+  echo ""
+  exit 1
+fi
+
+# Check for period at end of subject line (not recommended in conventional commits)
+if echo "$COMMIT_MSG" | head -n1 | grep -qE '\.$'; then
+  echo -e "${YELLOW}Warning: Subject line should not end with a period${NC}"
+fi
+
+exit 0
