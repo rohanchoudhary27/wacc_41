@@ -11,12 +11,12 @@ trait Type
 *
 * @param prev: pointer to previous scope symbol table. The global scope has None as prev.
 */
-class SymbolTable(val prev: Option[SymbolTable]) {
+class SymbolTable[A <: SemanticData](val prev: Option[SymbolTable[A]]) {
     
     /**
     * The hashmap for the current scope
     */
-    private val mapForScope = Map[String, SymbolInfo]()
+    private val mapForScope = Map[String, A]()
 
     /**
     * Takes a key value pair and adds to the map for current scope.
@@ -27,7 +27,7 @@ class SymbolTable(val prev: Option[SymbolTable]) {
     *
     * @return: true if successfully added to scope, false if key already in map for current scope.
     */
-    def set(name: String, info: SymbolInfo): Boolean = {
+    def set(name: String, info: A): Boolean = {
         if (mapForScope.contains(name)) false
         else {
             mapForScope += (name -> info)
@@ -42,7 +42,7 @@ class SymbolTable(val prev: Option[SymbolTable]) {
     *
     * @return Option[SymbolInfo]: Returns Some(SymbolInfo) if the key is in the linked list, else None.
     */
-    def get(name: String): Option[SymbolInfo] = {
+    def get(name: String): Option[A] = {
         mapForScope.get(name) match {
             case Some(info) => Some(info)
             case None => prev match {
@@ -52,10 +52,3 @@ class SymbolTable(val prev: Option[SymbolTable]) {
         }
     }
 }
-
-/**
-* Used for the values of the linked list of SymbolTable.
-*
-* @param declaredType: The type of the variable.
-*/
-case class SymbolInfo(declaredType: Type)
