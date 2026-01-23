@@ -6,10 +6,10 @@ sealed trait RValue[A] { val info: A }
 sealed trait Expr[A] extends RValue[A] { val info: A }
 
 // The WACC type system
-enum Type {
+enum SyntaxType {
     case Int, Bool, Char, String, ErasedPair
-    case Pair(fst: Type, snd: Type)
-    case Array(arrType: Type)
+    case Pair(fst: SyntaxType, snd: SyntaxType)
+    case Array(arrType: SyntaxType)
 }
 
 // WACC operators
@@ -23,12 +23,12 @@ enum UnaryOperator {
 }
 
 case class Program[A](funcs: List[Func[A]], stmt: Stmt[A], info: A)
-case class Func[A](typ: Type, ident: Ident[A], params: List[Param[A]], stmt: Stmt[A], info: A)
-case class Param[A](typ: Type, ident: Ident[A], info: A)
+case class Func[A](typ: SyntaxType, ident: Ident[A], params: List[Param[A]], stmt: Stmt[A], info: A)
+case class Param[A](typ: SyntaxType, ident: Ident[A], info: A)
 
 enum Stmt[A] {
     case Skip(info: A)
-    case Decl(typ: Type, ident: Ident[A], rval: RValue[A], info: A)
+    case Decl(typ: SyntaxType, ident: Ident[A], rval: RValue[A], info: A)
     case Asgn(lval: LValue[A], rval: RValue[A], info: A)
     case Read(lval: LValue[A], info: A)
     case Free(expr: Expr[A], info: A)
