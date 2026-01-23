@@ -1,5 +1,7 @@
 package wacc
 
+import scala.collection.immutable.Map
+
 enum SemanticType {
 
     /* Semantic types directly mapped from syntactic types */
@@ -24,5 +26,5 @@ enum SemanticData {
             returnType: SemanticType,
             params: List[SemanticType])
   
-  case TopLevel(funcTable: SymbolTable[Func])
+  case TopLevel(funcTable: Map[String, Func])
 }

@@ -8,7 +8,7 @@ type SourcePos = (Int, Int)
 object Renamer {
 
   private val variableIdMap = Map[String, Int]()
-  private val funcSymbolTable: SymbolTable[SemanticData.Func] = new SymbolTable(None)
+  private val funcSignatureTable = Map[String, SemanticData.Func]()
 
   def getNextId(varStr: String) = {
     val id = variableIdMap.getOrElse(varStr, 0)
@@ -18,7 +18,7 @@ object Renamer {
 
   def rename(prog: Program[SourcePos]): Program[SemanticData] = {
 
-    val varSymbolTable: SymbolTable[SemanticData.Var] = new SymbolTable(None)
+    val varSymbolTable = new SymbolTable(None)
 
     prog.funcs.foreach {f =>
       
@@ -37,7 +37,7 @@ object Renamer {
     val newFuncs = prog.funcs.map(f => renameFunc(f))
     val newStmt = renameStmt(prog.stmt, varSymbolTable)
     
-    Program(newFuncs, newStmt, SemanticData.TopLevel(funcSymbolTable))
+    Program(newFuncs, newStmt, SemanticData.TopLevel(funcSignatureTable.toMap))
   }
 
   def syntaxToSemantics(synType: SyntaxType): SemanticType = {
@@ -57,5 +57,5 @@ object Renamer {
 
   def renameFunc(func: Func[SourcePos]): Func[SemanticData] = ???
   def renameStmt(stmt: Stmt[SourcePos],
-                 symbolTable: SymbolTable[SemanticData.Var]): Stmt[SemanticData] = ???
+                 symbolTable: SymbolTable): Stmt[SemanticData] = ???
 }
