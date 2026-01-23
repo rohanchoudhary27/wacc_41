@@ -24,14 +24,17 @@ object Renamer {
       
       val retType = syntaxToSemantics(f.typ)
       val paramTypes = f.params.map { p => syntaxToSemantics(p.typ) }
+
+      val funcName = f.ident.ident
         
-      SemanticData.Func(
+      val funcSignature: SemanticData.Func = SemanticData.Func(
           pos = f.info,
-          name = f.ident.ident,
+          name = funcName,
           returnType = retType,
           params = paramTypes
       )
 
+      funcSignatureTable += (funcName -> funcSignature)
     }
 
     val newFuncs = prog.funcs.map(f => renameFunc(f))
@@ -53,7 +56,6 @@ object Renamer {
         SemanticType.Array(syntaxToSemantics(arrType))
     }
   }
-  
 
   def renameFunc(func: Func[SourcePos]): Func[SemanticData] = ???
   def renameStmt(stmt: Stmt[SourcePos],
