@@ -2,9 +2,6 @@ package wacc
 
 import scala.collection.mutable.Map
 
-// Just for compilation, remove once merged.
-trait Type
-
 /**
 * Linked list of maps(name, SymbolInfo).
 * Each Symbol table forms a link with a pointer to the previous Symbol Table.
