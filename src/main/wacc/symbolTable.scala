@@ -1,9 +1,7 @@
 package wacc
 
 import scala.collection.mutable.Map
-
-// Just for compilation, remove once merged.
-trait Type
+import scala.annotation.tailrec
 
 /**
 * Linked list of maps(name, SymbolInfo).
@@ -11,7 +9,7 @@ trait Type
 *
 * @param prev: pointer to previous scope symbol table. The global scope has None as prev.
 */
-class SymbolTable(val prev: Option[SymbolTable]) {
+final class SymbolTable(val prev: Option[SymbolTable]) {
     
     /**
     * The hashmap for the current scope
@@ -42,6 +40,7 @@ class SymbolTable(val prev: Option[SymbolTable]) {
     *
     * @return Option[SymbolInfo]: Returns Some(SymbolInfo) if the key is in the linked list, else None.
     */
+    @tailrec
     def get(name: String): Option[SemanticData.Var] = {
         mapForScope.get(name) match {
             case Some(info) => Some(info)

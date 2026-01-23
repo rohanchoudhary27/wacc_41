@@ -27,8 +27,10 @@ class SymbolTableSpec extends AnyFlatSpec with Matchers {
     it should "find a variable defined in a previous scope" in {
         val previous = new SymbolTable(None)
         previous.set("x", intVar)
+
         val current = new SymbolTable(Some(previous))
         current.set("y", intVar)
+
         current.get("x") should be (Some(intVar))
     }
 
@@ -36,8 +38,10 @@ class SymbolTableSpec extends AnyFlatSpec with Matchers {
         val previous = new SymbolTable(None)
         val current1 = new SymbolTable(Some(previous))
         current1.set("x", intVar)
+
         val current2 = new SymbolTable(Some(previous))
         current2.set("y", intVar)
+
         current1.get("y") should be (None)
         current2.get("x") should be (None)
     }
@@ -46,6 +50,7 @@ class SymbolTableSpec extends AnyFlatSpec with Matchers {
         val previous = new SymbolTable(None)
         previous.set("x", intVar)
         val result = previous.set("x", boolVar)
+
         result should be (false)
         previous.get("x") should be (Some(intVar))
     }
