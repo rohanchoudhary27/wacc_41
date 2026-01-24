@@ -39,29 +39,19 @@ object Constraint {
  * The type checker annotates expressions with SemanticType, enforces
  * WACC typing rules, reports semantic errors but continues checking where possible
  */
-object TypeChecker {
-
-    /* Function signature table populated from the renamer */
-    private var funcSignatureTable: Map[String, SemanticData.Func] = Map()
-
+class TypeChecker {
     /**
       * Type checks the renamed AST and reports any errors with errorLogger.
       *
       * @param prog the renamed program
       * @param errorLogger logger used to accumulate semantic errors
+      * @param funcSignatureTable function signature table populated from the renamer
       * @return Some(typedProgram) if no errors were found, otherwise None
       */
     def check(
-        prog: Program[SemanticData], errorLogger: SemanticErrorLogger
+        prog: Program[SemanticData], errorLogger: SemanticErrorLogger,
+        funcSignatureTable: Map[String, SemanticData.Func]
     ): Option[Program[SemanticData]] = {
-        // Extract function signature table produced by the renamer
-        prog.info match {
-            case SemanticData.TopLevel(table) => funcSignatureTable = table
-            case _ => 
-                errorLogger.logError((0,0), "Compiler Error: Missing Function Table from Renamer.")
-                None
-        }
-        
         // Type-check each function
         val typedFuncs = prog.funcs.map(f => checkFunc(f, errorLogger))
         
