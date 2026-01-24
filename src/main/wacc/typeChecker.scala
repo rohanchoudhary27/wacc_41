@@ -1,0 +1,139 @@
+package wacc
+
+/**
+ * Constraints represent expectations imposed by the context in which an 
+ * expression is type checked.
+ *
+ * They are used in a top-down traversal of the AST, where the parent node 
+ * imposes a Constraint and the child expression is checked against it.
+ */
+enum Constraint {
+    /* The expression must have a type that matches `t`. Matching is defined 
+       by the `~` relation on SemanticType (not strict equality).  */
+    case Is(t: SemanticType)      
+
+    /* The expression must have a type that is one of the given set */
+    case OneOf(ts: Set[SemanticType])
+}
+
+object Constraint {
+    /* Means that the expression may have any type. This is typically used
+       when the context does not impose a specific expectation and the type 
+       should be inferred bottom up (type inference). */
+    val Infer = Is(?) 
+
+    /* Constraint for types that may be compared using operators <, <=, >, >= */
+    val IsComparable = OneOf(Set(KnownType.Int, KnownType.Char))
+
+    /* Constraint for types that may be compared using == or != */
+    val IsEquatable = Is(?)
+}
+
+
+/**
+ * Type checking stage of the frontend compiler pipeline.
+ *
+ * This stage runs after the renamer and assumes that all identifiers 
+ * are uniquely resolved and function signatures are available.
+ *
+ * The type checker annotates expressions with SemanticType, enforces
+ * WACC typing rules, reports semantic errors but continues checking where possible
+ */
+class TypeChecker {
+    /**
+      * Type checks the renamed AST and reports any errors with errorLogger.
+      *
+      * @param prog the renamed program
+      * @param errorLogger logger used to accumulate semantic errors
+      * @param funcSignatureTable function signature table populated from the renamer
+      * @return Some(typedProgram) if no errors were found, otherwise None
+      */
+    def check(
+        prog: Program[SemanticData], errorLogger: SemanticErrorLogger,
+        funcSignatureTable: Map[String, SemanticData.Func]
+    ): Option[Program[SemanticData]] = {
+        // Type-check each function
+        val typedFuncs = prog.funcs.map(f => checkFunc(f, errorLogger))
+        
+        // Type-check the main statement (which will be Stmt.Block)
+        val typedStmt = checkStmt(prog.stmt, errorLogger)
+
+        if (errorLogger.hasErrors()) None
+        else
+            Some(
+                Program(
+                    typedFuncs,
+                    typedStmt,
+                    info = SemanticData.TopLevel(funcTable = funcSignatureTable)
+                )
+            )
+    }
+  
+    /**
+     * Type-check a function definition
+     */
+    private def checkFunc(
+        f: Func[SemanticData], log: SemanticErrorLogger
+    ): Func[SemanticData] = ???
+
+    /**
+     * Type-check a statement
+     */
+    private def checkStmt(
+        stmt: Stmt[SemanticData], log: SemanticErrorLogger
+    ): Stmt[SemanticData] = ???
+
+     /**
+     * Type-check an expression
+     */
+    private def checkExpr(
+        expr: Expr[SemanticData], c: Constraint, log: SemanticErrorLogger
+    ): Expr[SemanticType] = ???
+
+    /**
+     * Type compatibility: ty1 ~ ty2 succeeds if the two types are compatible and returns
+     * the "narrow" resulting type.
+     */
+    extension (ty1: SemanticType) {
+        def ~(ty2: SemanticType): Option[SemanticType] = (ty1, ty2) match {
+            
+            /* `?` matches anything, this will come in handy when checking constraints:
+                if we represent Null (pair literal) as `Pair(?)``, then for the statement:
+                    ```
+                    pair(int, bool) p = null
+                    ```
+                we will impose a constraint of `Is(Pair(Int, Bool))` from the LHS, then
+                will check this against the RHS which will be `Pair(?)`. We can define the
+                constraint satisfaction such that `Pair(?).satisfies(Pair(Int, Bool))` will
+                check `? ~ Pair(Int, Bool)`, which will match and return `Pair(Int, Bool)`
+            */
+            case (?, ty) => Some(ty)
+            case (ty, ?) => Some(ty)
+            case (KnownType.Array(ety1), KnownType.Array(ety2)) =>
+                (ety1 ~ ety2).map(KnownType.Array(_))
+
+            /* Exact type match */
+            case (ty1, ty2) if ty1 == ty2 => Some(ty1)
+            case _  => None
+        }
+    }
+
+    /**
+     * Check whether a type satisfies a given constraint.
+     * If the constraint is violated, an error is logged and None is returned.
+     */
+    extension (ty: SemanticType) {
+        def satisfies(c: Constraint, pos: SourcePos, logger: SemanticErrorLogger): Option[SemanticType] =
+        (ty, c) match {
+            case (kty, Constraint.Is(refTy)) =>
+            (kty ~ refTy).orElse({
+                logger.logError(pos, s"Type Mismatch: Expected $kty, got $refTy")
+                None
+            })
+
+            case (?, _) => Some(?)
+            // ...
+        }
+    }
+
+}
