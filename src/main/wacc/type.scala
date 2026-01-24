@@ -22,9 +22,6 @@ object Constraint {
        should be inferred bottom up (type inference). */
     val Infer = Is(?) 
 
-    /* Constraint requiring the expression to be an array of some element type. */
-    val IsArray = Is(KnownType.Array(?))
-
     /* Constraint for types that may be compared using operators <, <=, >, >= */
     val IsComparable = OneOf(Set(KnownType.Int, KnownType.Char))
 
@@ -62,7 +59,7 @@ object TypeChecker {
             case SemanticData.TopLevel(table) => funcSignatureTable = table
             case _ => 
                 errorLogger.logError((0,0), "Compiler Error: Missing Function Table from Renamer.")
-                return None
+                None
         }
         
         // Type-check each function
