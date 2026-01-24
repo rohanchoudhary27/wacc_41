@@ -2,15 +2,14 @@ package wacc.frontend.unit
 
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import wacc.{SymbolTable}
+import wacc.{SymbolTable, KnownType}
 import wacc.SemanticData.Var
-import wacc.SemanticType
 
 class SymbolTableSpec extends AnyFlatSpec with Matchers {
 
     val pos = (0, 0)
-    val intVar: Var  = Var(pos, 0, SemanticType.Int)
-    val boolVar: Var = Var(pos, 0, SemanticType.Bool)
+    val intVar: Var  = Var(pos, 0, KnownType.Int)
+    val boolVar: Var = Var(pos, 0, KnownType.Bool)
 
     "A SymbolTable" should "store and retrieve a symbol in the current scope" in {
         val table  = new SymbolTable(None)

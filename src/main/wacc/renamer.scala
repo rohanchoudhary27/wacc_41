@@ -81,15 +81,15 @@ class Renamer {
   */
   private def syntaxToSemantics(synType: SyntaxType): SemanticType = {
     synType match {
-      case SyntaxType.Int => SemanticType.Int
-      case SyntaxType.Bool => SemanticType.Bool
-      case SyntaxType.Char => SemanticType.Char
-      case SyntaxType.String => SemanticType.String
-      case SyntaxType.ErasedPair => SemanticType.PairAny
+      case SyntaxType.Int => KnownType.Int
+      case SyntaxType.Bool => KnownType.Bool
+      case SyntaxType.Char => KnownType.Char
+      case SyntaxType.String => KnownType.String
+      case SyntaxType.ErasedPair => PairAny
       case SyntaxType.Pair(fst, snd) =>
-        SemanticType.Pair(syntaxToSemantics(fst), syntaxToSemantics(snd))
+        KnownType.Pair(syntaxToSemantics(fst), syntaxToSemantics(snd))
       case SyntaxType.Array(arrType) =>
-        SemanticType.Array(syntaxToSemantics(arrType))
+        KnownType.Array(syntaxToSemantics(arrType))
     }
   }
 

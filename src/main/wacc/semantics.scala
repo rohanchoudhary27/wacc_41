@@ -6,19 +6,22 @@ import scala.collection.mutable.ListBuffer
 /**
 * The semantic type system 
 */
-enum SemanticType {
+sealed trait SemanticType
 
-    /* Semantic types directly mapped from syntactic types */
+/**
+* Semantic types that map 1-to-1 with syntactic types
+*/
+enum KnownType extends SemanticType {
     case Int, Bool, Char, String
     case Array(t: SemanticType)
     case Pair(fst: SemanticType, snd: SemanticType)
-
-    /* Polymorphic semantic types created and used in the typechecker */
-    case PairAny     // corresponding to `ErasedPair`
-    case Null        // corresponding to a pair literal
-    case EmptyArray  // corresponding to an empty array literal
 }
 
+/* Polymorphic semantic types created and used in the typechecker */
+case object PairAny extends SemanticType     // corresponding to `ErasedPair`
+case object Null extends SemanticType        // corresponding to a pair literal
+case object EmptyArray extends SemanticType  // corresponding to an empty array literal
+case object ? extends SemanticType           // corresponding to typing error causing code
 
 /**
 * The `info` annotation to the AST nodes for a renamed AST. Also ouptut
