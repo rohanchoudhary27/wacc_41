@@ -14,7 +14,7 @@ final class SymbolTable(val prev: Option[SymbolTable]) {
     /**
     * The hashmap for the current scope
     */
-    private val mapForScope = Map[String, SymbolInfo]()
+    private val mapForScope = Map[String, SemanticData.Var]()
 
     /**
     * Takes a key value pair and adds to the map for current scope.
@@ -25,7 +25,7 @@ final class SymbolTable(val prev: Option[SymbolTable]) {
     *
     * @return: true if successfully added to scope, false if key already in map for current scope.
     */
-    def set(name: String, info: SymbolInfo): Boolean = {
+    def set(name: String, info: SemanticData.Var): Boolean = {
         if (mapForScope.contains(name)) false
         else {
             mapForScope += (name -> info)
@@ -41,7 +41,7 @@ final class SymbolTable(val prev: Option[SymbolTable]) {
     * @return Option[SymbolInfo]: Returns Some(SymbolInfo) if the key is in the linked list, else None.
     */
     @tailrec
-    def get(name: String): Option[SymbolInfo] = {
+    def get(name: String): Option[SemanticData.Var] = {
         mapForScope.get(name) match {
             case Some(info) => Some(info)
             case None => prev match {
@@ -51,10 +51,3 @@ final class SymbolTable(val prev: Option[SymbolTable]) {
         }
     }
 }
-
-/**
-* Used for the values of the linked list of SymbolTable.
-*
-* @param declaredType: The type of the variable.
-*/
-final case class SymbolInfo(declaredType: Type)
