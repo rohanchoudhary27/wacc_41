@@ -2,9 +2,6 @@ package wacc
 
 import scala.collection.mutable.Map
 
-// temp stub - generic type output for parser AST
-type SourcePos = (Int, Int)
-
 /**
 * Renamer stage of the frontend compiler pipeline.
 *
@@ -39,7 +36,7 @@ class Renamer {
   *
   * @return: The renamed AST
   */
-  def rename(prog: Program[SourcePos], errorLogger: SemanticErrorLogger): Program[SemanticData] = {
+  def rename(prog: Program[SyntacticData], errorLogger: SemanticErrorLogger): Program[SemanticData] = {
 
     /* Top-level symbol table to track variable scope */
     val varSymbolTable = new SymbolTable(None)
@@ -53,7 +50,7 @@ class Renamer {
 
       val funcName = f.ident.name
       val funcSignature: SemanticData.Func = SemanticData.Func(
-          pos = f.info,
+          pos = f.info match { case SyntacticData.Pos(pos) => pos },
           name = funcName,
           returnType = retType,
           params = paramTypes
@@ -93,7 +90,7 @@ class Renamer {
     }
   }
 
-  private def renameFunc(func: Func[SourcePos]): Func[SemanticData] = ???
-  private def renameStmt(stmt: Stmt[SourcePos],
+  private def renameFunc(func: Func[SyntacticData]): Func[SemanticData] = ???
+  private def renameStmt(stmt: Stmt[SyntacticData],
                  symbolTable: SymbolTable): Stmt[SemanticData] = ???
 }
