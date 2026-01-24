@@ -51,7 +51,7 @@ class Renamer {
       val retType = syntaxToSemantics(f.typ)
       val paramTypes = f.params.map { p => syntaxToSemantics(p.typ) }
 
-      val funcName = f.ident.ident
+      val funcName = f.ident.name
       val funcSignature: SemanticData.Func = SemanticData.Func(
           pos = f.info,
           name = funcName,

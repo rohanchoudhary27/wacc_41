@@ -49,7 +49,7 @@ case class UnaryExpr[A](op: UnaryOperator, expr: Expr[A], info: A) extends Expr[
 case class BinaryExpr[A](op: BinaryOperator, left: Expr[A], right: Expr[A], info: A) extends Expr[A]
 
 /* LValues and reference access */
-case class Ident[A](ident: String, info: A) extends LValue[A] with Expr[A]
+case class Ident[A](name: String, info: A) extends LValue[A] with Expr[A]
 case class ArrayElem[A](ident: Ident[A], indices: List[Expr[A]], info: A) extends LValue[A] with Expr[A]
 case class PairElem[A](isFst: Boolean, lval: LValue[A], info: A) extends LValue[A] with RValue[A]
 
