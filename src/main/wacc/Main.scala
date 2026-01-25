@@ -56,8 +56,8 @@ def main(args: Array[String]): Unit = {
             val semanticErrors = new SemanticErrorLogger()
 
             // Rename the AST and return this AST, build the senamtic errors if there are any
-            val renamed = new Renamer()
-            val renamedAST = renamed.rename(syntacticAST,semanticErrors)
+            val renamer = new Renamer()
+            val renamedAST = renamer.rename(syntacticAST,semanticErrors)
 
             // Type check the renamed AST, adding the errors if there are any
             val typeChecker = new TypeChecker()
