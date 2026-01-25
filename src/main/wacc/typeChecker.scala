@@ -87,6 +87,8 @@ class TypeChecker {
 
       case s @ Stmt.Skip(_) => s
       case Stmt.Exit(expr, semInfo) => Stmt.Exit(checkExpr(expr, Is(KnownType.Int), log), semInfo)
+      case Stmt.Print(expr, semInfo) => Stmt.Print(checkExpr(expr, Constraint.Infer, log), semInfo)
+      case Stmt.Println(expr, semInfo) => Stmt.Println(checkExpr(expr, Constraint.Infer, log), semInfo)
       case _ => ???
     }
 
@@ -97,14 +99,28 @@ class TypeChecker {
         expr: Expr[SemanticData], c: Constraint, log: SemanticErrorLogger
     ): Expr[SemanticData] = expr match {
 
-        case IntLiter(value, info @ SemanticData.Expr(pos, actualType)) => {
-            actualType.satisfies(c, pos, log) match
-                case None =>
-                    IntLiter(value, SemanticData.Expr(pos, ?))
-
-                case Some(_) =>
-                    IntLiter(value, info)
+        case IntLiter(value, SemanticData.Expr(pos, actualType)) => {
+            val ty = actualType.satisfies(c, pos, log).getOrElse(?)
+            IntLiter(value, SemanticData.Expr(pos, ty))
         }
+
+        case BoolLiter(value, SemanticData.Expr(pos, actualType)) => {
+            val ty = actualType.satisfies(c, pos, log).getOrElse(?)
+            BoolLiter(value, SemanticData.Expr(pos, ty))
+        }
+
+        case CharLiter(value, SemanticData.Expr(pos, actualType)) => {
+            val ty = actualType.satisfies(c, pos, log).getOrElse(?)
+            CharLiter(value, SemanticData.Expr(pos, ty))
+        }
+
+        case StrLiter(value, SemanticData.Expr(pos, actualType)) => {
+            val ty = actualType.satisfies(c, pos, log).getOrElse(?)
+            StrLiter(value, SemanticData.Expr(pos, ty))
+        }
+
+        case PairLiter(SemanticData.Expr(pos, actualType)) => 
+            PairLiter(SemanticData.Expr(pos, actualType.satisfies(c, pos, log).getOrElse(?)))
 
         case _ => ???
     }
