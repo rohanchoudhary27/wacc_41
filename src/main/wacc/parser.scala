@@ -64,11 +64,11 @@ object parser {
     private lazy val argList: Parsley[List[Expr[SyntacticData]]] = ???
 
     /* Literal grammar */
-    private lazy val intLit: Parsley[IntLiter[SyntacticData]] = ???
-    private lazy val boolLit: Parsley[BoolLiter[SyntacticData]] = ???
-    private lazy val charLit: Parsley[CharLiter[SyntacticData]] = ???
-    private lazy val strLit: Parsley[StrLiter[SyntacticData]] = ???
-    private lazy val pairLit: Parsley[PairLiter[SyntacticData]] = ???
+    private lazy val intLit  = IntLiter(int)
+    private lazy val boolLit = BoolLiter(boolLiter)
+    private lazy val charLit = CharLiter(character)
+    private lazy val strLit  = StrLiter(string)
+    private lazy val pairLit = PairLiter from nullLiter
 
     /* Operators */
     private lazy val unaryOps: List[Parsley[Expr[SyntacticData] => Expr[SyntacticData]]] = ???
