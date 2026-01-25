@@ -111,8 +111,4 @@ class Renamer {
       IntLiter(value, exprInfo)
     case _ => ???
   }
-
-  private def renameSkip(skip: Stmt.Skip[SyntacticData]): Stmt.Skip[SemanticData] =
-    Stmt.Skip(SemanticData.Pos(getPos(skip.info)))
-    
 }
