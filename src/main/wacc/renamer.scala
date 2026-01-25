@@ -90,17 +90,15 @@ class Renamer {
     }
   }
 
-  /* Returns the `SourcePos` of a SyntacticData object */
-  private def getPos(data: SyntacticData): SourcePos = data match {
-    case SyntacticData.Pos(pos) => pos
-  }
 
   private def renameFunc(func: Func[SyntacticData]): Func[SemanticData] = ???
 
   private def renameStmt(stmt: Stmt[SyntacticData], symbolTable: SymbolTable): Stmt[SemanticData] = {
     stmt match {
-      case Stmt.Skip(synPos) => Stmt.Skip(SemanticData.Pos(getPos(synPos)))
-      case Stmt.Exit(expr, synPos) => Stmt.Exit(renameExpr(expr), SemanticData.Pos(getPos(synPos)))
+      case Stmt.Skip(synPos) => Stmt.Skip(synPos.asSemanticData.get)
+      case Stmt.Exit(expr, synPos) => Stmt.Exit(renameExpr(expr), synPos.asSemanticData.get)
+      case Stmt.Print(expr, synPos) => Stmt.Print(renameExpr(expr), synPos.asSemanticData.get)
+      case Stmt.Println(expr, synPos) => Stmt.Println(renameExpr(expr), synPos.asSemanticData.get)
       case _ => ???
     }
   }
@@ -109,6 +107,16 @@ class Renamer {
     case IntLiter(value, info) =>
       val exprInfo = SemanticData.Expr(getPos(info), KnownType.Int)
       IntLiter(value, exprInfo)
+    case BoolLiter(value, info) => 
+      val exprInfo = SemanticData.Expr(getPos(info), KnownType.Bool)
+      BoolLiter(value, exprInfo)
+    case CharLiter(value, info) => 
+      val exprInfo = SemanticData.Expr(getPos(info), KnownType.Char)
+      CharLiter(value, exprInfo)
+    case StrLiter(value, info) => 
+      val exprInfo = SemanticData.Expr(getPos(info), KnownType.String)
+      StrLiter(value, exprInfo)
+    case PairLiter(info) => PairLiter(SemanticData.Expr(getPos(info), Null))
     case _ => ???
   }
 }
