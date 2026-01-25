@@ -154,21 +154,43 @@ class TypeChecker {
         }
     }
 
-    /**
-     * Check whether a type satisfies a given constraint.
-     * If the constraint is violated, an error is logged and None is returned.
-     */
     extension (ty: SemanticType) {
-        def satisfies(c: Constraint, pos: SourcePos, logger: SemanticErrorLogger): Option[SemanticType] =
-        (ty, c) match {
-            case (kty, Constraint.Is(refTy)) =>
-            (kty ~ refTy).orElse({
-                logger.logError(pos, s"Type Mismatch: Expected $kty, got $refTy")
-                None
-            })
-
+        /** 
+         * Checks whether type `ty` matches constraint `c`.
+         * 
+         * This method performs no error logging.
+         * 
+         * @return `Some(SemanticType)` on success, or `None` on failure.
+         */
+        private def matches(c: Constraint): Option[SemanticType] = (ty, c) match {
+            case (kty, Constraint.Is(refTy)) => kty ~ refTy
+            
+            case (kty, Constraint.OneOf(ts)) => 
+                ts.iterator
+                  .map(t => kty.matches(Constraint.Is(t)))
+                  .collectFirst {case Some(res) => res }
+            
             case (?, _) => Some(?)
+
             // ...
+        }
+        
+        /**
+         * Checks whether a type satisfies a given constraint, reports an error on failure.
+         *
+         * @return `Some(SemanticType)` if the constraint is satisfied, otherwise logs a type mismatch error and `None`
+         */
+        def satisfies(c: Constraint, pos: SourcePos, logger: SemanticErrorLogger): Option[SemanticType] = {
+            ty.matches(c).orElse {
+                val expectedTypeStr = c match {
+                    case Constraint.Is(t)     => t.toString
+                    case Constraint.OneOf(ts) => ts.mkString(" | ")
+                    case other                => other.toString
+                }
+                logger.logError(pos, s"Type Mismatch: Expected $expectedTypeStr, got $ty")
+                None
+            }
+
         }
     }
 
