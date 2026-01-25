@@ -1,19 +1,12 @@
 package wacc
 
-import parsley.{Parsley, Result, Success, Failure}
-import parsley.expr.chain
+import parsley.{Parsley, Success, Failure}
 import parsley.combinator.*
-import parsley.expr.{precedence, Ops, InfixL, InfixN, Prefix}
-import parsley.position.pos
-import parsley.errors.combinator.*
+import parsley.expr.{chain, precedence, Ops, InfixL, InfixN, Prefix}
 
 import lexer.{fully, ident, string, boolLiter, nullLiter}
 import lexer.implicits.given
-
-import wacc.{Program, Func, Param, Stmt, Expr, LValue, RValue, Ident, ArrayElem, PairElem, 
-             IntLiter, BoolLiter, CharLiter, StrLiter, PairLiter, ArrayLiter, NewPair, Call,
-             UnaryExpr, BinaryExpr, SyntaxType, UnaryOperator, BinaryOperator, SyntacticData, SourcePos}
-import Bridges.{int, character}
+import Bridges.*
 
 object parser {
     def parse(input: String): Either[String, Program[SyntacticData]] = 
@@ -21,9 +14,6 @@ object parser {
             case Success(ast) => Right(ast)
             case Failure(err) => Left(err.toString)
         }
-
-    /* Helper to wrap position in unified SyntacticData wrapper */
-    private val syntacticPos: Parsley[SyntacticData] = pos.map(SyntacticData.Pos.apply)
 
     /* Top-level grammar */
     private lazy val programParser = fully(program)

@@ -1,11 +1,8 @@
 package wacc
 
-import parsley.macros.bridge
 import parsley.Parsley
-
-import wacc.{Program, Func, Param, Stmt, Expr, LValue, RValue, Ident, ArrayElem, PairElem, 
-             IntLiter, BoolLiter, CharLiter, StrLiter, PairLiter, ArrayLiter, NewPair, Call,
-             UnaryExpr, BinaryExpr, SyntaxType, UnaryOperator, BinaryOperator, SyntacticData}
+import parsley.position.pos
+import parsley.macros.{bridge, ParsableMetadata}
 
 object Bridges {
     /* Type-converted lexer parsers */
@@ -52,4 +49,17 @@ object Bridges {
     val StrLiter   = bridge[StrLiter[SyntacticData]]
     val PairLiter  = bridge[PairLiter[SyntacticData]]
     val ArrayLiter = bridge[ArrayLiter[SyntacticData]]
+}
+
+/**
+* Provides automatic position tracking for Parsley bridges.
+* This allows bridges to automatically inject SyntacticData.Pos
+* without manual position threading in grammar rules.
+*
+* When a bridge encounters a parameter annotated with @isMeta of type
+* SyntacticData, it will use this given to automatically parse and inject
+* the position information.
+*/
+given ParsableMetadata[SyntacticData] with {
+  def meta: Parsley[SyntacticData] = pos.map(SyntacticData.Pos.apply)
 }
