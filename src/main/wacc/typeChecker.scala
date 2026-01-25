@@ -81,9 +81,14 @@ class TypeChecker {
      */
     private def checkStmt(
         stmt: Stmt[SemanticData], log: SemanticErrorLogger
-    ): Stmt[SemanticData] = ???
+    ): Stmt[SemanticData] = stmt match {
 
-     /**
+      case s @ Stmt.Skip(_) => s
+      case _ => ???
+
+    }
+
+    /**
      * Type-check an expression
      */
     private def checkExpr(
