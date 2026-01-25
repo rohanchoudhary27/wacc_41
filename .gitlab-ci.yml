@@ -4,6 +4,10 @@ cache:
     - .coursier-cache/
   policy: pull-push
 
+variables:
+  GIT_SUBMODULE_STRATEGY: recursive
+  COURSIER_CACHE: .coursier-cache
+
 stages:
   - lint
   - build
@@ -33,11 +37,14 @@ unit_tests:
   stage: test
   script:
     - echo "Running Unit Tests..."
-    - scala test .  --test-only "wacc.frontend.unit.*" --server=false | tee unit-test.log
+    - scala test .  --test-only "wacc.frontend.unit.*" --server=false -- -u target/unit-test-reports -oD | tee unit-test.log
   artifacts:
     when: always
+    reports:
+      junit: target/unit-test-reports/*.xml
     paths:
       - unit-test.log
+      - target/unit-test-reports/
     expire_in: 1 hour
   tags:
     - vm-runner
@@ -46,14 +53,14 @@ integration_tests:
   stage: test
   script:
     - echo "Running Integration Tests..."
-    - scala test . --test-only "wacc.frontend.integration.*"  --server=false -- -u target/test-reports -oD | tee integration-test.log
+    - scala test . --test-only "wacc.frontend.integration.*"  --server=false -- -u target/integration-test-reports -oD | tee integration-test.log
   artifacts:
     when: always
     reports:
-      junit: target/test-reports/*.xml
+      junit: target/integration-test-reports/*.xml
     paths:
       - integration-test.log
-      - target/test-reports/
+      - target/integration-test-reports/
     expire_in: 1 hour
   tags:
     - vm-runner
