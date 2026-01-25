@@ -90,7 +90,21 @@ class Renamer {
     }
   }
 
+  /* Returns the `SourcePos` of a SyntacticData object */
+  private def getPos(data: SyntacticData): SourcePos = data match {
+    case SyntacticData.Pos(pos) => pos
+  }
+
   private def renameFunc(func: Func[SyntacticData]): Func[SemanticData] = ???
-  private def renameStmt(stmt: Stmt[SyntacticData],
-                 symbolTable: SymbolTable): Stmt[SemanticData] = ???
+
+  private def renameStmt(stmt: Stmt[SyntacticData], symbolTable: SymbolTable): Stmt[SemanticData] = {
+    stmt match {
+      case Stmt.Skip(synPos) => Stmt.Skip(SemanticData.Pos(getPos(synPos)))
+      case _ => ???
+    }
+  }
+
+  private def renameSkip(skip: Stmt.Skip[SyntacticData]): Stmt.Skip[SemanticData] =
+    Stmt.Skip(SemanticData.Pos(getPos(skip.info)))
+    
 }

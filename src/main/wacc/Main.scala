@@ -70,6 +70,7 @@ def main(args: Array[String]): Unit = {
             // If there were no errors then exit with 0, else 200
             semanticErrors.hasErrors() match {
                 case false =>
+                    println("Successfully compiled file with no errors.")
                     sys.exit(0)
                 case true =>
                     Console.err.println("Failure: 200 - Semantic error:")
