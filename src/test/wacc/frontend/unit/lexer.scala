@@ -1,3 +1,5 @@
+package wacc.frontend.unit
+
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers.*
 import parsley.{Success}
