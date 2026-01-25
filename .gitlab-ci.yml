@@ -6,6 +6,7 @@ cache:
 
 variables:
   GIT_SUBMODULE_STRATEGY: recursive
+  COURSIER_CACHE: .coursier-cache
 
 stages:
   - lint
