@@ -2,6 +2,7 @@ package wacc
 
 import parsley.{Parsley, Success, Failure}
 import parsley.combinator.*
+import parsley.Parsley.*
 import parsley.expr.{chain, precedence, Ops, InfixL, InfixN, Prefix}
 
 import lexer.{fully, ident, string, boolLiter, nullLiter}
@@ -17,8 +18,8 @@ object parser {
 
     /* Top-level grammar */
     private lazy val programParser = fully(program)
-    private lazy val program: Parsley[Program[SyntacticData]] = ???
-    private lazy val func: Parsley[Func[SyntacticData]] = ???
+    private lazy val program = Program("begin" ~> many(func), stmt <~ "end")
+    private lazy val func: Parsley[Func[SyntacticData]] = Parsley.empty
     private lazy val paramList: Parsley[List[Param[SyntacticData]]] = ???
     private lazy val param: Parsley[Param[SyntacticData]] = ???
 
@@ -32,8 +33,8 @@ object parser {
     private lazy val pairElemType: Parsley[SyntaxType] = ???
 
     /* Statement grammar */
-    private lazy val stmt: Parsley[Stmt[SyntacticData]] = ???
-    private lazy val skip: Parsley[Stmt[SyntacticData]] = ???
+    private lazy val stmt: Parsley[Stmt[SyntacticData]] = skip
+    private lazy val skip: Parsley[Stmt[SyntacticData]] = Skip from "skip"
     private lazy val decl: Parsley[Stmt[SyntacticData]] = ???
     private lazy val asgn: Parsley[Stmt[SyntacticData]] = ???
     private lazy val read: Parsley[Stmt[SyntacticData]] = ???
