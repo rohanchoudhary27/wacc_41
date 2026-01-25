@@ -3,6 +3,22 @@ package wacc
 import java.io.File
 import scala.io.Source
 
+/**
+* Main function for WACC compiler.
+*
+* Stages:
+* Parsing: Source text to a SyntacticAST, Exit code 100 on failure
+* Renaming: Transforms SyntacticAST to use SemanticData, Log errors on failure
+* Type Checker: Verifies Type correctness and, Log errors on failure
+*
+* Exit Codes:
+*   0 - Success
+*   100 - Syntactic Errors
+*   200 - Semantic Errors
+*   -1 - System Error
+*
+* @param args: Command Line arguments. Only 1 is expected.
+*/
 def main(args: Array[String]): Unit = {
 
     // Expect a singular argument
