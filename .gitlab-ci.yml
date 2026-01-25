@@ -4,6 +4,9 @@ cache:
     - .coursier-cache/
   policy: pull-push
 
+variables:
+  GIT_SUBMODULE_STRATEGY: recursive
+
 stages:
   - lint
   - build
