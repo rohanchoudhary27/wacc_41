@@ -1,19 +1,12 @@
 package wacc
 
-import parsley.{Parsley, Result, Success, Failure}
-import parsley.expr.chain
+import parsley.{Parsley, Success, Failure}
 import parsley.combinator.*
-import parsley.expr.{precedence, Ops, InfixL, InfixN, Prefix}
-import parsley.position.pos
-import parsley.errors.combinator.*
+import parsley.expr.{chain, precedence, Ops, InfixL, InfixN, Prefix}
 
 import lexer.{fully, ident, string, boolLiter, nullLiter}
 import lexer.implicits.given
-
-import wacc.{Program, Func, Param, Stmt, Expr, LValue, RValue, Ident, ArrayElem, PairElem, 
-             IntLiter, BoolLiter, CharLiter, StrLiter, PairLiter, ArrayLiter, NewPair, Call,
-             UnaryExpr, BinaryExpr, SyntaxType, UnaryOperator, BinaryOperator, SyntacticData, SourcePos}
-import Bridges.{int, character}
+import Bridges.*
 
 object parser {
     def parse(input: String): Either[String, Program[SyntacticData]] = 
@@ -21,9 +14,6 @@ object parser {
             case Success(ast) => Right(ast)
             case Failure(err) => Left(err.toString)
         }
-
-    /* Helper to wrap position in unified SyntacticData wrapper */
-    private val syntacticPos: Parsley[SyntacticData] = pos.map(SyntacticData.Pos.apply)
 
     /* Top-level grammar */
     private lazy val programParser = fully(program)
@@ -74,11 +64,11 @@ object parser {
     private lazy val argList: Parsley[List[Expr[SyntacticData]]] = ???
 
     /* Literal grammar */
-    private lazy val intLit: Parsley[IntLiter[SyntacticData]] = ???
-    private lazy val boolLit: Parsley[BoolLiter[SyntacticData]] = ???
-    private lazy val charLit: Parsley[CharLiter[SyntacticData]] = ???
-    private lazy val strLit: Parsley[StrLiter[SyntacticData]] = ???
-    private lazy val pairLit: Parsley[PairLiter[SyntacticData]] = ???
+    private lazy val intLit  = IntLiter(int)
+    private lazy val boolLit = BoolLiter(boolLiter)
+    private lazy val charLit = CharLiter(character)
+    private lazy val strLit  = StrLiter(string)
+    private lazy val pairLit = PairLiter from nullLiter
 
     /* Operators */
     private lazy val unaryOps: List[Parsley[Expr[SyntacticData] => Expr[SyntacticData]]] = ???
