@@ -6,6 +6,11 @@ import org.scalatest.matchers.should.Matchers
 import java.nio.file.{Files, Path, Paths}
 import scala.jdk.StreamConverters.*
 import scala.jdk.CollectionConverters.*
+import scala.io.Source
+import wacc.parser
+import wacc.TypeChecker
+import wacc.Renamer
+import wacc.SemanticErrorLogger
 
 final class FrontendIntegrationSpec extends AnyFlatSpec with Matchers {
     private val scopeConfigPath: Path = Paths.get("config", "test-scope.txt")
@@ -16,11 +21,34 @@ final class FrontendIntegrationSpec extends AnyFlatSpec with Matchers {
 
     private val enabledScopes: Set[String] = readScopes(scopeConfigPath)
 
-    // skeleton parser: after we work on the main pipeline (the frontend pipeline that returns an exit code),
-    // we should replace the parse method with the pipeline
-    private object ParserDriver {
-        def parse(file: Path): Int = {
-            throw new NotImplementedError("")
+    // Runs the frontend pipeline against an integration test
+    private object FrontendCompilerDriver {
+        def frontendCompile(path: Path): Int = {
+
+            val source = Source.fromFile(path.toFile)
+            val sourceCode = try source.mkString finally source.close()
+
+            val result = parser.parse(sourceCode)
+
+            result match {
+                case Left(_) => 100
+                
+                case Right(syntacticAST) =>
+                    val semanticErrors = new SemanticErrorLogger()
+                    val renamer = new Renamer()
+                    val renamedAST = renamer.rename(syntacticAST, semanticErrors)
+
+                    val funcTable = renamedAST.info match {
+                        case wacc.SemanticData.TopLevel(ft) => ft
+                        case _ => Map.empty[String, wacc.SemanticData.Func]
+                    }
+
+                    val typeChecker = new TypeChecker()
+                    typeChecker.check(renamedAST, semanticErrors, funcTable)
+
+                    if (semanticErrors.hasErrors()) 200 // Semantic Error
+                    else 0                              // Success
+            }
         }
     }
 
@@ -69,7 +97,7 @@ final class FrontendIntegrationSpec extends AnyFlatSpec with Matchers {
                 testDecl ignore { }
             } else {
                 testDecl in {
-                    val actual = ParserDriver.parse(file)
+                    val actual = FrontendCompilerDriver.frontendCompile(file)
                     actual shouldBe expected
                 }
             }
