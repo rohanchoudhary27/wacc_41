@@ -1,5 +1,7 @@
 package wacc
 
+import wacc.Constraint.Is
+
 /**
  * Constraints represent expectations imposed by the context in which an 
  * expression is type checked.
@@ -84,8 +86,8 @@ class TypeChecker {
     ): Stmt[SemanticData] = stmt match {
 
       case s @ Stmt.Skip(_) => s
+      case Stmt.Exit(expr, semInfo) => Stmt.Exit(checkExpr(expr, Is(KnownType.Int), log), semInfo)
       case _ => ???
-
     }
 
     /**
@@ -93,7 +95,20 @@ class TypeChecker {
      */
     private def checkExpr(
         expr: Expr[SemanticData], c: Constraint, log: SemanticErrorLogger
-    ): Expr[SemanticType] = ???
+    ): Expr[SemanticData] = expr match {
+
+        case IntLiter(value, info @ SemanticData.Expr(pos, actualType)) => {
+            actualType.satisfies(c, pos, log) match
+                case None =>
+                    IntLiter(value, SemanticData.Expr(pos, ?))
+
+                case Some(_) =>
+                    IntLiter(value, info)
+        }
+
+        case _ => ???
+    }
+    
 
     /**
      * Type compatibility: ty1 ~ ty2 succeeds if the two types are compatible and returns
