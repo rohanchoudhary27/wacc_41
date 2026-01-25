@@ -100,11 +100,15 @@ class Renamer {
   private def renameStmt(stmt: Stmt[SyntacticData], symbolTable: SymbolTable): Stmt[SemanticData] = {
     stmt match {
       case Stmt.Skip(synPos) => Stmt.Skip(SemanticData.Pos(getPos(synPos)))
+      case Stmt.Exit(expr, synPos) => Stmt.Exit(renameExpr(expr), SemanticData.Pos(getPos(synPos)))
       case _ => ???
     }
   }
 
-  private def renameSkip(skip: Stmt.Skip[SyntacticData]): Stmt.Skip[SemanticData] =
-    Stmt.Skip(SemanticData.Pos(getPos(skip.info)))
-    
+  private def renameExpr(expr: Expr[SyntacticData]): Expr[SemanticData] = expr match {
+    case IntLiter(value, info) =>
+      val exprInfo = SemanticData.Expr(getPos(info), KnownType.Int)
+      IntLiter(value, exprInfo)
+    case _ => ???
+  }
 }

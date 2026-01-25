@@ -33,14 +33,14 @@ object parser {
     private lazy val pairElemType: Parsley[SyntaxType] = ???
 
     /* Statement grammar */
-    private lazy val stmt: Parsley[Stmt[SyntacticData]] = skip
+    private lazy val stmt: Parsley[Stmt[SyntacticData]] = skip | exit
     private lazy val skip: Parsley[Stmt[SyntacticData]] = Skip from "skip"
     private lazy val decl: Parsley[Stmt[SyntacticData]] = ???
     private lazy val asgn: Parsley[Stmt[SyntacticData]] = ???
     private lazy val read: Parsley[Stmt[SyntacticData]] = ???
     private lazy val free: Parsley[Stmt[SyntacticData]] = ???
     private lazy val return_stmt: Parsley[Stmt[SyntacticData]] = ???
-    private lazy val exit: Parsley[Stmt[SyntacticData]] = ???
+    private lazy val exit: Parsley[Stmt[SyntacticData]] = Exit("exit" ~> expr)
     private lazy val print: Parsley[Stmt[SyntacticData]] = ???
     private lazy val println_stmt: Parsley[Stmt[SyntacticData]] = ???
     private lazy val if_stmt: Parsley[Stmt[SyntacticData]] = ???
@@ -49,8 +49,8 @@ object parser {
     private lazy val stmtSeq: Parsley[Stmt[SyntacticData]] = ???
 
     /* Expression grammar */
-    private lazy val expr: Parsley[Expr[SyntacticData]] = ???
-    private lazy val atom: Parsley[Expr[SyntacticData]] = ???
+    private lazy val expr: Parsley[Expr[SyntacticData]] = atom
+    private lazy val atom: Parsley[Expr[SyntacticData]] = intLit 
 
     /* LValue grammar */
     private lazy val lvalue: Parsley[LValue[SyntacticData]] = ???
