@@ -80,7 +80,13 @@ object parser {
     private lazy val pairLit = PairLiter from nullLiter
 
     /* Operators */
-    private lazy val unaryOps: List[Parsley[Expr[SyntacticData] => Expr[SyntacticData]]] = ???
+    private lazy val unaryOps: List[Parsley[Expr[SyntacticData] => Expr[SyntacticData]]] = List(
+        prefix("!", UnaryOperator.Not),
+        prefix("-", UnaryOperator.Neg),
+        prefix("len", UnaryOperator.Len),
+        prefix("ord", UnaryOperator.Ord),
+        prefix("chr", UnaryOperator.Chr),
+    )
     private lazy val mulOps: List[Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]]] = ???
     private lazy val addOps: List[Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]]] = ???
     private lazy val cmpOps: List[Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]]] = ???
