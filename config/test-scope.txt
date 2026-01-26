@@ -1,2 +1,3 @@
 valid/basic/skip
 valid/basic/exit
+valid/variables
