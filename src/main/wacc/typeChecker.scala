@@ -107,9 +107,11 @@ class TypeChecker {
 
         val semType = syntaxToSemantics(typ)
 
+        /* the right side of the assignment must be compatible with
+           the left side declared type */
         val typedRvalue = checkRvalue(rvalue, Is(semType), log)
 
-        // verify the renamer typed it correctly
+        /* verify the renamer typed it correctly */
         val typedIdent = checkIdent(ident, Is(semType), log)
 
         Stmt.Decl(typ, typedIdent, typedRvalue, semInfo)
@@ -133,6 +135,7 @@ class TypeChecker {
         ident: Ident[SemanticData], c: Constraint, log: SemanticErrorLogger
     ): Ident[SemanticData] = ident match {
 
+        /* Check for type mismatch error */
         case Ident(_, SemanticData.Var(pos, _, actualType)) => 
              actualType.satisfies(c, pos, log)
              ident
