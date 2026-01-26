@@ -90,7 +90,20 @@ class TypeChecker {
       case Stmt.Print(expr, semInfo) => Stmt.Print(checkExpr(expr, Constraint.Infer, log), semInfo)
       case Stmt.Println(expr, semInfo) => Stmt.Println(checkExpr(expr, Constraint.Infer, log), semInfo)
       case Stmt.Block(stmtList, semInfo) => Stmt.Block(checkStmtList(stmtList, log), semInfo)
-      case Stmt.Decl(typ, ident, rvalue, semInfo) => {
+      case Stmt.Decl(typ, ident, rvalue, semInfo) => checkDecl(typ, ident, rvalue, semInfo, log)
+      case _ => ???
+    }
+
+    /**
+     * Type-check an declaration statement
+     */
+    private def checkDecl(
+        typ: SyntaxType,
+        ident: Ident[SemanticData],
+        rvalue: RValue[SemanticData],
+        semInfo: SemanticData,
+        log: SemanticErrorLogger,
+    ): Stmt.Decl[SemanticData] = {
 
         val semType = syntaxToSemantics(typ)
         val typedRvalue = checkRvalue(rvalue, Is(semType), log)
@@ -99,8 +112,6 @@ class TypeChecker {
         val typedIdent = checkIdent(ident, Is(semType), log)
 
         Stmt.Decl(typ, typedIdent, typedRvalue, semInfo)
-      }
-      case _ => ???
     }
 
     /**
@@ -112,7 +123,6 @@ class TypeChecker {
 
        // other cases added in future...
        case expr: Expr[SemanticData] => checkExpr(expr, c, log)
-
     }
 
     /**
@@ -169,7 +179,6 @@ class TypeChecker {
         case _ => ???
     }
     
-
     /**
      * Type compatibility: ty1 ~ ty2 succeeds if the two types are compatible and returns
      * the "narrow" resulting type.
