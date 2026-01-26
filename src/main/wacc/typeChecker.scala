@@ -90,7 +90,43 @@ class TypeChecker {
       case Stmt.Print(expr, semInfo) => Stmt.Print(checkExpr(expr, Constraint.Infer, log), semInfo)
       case Stmt.Println(expr, semInfo) => Stmt.Println(checkExpr(expr, Constraint.Infer, log), semInfo)
       case Stmt.Block(stmtList, semInfo) => Stmt.Block(checkStmtList(stmtList, log), semInfo)
+      case Stmt.Decl(typ, ident, rvalue, semInfo) => {
+
+        val semType = syntaxToSemantics(typ)
+        val typedRvalue = checkRvalue(rvalue, Is(semType), log)
+
+        // verify the renamer typed it correctly
+        val typedIdent = checkIdent(ident, Is(semType), log)
+
+        Stmt.Decl(typ, typedIdent, typedRvalue, semInfo)
+      }
       case _ => ???
+    }
+
+    /**
+     * Type-check an RValue
+     */
+    private def checkRvalue(
+        rvalue: RValue[SemanticData], c: Constraint, log: SemanticErrorLogger
+    ): RValue[SemanticData] = rvalue match {
+
+       // other cases added in future...
+       case expr: Expr[SemanticData] => checkExpr(expr, c, log)
+
+    }
+
+    /**
+     * Type-check an Ident
+     */
+    private def checkIdent(
+        ident: Ident[SemanticData], c: Constraint, log: SemanticErrorLogger
+    ): Ident[SemanticData] = {
+
+        val SemanticData.Var(pos, _, actualType) = ident.info: @unchecked
+        
+        // call `satisfies` only to write to the error logger
+        actualType.satisfies(c, pos, log)
+        ident
     }
 
     /**
