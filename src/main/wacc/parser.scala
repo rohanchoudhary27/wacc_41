@@ -87,7 +87,11 @@ object parser {
         prefix("ord", UnaryOperator.Ord),
         prefix("chr", UnaryOperator.Chr),
     )
-    private lazy val mulOps: List[Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]]] = ???
+    private lazy val mulOps: List[Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]]] = List(
+        infix("*", BinaryOperator.Mul),
+        infix("/", BinaryOperator.Div),
+        infix("%", BinaryOperator.Mod)
+    )
     private lazy val addOps: List[Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]]] = ???
     private lazy val cmpOps: List[Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]]] = ???
     private lazy val eqOps: List[Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]]] = ???
@@ -97,5 +101,9 @@ object parser {
     /* Helper */
     private def prefix(str: String, op: UnaryOperator): Parsley[Expr[SyntacticData] => Expr[SyntacticData]] = {
         (str *> pos).map(p => new UnaryExpr(op, p, SyntacticData.Pos(p)))
+    }
+
+    private def infix(str: String, op: BinaryOperator): Parsley[(Expr[SyntacticData],Expr[SyntacticData]) => Expr[SyntacticData]] = {
+        (str *> pos).map(p => (left, right) => new BinaryExpr(op, left, right, Syntactic.Pos(p)))
     }
 }
