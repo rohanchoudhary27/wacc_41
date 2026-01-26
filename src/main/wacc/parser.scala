@@ -24,9 +24,13 @@ object parser {
     private lazy val param: Parsley[Param[SyntacticData]] = ???
 
     /* Type grammar */
-    private lazy val wacc_type: Parsley[SyntaxType] = ???
+    private lazy val waccType: Parsley[SyntaxType] = baseType
 
-    private lazy val baseType: Parsley[SyntaxType] = ???
+    private lazy val baseType: Parsley[SyntaxType] =
+        "int" #> SyntaxType.Int |
+        "char" #> SyntaxType.Char |
+        "bool" #> SyntaxType.Bool |
+        "string" #> SyntaxType.String
 
     private lazy val arrayType: Parsley[SyntaxType] = ???
     private lazy val pairType: Parsley[SyntaxType] = ???
@@ -34,9 +38,9 @@ object parser {
 
     /* Statement grammar */
     private lazy val stmt: Parsley[Stmt[SyntacticData]] = Block(sepBy1(singleStmt, ";"))
-    private lazy val singleStmt: Parsley[Stmt[SyntacticData]] = skip | exit | print | println_stmt
+    private lazy val singleStmt: Parsley[Stmt[SyntacticData]] = skip | exit | print | println_stmt | decl
     private lazy val skip: Parsley[Stmt[SyntacticData]] = Skip from "skip"
-    private lazy val decl: Parsley[Stmt[SyntacticData]] = ???
+    private lazy val decl: Parsley[Stmt[SyntacticData]] = Decl(baseType, identLit, rvalue)
     private lazy val asgn: Parsley[Stmt[SyntacticData]] = ???
     private lazy val read: Parsley[Stmt[SyntacticData]] = ???
     private lazy val free: Parsley[Stmt[SyntacticData]] = ???
@@ -58,7 +62,7 @@ object parser {
     private lazy val pairElem: Parsley[PairElem[SyntacticData]] = ???
 
     /* RValue grammar */
-    private lazy val rvalue: Parsley[RValue[SyntacticData]] = ???
+    private lazy val rvalue: Parsley[RValue[SyntacticData]] = expr
     private lazy val arrayLiter: Parsley[ArrayLiter[SyntacticData]] = ???
     private lazy val newPair: Parsley[NewPair[SyntacticData]] = ???
     private lazy val call: Parsley[Call[SyntacticData]] = ???
@@ -70,6 +74,7 @@ object parser {
     private lazy val charLit = CharLiter(character)
     private lazy val strLit  = StrLiter(string)
     private lazy val pairLit = PairLiter from nullLiter
+    private lazy val identLit  = Ident(string)
 
     /* Operators */
     private lazy val unaryOps: List[Parsley[Expr[SyntacticData] => Expr[SyntacticData]]] = ???
