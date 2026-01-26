@@ -33,7 +33,8 @@ object parser {
     private lazy val pairElemType: Parsley[SyntaxType] = ???
 
     /* Statement grammar */
-    private lazy val stmt: Parsley[Stmt[SyntacticData]] = skip | exit | print | println_stmt
+    private lazy val stmt: Parsley[Stmt[SyntacticData]] = Block(sepBy1(singleStmt, ";"))
+    private lazy val singleStmt: Parsley[Stmt[SyntacticData]] = skip | exit | print | println_stmt
     private lazy val skip: Parsley[Stmt[SyntacticData]] = Skip from "skip"
     private lazy val decl: Parsley[Stmt[SyntacticData]] = ???
     private lazy val asgn: Parsley[Stmt[SyntacticData]] = ???
@@ -46,7 +47,6 @@ object parser {
     private lazy val if_stmt: Parsley[Stmt[SyntacticData]] = ???
     private lazy val while_stmt: Parsley[Stmt[SyntacticData]] = ???
     private lazy val scope: Parsley[Stmt[SyntacticData]] = ???
-    private lazy val stmtSeq: Parsley[Stmt[SyntacticData]] = ???
 
     /* Expression grammar */
     private lazy val expr: Parsley[Expr[SyntacticData]] = atom

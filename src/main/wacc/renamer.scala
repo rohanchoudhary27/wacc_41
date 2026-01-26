@@ -99,8 +99,13 @@ class Renamer {
       case Stmt.Exit(expr, synPos) => Stmt.Exit(renameExpr(expr), synPos.asSemanticData.get)
       case Stmt.Print(expr, synPos) => Stmt.Print(renameExpr(expr), synPos.asSemanticData.get)
       case Stmt.Println(expr, synPos) => Stmt.Println(renameExpr(expr), synPos.asSemanticData.get)
+      case Stmt.Block(stmtList, synPos) => Stmt.Block(renameStmtList(stmtList, symbolTable), synPos.asSemanticData.get)
       case _ => ???
     }
+  }
+
+  private def renameStmtList(exprList: List[Stmt[SyntacticData]], symbolTable: SymbolTable): List[Stmt[SemanticData]] = {
+    exprList.map(s => renameStmt(s, symbolTable))
   }
 
   private def renameExpr(expr: Expr[SyntacticData]): Expr[SemanticData] = expr match {
