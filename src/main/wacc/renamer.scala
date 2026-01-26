@@ -74,13 +74,13 @@ class Renamer {
   private def renameStmt(stmt: Stmt[SyntacticData], symbolTable: SymbolTable, errorLogger: SemanticErrorLogger): Stmt[SemanticData] = {
     stmt match {
       case Stmt.Skip(synPos) => Stmt.Skip(synPos.asSemanticData.get)
-      case Stmt.Exit(expr, synPos) => Stmt.Exit(renameExpr(expr), synPos.asSemanticData.get)
-      case Stmt.Print(expr, synPos) => Stmt.Print(renameExpr(expr), synPos.asSemanticData.get)
-      case Stmt.Println(expr, synPos) => Stmt.Println(renameExpr(expr), synPos.asSemanticData.get)
+      case Stmt.Exit(expr, synPos) => Stmt.Exit(renameExpr(expr, symbolTable, errorLogger), synPos.asSemanticData.get)
+      case Stmt.Print(expr, synPos) => Stmt.Print(renameExpr(expr, symbolTable, errorLogger), synPos.asSemanticData.get)
+      case Stmt.Println(expr, synPos) => Stmt.Println(renameExpr(expr, symbolTable, errorLogger), synPos.asSemanticData.get)
       case Stmt.Block(stmtList, synPos) => Stmt.Block(renameStmtList(stmtList, symbolTable, errorLogger), synPos.asSemanticData.get)
       case Stmt.Decl(syntacticType, ident, rval, synVar) => {
 
-        val renamedRVal = renameRValue(rval)
+        val renamedRVal = renameRValue(rval, symbolTable, errorLogger)
 
         val renameId = getNextId(ident.name)
         val varSemData: SemanticData.Var =
@@ -97,9 +97,11 @@ class Renamer {
     }
   }
 
-  private def renameRValue(rvalue: RValue[SyntacticData]): RValue[SemanticData] = rvalue match
+  private def renameRValue(rvalue: RValue[SyntacticData],
+                           symbolTable: SymbolTable,
+                           errorLogger: SemanticErrorLogger): RValue[SemanticData] = rvalue match
     // right now, rvalue is only ever an expr but later other cases will go here
-    case expr: Expr[SyntacticData] => renameExpr(expr)
+    case expr: Expr[SyntacticData] => renameExpr(expr, symbolTable, errorLogger)
   
   private def renameIdent(ident: Ident[SyntacticData],
                           symbolTable: SymbolTable,
@@ -121,7 +123,9 @@ class Renamer {
     exprList.map(s => renameStmt(s, symbolTable, errorLogger))
   }
 
-  private def renameExpr(expr: Expr[SyntacticData]): Expr[SemanticData] = expr match {
+  private def renameExpr(expr: Expr[SyntacticData],
+                         symbolTable: SymbolTable,
+                         errorLogger: SemanticErrorLogger): Expr[SemanticData] = expr match {
     case IntLiter(value, info) =>
       val exprInfo = SemanticData.Expr(getPos(info), KnownType.Int)
       IntLiter(value, exprInfo)
@@ -135,6 +139,7 @@ class Renamer {
       val exprInfo = SemanticData.Expr(getPos(info), KnownType.String)
       StrLiter(value, exprInfo)
     case PairLiter(info) => PairLiter(SemanticData.Expr(getPos(info), Null))
+    case i @ Ident(name, info) => renameIdent(i, symbolTable, errorLogger)
     case _ => ???
   }
 }

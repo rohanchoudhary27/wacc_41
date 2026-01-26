@@ -54,7 +54,8 @@ object parser {
 
     /* Expression grammar */
     private lazy val expr: Parsley[Expr[SyntacticData]] = atom
-    private lazy val atom: Parsley[Expr[SyntacticData]] = intLit | boolLit | charLit | strLit | pairLit
+    private lazy val atom: Parsley[Expr[SyntacticData]] =
+        intLit | boolLit | charLit | strLit | pairLit | identLit
 
     /* LValue grammar */
     private lazy val lvalue: Parsley[LValue[SyntacticData]] = ???

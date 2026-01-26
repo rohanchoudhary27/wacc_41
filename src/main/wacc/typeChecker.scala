@@ -106,6 +106,7 @@ class TypeChecker {
     ): Stmt.Decl[SemanticData] = {
 
         val semType = syntaxToSemantics(typ)
+
         val typedRvalue = checkRvalue(rvalue, Is(semType), log)
 
         // verify the renamer typed it correctly
@@ -130,13 +131,17 @@ class TypeChecker {
      */
     private def checkIdent(
         ident: Ident[SemanticData], c: Constraint, log: SemanticErrorLogger
-    ): Ident[SemanticData] = {
+    ): Ident[SemanticData] = ident match {
 
-        val SemanticData.Var(pos, _, actualType) = ident.info: @unchecked
-        
-        // call `satisfies` only to write to the error logger
-        actualType.satisfies(c, pos, log)
-        ident
+        case Ident(_, SemanticData.Var(pos, _, actualType)) => 
+             actualType.satisfies(c, pos, log)
+             ident
+
+        /* Variable not found by renamer (error already logged) */
+        case Ident(_, SemanticData.Error(_)) => 
+             ident
+
+        case _ => ident
     }
 
     /**
@@ -175,6 +180,8 @@ class TypeChecker {
 
         case PairLiter(SemanticData.Expr(pos, actualType)) => 
             PairLiter(SemanticData.Expr(pos, actualType.satisfies(c, pos, log).getOrElse(?)))
+
+        case i: Ident[SemanticData] => checkIdent(i, c, log)
 
         case _ => ???
     }
