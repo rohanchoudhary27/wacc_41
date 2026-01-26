@@ -49,7 +49,16 @@ object parser {
     private lazy val scope: Parsley[Stmt[SyntacticData]] = ???
 
     /* Expression grammar */
-    private lazy val expr: Parsley[Expr[SyntacticData]] = atom
+    private lazy val expr: Parsley[Expr[SyntacticData]] = precedence(
+        atom,
+        Ops(Prefix)(unaryOps*),
+        Ops(InfixL)(mulOps*),
+        Ops(InfixL)(addOps*),
+        Ops(InfixN)(cmpOps*),
+        Ops(InfixN)(eqOps*),
+        Ops(InfixR)(andOps*),
+        Ops(InfixR)(orOps*),
+    )
     private lazy val atom: Parsley[Expr[SyntacticData]] = intLit | boolLit | charLit | strLit | pairLit
 
     /* LValue grammar */
