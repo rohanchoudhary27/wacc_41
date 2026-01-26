@@ -62,53 +62,70 @@ class Renamer {
 
     /* Rename the functions and program statement */
     val newFuncs = prog.funcs.map(f => renameFunc(f))
-    val newStmt = renameStmt(prog.stmt, varSymbolTable)
+    val newStmt = renameStmt(prog.stmt, varSymbolTable, errorLogger)
     
     Program(newFuncs, newStmt, SemanticData.TopLevel(funcSignatureTable.toMap))
   }
 
-  /**
-  * Converts a syntactic type to a semantic one. The types input here are from the
-  * AST user types so are 1-to-1 mappings. Other semantic types are relevant in the
-  * typechecker.
-  *
-  * @param synType: The syntactic type to convert
-  *
-  * @return: The semantic type equivalent
-  */
-  private def syntaxToSemantics(synType: SyntaxType): SemanticType = {
-    synType match {
-      case SyntaxType.Int => KnownType.Int
-      case SyntaxType.Bool => KnownType.Bool
-      case SyntaxType.Char => KnownType.Char
-      case SyntaxType.String => KnownType.String
-      case SyntaxType.ErasedPair => PairAny
-      case SyntaxType.Pair(fst, snd) =>
-        KnownType.Pair(syntaxToSemantics(fst), syntaxToSemantics(snd))
-      case SyntaxType.Array(arrType) =>
-        KnownType.Array(syntaxToSemantics(arrType))
-    }
-  }
 
 
   private def renameFunc(func: Func[SyntacticData]): Func[SemanticData] = ???
 
-  private def renameStmt(stmt: Stmt[SyntacticData], symbolTable: SymbolTable): Stmt[SemanticData] = {
+  private def renameStmt(stmt: Stmt[SyntacticData], symbolTable: SymbolTable, errorLogger: SemanticErrorLogger): Stmt[SemanticData] = {
     stmt match {
       case Stmt.Skip(synPos) => Stmt.Skip(synPos.asSemanticData.get)
-      case Stmt.Exit(expr, synPos) => Stmt.Exit(renameExpr(expr), synPos.asSemanticData.get)
-      case Stmt.Print(expr, synPos) => Stmt.Print(renameExpr(expr), synPos.asSemanticData.get)
-      case Stmt.Println(expr, synPos) => Stmt.Println(renameExpr(expr), synPos.asSemanticData.get)
-      case Stmt.Block(stmtList, synPos) => Stmt.Block(renameStmtList(stmtList, symbolTable), synPos.asSemanticData.get)
+      case Stmt.Exit(expr, synPos) => Stmt.Exit(renameExpr(expr, symbolTable, errorLogger), synPos.asSemanticData.get)
+      case Stmt.Print(expr, synPos) => Stmt.Print(renameExpr(expr, symbolTable, errorLogger), synPos.asSemanticData.get)
+      case Stmt.Println(expr, synPos) => Stmt.Println(renameExpr(expr, symbolTable, errorLogger), synPos.asSemanticData.get)
+      case Stmt.Block(stmtList, synPos) => Stmt.Block(renameStmtList(stmtList, symbolTable, errorLogger), synPos.asSemanticData.get)
+      case Stmt.Decl(syntacticType, ident, rval, synVar) => {
+
+        val renamedRVal = renameRValue(rval, symbolTable, errorLogger)
+
+        val renameId = getNextId(ident.name)
+        val varSemData: SemanticData.Var =
+          SemanticData.Var(getPos(synVar), renameId, syntaxToSemantics(syntacticType))
+
+        if (!symbolTable.set(ident.name, varSemData)) {
+          errorLogger.logError(getPos(synVar), s"Scope error: Variable ${ident.name} is already declared in this scope")
+        }
+
+        Stmt.Decl(syntacticType, renameIdent(ident, symbolTable, errorLogger), renamedRVal, varSemData)
+
+      }
       case _ => ???
     }
   }
 
-  private def renameStmtList(exprList: List[Stmt[SyntacticData]], symbolTable: SymbolTable): List[Stmt[SemanticData]] = {
-    exprList.map(s => renameStmt(s, symbolTable))
+  private def renameRValue(rvalue: RValue[SyntacticData],
+                           symbolTable: SymbolTable,
+                           errorLogger: SemanticErrorLogger): RValue[SemanticData] = rvalue match
+    // right now, rvalue is only ever an expr but later other cases will go here
+    case expr: Expr[SyntacticData] => renameExpr(expr, symbolTable, errorLogger)
+  
+  private def renameIdent(ident: Ident[SyntacticData],
+                          symbolTable: SymbolTable,
+                          errorLogger: SemanticErrorLogger): Ident[SemanticData] = {
+
+    val semData = symbolTable.get(ident.name) match
+      case Some(varSemData) => varSemData
+      case None => {
+        errorLogger.logError(getPos(ident.info), s"Scope error: Variable ${ident.name} is not defined")
+        SemanticData.Error(getPos(ident.info))
+      }
+
+    Ident(ident.name, semData)
   }
 
-  private def renameExpr(expr: Expr[SyntacticData]): Expr[SemanticData] = expr match {
+  private def renameStmtList(exprList: List[Stmt[SyntacticData]],
+                             symbolTable: SymbolTable,
+                             errorLogger: SemanticErrorLogger): List[Stmt[SemanticData]] = {
+    exprList.map(s => renameStmt(s, symbolTable, errorLogger))
+  }
+
+  private def renameExpr(expr: Expr[SyntacticData],
+                         symbolTable: SymbolTable,
+                         errorLogger: SemanticErrorLogger): Expr[SemanticData] = expr match {
     case IntLiter(value, info) =>
       val exprInfo = SemanticData.Expr(getPos(info), KnownType.Int)
       IntLiter(value, exprInfo)
@@ -122,6 +139,7 @@ class Renamer {
       val exprInfo = SemanticData.Expr(getPos(info), KnownType.String)
       StrLiter(value, exprInfo)
     case PairLiter(info) => PairLiter(SemanticData.Expr(getPos(info), Null))
+    case i @ Ident(name, info) => renameIdent(i, symbolTable, errorLogger)
     case _ => ???
   }
 }

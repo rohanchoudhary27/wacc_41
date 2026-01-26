@@ -133,3 +133,25 @@ case class SemanticErrorLogger() {
   def hasErrors(): Boolean = errors.nonEmpty
 }
 
+/**
+* Converts a syntactic type to a semantic one. The types input here are from the
+* AST user types so are 1-to-1 mappings. Other semantic types are relevant in the
+* typechecker.
+*
+* @param synType: The syntactic type to convert
+*
+* @return: The semantic type equivalent
+*/
+def syntaxToSemantics(synType: SyntaxType): SemanticType = {
+  synType match {
+    case SyntaxType.Int => KnownType.Int
+    case SyntaxType.Bool => KnownType.Bool
+    case SyntaxType.Char => KnownType.Char
+    case SyntaxType.String => KnownType.String
+    case SyntaxType.ErasedPair => PairAny
+    case SyntaxType.Pair(fst, snd) =>
+      KnownType.Pair(syntaxToSemantics(fst), syntaxToSemantics(snd))
+    case SyntaxType.Array(arrType) =>
+      KnownType.Array(syntaxToSemantics(arrType))
+  }
+}
