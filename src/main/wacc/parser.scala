@@ -40,7 +40,7 @@ object parser {
     private lazy val stmt: Parsley[Stmt[SyntacticData]] = Block(sepBy1(singleStmt, ";"))
     private lazy val singleStmt: Parsley[Stmt[SyntacticData]] = skip | exit | print | println_stmt | decl
     private lazy val skip: Parsley[Stmt[SyntacticData]] = Skip from "skip"
-    private lazy val decl: Parsley[Stmt[SyntacticData]] = Decl(baseType, identLit, rvalue)
+    private lazy val decl: Parsley[Stmt[SyntacticData]] = Decl(baseType, identLit, "=" ~> rvalue)
     private lazy val asgn: Parsley[Stmt[SyntacticData]] = ???
     private lazy val read: Parsley[Stmt[SyntacticData]] = ???
     private lazy val free: Parsley[Stmt[SyntacticData]] = ???
@@ -74,7 +74,7 @@ object parser {
     private lazy val charLit = CharLiter(character)
     private lazy val strLit  = StrLiter(string)
     private lazy val pairLit = PairLiter from nullLiter
-    private lazy val identLit  = Ident(string)
+    private lazy val identLit  = Ident(ident)
 
     /* Operators */
     private lazy val unaryOps: List[Parsley[Expr[SyntacticData] => Expr[SyntacticData]]] = ???
