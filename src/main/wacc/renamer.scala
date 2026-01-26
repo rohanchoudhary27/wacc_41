@@ -100,6 +100,7 @@ class Renamer {
       case Stmt.Print(expr, synPos) => Stmt.Print(renameExpr(expr), synPos.asSemanticData.get)
       case Stmt.Println(expr, synPos) => Stmt.Println(renameExpr(expr), synPos.asSemanticData.get)
       case Stmt.Block(stmtList, synPos) => Stmt.Block(renameStmtList(stmtList, symbolTable), synPos.asSemanticData.get)
+      case UnaryExpr(op, expr, synPos) => UnaryExpr(op, renameExpr(expr), synPos.asSemanticData.get)
       case _ => ???
     }
   }
