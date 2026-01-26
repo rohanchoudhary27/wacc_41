@@ -89,8 +89,16 @@ class TypeChecker {
       case Stmt.Exit(expr, semInfo) => Stmt.Exit(checkExpr(expr, Is(KnownType.Int), log), semInfo)
       case Stmt.Print(expr, semInfo) => Stmt.Print(checkExpr(expr, Constraint.Infer, log), semInfo)
       case Stmt.Println(expr, semInfo) => Stmt.Println(checkExpr(expr, Constraint.Infer, log), semInfo)
+      case Stmt.Block(stmtList, semInfo) => Stmt.Block(checkStmtList(stmtList, log), semInfo)
       case _ => ???
     }
+
+    /**
+     * Type-check a list of expressions
+     */
+    private def checkStmtList(stmtList: List[Stmt[SemanticData]],
+                              log: SemanticErrorLogger
+                              ): List[Stmt[SemanticData]] = stmtList.map(s => checkStmt(s, log))
 
     /**
      * Type-check an expression
