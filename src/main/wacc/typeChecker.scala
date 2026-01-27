@@ -89,6 +89,10 @@ class TypeChecker {
       case Stmt.Exit(expr, semInfo) => Stmt.Exit(checkExpr(expr, Is(KnownType.Int), log), semInfo)
       case Stmt.Print(expr, semInfo) => Stmt.Print(checkExpr(expr, Constraint.Infer, log), semInfo)
       case Stmt.Println(expr, semInfo) => Stmt.Println(checkExpr(expr, Constraint.Infer, log), semInfo)
+      case Stmt.If(expr, stmtIf, stmtElse, semInfo) => Stmt.If(checkExpr(expr, Is(KnownType.Bool), log),
+                                                               checkStmt(stmtIf, log),
+                                                               checkStmt(stmtElse, log),
+                                                               semInfo)
       case Stmt.Block(stmtList, semInfo) => Stmt.Block(checkStmtList(stmtList, log), semInfo)
       case Stmt.Decl(typ, ident, rvalue, semInfo) => checkDecl(typ, ident, rvalue, semInfo, log)
       case Stmt.Asgn(lval, rval, semInfo) => checkAsgn(lval, rval, semInfo, log)

@@ -1,4 +1,9 @@
 valid/basic/skip
 valid/basic/exit
 valid/variables
-valid/sequence
+
+# if statement integration tests
+invalid/syntaxErr/if
+valid/if/ifBasic.wacc
+valid/if/ifFalse.wacc
+valid/if/ifTrue.wacc
