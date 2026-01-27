@@ -213,8 +213,15 @@ class TypeChecker {
                     (Constraint.Is(KnownType.Bool), Constraint.Is(KnownType.Bool), KnownType.Bool)
             }
             val typedLExpr = checkExpr(left, inputLConstraint, log)
+
+            def getType(e: Expr[SemanticData]): SemanticType = e.info match {
+                case SemanticData.Expr(_, t) => t
+                case _ => ?
+            }
+
             val matchR = op match {
-                case BinaryOperator.GT | BinaryOperator.GTE | BinaryOperator.LT | BinaryOperator.LTE | BinaryOperator.EQ | BinaryOperator.NEQ => Constraint.Is(typedLExpr)
+                case BinaryOperator.GT | BinaryOperator.GTE | BinaryOperator.LT | BinaryOperator.LTE | BinaryOperator.EQ | BinaryOperator.NEQ => 
+                    Constraint.Is(getType(typedLExpr))
                 case _ => inputRConstraint
             }
             val typedRExpr = checkExpr(right, matchR, log)
