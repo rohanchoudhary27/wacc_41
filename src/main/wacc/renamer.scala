@@ -123,7 +123,7 @@ class Renamer {
       StrLiter(value, exprInfo)
     case PairLiter(info) => PairLiter(SemanticData.Expr(getPos(info), Null))
     case UnaryExpr(op, expr, synPos) => UnaryExpr(op, renameExpr(expr), synPos.asSemanticData.get)
-    case BinaryExpr(op, left, right, synPos) => BinaryExpr(op, renameExpr(left), renamExpr(right), synPos.asSemanticData.get)
+    case BinaryExpr(op, left, right, synPos) => BinaryExpr(op, renameExpr(left), renameExpr(right), synPos.asSemanticData.get)
     case _ => ???
   }
 }
