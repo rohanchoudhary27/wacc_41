@@ -107,8 +107,12 @@ object parser {
         infix("==", BinaryOperator.EQ),
         infix("!=", BinaryOperator.NEQ)
     )
-    private lazy val andOps: List[Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]]] = ???
-    private lazy val orOps: List[Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]]] = ???
+    private lazy val andOps: List[Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]]] = List(
+        infix("&&", BinaryOperator.And)
+    )
+    private lazy val orOps: List[Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]]] = List(
+        infix("||", BinaryOperator.Or),
+    )
 
     /* Helper */
     private def prefix(str: String, op: UnaryOperator): Parsley[Expr[SyntacticData] => Expr[SyntacticData]] = 
