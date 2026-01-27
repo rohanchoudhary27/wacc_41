@@ -101,6 +101,7 @@ class Renamer {
       case Stmt.Println(expr, synPos) => Stmt.Println(renameExpr(expr), synPos.asSemanticData.get)
       case Stmt.Block(stmtList, synPos) => Stmt.Block(renameStmtList(stmtList, symbolTable), synPos.asSemanticData.get)
       case UnaryExpr(op, expr, synPos) => UnaryExpr(op, renameExpr(expr), synPos.asSemanticData.get)
+      case BinaryExpr(op, left, right, synPos) => BinaryExpr(op, renameExpr(left), renamExpr(right), synPos.asSemanticData.get)
       case _ => ???
     }
   }
