@@ -82,20 +82,25 @@ class Renamer {
                                                               renameStmt(stmtElse, symbolTable, errorLogger),
                                                               synPos.asSemanticData.get)
 
-      case Stmt.Decl(syntacticType, ident, rval, synVar) => {
+      case Stmt.Decl(syntacticType, ident, rval, synPos) => {
 
         val renamedRVal = renameRValue(rval, symbolTable, errorLogger)
 
         val renameId = getNextId(ident.name)
         val varSemData: SemanticData.Var =
-          SemanticData.Var(getPos(synVar), renameId, syntaxToSemantics(syntacticType))
+          SemanticData.Var(getPos(synPos), renameId, syntaxToSemantics(syntacticType))
 
         if (!symbolTable.set(ident.name, varSemData)) {
-          errorLogger.logError(getPos(synVar), s"Scope error: Variable ${ident.name} is already declared in this scope")
+          errorLogger.logError(getPos(synPos), s"Scope error: Variable ${ident.name} is already declared in this scope")
         }
 
-        Stmt.Decl(syntacticType, renameIdent(ident, symbolTable, errorLogger), renamedRVal, varSemData)
+        Stmt.Decl(syntacticType, renameIdent(ident, symbolTable, errorLogger), renamedRVal, synPos.asSemanticData.get)
 
+      }
+      case Stmt.Asgn(lval, rval, synPos) => {
+        val renamedLVal = renameLValue(lval, symbolTable, errorLogger)
+        val renamedRVal = renameRValue(rval, symbolTable, errorLogger)
+        Stmt.Asgn(renamedLVal, renamedRVal, synPos.asSemanticData.get)
       }
       case _ => ???
     }
@@ -115,6 +120,13 @@ class Renamer {
                            errorLogger: SemanticErrorLogger): RValue[SemanticData] = rvalue match
     // right now, rvalue is only ever an expr but later other cases will go here
     case expr: Expr[SyntacticData] => renameExpr(expr, symbolTable, errorLogger)
+    case _                         => ???
+
+  private def renameLValue(lvalue: LValue[SyntacticData],
+                           symbolTable: SymbolTable,
+                           errorLogger: SemanticErrorLogger): LValue[SemanticData] = lvalue match
+    case i: Ident[SyntacticData] => renameIdent(i, symbolTable, errorLogger)
+    case _                       => ???
   
   private def renameIdent(ident: Ident[SyntacticData],
                           symbolTable: SymbolTable,
