@@ -76,6 +76,12 @@ class Renamer {
       case Stmt.Print(expr, synPos) => Stmt.Print(renameExpr(expr, symbolTable, errorLogger), synPos.asSemanticData.get)
       case Stmt.Println(expr, synPos) => Stmt.Println(renameExpr(expr, symbolTable, errorLogger), synPos.asSemanticData.get)
       case Stmt.Block(stmtList, synPos) => renameBlock(stmtList, synPos, symbolTable, errorLogger)
+
+      case Stmt.If(expr, stmtIf, stmtElse, synPos) => Stmt.If(renameExpr(expr, symbolTable, errorLogger),
+                                                              renameStmt(stmtIf, symbolTable, errorLogger),
+                                                              renameStmt(stmtElse, symbolTable, errorLogger),
+                                                              synPos.asSemanticData.get)
+
       case Stmt.Decl(syntacticType, ident, rval, synVar) => {
 
         val renamedRVal = renameRValue(rval, symbolTable, errorLogger)
