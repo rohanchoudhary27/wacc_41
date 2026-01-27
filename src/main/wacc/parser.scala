@@ -92,7 +92,10 @@ object parser {
         infix("/", BinaryOperator.Div),
         infix("%", BinaryOperator.Mod)
     )
-    private lazy val addOps: List[Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]]] = ???
+    private lazy val addOps: List[Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]]] = List(
+        infix("+", BinaryOperator.Add),
+        infix("-", BinaryOperator.Sub)
+    )
     private lazy val cmpOps: List[Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]]] = ???
     private lazy val eqOps: List[Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]]] = ???
     private lazy val andOps: List[Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]]] = ???
