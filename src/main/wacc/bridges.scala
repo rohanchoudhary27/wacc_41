@@ -26,7 +26,6 @@ object Bridges {
     val Println = bridge[Stmt.Println[SyntacticData]]
     val If      = bridge[Stmt.If[SyntacticData]]
     val While   = bridge[Stmt.While[SyntacticData]]
-    val Scope   = bridge[Stmt.Scope[SyntacticData]]
     val Block   = bridge[Stmt.Block[SyntacticData]]
 
     /* Operator nodes */

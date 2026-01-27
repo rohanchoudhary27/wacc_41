@@ -42,7 +42,6 @@ enum Stmt[A] {
     case Println(expr: Expr[A], @isMeta info: A)
     case If(cond: Expr[A], ifBlock: Stmt[A], elseBlock: Stmt[A], @isMeta info: A)
     case While(cond: Expr[A], stmt: Stmt[A], @isMeta info: A)
-    case Scope(stmt: Stmt[A], @isMeta info: A)
     case Block(stmts: List[Stmt[A]], @isMeta info: A)
 }
 
