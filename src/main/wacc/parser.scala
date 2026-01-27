@@ -51,13 +51,13 @@ object parser {
 
     /* Expression grammar */
     private lazy val expr: Parsley[Expr[SyntacticData]] = precedence(atom)(
-        Ops(Prefix)(choice(unaryOps)*),
-        Ops(InfixL)(choice(mulOps)*),
-        Ops(InfixL)(choice(addOps)*),
-        Ops(InfixN)(choice(cmpOps)*),
-        Ops(InfixN)(choice(eqOps)*),
-        Ops(InfixR)(choice(andOps)*),
-        Ops(InfixR)(choice(orOps)*)
+        Ops(Prefix)(choice(unaryOps*)),
+        Ops(InfixL)(choice(mulOps*)),
+        Ops(InfixL)(choice(addOps*)),
+        Ops(InfixN)(choice(cmpOps*)),
+        Ops(InfixN)(choice(eqOps*)),
+        Ops(InfixR)(choice(andOps*)),
+        Ops(InfixR)(choice(orOps*))
     )
     private lazy val atom: Parsley[Expr[SyntacticData]] = intLit | boolLit | charLit | strLit | pairLit
 
@@ -111,7 +111,7 @@ object parser {
         infix("&&", BinaryOperator.And)
     )
     private lazy val orOps: List[Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]]] = List(
-        infix("||", BinaryOperator.Or),
+        infix("||", BinaryOperator.Or)
     )
 
     /* Helper */
