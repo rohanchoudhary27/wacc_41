@@ -103,7 +103,10 @@ object parser {
         infix("<", BinaryOperator.LT),
         infix("<=", BinaryOperator.LTE)
     )
-    private lazy val eqOps: List[Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]]] = ???
+    private lazy val eqOps: List[Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]]] = List(
+        infix("==", BinaryOperator.EQ),
+        infix("!=", BinaryOperator.NEQ)
+    )
     private lazy val andOps: List[Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]]] = ???
     private lazy val orOps: List[Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]]] = ???
 
