@@ -208,12 +208,16 @@ class TypeChecker {
                 case BinaryOperator.GT | BinaryOperator.GTE | BinaryOperator.LT | BinaryOperator.LTE => 
                     (IsComparable, IsComparable, KnownType.Bool)
                 case BinaryOperator.EQ | BinaryOperator.NEQ => 
-                    (Constraint.Is(?), Constraint.Is(?), KnownType.Bool)
+                    (Constraint.IsEquatable, Constraint.IsEquatable, KnownType.Bool)
                 case BinaryOperator.And | BinaryOperator.Or => 
                     (Constraint.Is(KnownType.Bool), Constraint.Is(KnownType.Bool), KnownType.Bool)
             }
             val typedLExpr = checkExpr(left, inputLConstraint, log)
-            val typedRExpr = checkExpr(right, inputRConstraint, log)
+            val matchR = op match {
+                case BinaryOperator.GT | BinaryOperator.GTE | BinaryOperator.LT | BinaryOperator.LTE | BinaryOperator.EQ | BinaryOperator.NEQ => Constraint.Is(typedLExpr)
+                case _ => inputRConstraint
+            }
+            val typedRExpr = checkExpr(right, matchR, log)
             val finalType = resultType.satisfies(c, pos, log).getOrElse(?)
             BinaryExpr(op, typedLExpr, typedRExpr, SemanticData.Expr(pos, finalType))
 
