@@ -107,10 +107,11 @@ final class FrontendIntegrationSpec extends AnyFlatSpec with Matchers {
     private def isEnabled(file: Path): Boolean = {
         if (enabledScopes.isEmpty) false
         else {
+            val fileRel = examplesRoot.relativize(file).toString
             val scopeKey = scopeFor(file)
             enabledScopes.exists { s =>
                 val scope = s.stripSuffix("/")
-                scopeKey == scope || scopeKey.startsWith(scope + "/")
+                fileRel == scope || scopeKey == scope || scopeKey.startsWith(scope + "/")
             }
         }
     }
@@ -128,6 +129,7 @@ final class FrontendIntegrationSpec extends AnyFlatSpec with Matchers {
     private def readScopes(path: Path): Set[String] = {
         if (!Files.exists(path)) Set.empty
         else Files.readAllLines(path).asScala
+            .map(s => s.takeWhile(_ != '#')) // treat '#' as a comment
             .map(_.trim)
             .filter(s => s.nonEmpty)
             .toSet
