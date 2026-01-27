@@ -91,7 +91,34 @@ class TypeChecker {
       case Stmt.Println(expr, semInfo) => Stmt.Println(checkExpr(expr, Constraint.Infer, log), semInfo)
       case Stmt.Block(stmtList, semInfo) => Stmt.Block(checkStmtList(stmtList, log), semInfo)
       case Stmt.Decl(typ, ident, rvalue, semInfo) => checkDecl(typ, ident, rvalue, semInfo, log)
+      case Stmt.Asgn(lval, rval, semInfo) => checkAsgn(lval, rval, semInfo, log)
       case _ => ???
+    }
+
+    private def checkAsgn(lval: LValue[SemanticData], 
+                          rval: RValue[SemanticData], 
+                          semInfo: SemanticData, 
+                          log: SemanticErrorLogger
+    ): Stmt.Asgn[SemanticData] = {
+        // if lval is an identifier, we can easily get its type from its info
+        // if lval is an array elem or pair elem, idk we'll see in a few days
+
+        /* get lval's semantic type */
+        val semTypeOfLVal = lval match {
+            case Ident(_, SemanticData.Var(pos, renameId, semType)) => semType
+            case _                                                  => ?
+        }
+
+        /* In any error case (e.g. out of scope identifiers), the renamer will put
+           SemanticData.Error as its info. calling checkLvalue on such an identifier
+           will do nothing, return the identifier back. So any out of scope identifiers
+           in assignment statements will have Ident(_, SemanticData.Error(...)) */
+        val typedLValue = checkLvalue(lval, Is(semTypeOfLVal), log)
+
+        /* check rvalue with lvalue's semantic type */
+        val typedRValue = checkRvalue(rval, Is(semTypeOfLVal), log)
+
+        Stmt.Asgn(typedLValue, typedRValue, semInfo)
     }
 
     /**
@@ -115,6 +142,13 @@ class TypeChecker {
         val typedIdent = checkIdent(ident, Is(semType), log)
 
         Stmt.Decl(typ, typedIdent, typedRvalue, semInfo)
+    }
+
+    private def checkLvalue(
+        lvalue: LValue[SemanticData], c: Constraint, log: SemanticErrorLogger
+    ): LValue[SemanticData] = lvalue match {
+        case i @ Ident(name, info) => checkIdent(i, c, log)
+        case _                     => ???
     }
 
     /**
