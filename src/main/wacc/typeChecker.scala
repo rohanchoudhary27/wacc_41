@@ -90,7 +90,61 @@ class TypeChecker {
       case Stmt.Print(expr, semInfo) => Stmt.Print(checkExpr(expr, Constraint.Infer, log), semInfo)
       case Stmt.Println(expr, semInfo) => Stmt.Println(checkExpr(expr, Constraint.Infer, log), semInfo)
       case Stmt.Block(stmtList, semInfo) => Stmt.Block(checkStmtList(stmtList, log), semInfo)
+      case Stmt.Decl(typ, ident, rvalue, semInfo) => checkDecl(typ, ident, rvalue, semInfo, log)
       case _ => ???
+    }
+
+    /**
+     * Type-check an declaration statement
+     */
+    private def checkDecl(
+        typ: SyntaxType,
+        ident: Ident[SemanticData],
+        rvalue: RValue[SemanticData],
+        semInfo: SemanticData,
+        log: SemanticErrorLogger,
+    ): Stmt.Decl[SemanticData] = {
+
+        val semType = syntaxToSemantics(typ)
+
+        /* the right side of the assignment must be compatible with
+           the left side declared type */
+        val typedRvalue = checkRvalue(rvalue, Is(semType), log)
+
+        /* verify the renamer typed it correctly */
+        val typedIdent = checkIdent(ident, Is(semType), log)
+
+        Stmt.Decl(typ, typedIdent, typedRvalue, semInfo)
+    }
+
+    /**
+     * Type-check an RValue
+     */
+    private def checkRvalue(
+        rvalue: RValue[SemanticData], c: Constraint, log: SemanticErrorLogger
+    ): RValue[SemanticData] = rvalue match {
+
+       // other cases added in future...
+       case expr: Expr[SemanticData] => checkExpr(expr, c, log)
+    }
+
+    /**
+     * Type-check an Ident
+     */
+    private def checkIdent(
+        ident: Ident[SemanticData], c: Constraint, log: SemanticErrorLogger
+    ): Ident[SemanticData] = ident match {
+
+        /* Check for type mismatch error */
+        case Ident(_, SemanticData.Var(pos, _, actualType)) => 
+             actualType.satisfies(c, pos, log)
+             ident
+
+        /* Variable not found by renamer (error already logged) */
+        case Ident(_, SemanticData.Error(_)) => 
+             ident
+
+        case _ => ident
     }
 
     /**
@@ -102,6 +156,9 @@ class TypeChecker {
 
     /**
      * Type-check an expression
+     * 
+     * int x = 5
+     * 
      */
     private def checkExpr(
         expr: Expr[SemanticData], c: Constraint, log: SemanticErrorLogger
@@ -130,10 +187,26 @@ class TypeChecker {
         case PairLiter(SemanticData.Expr(pos, actualType)) => 
             PairLiter(SemanticData.Expr(pos, actualType.satisfies(c, pos, log).getOrElse(?)))
 
+        case i: Ident[SemanticData] => checkIdent(i, c, log)
+
+        case UnaryExpr(op, expr, info@SemanticData.Pos(pos)) =>
+            val (inputConstraint, resultType) = op match {
+                case UnaryOperator.Not => (Constraint.Is(KnownType.Bool), KnownType.Bool)
+                case UnaryOperator.Neg => (Constraint.Is(KnownType.Int), KnownType.Int)
+                case UnaryOperator.Len => (Constraint.OneOf(Set(KnownType.Array(?),KnownType.String)), KnownType.Int)
+                case UnaryOperator.Ord => (Constraint.Is(KnownType.Int), KnownType.Char)
+                case UnaryOperator.Chr => (Constraint.Is(KnownType.Char), KnownType.Int)
+            }
+            val typedExpr = checkExpr(expr, inputConstraint, log)
+            val finalType = resultType.satisfies(c, pos, log).getOrElse(?)
+            UnaryExpr(op, typedExpr, SemanticData.Expr(pos, finalType))
+        
+        case BinaryExpr(op, left, right, info) =>
+            BinaryExpr(op, left, right, info)
+
         case _ => ???
     }
     
-
     /**
      * Type compatibility: ty1 ~ ty2 succeeds if the two types are compatible and returns
      * the "narrow" resulting type.
