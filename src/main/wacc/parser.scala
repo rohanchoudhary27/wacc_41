@@ -89,29 +89,29 @@ object parser {
 
     /* Operators */
     private lazy val unaryOps: Parsley[Expr[SyntacticData] => Expr[SyntacticData]] = {
-        prefix("!", UnaryOperator.Not) <|>
-        prefix("-", UnaryOperator.Neg) <|>
-        prefix("len", UnaryOperator.Len) <|>
-        prefix("ord", UnaryOperator.Ord) <|>
+        prefix("!", UnaryOperator.Not) |
+        prefix("-", UnaryOperator.Neg) |
+        prefix("len", UnaryOperator.Len) |
+        prefix("ord", UnaryOperator.Ord) |
         prefix("chr", UnaryOperator.Chr)
     }
     private lazy val mulOps: Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]] = {
-        infix("*", BinaryOperator.Mul) <|>
-        infix("/", BinaryOperator.Div) <|>
+        infix("*", BinaryOperator.Mul) |
+        infix("/", BinaryOperator.Div) |
         infix("%", BinaryOperator.Mod)
     }
     private lazy val addOps: Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]] = {
-        infix("+", BinaryOperator.Add) <|>
+        infix("+", BinaryOperator.Add) |
         infix("-", BinaryOperator.Sub)
     }
     private lazy val cmpOps: Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]] = {
-        infix(">", BinaryOperator.GT) <|>
-        infix(">=", BinaryOperator.GTE) <|>
-        infix("<", BinaryOperator.LT) <|>
+        infix(">", BinaryOperator.GT) |
+        infix(">=", BinaryOperator.GTE) |
+        infix("<", BinaryOperator.LT) |
         infix("<=", BinaryOperator.LTE)
     }
     private lazy val eqOps: Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]] = {
-        infix("==", BinaryOperator.EQ) <|>
+        infix("==", BinaryOperator.EQ) |
         infix("!=", BinaryOperator.NEQ)
     }
     private lazy val andOps: Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]] = {
