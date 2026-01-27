@@ -4,7 +4,7 @@ import parsley.{Parsley, Success, Failure}
 import parsley.combinator.*
 import parsley.Parsley.*
 import parsley.position.pos
-import parsley.expr.{chain, precedence, Ops, InfixL, InfixN, InfixR, Prefix}
+import parsley.expr.{precedence, Ops, InfixL, InfixN, InfixR, Prefix}
 
 import lexer.{fully, ident, string, boolLiter, nullLiter}
 import lexer.implicits.given
@@ -25,9 +25,13 @@ object parser {
     private lazy val param: Parsley[Param[SyntacticData]] = ???
 
     /* Type grammar */
-    private lazy val wacc_type: Parsley[SyntaxType] = ???
+    private lazy val waccType: Parsley[SyntaxType] = baseType
 
-    private lazy val baseType: Parsley[SyntaxType] = ???
+    private lazy val baseType: Parsley[SyntaxType] =
+        "int" #> SyntaxType.Int |
+        "char" #> SyntaxType.Char |
+        "bool" #> SyntaxType.Bool |
+        "string" #> SyntaxType.String
 
     private lazy val arrayType: Parsley[SyntaxType] = ???
     private lazy val pairType: Parsley[SyntaxType] = ???
@@ -35,9 +39,10 @@ object parser {
 
     /* Statement grammar */
     private lazy val stmt: Parsley[Stmt[SyntacticData]] = Block(sepBy1(singleStmt, ";"))
-    private lazy val singleStmt: Parsley[Stmt[SyntacticData]] = skip | exit | print | println_stmt
+    private lazy val singleStmt: Parsley[Stmt[SyntacticData]] = skip | exit | print | println_stmt | decl |
+                                                                scope
     private lazy val skip: Parsley[Stmt[SyntacticData]] = Skip from "skip"
-    private lazy val decl: Parsley[Stmt[SyntacticData]] = ???
+    private lazy val decl: Parsley[Stmt[SyntacticData]] = Decl(baseType, identLit, "=" ~> rvalue)
     private lazy val asgn: Parsley[Stmt[SyntacticData]] = ???
     private lazy val read: Parsley[Stmt[SyntacticData]] = ???
     private lazy val free: Parsley[Stmt[SyntacticData]] = ???
@@ -47,19 +52,20 @@ object parser {
     private lazy val println_stmt: Parsley[Stmt[SyntacticData]] = Println("println" ~> expr)
     private lazy val if_stmt: Parsley[Stmt[SyntacticData]] = ???
     private lazy val while_stmt: Parsley[Stmt[SyntacticData]] = ???
-    private lazy val scope: Parsley[Stmt[SyntacticData]] = ???
+    private lazy val scope: Parsley[Stmt[SyntacticData]] = "begin" ~> stmt <~ "end"
 
     /* Expression grammar */
     private lazy val expr: Parsley[Expr[SyntacticData]] = precedence(atom)(
-        Ops(Prefix)(choice(unaryOps*)),
-        Ops(InfixL)(choice(mulOps*)),
-        Ops(InfixL)(choice(addOps*)),
-        Ops(InfixN)(choice(cmpOps*)),
-        Ops(InfixN)(choice(eqOps*)),
-        Ops(InfixR)(choice(andOps*)),
-        Ops(InfixR)(choice(orOps*))
+        Ops(Prefix)(unaryOps),
+        Ops(InfixL)(mulOps),
+        Ops(InfixL)(addOps),
+        Ops(InfixN)(cmpOps),
+        Ops(InfixN)(eqOps),
+        Ops(InfixR)(andOps),
+        Ops(InfixR)(orOps)
     )
-    private lazy val atom: Parsley[Expr[SyntacticData]] = intLit | boolLit | charLit | strLit | pairLit
+    private lazy val atom: Parsley[Expr[SyntacticData]] =
+        intLit | boolLit | charLit | strLit | pairLit | identLit
 
     /* LValue grammar */
     private lazy val lvalue: Parsley[LValue[SyntacticData]] = ???
@@ -67,7 +73,7 @@ object parser {
     private lazy val pairElem: Parsley[PairElem[SyntacticData]] = ???
 
     /* RValue grammar */
-    private lazy val rvalue: Parsley[RValue[SyntacticData]] = ???
+    private lazy val rvalue: Parsley[RValue[SyntacticData]] = expr
     private lazy val arrayLiter: Parsley[ArrayLiter[SyntacticData]] = ???
     private lazy val newPair: Parsley[NewPair[SyntacticData]] = ???
     private lazy val call: Parsley[Call[SyntacticData]] = ???
@@ -79,40 +85,41 @@ object parser {
     private lazy val charLit = CharLiter(character)
     private lazy val strLit  = StrLiter(string)
     private lazy val pairLit = PairLiter from nullLiter
+    private lazy val identLit  = Ident(ident)
 
     /* Operators */
-    private lazy val unaryOps: List[Parsley[Expr[SyntacticData] => Expr[SyntacticData]]] = List(
-        prefix("!", UnaryOperator.Not),
-        prefix("-", UnaryOperator.Neg),
-        prefix("len", UnaryOperator.Len),
-        prefix("ord", UnaryOperator.Ord),
-        prefix("chr", UnaryOperator.Chr),
-    )
-    private lazy val mulOps: List[Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]]] = List(
-        infix("*", BinaryOperator.Mul),
-        infix("/", BinaryOperator.Div),
+    private lazy val unaryOps: Parsley[Expr[SyntacticData] => Expr[SyntacticData]] = {
+        prefix("!", UnaryOperator.Not) <|>
+        prefix("-", UnaryOperator.Neg) <|>
+        prefix("len", UnaryOperator.Len) <|>
+        prefix("ord", UnaryOperator.Ord) <|>
+        prefix("chr", UnaryOperator.Chr)
+    }
+    private lazy val mulOps: Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]] = {
+        infix("*", BinaryOperator.Mul) <|>
+        infix("/", BinaryOperator.Div) <|>
         infix("%", BinaryOperator.Mod)
-    )
-    private lazy val addOps: List[Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]]] = List(
-        infix("+", BinaryOperator.Add),
+    }
+    private lazy val addOps: Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]] = {
+        infix("+", BinaryOperator.Add) <|>
         infix("-", BinaryOperator.Sub)
-    )
-    private lazy val cmpOps: List[Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]]] = List(
-        infix(">", BinaryOperator.GT),
-        infix(">=", BinaryOperator.GTE),
-        infix("<", BinaryOperator.LT),
+    }
+    private lazy val cmpOps: Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]] = {
+        infix(">", BinaryOperator.GT) <|>
+        infix(">=", BinaryOperator.GTE) <|>
+        infix("<", BinaryOperator.LT) <|>
         infix("<=", BinaryOperator.LTE)
-    )
-    private lazy val eqOps: List[Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]]] = List(
-        infix("==", BinaryOperator.EQ),
+    }
+    private lazy val eqOps: Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]] = {
+        infix("==", BinaryOperator.EQ) <|>
         infix("!=", BinaryOperator.NEQ)
-    )
-    private lazy val andOps: List[Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]]] = List(
+    }
+    private lazy val andOps: Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]] = {
         infix("&&", BinaryOperator.And)
-    )
-    private lazy val orOps: List[Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]]] = List(
+    }
+    private lazy val orOps: Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]] = {
         infix("||", BinaryOperator.Or)
-    )
+    }
 
     /* Helper */
     private def prefix(str: String, op: UnaryOperator): Parsley[Expr[SyntacticData] => Expr[SyntacticData]] = 
