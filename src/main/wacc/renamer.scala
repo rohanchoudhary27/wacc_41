@@ -75,8 +75,7 @@ class Renamer {
       case Stmt.Exit(expr, synPos) => Stmt.Exit(renameExpr(expr, symbolTable, errorLogger), synPos.asSemanticData.get)
       case Stmt.Print(expr, synPos) => Stmt.Print(renameExpr(expr, symbolTable, errorLogger), synPos.asSemanticData.get)
       case Stmt.Println(expr, synPos) => Stmt.Println(renameExpr(expr, symbolTable, errorLogger), synPos.asSemanticData.get)
-      case Stmt.Block(stmtList, synPos) => Stmt.Block(renameStmtList(stmtList, symbolTable, errorLogger), synPos.asSemanticData.get)
-      case Stmt.Scope(stmt, synPos) => renameScope(stmt, synPos, symbolTable, errorLogger)
+      case Stmt.Block(stmtList, synPos) => renameBlock(stmtList, synPos, symbolTable, errorLogger)
       case Stmt.Decl(syntacticType, ident, rval, synVar) => {
 
         val renamedRVal = renameRValue(rval, symbolTable, errorLogger)
@@ -96,13 +95,13 @@ class Renamer {
     }
   }
 
-  private def renameScope(innerStmt: Stmt[SyntacticData],
+  private def renameBlock(stmtList: List[Stmt[SyntacticData]],
                           synPos: SyntacticData,
                           symbolTable: SymbolTable,
-                          errorLogger: SemanticErrorLogger): Stmt.Scope[SemanticData] = {
+                          errorLogger: SemanticErrorLogger): Stmt.Block[SemanticData] = {
 
         val childScope = new SymbolTable(Some(symbolTable))
-        Stmt.Scope(renameStmt(innerStmt, childScope, errorLogger), synPos.asSemanticData.get)
+        Stmt.Block(renameStmtList(stmtList, childScope, errorLogger), synPos.asSemanticData.get)
   }
 
   private def renameRValue(rvalue: RValue[SyntacticData],
