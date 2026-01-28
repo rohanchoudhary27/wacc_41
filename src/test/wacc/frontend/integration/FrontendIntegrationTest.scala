@@ -35,8 +35,7 @@ final class FrontendIntegrationSpec extends AnyFlatSpec with Matchers {
                 
                 case Right(syntacticAST) =>
                     val semanticErrors = new SemanticErrorLogger()
-                    val renamer = new Renamer()
-                    val renamedAST = renamer.rename(syntacticAST, semanticErrors)
+                    val renamedAST = Renamer.rename(syntacticAST, semanticErrors)
 
                     val funcTable = renamedAST.info match {
                         case wacc.SemanticData.TopLevel(ft) => ft

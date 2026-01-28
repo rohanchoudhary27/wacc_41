@@ -13,9 +13,8 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
       parseResult.isRight shouldBe true
       
       val program = parseResult.toOption.get
-      val renamer = new Renamer()
       val errorLogger = SemanticErrorLogger()
-      val renamedProgram = renamer.rename(program, errorLogger)
+      val renamedProgram = Renamer.rename(program, errorLogger)
       
       errorLogger.hasErrors() shouldBe false
       
@@ -36,9 +35,8 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
       parseResult.isRight shouldBe true
       
       val program = parseResult.toOption.get
-      val renamer = new Renamer()
       val errorLogger = SemanticErrorLogger()
-      val renamedProgram = renamer.rename(program, errorLogger)
+      val renamedProgram = Renamer.rename(program, errorLogger)
       
       errorLogger.hasErrors() shouldBe false
       
@@ -59,9 +57,8 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
       parseResult.isRight shouldBe true
       
       val program = parseResult.toOption.get
-      val renamer = new Renamer()
       val errorLogger = SemanticErrorLogger()
-      val renamedProgram = renamer.rename(program, errorLogger)
+      val renamedProgram = Renamer.rename(program, errorLogger)
       
       errorLogger.hasErrors() shouldBe false
       
@@ -83,9 +80,8 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
       parseResult.isRight shouldBe true
       
       val program = parseResult.toOption.get
-      val renamer = new Renamer()
       val errorLogger = SemanticErrorLogger()
-      val renamedProgram = renamer.rename(program, errorLogger)
+      val renamedProgram = Renamer.rename(program, errorLogger)
       
       errorLogger.hasErrors() shouldBe false
       

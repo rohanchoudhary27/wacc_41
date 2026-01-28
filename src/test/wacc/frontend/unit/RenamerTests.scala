@@ -24,8 +24,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
 
         val inputAST = Program(List[Func[SyntacticData]](), testBlock, SyntacticData.Pos(0,0))
 
-        val renamer = Renamer()
-        val renamedAST = renamer.rename(inputAST, new SemanticErrorLogger())
+        val renamedAST = Renamer.rename(inputAST, new SemanticErrorLogger())
 
         val mainStmt = renamedAST.stmt
 
@@ -60,9 +59,8 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         val testBlock = Stmt.Block(List(decl, readStmt), SyntacticData.Pos(0,0))
         val inputAST = Program(List[Func[SyntacticData]](), testBlock, SyntacticData.Pos(0,0))
         
-        val renamer = Renamer()
         val errorLogger = SemanticErrorLogger()
-        val renamedAST = renamer.rename(inputAST, errorLogger)
+        val renamedAST = Renamer.rename(inputAST, errorLogger)
         
         errorLogger.hasErrors() shouldBe false
         
