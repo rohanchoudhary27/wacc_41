@@ -1,9 +1,26 @@
 valid/basic/skip
 valid/basic/exit
-valid/variables
+valid/sequence
+
 
 # if statement integration tests
 invalid/syntaxErr/if
 valid/if/ifBasic.wacc
 valid/if/ifFalse.wacc
 valid/if/ifTrue.wacc
+
+# while statement integration tests
+valid/while/whileBasic.wacc
+valid/while/whileFalse.wacc
+invalid/semanticErr/while/falsErr.wacc
+invalid/semanticErr/while/truErr.wacc
+invalid/semanticErr/multiple/infAndWhileErrs.wacc
+invalid/syntaxErr/while
+
+# declaration & assignment tests
+# invalid/semanticErr/variables
+invalid/semanticErr/multiCaseSensitivity.wacc
+invalid/semanticErr/multiTypeErrs.wacc
+# invalid/syntaxErr/variables
+valid/variables
+
