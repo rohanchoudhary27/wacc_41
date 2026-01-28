@@ -65,7 +65,7 @@ object parser {
         Ops(InfixR)(orOps)
     )
     private lazy val atom: Parsley[Expr[SyntacticData]] =
-        intLit | boolLit | charLit | strLit | pairLit | identLit
+        intLit | boolLit | charLit | strLit | pairLit | identLit | "(" ~> expr <~ ")"
 
     /* LValue grammar */
     private lazy val lvalue: Parsley[LValue[SyntacticData]] = identLit // | arrayElem | pairElem
