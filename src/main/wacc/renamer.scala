@@ -81,7 +81,9 @@ class Renamer {
                                                               renameStmt(stmtIf, symbolTable, errorLogger),
                                                               renameStmt(stmtElse, symbolTable, errorLogger),
                                                               synPos.asSemanticData.get)
-
+      case Stmt.While(condExpr, stmt, synPos) => Stmt.While(renameExpr(condExpr, symbolTable, errorLogger),
+                                                            renameStmt(stmt, symbolTable, errorLogger),
+                                                            synPos.asSemanticData.get)
       case Stmt.Decl(syntacticType, ident, rval, synPos) => {
 
         val renamedRVal = renameRValue(rval, symbolTable, errorLogger)

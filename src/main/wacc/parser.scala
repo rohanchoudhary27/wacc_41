@@ -39,7 +39,7 @@ object parser {
     /* Statement grammar */
     private lazy val stmt: Parsley[Stmt[SyntacticData]] = Block(sepBy1(singleStmt, ";"))
     private lazy val singleStmt: Parsley[Stmt[SyntacticData]] = skip | exit | print | println_stmt | decl | asgn |
-                                                                scope| ifStmt
+                                                                scope| ifStmt | whileStmt
     private lazy val skip: Parsley[Stmt[SyntacticData]] = Skip from "skip"
     private lazy val decl: Parsley[Stmt[SyntacticData]] = Decl(baseType, identLit, "=" ~> rvalue)
     private lazy val asgn: Parsley[Stmt[SyntacticData]] = Asgn(lvalue, "=" ~> rvalue)
@@ -51,7 +51,7 @@ object parser {
     private lazy val println_stmt: Parsley[Stmt[SyntacticData]] = Println("println" ~> expr)
     private lazy val ifStmt: Parsley[Stmt[SyntacticData]] =
         If("if" ~> expr <~ "then", stmt, "else" ~> stmt <~ "fi")
-    private lazy val while_stmt: Parsley[Stmt[SyntacticData]] = ???
+    private lazy val whileStmt: Parsley[Stmt[SyntacticData]] = While("while" ~> expr <~ "do", stmt <~ "done")
     private lazy val scope: Parsley[Stmt[SyntacticData]] = "begin" ~> stmt <~ "end"
 
     /* Expression grammar */
