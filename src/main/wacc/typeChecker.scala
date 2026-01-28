@@ -113,8 +113,8 @@ class TypeChecker {
 
         /* get lval's semantic type */
         val semTypeOfLVal = lval match {
-            case Ident(_, SemanticData.Var(pos, renameId, semType)) => semType
-            case _                                                  => ?
+            case Ident(_, SemanticData.Var(_, _, semType)) => semType
+            case _                                         => ?
         }
 
         /* In any error case (e.g. out of scope identifiers), the renamer will put
@@ -178,8 +178,8 @@ class TypeChecker {
     ): Ident[SemanticData] = ident match {
 
         /* Check for type mismatch error */
-        case Ident(_, SemanticData.Var(pos, _, actualType)) => 
-             actualType.satisfies(c, pos, log)
+        case Ident(_, SemanticData.Var(_, _, actualType)) => 
+             actualType.satisfies(c, ident.info.pos, log)
              ident
 
         /* Variable not found by renamer (error already logged) */

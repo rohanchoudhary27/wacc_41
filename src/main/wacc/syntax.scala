@@ -18,19 +18,17 @@ enum SyntacticData {
   case Pos(pos: SourcePos)
 }
 
-/* Returns the `SourcePos` of a SyntacticData object */
-def getPos(data: SyntacticData): SourcePos = data match {
-  case SyntacticData.Pos(pos) => pos
-}
-
-/* Convert `SyntacticData` to `SemanticData` equivalent of `SemanticData.Pos`
-   by getting its position. */
-extension (data: SyntacticData) {
-  def asSemanticData: Option[SemanticData] = {
-    data match {
-      case SyntacticData.Pos(_) => Some(SemanticData.Pos(getPos(data)))
-      case _                    => None 
-      // ^ this branch is for future if we want to expand SyntacticData
+object SyntacticData {
+  /**
+  * Extension methods for working with SyntacticData positions.
+  */
+  extension (data: SyntacticData) {
+    /** Extract the source position from syntactic data */
+    def pos: SourcePos = data match {
+      case SyntacticData.Pos(p) => p
     }
+    
+    /** Convert to SemanticData.Pos for position-only forwarding */
+    def toSemanticPos: SemanticData.Pos = SemanticData.Pos(data.pos)
   }
 }

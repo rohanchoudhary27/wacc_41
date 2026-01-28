@@ -1,6 +1,7 @@
 package wacc
 
 import scala.collection.mutable.Map
+import SyntacticData.*
 
 /**
 * Renamer stage of the frontend compiler pipeline.
@@ -50,7 +51,7 @@ class Renamer {
 
       val funcName = f.ident.name
       val funcSignature: SemanticData.Func = SemanticData.Func(
-          pos = f.info match { case SyntacticData.Pos(pos) => pos },
+          pos = f.info.pos,
           name = funcName,
           returnType = retType,
           params = paramTypes
@@ -71,38 +72,40 @@ class Renamer {
 
   private def renameStmt(stmt: Stmt[SyntacticData], symbolTable: SymbolTable, errorLogger: SemanticErrorLogger): Stmt[SemanticData] = {
     stmt match {
-      case Stmt.Skip(synPos) => Stmt.Skip(synPos.asSemanticData.get)
-      case Stmt.Exit(expr, synPos) => Stmt.Exit(renameExpr(expr, symbolTable, errorLogger), synPos.asSemanticData.get)
-      case Stmt.Print(expr, synPos) => Stmt.Print(renameExpr(expr, symbolTable, errorLogger), synPos.asSemanticData.get)
-      case Stmt.Println(expr, synPos) => Stmt.Println(renameExpr(expr, symbolTable, errorLogger), synPos.asSemanticData.get)
+      case Stmt.Skip(synPos) => Stmt.Skip(synPos.toSemanticPos)
+      case Stmt.Exit(expr, synPos) => Stmt.Exit(renameExpr(expr, symbolTable, errorLogger), synPos.toSemanticPos)
+      case Stmt.Print(expr, synPos) => Stmt.Print(renameExpr(expr, symbolTable, errorLogger), synPos.toSemanticPos)
+      case Stmt.Println(expr, synPos) => Stmt.Println(renameExpr(expr, symbolTable, errorLogger), synPos.toSemanticPos)
       case Stmt.Block(stmtList, synPos) => renameBlock(stmtList, synPos, symbolTable, errorLogger)
 
       case Stmt.If(expr, stmtIf, stmtElse, synPos) => Stmt.If(renameExpr(expr, symbolTable, errorLogger),
                                                               renameStmt(stmtIf, symbolTable, errorLogger),
                                                               renameStmt(stmtElse, symbolTable, errorLogger),
-                                                              synPos.asSemanticData.get)
+                                                              synPos.toSemanticPos)
+
       case Stmt.While(condExpr, stmt, synPos) => Stmt.While(renameExpr(condExpr, symbolTable, errorLogger),
                                                             renameStmt(stmt, symbolTable, errorLogger),
-                                                            synPos.asSemanticData.get)
+                                                            synPos.toSemanticPos)
+
       case Stmt.Decl(syntacticType, ident, rval, synPos) => {
 
         val renamedRVal = renameRValue(rval, symbolTable, errorLogger)
 
         val renameId = getNextId(ident.name)
         val varSemData: SemanticData.Var =
-          SemanticData.Var(getPos(synPos), renameId, syntaxToSemantics(syntacticType))
+          SemanticData.Var(synPos.pos, renameId, syntaxToSemantics(syntacticType))
 
         if (!symbolTable.set(ident.name, varSemData)) {
-          errorLogger.logError(getPos(synPos), s"Scope error: Variable ${ident.name} is already declared in this scope")
+          errorLogger.logError(synPos.pos, s"Scope error: Variable ${ident.name} is already declared in this scope")
         }
 
-        Stmt.Decl(syntacticType, renameIdent(ident, symbolTable, errorLogger), renamedRVal, synPos.asSemanticData.get)
+        Stmt.Decl(syntacticType, renameIdent(ident, symbolTable, errorLogger), renamedRVal, synPos.toSemanticPos)
 
       }
       case Stmt.Asgn(lval, rval, synPos) => {
         val renamedLVal = renameLValue(lval, symbolTable, errorLogger)
         val renamedRVal = renameRValue(rval, symbolTable, errorLogger)
-        Stmt.Asgn(renamedLVal, renamedRVal, synPos.asSemanticData.get)
+        Stmt.Asgn(renamedLVal, renamedRVal, synPos.toSemanticPos)
       }
       case _ => ???
     }
@@ -114,7 +117,7 @@ class Renamer {
                           errorLogger: SemanticErrorLogger): Stmt.Block[SemanticData] = {
 
         val childScope = new SymbolTable(Some(symbolTable))
-        Stmt.Block(renameStmtList(stmtList, childScope, errorLogger), synPos.asSemanticData.get)
+        Stmt.Block(renameStmtList(stmtList, childScope, errorLogger), synPos.toSemanticPos)
   }
 
   private def renameRValue(rvalue: RValue[SyntacticData],
@@ -137,8 +140,8 @@ class Renamer {
     val semData = symbolTable.get(ident.name) match
       case Some(varSemData) => varSemData
       case None => {
-        errorLogger.logError(getPos(ident.info), s"Scope error: Variable ${ident.name} is not defined")
-        SemanticData.Error(getPos(ident.info))
+        errorLogger.logError(ident.info.pos, s"Scope error: Variable ${ident.name} is not defined")
+        SemanticData.Error(ident.info.pos)
       }
 
     Ident(ident.name, semData)
@@ -154,21 +157,21 @@ class Renamer {
                          symbolTable: SymbolTable,
                          errorLogger: SemanticErrorLogger): Expr[SemanticData] = expr match {
     case IntLiter(value, info) =>
-      val exprInfo = SemanticData.Expr(getPos(info), KnownType.Int)
+      val exprInfo = SemanticData.Expr(info.pos, KnownType.Int)
       IntLiter(value, exprInfo)
     case BoolLiter(value, info) => 
-      val exprInfo = SemanticData.Expr(getPos(info), KnownType.Bool)
+      val exprInfo = SemanticData.Expr(info.pos, KnownType.Bool)
       BoolLiter(value, exprInfo)
     case CharLiter(value, info) => 
-      val exprInfo = SemanticData.Expr(getPos(info), KnownType.Char)
+      val exprInfo = SemanticData.Expr(info.pos, KnownType.Char)
       CharLiter(value, exprInfo)
     case StrLiter(value, info) => 
-      val exprInfo = SemanticData.Expr(getPos(info), KnownType.String)
+      val exprInfo = SemanticData.Expr(info.pos, KnownType.String)
       StrLiter(value, exprInfo)
-    case PairLiter(info) => PairLiter(SemanticData.Expr(getPos(info), Null))
+    case PairLiter(info) => PairLiter(SemanticData.Expr(info.pos, Null))
     case i @ Ident(name, info) => renameIdent(i, symbolTable, errorLogger)
-    case UnaryExpr(op, expr, synPos) => UnaryExpr(op, renameExpr(expr, symbolTable, errorLogger), synPos.asSemanticData.get)
-    case BinaryExpr(op, left, right, synPos) => BinaryExpr(op, renameExpr(left, symbolTable, errorLogger), renameExpr(right,symbolTable, errorLogger), synPos.asSemanticData.get)
+    case UnaryExpr(op, expr, synPos) => UnaryExpr(op, renameExpr(expr, symbolTable, errorLogger), synPos.toSemanticPos)
+    case BinaryExpr(op, left, right, synPos) => BinaryExpr(op, renameExpr(left, symbolTable, errorLogger), renameExpr(right,symbolTable, errorLogger), synPos.toSemanticPos)
     case _ => ???
   }
 }

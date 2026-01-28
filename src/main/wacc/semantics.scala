@@ -93,6 +93,23 @@ enum SemanticData {
   case Error(pos: SourcePos)
 }
 
+object SemanticData {
+  /**
+  * Extension methods for working with SemanticData positions.
+  */
+  extension (data: SemanticData) {
+    /** Extract the source position from semantic data */
+    def pos: SourcePos = data match {
+      case SemanticData.Pos(p) => p
+      case SemanticData.Var(p, _, _) => p
+      case SemanticData.Func(p, _, _, _) => p
+      case SemanticData.Expr(p, _) => p
+      case SemanticData.Error(p) => p
+      case SemanticData.TopLevel(_) => (0, 0) // TopLevel has no position
+    }
+  }
+}
+
 /**
 * An object representing a semantic error.
 *
