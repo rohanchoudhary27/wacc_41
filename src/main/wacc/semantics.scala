@@ -138,11 +138,12 @@ case class SemanticErrorLogger(val codeLines: Vector[String] = Vector.empty) {
   *
   * @param pos: A (row, column) tuple in the program where the AST
   * node is located
-  * @param msg: A string error message
+  * @param msg: A mandatory string error message
+  * @param extraInfo: Optional additional text for the error
   */
-  def logError(pos: SourcePos, msg: String) = {
+  def logError(pos: SourcePos, msg: String, extraInfo: String = "") = {
     val codeLine = if (codeLines.nonEmpty) codeLines(pos(0) - 1) else ""
-    errors += SemanticError(pos, msg, codeLine)
+    errors += SemanticError(pos, msg + extraInfo, codeLine)
   }
 
   /**

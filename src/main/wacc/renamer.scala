@@ -1,6 +1,7 @@
 package wacc
 
 import scala.collection.mutable.Map
+import scala.math.{max}
 import SyntacticData.*
 
 /**
@@ -137,6 +138,31 @@ class Renamer {
     case i: Ident[SyntacticData] => renameIdent(i, symbolTable, errorLogger)
     case _                       => ???
   
+
+  /* Computes the variable in scope with name most similar to `userVar` */
+  private def bestGuessVariable(userVar: String, symbolTable: SymbolTable): Option[String] = {
+
+    val userVarSize = userVar.length
+    var bestGuess: String = ""
+    var bestGuessScore: Double = 0.0
+    val guessThreshold = 0.5
+
+    for (inScopeVar <- symbolTable.getInScope()) {
+      val similarityScore = computeSimilarity(userVar, inScopeVar)
+      val normalisedSimilarity = 1 - (similarityScore / (math.max(userVarSize, inScopeVar.length)))
+      if (bestGuessScore < normalisedSimilarity) {
+        bestGuessScore = normalisedSimilarity
+        bestGuess = inScopeVar
+      }
+    }
+
+    if (bestGuessScore >= guessThreshold && bestGuess.nonEmpty) Some(bestGuess) else None
+  }
+
+  private def computeSimilarity(str1: String, str2: String): Double = {
+    0.1 // STUB FOR NOW
+  }
+
   private def renameIdent(ident: Ident[SyntacticData],
                           symbolTable: SymbolTable,
                           errorLogger: SemanticErrorLogger): Ident[SemanticData] = {
@@ -144,7 +170,13 @@ class Renamer {
     val semData = symbolTable.get(ident.name) match
       case Some(varSemData) => varSemData
       case None => {
-        errorLogger.logError(ident.info.pos, s"Scope error: Variable ${ident.name} is not defined")
+        val errorMsg = s"Scope error: Variable ${ident.name} is not defined"
+
+        val suggestedVar = bestGuessVariable(ident.name, symbolTable) match
+          case None => ""
+          case Some(closestVariable) => s"\nDid you mean ${closestVariable}?"
+        
+        errorLogger.logError(ident.info.pos, errorMsg, suggestedVar)
         SemanticData.Error(ident.info.pos)
       }
 
