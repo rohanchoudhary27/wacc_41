@@ -50,4 +50,11 @@ final class SymbolTable(val prev: Option[SymbolTable]) {
             }
         }
     }
+
+    /**
+    * Return a list of the variables in the current scope
+    *
+    * @return List[String]: Returns the list of in scope variable names
+    */
+    def getInScope(): List[String] = mapForScope.keys.toList 
 }
