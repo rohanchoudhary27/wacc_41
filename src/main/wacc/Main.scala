@@ -56,16 +56,14 @@ def main(args: Array[String]): Unit = {
             val semanticErrors = new SemanticErrorLogger()
 
             // Rename the AST and return this AST, build the senamtic errors if there are any
-            val renamer = new Renamer()
-            val renamedAST = renamer.rename(syntacticAST,semanticErrors)
+            val renamedAST = Renamer.rename(syntacticAST,semanticErrors)
 
             // Type check the renamed AST, adding the errors if there are any
-            val typeChecker = new TypeChecker()
             val funcTable = renamedAST.info match {
                 case SemanticData.TopLevel(ft) => ft
                 case _ => Map.empty[String, SemanticData.Func]
             }
-            typeChecker.check(renamedAST, semanticErrors, funcTable)
+            TypeChecker.check(renamedAST, semanticErrors, funcTable)
 
             // If there were no errors then exit with 0, else 200
             semanticErrors.hasErrors() match {
