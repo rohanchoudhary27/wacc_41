@@ -76,7 +76,7 @@ def main(args: Array[String]): Unit = {
                     println("Successfully compiled file with no errors.")
                     sys.exit(0)
                 case true =>
-                    Console.err.println("Failure: 200 - Semantic error:")
+                    Console.err.println("Failure: 200 - Semantic errors:\n")
                     Console.err.println(semanticErrors.retrieveAllErrors())
                     sys.exit(200)
         }
