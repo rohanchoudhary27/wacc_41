@@ -18,12 +18,11 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
       
       errorLogger.hasErrors() shouldBe false
       
-      val typeChecker = new TypeChecker()
       val funcTable = renamedProgram.info match {
         case wacc.SemanticData.TopLevel(ft) => ft
         case _ => Map.empty
       }
-      val typeCheckResult = typeChecker.check(renamedProgram, errorLogger, funcTable)
+      val typeCheckResult = TypeChecker.check(renamedProgram, errorLogger, funcTable)
       
       errorLogger.hasErrors() shouldBe false
       typeCheckResult.isDefined shouldBe true
@@ -40,12 +39,11 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
       
       errorLogger.hasErrors() shouldBe false
       
-      val typeChecker = new TypeChecker()
       val funcTable = renamedProgram.info match {
         case wacc.SemanticData.TopLevel(ft) => ft
         case _ => Map.empty
       }
-      val typeCheckResult = typeChecker.check(renamedProgram, errorLogger, funcTable)
+      val typeCheckResult = TypeChecker.check(renamedProgram, errorLogger, funcTable)
       
       errorLogger.hasErrors() shouldBe false
       typeCheckResult.isDefined shouldBe true
@@ -62,12 +60,11 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
       
       errorLogger.hasErrors() shouldBe false
       
-      val typeChecker = new TypeChecker()
       val funcTable = renamedProgram.info match {
         case wacc.SemanticData.TopLevel(ft) => ft
         case _ => Map.empty
       }
-      val typeCheckResult = typeChecker.check(renamedProgram, errorLogger, funcTable)
+      val typeCheckResult = TypeChecker.check(renamedProgram, errorLogger, funcTable)
       
       errorLogger.hasErrors() shouldBe true
       val errors = errorLogger.retrieveAllErrors()
@@ -85,12 +82,11 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
       
       errorLogger.hasErrors() shouldBe false
       
-      val typeChecker = new TypeChecker()
       val funcTable = renamedProgram.info match {
         case wacc.SemanticData.TopLevel(ft) => ft
         case _ => Map.empty
       }
-      val typeCheckResult = typeChecker.check(renamedProgram, errorLogger, funcTable)
+      val typeCheckResult = TypeChecker.check(renamedProgram, errorLogger, funcTable)
       
       errorLogger.hasErrors() shouldBe true
       val errors = errorLogger.retrieveAllErrors()

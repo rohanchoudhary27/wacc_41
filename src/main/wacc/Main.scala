@@ -59,12 +59,11 @@ def main(args: Array[String]): Unit = {
             val renamedAST = Renamer.rename(syntacticAST,semanticErrors)
 
             // Type check the renamed AST, adding the errors if there are any
-            val typeChecker = new TypeChecker()
             val funcTable = renamedAST.info match {
                 case SemanticData.TopLevel(ft) => ft
                 case _ => Map.empty[String, SemanticData.Func]
             }
-            typeChecker.check(renamedAST, semanticErrors, funcTable)
+            TypeChecker.check(renamedAST, semanticErrors, funcTable)
 
             // If there were no errors then exit with 0, else 200
             semanticErrors.hasErrors() match {

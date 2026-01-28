@@ -42,8 +42,7 @@ final class FrontendIntegrationSpec extends AnyFlatSpec with Matchers {
                         case _ => Map.empty[String, wacc.SemanticData.Func]
                     }
 
-                    val typeChecker = new TypeChecker()
-                    typeChecker.check(renamedAST, semanticErrors, funcTable)
+                    TypeChecker.check(renamedAST, semanticErrors, funcTable)
 
                     if (semanticErrors.hasErrors()) 200 // Semantic Error
                     else 0                              // Success
