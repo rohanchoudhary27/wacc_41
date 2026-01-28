@@ -107,6 +107,10 @@ class Renamer {
         val renamedRVal = renameRValue(rval, symbolTable, errorLogger)
         Stmt.Asgn(renamedLVal, renamedRVal, synPos.toSemanticPos)
       }
+      case Stmt.Read(lval, synPos) => {
+        val renamedLVal = renameLValue(lval, symbolTable, errorLogger)
+        Stmt.Read(renamedLVal, synPos.toSemanticPos)
+      }
       case _ => ???
     }
   }
