@@ -1,5 +1,6 @@
 package wacc
 
+import scala.math.{max}
 import scala.collection.mutable
 import SyntacticData.*
 
@@ -21,7 +22,8 @@ class RenamerState(
   }
   
   /** Emit an error message */
-  def emit(pos: SourcePos, msg: String) = errorLogger.logError(pos, msg)
+  def emit(pos: SourcePos, msg: String, extraInfo: String = "") =
+    errorLogger.logError(pos, msg, extraInfo)
   
   /** Get the function signature table as an immutable map */
   def allFuncs: Map[String, SemanticData.Func] = funcSignatureTable.toMap
@@ -36,6 +38,11 @@ class RenamerState(
 * for the type checker.
 */
 object Renamer {
+
+  /* The normalised edit-distance threshold beyond which an in-scope
+     variable is close enough to an out-of-scope error identifier to
+     be suggested */
+  val guessThreshold = 0.7
 
   /**
   * Renames the input Program AST and logs any semantic errors found.
@@ -103,13 +110,16 @@ object Renamer {
         val renamedRVal = renameRValue(rval)
 
         if (scope.contains(ident.name)) {
-          state.emit(synPos.pos, s"Scope error: Variable ${ident.name} is already declared in this scope")
+          val originalVar = scope.lookup(ident.name).get
+          val oldPos = originalVar.pos
+          val errorMsg = s"Scope error: Variable '${ident.name}' is already declared in this scope"
+          val originalDeclMsg = s"\nOriginal declaration was at Line ${oldPos(0)}, Column ${oldPos(1)}"
+          state.emit(synPos.pos, errorMsg, originalDeclMsg)
         }
 
         val renameId = state.fresh(ident.name)
         val varSemData: SemanticData.Var = SemanticData.Var(synPos.pos, renameId, syntaxToSemantics(syntacticType))
         scope.add(ident.name, varSemData)
-
         Stmt.Decl(syntacticType, renameIdent(ident), renamedRVal, synPos.toSemanticPos)
       }
       case Stmt.Asgn(lval, rval, synPos) => {
@@ -145,12 +155,67 @@ object Renamer {
     case _                       => ???
   }
   
+  /* Computes the variable in scope with name most similar to `userVar` */
+  private def bestGuessVariable(userVar: String, scope: RenamerScope): Option[String] = {
+
+    val userVarSize = userVar.length
+    var bestGuess: String = ""
+    var bestGuessScore: Double = 0.0
+
+    for (inScopeVar <- scope.getInScope()) {
+      val similarityScore = computeSimilarity(userVar, inScopeVar)
+      val normalisedSimilarity = 1 - (similarityScore / (max(userVarSize, inScopeVar.length)))
+      if (bestGuessScore < normalisedSimilarity) {
+        bestGuessScore = normalisedSimilarity
+        bestGuess = inScopeVar
+      }
+    }
+
+    if (bestGuessScore >= guessThreshold && bestGuess.nonEmpty) Some(bestGuess) else None
+  }
+
+  /* Compute the edit distance between two strings */
+  private def computeSimilarity(str1: String, str2: String): Double = {
+
+    val len1 = str1.length
+    val len2 = str2.length
+
+    val distMat = Array.ofDim[Int](len1 + 1, len2 + 1)
+
+    for (i <- 0 to len1) {
+      distMat(i)(0) = i
+    }
+
+    for (j <- 0 to len2) {
+      distMat(0)(j) = j
+    }
+
+    for (i <- 1 to len1) {
+      for (j <- 1 to len2) {
+        val cost = if (str1(i - 1) == str2(j - 1)) 0 else 1
+        distMat(i)(j) = Math.min(
+          Math.min(distMat(i - 1)(j) + 1,
+                  distMat(i)(j - 1) + 1),
+          distMat(i - 1)(j - 1) + cost
+        )
+      }
+    }
+
+    distMat(len1)(len2)
+  }
+
   private def renameIdent(ident: Ident[SyntacticData])
                          (using scope: RenamerScope, state: RenamerState): Ident[SemanticData] = {
     val semData = scope.lookup(ident.name) match {
       case Some(varSemData) => varSemData.copy(pos = ident.info.pos)
       case None => {
-        state.emit(ident.info.pos, s"Scope error: Variable ${ident.name} is not defined")
+        val errorMsg = s"Scope error: Variable '${ident.name}' is not defined"
+
+        val suggestedVar = bestGuessVariable(ident.name, scope) match
+          case None => ""
+          case Some(closestVariable) => s"\nDid you mean '${closestVariable}'?"
+        
+        state.emit(ident.info.pos, errorMsg, suggestedVar)
         SemanticData.Error(ident.info.pos)
       }
     }

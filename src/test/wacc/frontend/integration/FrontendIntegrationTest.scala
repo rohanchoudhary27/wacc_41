@@ -25,8 +25,13 @@ final class FrontendIntegrationSpec extends AnyFlatSpec with Matchers {
     private object FrontendCompilerDriver {
         def frontendCompile(path: Path): Int = {
 
+            // Load file as String
             val source = Source.fromFile(path.toFile)
-            val sourceCode = try source.mkString finally source.close()
+            val codeLines: Vector[String] =
+                try source.getLines().toVector
+                finally source.close()
+
+            val sourceCode: String = codeLines.mkString("\n")
 
             val result = parser.parse(sourceCode)
 
@@ -34,7 +39,7 @@ final class FrontendIntegrationSpec extends AnyFlatSpec with Matchers {
                 case Left(_) => 100
                 
                 case Right(syntacticAST) =>
-                    val semanticErrors = new SemanticErrorLogger()
+                    val semanticErrors = new SemanticErrorLogger(codeLines)
                     val renamedAST = Renamer.rename(syntacticAST, semanticErrors)
 
                     val funcTable = renamedAST.info match {

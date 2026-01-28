@@ -52,6 +52,13 @@ final class RenamerScope(
     def newScope: RenamerScope = {
         RenamerScope(mutable.Map.empty, parentScope ++ curScope)
     }
+
+    /**
+    * Return a list of the variables in scope
+    *
+    * @return List[String]: Returns the list of in scope variable names
+    */
+    def getInScope(): List[String] = (curScope.keys ++ parentScope.keys).toList
 }
 
 object RenamerScope {
