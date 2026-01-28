@@ -5,7 +5,7 @@ import parsley.token.Lexer
 import parsley.token.descriptions.*
 import parsley.token.Basic
 import parsley.token.descriptions.ExponentDesc.NoExponents
-import parsley.token.errors.ErrorConfig
+import parsley.token.errors.{ErrorConfig, Label, LabelConfig, LabelWithExplainConfig}
 
 object lexer {
     private val desc = LexicalDesc.plain.copy(
@@ -60,8 +60,83 @@ object lexer {
         ),
     )
 
-    // stub for now
-    private val errorConfig = new ErrorConfig {}
+    private val errorConfig = new ErrorConfig {
+        // Label operators, delimiters, and keywords with meaningful names
+        override def labelSymbol = Map(
+            // Arithmetic operators
+            "+" -> Label("addition operator"),
+            "-" -> Label("subtraction operator"),
+            "*" -> Label("multiplication operator"),
+            "/" -> Label("division operator"),
+            "%" -> Label("modulo operator"),
+            
+            // Comparison operators
+            ">"  -> Label("greater than operator"),
+            ">=" -> Label("greater than or equal operator"),
+            "<"  -> Label("less than operator"),
+            "<=" -> Label("less than or equal operator"),
+            "==" -> Label("equality operator"),
+            "!=" -> Label("inequality operator"),
+            
+            // Logical operators
+            "&&" -> Label("logical AND operator"),
+            "||" -> Label("logical OR operator"),
+            "!"  -> Label("logical NOT operator"),
+            
+            // Assignment and delimiters
+            "=" -> Label("assignment operator"),
+            "[" -> Label("opening bracket"),
+            "]" -> Label("closing bracket"),
+            "(" -> Label("opening parenthesis"),
+            ")" -> Label("closing parenthesis"),
+            "," -> Label("comma"),
+            ";" -> Label("semicolon"),
+            
+            // Keywords
+            "begin"   -> Label("'begin' keyword"),
+            "end"     -> Label("'end' keyword"),
+            "skip"    -> Label("'skip' statement"),
+            "read"    -> Label("'read' statement"),
+            "free"    -> Label("'free' statement"),
+            "return"  -> Label("'return' statement"),
+            "exit"    -> Label("'exit' statement"),
+            "print"   -> Label("'print' statement"),
+            "println" -> Label("'println' statement"),
+            "if"      -> Label("'if' keyword"),
+            "then"    -> Label("'then' keyword"),
+            "else"    -> Label("'else' keyword"),
+            "fi"      -> Label("'fi' keyword"),
+            "while"   -> Label("'while' keyword"),
+            "do"      -> Label("'do' keyword"),
+            "done"    -> Label("'done' keyword"),
+            "newpair" -> Label("'newpair' keyword"),
+            "call"    -> Label("'call' keyword"),
+            "fst"     -> Label("'fst' keyword"),
+            "snd"     -> Label("'snd' keyword"),
+            "int"     -> Label("'int' type"),
+            "bool"    -> Label("'bool' type"),
+            "char"    -> Label("'char' type"),
+            "string"  -> Label("'string' type"),
+            "pair"    -> Label("'pair' type"),
+            "len"     -> Label("'len' operator"),
+            "ord"     -> Label("'ord' operator"),
+            "chr"     -> Label("'chr' operator"),
+            "true"    -> Label("boolean literal 'true'"),
+            "false"   -> Label("boolean literal 'false'"),
+            "null"    -> Label("null literal")
+        )
+        
+        // Label numeric literals
+        override def labelIntegerUnsignedDecimal: LabelConfig = Label("integer literal")
+        
+        // Label text literals
+        override def labelCharUtf16: LabelWithExplainConfig = Label("character literal")
+        override def labelStringUtf16(multi: Boolean, raw: Boolean): LabelWithExplainConfig = Label("string literal")
+        
+        // Label identifiers and operators
+        override def labelNameIdentifier: String = "identifier"
+        override def labelNameOperator: String = "operator"
+    }
 
     private val lexer = Lexer(desc, errorConfig)
 
