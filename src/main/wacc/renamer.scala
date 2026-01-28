@@ -33,6 +33,11 @@ class Renamer {
     id
   }
 
+  /* The normalised edit-distance threshold beyond which an in-scope
+     variable is close enough to an out-of-scope error identifier to
+     be suggested */
+  val guessThreshold = 0.7
+
   /**
   * Renames the input Program AST and logs any semantic errors found.
   *
@@ -145,11 +150,10 @@ class Renamer {
     val userVarSize = userVar.length
     var bestGuess: String = ""
     var bestGuessScore: Double = 0.0
-    val guessThreshold = 0.5
 
     for (inScopeVar <- symbolTable.getInScope()) {
       val similarityScore = computeSimilarity(userVar, inScopeVar)
-      val normalisedSimilarity = 1 - (similarityScore / (math.max(userVarSize, inScopeVar.length)))
+      val normalisedSimilarity = 1 - (similarityScore / (max(userVarSize, inScopeVar.length)))
       if (bestGuessScore < normalisedSimilarity) {
         bestGuessScore = normalisedSimilarity
         bestGuess = inScopeVar
@@ -159,6 +163,7 @@ class Renamer {
     if (bestGuessScore >= guessThreshold && bestGuess.nonEmpty) Some(bestGuess) else None
   }
 
+  /* Compute the edit distance between two strings */
   private def computeSimilarity(str1: String, str2: String): Double = {
 
     val len1 = str1.length
@@ -193,7 +198,7 @@ class Renamer {
                           errorLogger: SemanticErrorLogger): Ident[SemanticData] = {
 
     val semData = symbolTable.get(ident.name) match
-      case Some(varSemData) => varSemData
+      case Some(varSemData) => varSemData.copy(pos = ident.info.pos) 
       case None => {
         val errorMsg = s"Scope error: Variable ${ident.name} is not defined"
 
