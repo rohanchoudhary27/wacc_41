@@ -1,6 +1,7 @@
 valid/basic/skip
 valid/basic/exit
 valid/sequence
+valid/expressions
 
 
 # if statement integration tests
