@@ -153,21 +153,22 @@ class Renamer {
     exprList.map(s => renameStmt(s, symbolTable, errorLogger))
   }
 
+  private def renameLiteral[A](
+      value: A,
+      info: SyntacticData,
+      litType: SemanticType,
+      constructor: (A, SemanticData) => Expr[SemanticData]
+  ): Expr[SemanticData] = {
+    constructor(value, SemanticData.Expr(info.pos, litType))
+  }
+
   private def renameExpr(expr: Expr[SyntacticData],
                          symbolTable: SymbolTable,
                          errorLogger: SemanticErrorLogger): Expr[SemanticData] = expr match {
-    case IntLiter(value, info) =>
-      val exprInfo = SemanticData.Expr(info.pos, KnownType.Int)
-      IntLiter(value, exprInfo)
-    case BoolLiter(value, info) => 
-      val exprInfo = SemanticData.Expr(info.pos, KnownType.Bool)
-      BoolLiter(value, exprInfo)
-    case CharLiter(value, info) => 
-      val exprInfo = SemanticData.Expr(info.pos, KnownType.Char)
-      CharLiter(value, exprInfo)
-    case StrLiter(value, info) => 
-      val exprInfo = SemanticData.Expr(info.pos, KnownType.String)
-      StrLiter(value, exprInfo)
+    case IntLiter(value, info) => renameLiteral(value, info, KnownType.Int, IntLiter.apply)
+    case BoolLiter(value, info) => renameLiteral(value, info, KnownType.Bool, BoolLiter.apply)
+    case CharLiter(value, info) => renameLiteral(value, info, KnownType.Char, CharLiter.apply)
+    case StrLiter(value, info) => renameLiteral(value, info, KnownType.String, StrLiter.apply)
     case PairLiter(info) => PairLiter(SemanticData.Expr(info.pos, Null))
     case i @ Ident(name, info) => renameIdent(i, symbolTable, errorLogger)
     case UnaryExpr(op, expr, synPos) => UnaryExpr(op, renameExpr(expr, symbolTable, errorLogger), synPos.toSemanticPos)
