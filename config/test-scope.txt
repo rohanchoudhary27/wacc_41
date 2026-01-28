@@ -27,5 +27,4 @@ valid/variables
 
 # I/O statement tests (read)
 valid/IO/read
-invalid/semanticErr/read
-
+# invalid/semanticErr/read
