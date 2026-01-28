@@ -56,5 +56,10 @@ final class SymbolTable(val prev: Option[SymbolTable]) {
     *
     * @return List[String]: Returns the list of in scope variable names
     */
-    def getInScope(): List[String] = mapForScope.keys.toList 
+    def getInScope(): List[String] = {
+        val currScopeVars = mapForScope.keys.toList 
+        prev match
+            case None => currScopeVars
+            case Some(symbolTable) => currScopeVars ::: symbolTable.getInScope()
+    }
 }
