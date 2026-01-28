@@ -227,7 +227,7 @@ class TypeChecker {
             PairLiter(SemanticData.Expr(pos, actualType.satisfies(c, pos, log).getOrElse(?)))
         
         case i: Ident[SemanticData] => checkIdent(i, c, log)
-        case UnaryExpr(op, expr, SemanticData.Pos(pos)) =>
+        case UnaryExpr(op, expr, SemanticData.Pos(pos)) => {
             val (inputConstraint, resultType) = op match {
                 case UnaryOperator.Not => (Constraint.Is(KnownType.Bool), KnownType.Bool)
                 case UnaryOperator.Neg => (Constraint.Is(KnownType.Int), KnownType.Int)
@@ -238,8 +238,9 @@ class TypeChecker {
             val typedExpr = checkExpr(expr, inputConstraint, log)
             val finalType = resultType.satisfies(c, pos, log).getOrElse(?)
             UnaryExpr(op, typedExpr, SemanticData.Expr(pos, finalType))
+        }
         
-        case BinaryExpr(op, left, right, SemanticData.Pos(pos)) =>
+        case BinaryExpr(op, left, right, SemanticData.Pos(pos)) => {
             val (inputLConstraint, inputRConstraint, resultType) = op match {
                 case BinaryOperator.Add | BinaryOperator.Sub | BinaryOperator.Mul | BinaryOperator.Div | BinaryOperator.Mod => 
                     (Constraint.Is(KnownType.Int), Constraint.Is(KnownType.Int), KnownType.Int)
@@ -265,6 +266,7 @@ class TypeChecker {
             val typedRExpr = checkExpr(right, matchR, log)
             val finalType = resultType.satisfies(c, pos, log).getOrElse(?)
             BinaryExpr(op, typedLExpr, typedRExpr, SemanticData.Expr(pos, finalType))
+        }
 
         case _ => ???
     }
