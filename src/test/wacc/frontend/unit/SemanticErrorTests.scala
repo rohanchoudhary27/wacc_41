@@ -6,14 +6,15 @@ import wacc.SemanticErrorLogger
 
 class SemanticErrorTests extends AnyFlatSpec with Matchers {
 
-    "A SemanticErrorLogger" should "store errors passed to it" in {
-      val logger = SemanticErrorLogger()
+    "A SemanticErrorLogger" should "store and format errors passed to it" in {
+
+      val logger = new SemanticErrorLogger()
 
       val msgOne = "some error message"
-      val posOne = (2,4)
+      val posOne = (2, 4)
 
       val msgTwo = "what? another error message?"
-      val posTwo = (5,2)
+      val posTwo = (5, 2)
 
       logger.logError(posOne, msgOne)
       logger.logError(posTwo, msgTwo)
@@ -21,15 +22,19 @@ class SemanticErrorTests extends AnyFlatSpec with Matchers {
       logger.hasErrors() shouldBe true
       val retrievedErrors = logger.retrieveAllErrors()
 
-      retrievedErrors(0).msg shouldBe msgOne
-      retrievedErrors(0).pos shouldBe posOne
-      retrievedErrors(1).msg shouldBe msgTwo
-      retrievedErrors(1).pos shouldBe posTwo
+      retrievedErrors should include (msgOne)
+      retrievedErrors should include (msgTwo)
+
+      retrievedErrors should include ("2") 
+      retrievedErrors should include ("4")
+      retrievedErrors should include ("5")
     }
 
-    it should "start off emtpy" in {
-      val logger = SemanticErrorLogger()
-      logger.hasErrors() shouldBe (false)
-      logger.retrieveAllErrors() shouldBe List()
+    it should "start off empty" in {
+      val logger = new SemanticErrorLogger()
+      logger.hasErrors() shouldBe false
+      
+      // Check for empty string instead of empty List
+      logger.retrieveAllErrors() shouldBe "" 
     }
 }

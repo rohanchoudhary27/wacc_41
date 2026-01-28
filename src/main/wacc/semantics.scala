@@ -124,12 +124,12 @@ object SemanticData {
 * node is located
 * @param msg: A string error message
 */
-case class SemanticError(pos: SourcePos, msg: String)
+case class SemanticError(pos: SourcePos, msg: String, codeLine: String)
 
 /**
 * A logger class for recording semantic errors.
 */
-case class SemanticErrorLogger() {
+case class SemanticErrorLogger(val codeLines: Vector[String] = Vector.empty) {
 
   val errors = ListBuffer[SemanticError]()
 
@@ -140,14 +140,31 @@ case class SemanticErrorLogger() {
   * node is located
   * @param msg: A string error message
   */
-  def logError(pos: SourcePos, msg: String) = errors += SemanticError(pos, msg)
+  def logError(pos: SourcePos, msg: String) = {
+    val codeLine = if (codeLines.nonEmpty) codeLines(pos(0) - 1) else ""
+    errors += SemanticError(pos, msg, codeLine)
+  }
 
   /**
   * Return a list of the the semantic errors logged.
   *
   * @return: An immutable list of `SemanticError` objects
   */
-  def retrieveAllErrors(): List[SemanticError] = errors.toList 
+  def retrieveAllErrors(): String = {
+
+    val errorBuilder = new StringBuilder
+    for (err <- errors) {
+      errorBuilder.append(s"[Line ${err.pos(0)}, column ${err.pos(1)}] ${err.msg}\n\n")
+
+      if (codeLines.nonEmpty) {
+        val errorPointerLine = " " * (err.pos(1) - 1) + "^\n"
+        errorBuilder.append(s"${err.codeLine}\n")
+        errorBuilder.append(s"${errorPointerLine}")
+      }
+
+    }
+    errorBuilder.toString() 
+  }
 
   /**
   * Check whether or not any semantic errors have been encountered.

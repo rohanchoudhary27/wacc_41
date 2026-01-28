@@ -38,7 +38,12 @@ def main(args: Array[String]): Unit = {
 
     // Load file as String
     val source = Source.fromFile(file)
-    val sourceCode = try source.mkString finally source.close()
+    val codeLines: Vector[String] =
+        try source.getLines().toVector
+        finally source.close()
+
+    val sourceCode: String = codeLines.mkString("\n")
+
 
     // Parse the string
     val result = parser.parse(sourceCode)
@@ -53,7 +58,7 @@ def main(args: Array[String]): Unit = {
         // Parsing complete successfully
         case Right(syntacticAST) =>
             // Create an errors object
-            val semanticErrors = new SemanticErrorLogger()
+            val semanticErrors = new SemanticErrorLogger(codeLines)
 
             // Rename the AST and return this AST, build the senamtic errors if there are any
             val renamer = new Renamer()
@@ -74,9 +79,7 @@ def main(args: Array[String]): Unit = {
                     sys.exit(0)
                 case true =>
                     Console.err.println("Failure: 200 - Semantic error:")
-                    for(err <- semanticErrors.retrieveAllErrors()) {
-                        Console.err.println(s"Error at: ${err.pos}: ${err.msg}")
-                    }
+                    Console.err.println(semanticErrors.retrieveAllErrors())
                     sys.exit(200)
         }
     }
