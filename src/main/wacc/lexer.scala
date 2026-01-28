@@ -66,7 +66,7 @@ object lexer {
     private val lexer = Lexer(desc, errorConfig)
 
     // Primitive parsers for use in parser.scala
-    val integer = lexer.lexeme.integer.decimal
+    val integer = lexer.lexeme.integer.decimal32
     val implicits = lexer.lexeme.symbol.implicits
     val ident = lexer.lexeme.names.identifier
     val string = lexer.lexeme.string.fullUtf16
