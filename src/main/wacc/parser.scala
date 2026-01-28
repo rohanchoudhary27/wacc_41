@@ -3,7 +3,8 @@ package wacc
 import parsley.{Parsley, Success, Failure}
 import parsley.combinator.*
 import parsley.Parsley.*
-import parsley.expr.{chain, precedence, Ops, InfixL, InfixN, Prefix}
+import parsley.position.pos
+import parsley.expr.{precedence, Ops, InfixL, InfixN, InfixR, Prefix}
 
 import lexer.{fully, ident, string, boolLiter, nullLiter}
 import lexer.implicits.given
@@ -31,7 +32,6 @@ object parser {
         "char" #> SyntaxType.Char |
         "bool" #> SyntaxType.Bool |
         "string" #> SyntaxType.String
-
     private lazy val arrayType: Parsley[SyntaxType] = ???
     private lazy val pairType: Parsley[SyntaxType] = ???
     private lazy val pairElemType: Parsley[SyntaxType] = ???
@@ -55,7 +55,15 @@ object parser {
     private lazy val scope: Parsley[Stmt[SyntacticData]] = "begin" ~> stmt <~ "end"
 
     /* Expression grammar */
-    private lazy val expr: Parsley[Expr[SyntacticData]] = atom
+    private lazy val expr: Parsley[Expr[SyntacticData]] = precedence(atom)(
+        Ops(Prefix)(unaryOps),
+        Ops(InfixL)(mulOps),
+        Ops(InfixL)(addOps),
+        Ops(InfixN)(cmpOps),
+        Ops(InfixN)(eqOps),
+        Ops(InfixR)(andOps),
+        Ops(InfixR)(orOps)
+    )
     private lazy val atom: Parsley[Expr[SyntacticData]] =
         intLit | boolLit | charLit | strLit | pairLit | identLit
 
@@ -80,11 +88,43 @@ object parser {
     private lazy val identLit  = Ident(ident)
 
     /* Operators */
-    private lazy val unaryOps: List[Parsley[Expr[SyntacticData] => Expr[SyntacticData]]] = ???
-    private lazy val mulOps: List[Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]]] = ???
-    private lazy val addOps: List[Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]]] = ???
-    private lazy val cmpOps: List[Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]]] = ???
-    private lazy val eqOps: List[Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]]] = ???
-    private lazy val andOp: List[Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]]] = ???
-    private lazy val orOp: List[Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]]] = ???
+    private lazy val unaryOps: Parsley[Expr[SyntacticData] => Expr[SyntacticData]] = {
+        prefix("!", UnaryOperator.Not) |
+        prefix("-", UnaryOperator.Neg) |
+        prefix("len", UnaryOperator.Len) |
+        prefix("ord", UnaryOperator.Ord) |
+        prefix("chr", UnaryOperator.Chr)
+    }
+    private lazy val mulOps: Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]] = {
+        infix("*", BinaryOperator.Mul) |
+        infix("/", BinaryOperator.Div) |
+        infix("%", BinaryOperator.Mod)
+    }
+    private lazy val addOps: Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]] = {
+        infix("+", BinaryOperator.Add) |
+        infix("-", BinaryOperator.Sub)
+    }
+    private lazy val cmpOps: Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]] = {
+        infix(">", BinaryOperator.GT) |
+        infix(">=", BinaryOperator.GTE) |
+        infix("<", BinaryOperator.LT) |
+        infix("<=", BinaryOperator.LTE)
+    }
+    private lazy val eqOps: Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]] = {
+        infix("==", BinaryOperator.EQ) |
+        infix("!=", BinaryOperator.NEQ)
+    }
+    private lazy val andOps: Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]] = {
+        infix("&&", BinaryOperator.And)
+    }
+    private lazy val orOps: Parsley[(Expr[SyntacticData], Expr[SyntacticData]) => Expr[SyntacticData]] = {
+        infix("||", BinaryOperator.Or)
+    }
+
+    /* Helper */
+    private def prefix(str: String, op: UnaryOperator): Parsley[Expr[SyntacticData] => Expr[SyntacticData]] = 
+        (str *> pos).map{p => (e: Expr[SyntacticData]) => (new UnaryExpr(op, e, SyntacticData.Pos(p)))}
+
+    private def infix(str: String, op: BinaryOperator): Parsley[(Expr[SyntacticData],Expr[SyntacticData]) => Expr[SyntacticData]] =
+        (str *> pos).map{p => (left: Expr[SyntacticData], right: Expr[SyntacticData]) => new BinaryExpr(op, left, right, SyntacticData.Pos(p))}
 }

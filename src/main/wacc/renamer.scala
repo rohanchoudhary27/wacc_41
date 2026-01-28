@@ -167,6 +167,8 @@ class Renamer {
       StrLiter(value, exprInfo)
     case PairLiter(info) => PairLiter(SemanticData.Expr(getPos(info), Null))
     case i @ Ident(name, info) => renameIdent(i, symbolTable, errorLogger)
+    case UnaryExpr(op, expr, synPos) => UnaryExpr(op, renameExpr(expr, symbolTable, errorLogger), synPos.asSemanticData.get)
+    case BinaryExpr(op, left, right, synPos) => BinaryExpr(op, renameExpr(left, symbolTable, errorLogger), renameExpr(right,symbolTable, errorLogger), synPos.asSemanticData.get)
     case _ => ???
   }
 }
