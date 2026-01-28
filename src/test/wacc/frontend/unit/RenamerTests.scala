@@ -103,8 +103,8 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         errorLogger.hasErrors() shouldBe true
         val errors = errorLogger.retrieveAllErrors()
         
-        errors should include ("Variable myVarble is not defined")
-        errors should include ("Did you mean myVariable?")
+        errors should include ("Variable 'myVarble' is not defined")
+        errors should include ("Did you mean 'myVariable'?")
     }
 
     it should "suggest a similar variable name from a parent scope" in {
@@ -131,8 +131,8 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         errorLogger.hasErrors() shouldBe true
         val errors = errorLogger.retrieveAllErrors()
 
-        errors should include ("Variable jame is not defined")
-        errors should include ("Did you mean jamie?")
+        errors should include ("Variable 'jame' is not defined")
+        errors should include ("Did you mean 'jamie'?")
     }
 
     it should "not suggest anything if no variable is similar enough" in {
@@ -157,7 +157,38 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         errorLogger.hasErrors() shouldBe true
         val errors = errorLogger.retrieveAllErrors()
 
-        errors should include ("Variable konstantinos is not defined")
+        errors should include ("Variable 'konstantinos' is not defined")
         errors should not include ("Did you mean")
+    }
+
+    it should "output the declaration site location on a redeclaration error" in {
+
+        val decl1 = Stmt.Decl(
+            SyntaxType.Int, 
+            Ident("number", SyntacticData.Pos(10, 5)),
+            IntLiter(5, SyntacticData.Pos(10, 10)), 
+            SyntacticData.Pos(10, 1)
+        )
+
+        val decl2 = Stmt.Decl(
+            SyntaxType.Int, 
+            Ident("number", SyntacticData.Pos(20, 5)),
+            IntLiter(5, SyntacticData.Pos(20, 10)), 
+            SyntacticData.Pos(20, 1)
+        )
+
+        val testBlock = Stmt.Block(List(decl1, decl2), SyntacticData.Pos(0,0))
+        val inputAST = Program(List[Func[SyntacticData]](), testBlock, SyntacticData.Pos(0,0))
+
+        val errorLogger = new SemanticErrorLogger()
+        Renamer.rename(inputAST, errorLogger)
+
+        errorLogger.hasErrors() shouldBe true
+        val errors = errorLogger.retrieveAllErrors()
+
+        errors should include ("Variable 'number' is already declared")
+        
+        errors should include ("10") 
+        errors should include ("1")
     }
 }

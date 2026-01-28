@@ -110,13 +110,16 @@ object Renamer {
         val renamedRVal = renameRValue(rval)
 
         if (scope.contains(ident.name)) {
-          state.emit(synPos.pos, s"Scope error: Variable ${ident.name} is already declared in this scope")
+          val originalVar = scope.lookup(ident.name).get
+          val oldPos = originalVar.pos
+          val errorMsg = s"Scope error: Variable '${ident.name}' is already declared in this scope"
+          val originalDeclMsg = s"\nOriginal declaration was at Line ${oldPos(0)}, Column ${oldPos(1)}"
+          state.emit(synPos.pos, errorMsg, originalDeclMsg)
         }
 
         val renameId = state.fresh(ident.name)
         val varSemData: SemanticData.Var = SemanticData.Var(synPos.pos, renameId, syntaxToSemantics(syntacticType))
         scope.add(ident.name, varSemData)
-
         Stmt.Decl(syntacticType, renameIdent(ident), renamedRVal, synPos.toSemanticPos)
       }
       case Stmt.Asgn(lval, rval, synPos) => {
@@ -206,11 +209,11 @@ object Renamer {
     val semData = scope.lookup(ident.name) match {
       case Some(varSemData) => varSemData.copy(pos = ident.info.pos)
       case None => {
-        val errorMsg = s"Scope error: Variable ${ident.name} is not defined"
+        val errorMsg = s"Scope error: Variable '${ident.name}' is not defined"
 
         val suggestedVar = bestGuessVariable(ident.name, scope) match
           case None => ""
-          case Some(closestVariable) => s"\nDid you mean ${closestVariable}?"
+          case Some(closestVariable) => s"\nDid you mean '${closestVariable}'?"
         
         state.emit(ident.info.pos, errorMsg, suggestedVar)
         SemanticData.Error(ident.info.pos)
