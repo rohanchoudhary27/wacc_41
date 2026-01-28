@@ -160,7 +160,32 @@ class Renamer {
   }
 
   private def computeSimilarity(str1: String, str2: String): Double = {
-    0.1 // STUB FOR NOW
+
+    val len1 = str1.length
+    val len2 = str2.length
+
+    val distMat = Array.ofDim[Int](len1 + 1, len2 + 1)
+
+    for (i <- 0 to len1) {
+      distMat(i)(0) = i
+    }
+
+    for (j <- 0 to len2) {
+      distMat(0)(j) = j
+    }
+
+    for (i <- 1 to len1) {
+      for (j <- 1 to len2) {
+        val cost = if (str1(i - 1) == str2(j - 1)) 0 else 1
+        distMat(i)(j) = Math.min(
+          Math.min(distMat(i - 1)(j) + 1,
+                  distMat(i)(j - 1) + 1),
+          distMat(i - 1)(j - 1) + cost
+        )
+      }
+    }
+
+    distMat(len1)(len2)
   }
 
   private def renameIdent(ident: Ident[SyntacticData],
