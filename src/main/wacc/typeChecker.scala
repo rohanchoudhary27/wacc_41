@@ -93,6 +93,9 @@ class TypeChecker {
                                                                checkStmt(stmtIf, log),
                                                                checkStmt(stmtElse, log),
                                                                semInfo)
+      case Stmt.While(condExpr, stmt, semInfo) => Stmt.While(checkExpr(condExpr, Is(KnownType.Bool), log),
+                                                             checkStmt(stmt, log),
+                                                             semInfo)
       case Stmt.Block(stmtList, semInfo) => Stmt.Block(checkStmtList(stmtList, log), semInfo)
       case Stmt.Decl(typ, ident, rvalue, semInfo) => checkDecl(typ, ident, rvalue, semInfo, log)
       case Stmt.Asgn(lval, rval, semInfo) => checkAsgn(lval, rval, semInfo, log)
