@@ -25,3 +25,6 @@ invalid/semanticErr/multiTypeErrs.wacc
 invalid/syntaxErr/variables
 valid/variables
 
+# I/O statement tests (read)
+valid/IO/read
+# invalid/semanticErr/read

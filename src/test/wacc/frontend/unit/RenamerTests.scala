@@ -52,4 +52,33 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
 
         outerId should not equal innerId
     }
+
+    it should "maintain the lvalue in a read statement after renaming" in {
+        val decl = Stmt.Decl(SyntaxType.Int, Ident("x", SyntacticData.Pos(0,0)), IntLiter(5, SyntacticData.Pos(0,0)), SyntacticData.Pos(0,0))
+        val readStmt = Stmt.Read(Ident("x", SyntacticData.Pos(0,0)), SyntacticData.Pos(0,0))
+        
+        val testBlock = Stmt.Block(List(decl, readStmt), SyntacticData.Pos(0,0))
+        val inputAST = Program(List[Func[SyntacticData]](), testBlock, SyntacticData.Pos(0,0))
+        
+        val renamer = Renamer()
+        val errorLogger = SemanticErrorLogger()
+        val renamedAST = renamer.rename(inputAST, errorLogger)
+        
+        errorLogger.hasErrors() shouldBe false
+        
+        val Stmt.Block(
+            List(
+                Stmt.Decl(_, declIdent, _, _),
+                Stmt.Read(readIdent: Ident[SemanticData], _)
+            ), 
+            _
+        ) = renamedAST.stmt: @unchecked
+        
+        val declId = extractId(declIdent)
+        val readId = extractId(readIdent)
+        
+        declId.isDefined shouldBe true
+        readId.isDefined shouldBe true
+        declId shouldEqual readId
+    }
 }

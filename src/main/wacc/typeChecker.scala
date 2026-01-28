@@ -100,6 +100,7 @@ class TypeChecker {
       case Stmt.Block(stmtList, semInfo) => Stmt.Block(checkStmtList(stmtList, log), semInfo)
       case Stmt.Decl(typ, ident, rvalue, semInfo) => checkDecl(typ, ident, rvalue, semInfo, log)
       case Stmt.Asgn(lval, rval, semInfo) => checkAsgn(lval, rval, semInfo, log)
+      case Stmt.Read(lval, semInfo) => checkRead(lval, semInfo, log)
       case _ => ???
     }
 
@@ -127,6 +128,21 @@ class TypeChecker {
         val typedRValue = checkRvalue(rval, Is(semTypeOfLVal), log)
 
         Stmt.Asgn(typedLValue, typedRValue, semInfo)
+    }
+
+    /**
+     * Type-check a read statement
+     */
+    private def checkRead(
+        lval: LValue[SemanticData],
+        semInfo: SemanticData,
+        log: SemanticErrorLogger
+    ): Stmt.Read[SemanticData] = {
+        
+        /* Read can only take int or char types */
+        val readableTypes: Set[SemanticType] = Set(KnownType.Int, KnownType.Char)
+        val typedLValue = checkLvalue(lval, Constraint.OneOf(readableTypes), log)
+        Stmt.Read(typedLValue, semInfo)
     }
 
     /**

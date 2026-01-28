@@ -39,11 +39,11 @@ object parser {
     /* Statement grammar */
     private lazy val stmt: Parsley[Stmt[SyntacticData]] = Block(sepBy1(singleStmt, ";"))
     private lazy val singleStmt: Parsley[Stmt[SyntacticData]] = skip | exit | print | println_stmt | decl | asgn |
-                                                                scope| ifStmt | whileStmt
+                                                                read | scope | ifStmt | whileStmt
     private lazy val skip: Parsley[Stmt[SyntacticData]] = Skip from "skip"
     private lazy val decl: Parsley[Stmt[SyntacticData]] = Decl(baseType, identLit, "=" ~> rvalue)
     private lazy val asgn: Parsley[Stmt[SyntacticData]] = Asgn(lvalue, "=" ~> rvalue)
-    private lazy val read: Parsley[Stmt[SyntacticData]] = ???
+    private lazy val read: Parsley[Stmt[SyntacticData]] = Read("read" ~> lvalue)
     private lazy val free: Parsley[Stmt[SyntacticData]] = ???
     private lazy val return_stmt: Parsley[Stmt[SyntacticData]] = ???
     private lazy val exit: Parsley[Stmt[SyntacticData]] = Exit("exit" ~> expr)
