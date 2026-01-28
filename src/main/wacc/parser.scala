@@ -32,25 +32,25 @@ object parser {
         "char" #> SyntaxType.Char |
         "bool" #> SyntaxType.Bool |
         "string" #> SyntaxType.String
-
     private lazy val arrayType: Parsley[SyntaxType] = ???
     private lazy val pairType: Parsley[SyntaxType] = ???
     private lazy val pairElemType: Parsley[SyntaxType] = ???
 
     /* Statement grammar */
     private lazy val stmt: Parsley[Stmt[SyntacticData]] = Block(sepBy1(singleStmt, ";"))
-    private lazy val singleStmt: Parsley[Stmt[SyntacticData]] = skip | exit | print | println_stmt | decl |
-                                                                scope
+    private lazy val singleStmt: Parsley[Stmt[SyntacticData]] = skip | exit | print | println_stmt | decl | asgn |
+                                                                scope| ifStmt
     private lazy val skip: Parsley[Stmt[SyntacticData]] = Skip from "skip"
     private lazy val decl: Parsley[Stmt[SyntacticData]] = Decl(baseType, identLit, "=" ~> rvalue)
-    private lazy val asgn: Parsley[Stmt[SyntacticData]] = ???
+    private lazy val asgn: Parsley[Stmt[SyntacticData]] = Asgn(lvalue, "=" ~> rvalue)
     private lazy val read: Parsley[Stmt[SyntacticData]] = ???
     private lazy val free: Parsley[Stmt[SyntacticData]] = ???
     private lazy val return_stmt: Parsley[Stmt[SyntacticData]] = ???
     private lazy val exit: Parsley[Stmt[SyntacticData]] = Exit("exit" ~> expr)
     private lazy val print: Parsley[Stmt[SyntacticData]] = Print("print" ~> expr)
     private lazy val println_stmt: Parsley[Stmt[SyntacticData]] = Println("println" ~> expr)
-    private lazy val if_stmt: Parsley[Stmt[SyntacticData]] = ???
+    private lazy val ifStmt: Parsley[Stmt[SyntacticData]] =
+        If("if" ~> expr <~ "then", stmt, "else" ~> stmt <~ "fi")
     private lazy val while_stmt: Parsley[Stmt[SyntacticData]] = ???
     private lazy val scope: Parsley[Stmt[SyntacticData]] = "begin" ~> stmt <~ "end"
 
@@ -68,7 +68,7 @@ object parser {
         intLit | boolLit | charLit | strLit | pairLit | identLit
 
     /* LValue grammar */
-    private lazy val lvalue: Parsley[LValue[SyntacticData]] = ???
+    private lazy val lvalue: Parsley[LValue[SyntacticData]] = identLit // | arrayElem | pairElem
     private lazy val arrayElem: Parsley[ArrayElem[SyntacticData]] = ???
     private lazy val pairElem: Parsley[PairElem[SyntacticData]] = ???
 
