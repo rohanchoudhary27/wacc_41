@@ -132,6 +132,21 @@ case class SemanticError(pos: SourcePos, msg: String, codeLine: String)
 case class SemanticErrorLogger(val codeLines: Vector[String] = Vector.empty) {
 
   val errors = ListBuffer[SemanticError]()
+  val indentTrackedLines = codeLines.map {line => indentAlign(line)}
+
+  /**
+  * Strip leading and trailing whitespace from a string and provide the
+  * number of leading whitespace chars (indent) stripped
+  *
+  * @param str: The string to be stripped
+  * 
+  * @return (String, Int): A tuple with the stripped string and
+  * number of indent characters
+  */
+  private def indentAlign(str: String): (String, Int) = {
+    val leftStrippedStr = str.stripLeading()
+    (leftStrippedStr.stripTrailing(), str.length - leftStrippedStr.length)
+  }
 
   /**
   * Log a new semantic error.
@@ -142,7 +157,12 @@ case class SemanticErrorLogger(val codeLines: Vector[String] = Vector.empty) {
   * @param extraInfo: Optional additional text for the error
   */
   def logError(pos: SourcePos, msg: String, extraInfo: String = "") = {
-    val codeLine = if (codeLines.nonEmpty) codeLines(pos(0) - 1) else ""
+    val codeLine =
+      if (indentTrackedLines.nonEmpty)
+        val (line, _) = indentTrackedLines(pos(0) - 1)
+        line
+      else ""
+
     errors += SemanticError(pos, msg + extraInfo, codeLine)
   }
 
@@ -157,9 +177,10 @@ case class SemanticErrorLogger(val codeLines: Vector[String] = Vector.empty) {
     for (err <- errors) {
       errorBuilder.append(s"[Line ${err.pos(0)}, column ${err.pos(1)}] ${err.msg}\n\n")
 
-      if (codeLines.nonEmpty) {
-        val errorPointerLine = " " * (err.pos(1) - 1) + "^\n"
-        errorBuilder.append(s"${err.codeLine}\n")
+      if (indentTrackedLines.nonEmpty) {
+        val (codeLine, indent) = indentTrackedLines(err.pos(0) - 1)
+        val errorPointerLine = " " * (err.pos(1) - indent - 1) + "^\n"
+        errorBuilder.append(s"${codeLine}\n")
         errorBuilder.append(s"${errorPointerLine}")
       }
 
