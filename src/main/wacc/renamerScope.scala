@@ -12,7 +12,7 @@ import scala.collection.mutable
 * @param parentScope: Immutable map containing all parent scope bindings
 */
 final class RenamerScope(
-    val curScope: mutable.Map[String, SemanticData.Var],
+    private val curScope: mutable.Map[String, SemanticData.Var],
     parentScope: Map[String, SemanticData.Var]
 ) {
     
@@ -27,18 +27,21 @@ final class RenamerScope(
     }
 
     /**
+    * Checks if a variable name exists in the current scope.
+    *
+    * @param name: The variable name to check
+    * @return: true if the name exists in the current scope
+    */
+    def contains(name: String): Boolean = curScope.contains(name)
+
+    /**
     * Adds a variable to the current scope.
     *
     * @param name: The variable name
     * @param info: The variable's semantic data
-    * @return: true if successfully added, false if name already exists in current scope
     */
-    def set(name: String, info: SemanticData.Var): Boolean = {
-        if (curScope.contains(name)) false
-        else {
-            curScope(name) = info
-            true
-        }
+    def add(name: String, info: SemanticData.Var): Unit = {
+        curScope(name) = info
     }
     
     /**

@@ -102,12 +102,13 @@ object Renamer {
       case Stmt.Decl(syntacticType, ident, rval, synPos) => {
         val renamedRVal = renameRValue(rval)
 
-        val renameId = state.fresh(ident.name)
-        val varSemData: SemanticData.Var = SemanticData.Var(synPos.pos, renameId, syntaxToSemantics(syntacticType))
-
-        if (!scope.set(ident.name, varSemData)) {
+        if (scope.contains(ident.name)) {
           state.emit(synPos.pos, s"Scope error: Variable ${ident.name} is already declared in this scope")
         }
+
+        val renameId = state.fresh(ident.name)
+        val varSemData: SemanticData.Var = SemanticData.Var(synPos.pos, renameId, syntaxToSemantics(syntacticType))
+        scope.add(ident.name, varSemData)
 
         Stmt.Decl(syntacticType, renameIdent(ident), renamedRVal, synPos.toSemanticPos)
       }
@@ -147,7 +148,7 @@ object Renamer {
   private def renameIdent(ident: Ident[SyntacticData])
                          (using scope: RenamerScope, state: RenamerState): Ident[SemanticData] = {
     val semData = scope.lookup(ident.name) match {
-      case Some(varSemData) => varSemData
+      case Some(varSemData) => varSemData.copy(pos = ident.info.pos)
       case None => {
         state.emit(ident.info.pos, s"Scope error: Variable ${ident.name} is not defined")
         SemanticData.Error(ident.info.pos)
