@@ -113,8 +113,8 @@ class TypeChecker {
 
         /* get lval's semantic type */
         val semTypeOfLVal = lval match {
-            case Ident(_, SemanticData.Var(pos, renameId, semType)) => semType
-            case _                                                  => ?
+            case Ident(_, SemanticData.Var(_, _, semType)) => semType
+            case _                                         => ?
         }
 
         /* In any error case (e.g. out of scope identifiers), the renamer will put
@@ -197,6 +197,21 @@ class TypeChecker {
                               ): List[Stmt[SemanticData]] = stmtList.map(s => checkStmt(s, log))
 
     /**
+     * Helper to type-check literal expressions
+     */
+    private def checkLiteral[A](
+        value: A,
+        info: SemanticData.Expr,
+        constructor: (A, SemanticData) => Expr[SemanticData],
+        c: Constraint,
+        log: SemanticErrorLogger
+    ): Expr[SemanticData] = {
+        val SemanticData.Expr(pos, actualType) = info
+        val ty = actualType.satisfies(c, pos, log).getOrElse(?)
+        constructor(value, info.withType(ty))
+    }
+
+    /**
      * Type-check an expression
      * 
      * int x = 5
@@ -206,29 +221,21 @@ class TypeChecker {
         expr: Expr[SemanticData], c: Constraint, log: SemanticErrorLogger
     ): Expr[SemanticData] = expr match {
 
-        case IntLiter(value, SemanticData.Expr(pos, actualType)) => {
-            val ty = actualType.satisfies(c, pos, log).getOrElse(?)
-            IntLiter(value, SemanticData.Expr(pos, ty))
-        }
+        case IntLiter(value, info: SemanticData.Expr) => 
+            checkLiteral(value, info, IntLiter.apply, c, log)
 
-        case BoolLiter(value, SemanticData.Expr(pos, actualType)) => {
-            val ty = actualType.satisfies(c, pos, log).getOrElse(?)
-            BoolLiter(value, SemanticData.Expr(pos, ty))
-        }
+        case BoolLiter(value, info: SemanticData.Expr) => 
+            checkLiteral(value, info, BoolLiter.apply, c, log)
 
-        case CharLiter(value, SemanticData.Expr(pos, actualType)) => {
-            val ty = actualType.satisfies(c, pos, log).getOrElse(?)
-            CharLiter(value, SemanticData.Expr(pos, ty))
-        }
+        case CharLiter(value, info: SemanticData.Expr) => 
+            checkLiteral(value, info, CharLiter.apply, c, log)
 
-        case StrLiter(value, SemanticData.Expr(pos, actualType)) => {
-            val ty = actualType.satisfies(c, pos, log).getOrElse(?)
-            StrLiter(value, SemanticData.Expr(pos, ty))
-        }
+        case StrLiter(value, info: SemanticData.Expr) => 
+            checkLiteral(value, info, StrLiter.apply, c, log)
 
-        case PairLiter(SemanticData.Expr(pos, actualType)) => 
-            PairLiter(SemanticData.Expr(pos, actualType.satisfies(c, pos, log).getOrElse(?)))
-        
+        case PairLiter(info: SemanticData.Expr) => 
+            checkLiteral((), info, (_, data) => PairLiter(data), c, log)
+
         case i: Ident[SemanticData] => checkIdent(i, c, log)
         case UnaryExpr(op, expr, SemanticData.Pos(pos)) => {
             val (inputConstraint, resultType) = op match {
