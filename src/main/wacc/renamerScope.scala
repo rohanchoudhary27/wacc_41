@@ -1,60 +1,57 @@
 package wacc
 
-import scala.collection.mutable.Map
-import scala.annotation.tailrec
+import scala.collection.mutable
 
 /**
-* Linked list of maps(name, SymbolInfo).
-* Each renamer scope forms a link with a pointer to the previous scope.
+* Scope management for the renamer.
+* 
+* Stores the current scope as a mutable map and all parent scopes
+* flattened into an immutable map for O(1) lookups.
 *
-* @param prev: pointer to previous scope. The global scope has None as prev.
+* @param curScope: Mutable map for variables declared in the current scope
+* @param parentScope: Immutable map containing all parent scope bindings
 */
-final class RenamerScope(val prev: Option[RenamerScope]) {
+final class RenamerScope(
+    val curScope: mutable.Map[String, SemanticData.Var],
+    parentScope: Map[String, SemanticData.Var]
+) {
     
     /**
-    * The hashmap for the current scope
+    * Looks up a variable name in both the current and parent scopes.
+    *
+    * @param name: The variable name to look up
+    * @return: Some(SemanticData.Var) if found, None otherwise
     */
-    private val mapForScope = Map[String, SemanticData.Var]()
+    def lookup(name: String): Option[SemanticData.Var] = {
+        curScope.get(name).orElse(parentScope.get(name))
+    }
 
     /**
-    * Takes a key value pair and adds to the map for current scope.
-    * If the key is in the scope return false else adds the pair and returns true.
+    * Adds a variable to the current scope.
     *
-    * @param name: The name of the key.
-    * @param info: The meta data.
-    *
-    * @return: true if successfully added to scope, false if key already in map for current scope.
+    * @param name: The variable name
+    * @param info: The variable's semantic data
+    * @return: true if successfully added, false if name already exists in current scope
     */
     def set(name: String, info: SemanticData.Var): Boolean = {
-        if (mapForScope.contains(name)) false
+        if (curScope.contains(name)) false
         else {
-            mapForScope += (name -> info)
+            curScope(name) = info
             true
         }
     }
-
+    
     /**
-    * Use tail rec to identify if the key is in the linked list of RenamerScope.
+    * Creates a new child scope, flattening the current scope into the parent.
     *
-    * @param name: The name of the key to find in the linked list.
-    *
-    * @return Option[SymbolInfo]: Returns Some(SymbolInfo) if the key is in the linked list, else None.
+    * @return: A new RenamerScope with an empty current scope and flattened parents
     */
-    @tailrec
-    def get(name: String): Option[SemanticData.Var] = {
-        mapForScope.get(name) match {
-            case Some(info) => Some(info)
-            case None => prev match {
-                case Some(p) => p.get(name)
-                case None => None
-            }
-        }
+    def newScope: RenamerScope = {
+        RenamerScope(mutable.Map.empty, parentScope ++ curScope)
     }
 }
 
-/**
-* Extension method for RenamerScope to create child scopes
-*/
-extension (scope: RenamerScope) {
-  def newScope: RenamerScope = new RenamerScope(Some(scope))
+object RenamerScope {
+    /** Creates an initial empty scope with no parents */
+    def empty: RenamerScope = RenamerScope(mutable.Map.empty, Map.empty)
 }

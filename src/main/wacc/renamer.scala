@@ -52,7 +52,7 @@ object Renamer {
       mutable.Map.empty,
       errorLogger
     )
-    given scope: RenamerScope = new RenamerScope(None)
+    given scope: RenamerScope = RenamerScope.empty
 
     /* Add the functions to the function signature map */
     prog.funcs.foreach { f =>
@@ -146,7 +146,7 @@ object Renamer {
   
   private def renameIdent(ident: Ident[SyntacticData])
                          (using scope: RenamerScope, state: RenamerState): Ident[SemanticData] = {
-    val semData = scope.get(ident.name) match {
+    val semData = scope.lookup(ident.name) match {
       case Some(varSemData) => varSemData
       case None => {
         state.emit(ident.info.pos, s"Scope error: Variable ${ident.name} is not defined")
