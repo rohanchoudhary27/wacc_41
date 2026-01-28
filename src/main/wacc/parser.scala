@@ -5,6 +5,7 @@ import parsley.combinator.*
 import parsley.Parsley.*
 import parsley.position.pos
 import parsley.expr.{precedence, Ops, InfixL, InfixN, InfixR, Prefix}
+import parsley.errors.combinator.ErrorMethods
 
 import lexer.{fully, ident, string, boolLiter, nullLiter}
 import lexer.implicits.given
@@ -19,7 +20,10 @@ object parser {
 
     /* Top-level grammar */
     private lazy val programParser = fully(program)
-    private lazy val program = Program("begin" ~> many(func), stmt <~ "end")
+    private lazy val program = Program(
+        "begin" ~> many(func).label("function definitions"),
+        stmt.label("program body").explain("program must contain at least one statement") <~ "end"
+    )
     private lazy val func: Parsley[Func[SyntacticData]] = Parsley.empty
     private lazy val paramList: Parsley[List[Param[SyntacticData]]] = ???
     private lazy val param: Parsley[Param[SyntacticData]] = ???
@@ -27,32 +31,40 @@ object parser {
     /* Type grammar */
     private lazy val waccType: Parsley[SyntaxType] = baseType
 
-    private lazy val baseType: Parsley[SyntaxType] =
+    private lazy val baseType: Parsley[SyntaxType] = (
         "int" #> SyntaxType.Int |
         "char" #> SyntaxType.Char |
         "bool" #> SyntaxType.Bool |
         "string" #> SyntaxType.String
+    ).label("type")
     private lazy val arrayType: Parsley[SyntaxType] = ???
     private lazy val pairType: Parsley[SyntaxType] = ???
     private lazy val pairElemType: Parsley[SyntaxType] = ???
 
     /* Statement grammar */
-    private lazy val stmt: Parsley[Stmt[SyntacticData]] = Block(sepBy1(singleStmt, ";"))
+    private lazy val stmt: Parsley[Stmt[SyntacticData]] = Block(sepBy1(singleStmt, ";")).label("statement")
     private lazy val singleStmt: Parsley[Stmt[SyntacticData]] = skip | exit | print | println_stmt | decl | asgn |
                                                                 read | scope | ifStmt | whileStmt
     private lazy val skip: Parsley[Stmt[SyntacticData]] = Skip from "skip"
-    private lazy val decl: Parsley[Stmt[SyntacticData]] = Decl(baseType, identLit, "=" ~> rvalue)
-    private lazy val asgn: Parsley[Stmt[SyntacticData]] = Asgn(lvalue, "=" ~> rvalue)
+    private lazy val decl: Parsley[Stmt[SyntacticData]] = Decl(baseType, identLit, "=" ~> rvalue.label("initial value").explain("variable must be initialised with a value"))
+    private lazy val asgn: Parsley[Stmt[SyntacticData]] = Asgn(lvalue, "=" ~> rvalue.label("value").explain("assignment requires a value"))
     private lazy val read: Parsley[Stmt[SyntacticData]] = Read("read" ~> lvalue)
     private lazy val free: Parsley[Stmt[SyntacticData]] = ???
     private lazy val return_stmt: Parsley[Stmt[SyntacticData]] = ???
-    private lazy val exit: Parsley[Stmt[SyntacticData]] = Exit("exit" ~> expr)
-    private lazy val print: Parsley[Stmt[SyntacticData]] = Print("print" ~> expr)
-    private lazy val println_stmt: Parsley[Stmt[SyntacticData]] = Println("println" ~> expr)
+    private lazy val exit: Parsley[Stmt[SyntacticData]] = Exit("exit" ~> expr.label("exit code"))
+    private lazy val print: Parsley[Stmt[SyntacticData]] = Print("print" ~> expr.label("value to print"))
+    private lazy val println_stmt: Parsley[Stmt[SyntacticData]] = Println("println" ~> expr.label("value to print"))
     private lazy val ifStmt: Parsley[Stmt[SyntacticData]] =
-        If("if" ~> expr <~ "then", stmt, "else" ~> stmt <~ "fi")
-    private lazy val whileStmt: Parsley[Stmt[SyntacticData]] = While("while" ~> expr <~ "do", stmt <~ "done")
-    private lazy val scope: Parsley[Stmt[SyntacticData]] = "begin" ~> stmt <~ "end"
+        If(
+            "if" ~> expr.label("condition").explain("if conditions must be boolean expressions") <~ "then",
+            stmt.label("then branch"),
+            "else" ~> stmt.label("else branch") <~ "fi"
+        )
+    private lazy val whileStmt: Parsley[Stmt[SyntacticData]] = While(
+        "while" ~> expr.label("condition").explain("while conditions must be boolean expressions") <~ "do",
+        stmt.label("loop body") <~ "done"
+    )
+    private lazy val scope: Parsley[Stmt[SyntacticData]] = "begin" ~> stmt.label("scoped statement") <~ "end"
 
     /* Expression grammar */
     private lazy val expr: Parsley[Expr[SyntacticData]] = precedence(atom)(
@@ -63,17 +75,18 @@ object parser {
         Ops(InfixN)(eqOps),
         Ops(InfixR)(andOps),
         Ops(InfixR)(orOps)
-    )
+    ).label("expression")
     private lazy val atom: Parsley[Expr[SyntacticData]] =
-        intLit | boolLit | charLit | strLit | pairLit | identLit | "(" ~> expr <~ ")"
+        intLit | boolLit | charLit | strLit | pairLit | identLit | 
+        ("(" ~> expr.label("expression") <~ ")").label("bracketed expression")
 
     /* LValue grammar */
-    private lazy val lvalue: Parsley[LValue[SyntacticData]] = identLit // | arrayElem | pairElem
+    private lazy val lvalue: Parsley[LValue[SyntacticData]] = identLit.label("assignable variable") // | arrayElem | pairElem
     private lazy val arrayElem: Parsley[ArrayElem[SyntacticData]] = ???
     private lazy val pairElem: Parsley[PairElem[SyntacticData]] = ???
 
     /* RValue grammar */
-    private lazy val rvalue: Parsley[RValue[SyntacticData]] = expr
+    private lazy val rvalue: Parsley[RValue[SyntacticData]] = expr.label("value expression")
     private lazy val arrayLiter: Parsley[ArrayLiter[SyntacticData]] = ???
     private lazy val newPair: Parsley[NewPair[SyntacticData]] = ???
     private lazy val call: Parsley[Call[SyntacticData]] = ???
