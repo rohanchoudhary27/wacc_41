@@ -107,6 +107,13 @@ object SemanticData {
       case SemanticData.Error(p) => p
       case SemanticData.TopLevel(_) => (0, 0) // TopLevel has no position
     }
+    
+    /** Update the semantic type while preserving position and other data */
+    def withType(newType: SemanticType): SemanticData = data match {
+      case SemanticData.Expr(pos, _) => SemanticData.Expr(pos, newType)
+      case SemanticData.Var(pos, id, _) => SemanticData.Var(pos, id, newType)
+      case other => other  // Pos, Func, Error, TopLevel don't have updatable types
+    }
   }
 }
 
