@@ -5,11 +5,11 @@ import scala.annotation.tailrec
 
 /**
 * Linked list of maps(name, SymbolInfo).
-* Each Symbol table forms a link with a pointer to the previous Symbol Table.
+* Each renamer scope forms a link with a pointer to the previous scope.
 *
-* @param prev: pointer to previous scope symbol table. The global scope has None as prev.
+* @param prev: pointer to previous scope. The global scope has None as prev.
 */
-final class SymbolTable(val prev: Option[SymbolTable]) {
+final class RenamerScope(val prev: Option[RenamerScope]) {
     
     /**
     * The hashmap for the current scope
@@ -34,7 +34,7 @@ final class SymbolTable(val prev: Option[SymbolTable]) {
     }
 
     /**
-    * Use tail rec to identify if the key is in the linked list of SymbolTable.
+    * Use tail rec to identify if the key is in the linked list of RenamerScope.
     *
     * @param name: The name of the key to find in the linked list.
     *
@@ -50,4 +50,11 @@ final class SymbolTable(val prev: Option[SymbolTable]) {
             }
         }
     }
+}
+
+/**
+* Extension method for RenamerScope to create child scopes
+*/
+extension (scope: RenamerScope) {
+  def newScope: RenamerScope = new RenamerScope(Some(scope))
 }

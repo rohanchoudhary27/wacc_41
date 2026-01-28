@@ -28,13 +28,6 @@ class RenamerState(
 }
 
 /**
-* Extension method for SymbolTable to create child scopes
-*/
-extension (st: SymbolTable) {
-  def newTable: SymbolTable = new SymbolTable(Some(st))
-}
-
-/**
 * Renamer stage of the frontend compiler pipeline.
 *
 * Renames variables names to be unique so the type checker doesn't have to deal with
@@ -59,7 +52,7 @@ object Renamer {
       mutable.Map.empty,
       errorLogger
     )
-    given symbolTable: SymbolTable = new SymbolTable(None)
+    given scope: RenamerScope = new RenamerScope(None)
 
     /* Add the functions to the function signature map */
     prog.funcs.foreach { f =>
@@ -87,9 +80,9 @@ object Renamer {
     Program(newFuncs, newStmt, SemanticData.TopLevel(state.allFuncs))
   }
 
-  private def renameFunc(func: Func[SyntacticData])(using SymbolTable, RenamerState): Func[SemanticData] = ???
+  private def renameFunc(func: Func[SyntacticData])(using RenamerScope, RenamerState): Func[SemanticData] = ???
 
-  private def renameStmt(stmt: Stmt[SyntacticData])(using symbolTable: SymbolTable, state: RenamerState): Stmt[SemanticData] = {
+  private def renameStmt(stmt: Stmt[SyntacticData])(using scope: RenamerScope, state: RenamerState): Stmt[SemanticData] = {
     stmt match {
       case Stmt.Skip(synPos) => Stmt.Skip(synPos.toSemanticPos)
       case Stmt.Exit(expr, synPos) => Stmt.Exit(renameExpr(expr), synPos.toSemanticPos)
@@ -112,7 +105,7 @@ object Renamer {
         val renameId = state.fresh(ident.name)
         val varSemData: SemanticData.Var = SemanticData.Var(synPos.pos, renameId, syntaxToSemantics(syntacticType))
 
-        if (!symbolTable.set(ident.name, varSemData)) {
+        if (!scope.set(ident.name, varSemData)) {
           state.emit(synPos.pos, s"Scope error: Variable ${ident.name} is already declared in this scope")
         }
 
@@ -133,27 +126,27 @@ object Renamer {
 
   private def renameBlock(stmtList: List[Stmt[SyntacticData]],
                           synPos: SyntacticData)
-                         (using symbolTable: SymbolTable, state: RenamerState): Stmt.Block[SemanticData] = {
+                         (using scope: RenamerScope, state: RenamerState): Stmt.Block[SemanticData] = {
     /* Create new scope and use it for the block */
-    Stmt.Block(renameStmtList(stmtList)(using symbolTable.newTable), synPos.toSemanticPos)
+    Stmt.Block(renameStmtList(stmtList)(using scope.newScope), synPos.toSemanticPos)
   }
 
   private def renameRValue(rvalue: RValue[SyntacticData])
-                          (using SymbolTable, RenamerState): RValue[SemanticData] = rvalue match {
+                          (using RenamerScope, RenamerState): RValue[SemanticData] = rvalue match {
     // right now, rvalue is only ever an expr but later other cases will go here
     case expr: Expr[SyntacticData] => renameExpr(expr)
     case _                         => ???
   }
 
   private def renameLValue(lvalue: LValue[SyntacticData])
-                          (using SymbolTable, RenamerState): LValue[SemanticData] = lvalue match {
+                          (using RenamerScope, RenamerState): LValue[SemanticData] = lvalue match {
     case i: Ident[SyntacticData] => renameIdent(i)
     case _                       => ???
   }
   
   private def renameIdent(ident: Ident[SyntacticData])
-                         (using symbolTable: SymbolTable, state: RenamerState): Ident[SemanticData] = {
-    val semData = symbolTable.get(ident.name) match {
+                         (using scope: RenamerScope, state: RenamerState): Ident[SemanticData] = {
+    val semData = scope.get(ident.name) match {
       case Some(varSemData) => varSemData
       case None => {
         state.emit(ident.info.pos, s"Scope error: Variable ${ident.name} is not defined")
@@ -164,7 +157,7 @@ object Renamer {
   }
 
   private def renameStmtList(exprList: List[Stmt[SyntacticData]])
-                            (using SymbolTable, RenamerState): List[Stmt[SemanticData]] = {
+                            (using RenamerScope, RenamerState): List[Stmt[SemanticData]] = {
     exprList.map(s => renameStmt(s))
   }
 
@@ -178,7 +171,7 @@ object Renamer {
   }
 
   private def renameExpr(expr: Expr[SyntacticData])
-                        (using SymbolTable, RenamerState): Expr[SemanticData] = expr match {
+                        (using RenamerScope, RenamerState): Expr[SemanticData] = expr match {
     case IntLiter(value, info) => renameLiteral(value, info, KnownType.Int, IntLiter.apply)
     case BoolLiter(value, info) => renameLiteral(value, info, KnownType.Bool, BoolLiter.apply)
     case CharLiter(value, info) => renameLiteral(value, info, KnownType.Char, CharLiter.apply)
