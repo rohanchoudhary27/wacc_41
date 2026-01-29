@@ -237,6 +237,43 @@ class ParserTests extends AnyFlatSpec with Matchers {
     /* ==================== {/IF} ==================== */
     
     /* ==================== {WHILE} ==================== */
+     "The while statement parser" should "parse while statements with a valid condition expression and body statement" in {
+      val input = "begin int x = 0; while true do x = 4+4 done end"
+      val result = parser.parse(input)
+      result.isRight shouldBe true
+      
+      val program = result.toOption.get
+      program.stmt match {
+        case Stmt.Block(stmts, _) =>
+          stmts.length shouldBe 2
+          stmts(1) shouldBe a[Stmt.While[?]]
+        case _ => fail("Expected Block statement")
+      }
+    }
+
+    it should "fail to parse while statements with a statement condition instead of an expression condition" in {
+      val input = "begin int x = 0; while println x do x = 4+4 done end"
+      val result = parser.parse(input)
+      result.isLeft shouldBe true
+    }
+
+    it should "fail to parse while statements with an expression body instead of a statement" in {
+      val input = "begin int x = 0; while true do 4+4 done end"
+      val result = parser.parse(input)
+      result.isLeft shouldBe true
+    }
+
+    it should "fail to parse while statements without do" in {
+      val input = "begin int x = 0; while true x = 4+4 done end"
+      val result = parser.parse(input)
+      result.isLeft shouldBe true
+    }
+
+     it should "fail to parse while statements without done" in {
+      val input = "begin int x = 0; while true do x = 4+4 end"
+      val result = parser.parse(input)
+      result.isLeft shouldBe true
+    }
     /* ==================== {/WHILE} ==================== */
 
     /* ==================== {UNARY EXPRESSIONS} ==================== */
