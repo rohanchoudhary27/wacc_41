@@ -191,36 +191,24 @@ object Renamer {
                          synPos: SyntacticData)
                         (using scope: RenamerScope, state: RenamerState): RValue[SemanticData] = {
 
-    val funcIdent = state.funcSignatureTable.get(ident.name) match
+    val (funcIdent, semInfo) = state.funcSignatureTable.get(ident.name) match
 
       case Some(signature) =>
-        Ident[SemanticData](signature.name, signature)
-      
+        (Ident[SemanticData](signature.name, signature), synPos.toSemanticPos)
+
       case None => {
         val errorMsg = s"Scope error: Function '${ident.name}' is not defined"
         state.emit(ident.info.pos, errorMsg)
-        Ident[SemanticData](ident.name, SemanticData.Error(ident.info.pos))
+        (Ident[SemanticData](ident.name, ident.info.toSemanticPos), SemanticData.Error(ident.info.pos))
       }
 
-    Call(funcIdent, exprList.map(renameExpr), synPos.toSemanticPos)
+    Call(funcIdent, exprList.map(renameExpr), semInfo)
   }
 
   private def renameRValue(rvalue: RValue[SyntacticData])
                           (using scope: RenamerScope, state: RenamerState): RValue[SemanticData] = rvalue match {
 
-    case Call(ident, exprList, synPos) => {
-
-      val funcIdent = state.funcSignatureTable.get(ident.name) match
-        case Some(signature) =>
-          Ident[SemanticData](signature.name, signature)
-        
-        case None => {
-          val errorMsg = s"Scope error: Function '${ident.name}' is not defined"
-          state.emit(ident.info.pos, errorMsg)
-          Ident[SemanticData](ident.name, SemanticData.Error(ident.info.pos))
-        }
-      Call(funcIdent, exprList.map(renameExpr), synPos.toSemanticPos)
-    }
+    case Call(ident, exprList, synPos) => renameCall(ident, exprList, synPos)
     case expr: Expr[SyntacticData] => renameExpr(expr)
     case _                         => ???
   }

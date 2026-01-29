@@ -212,17 +212,22 @@ object TypeChecker {
      * Type-check a Call
      */
     private def checkCall(ident: Ident[SemanticData],
-                            exprList: List[Expr[SemanticData]],
-                            semInfo: SemanticData)
-                           (using tcState: TCState): Call[SemanticData] = {
+                          exprList: List[Expr[SemanticData]],
+                          semInfo: SemanticData)
+                           (using tcState: TCState): Call[SemanticData] = semInfo match {
 
-        val signature = tcState.funcSignatureTable(ident.name)
-        val typedArgs = exprList
-            .zip(signature.params)
-            .map((expr, expectedType) => checkExpr(expr, Is(expectedType)))
+        case SemanticData.Pos(_) => {
+            val signature = tcState.funcSignatureTable(ident.name)
+            val typedArgs = exprList
+                .zip(signature.params)
+                .map((expr, expectedType) => checkExpr(expr, Is(expectedType)))
 
-        Call(ident, typedArgs, semInfo)
+            Call(ident, typedArgs, semInfo)
+        }
+
+        case SemanticData.Error(_) => Call(ident, exprList, semInfo)
     }
+
 
     /**
      * Type-check an RValue
