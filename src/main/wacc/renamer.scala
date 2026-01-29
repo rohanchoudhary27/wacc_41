@@ -61,14 +61,25 @@ object Renamer {
     )
     given scope: RenamerScope = RenamerScope.empty
 
+    val seenFuncNames: mutable.Set[String] = mutable.Set()
+
     /* Add the functions to the function signature map */
     prog.funcs.foreach { f =>
+
+      val funcName = f.ident.name
+
+      /* Trying to define a function with the same name */
+      if (seenFuncNames.contains(funcName)) {
+        val errorMsg = s"Name error: '${funcName}' is already defined as a function"
+        state.emit(f.info.pos, errorMsg)
+      } else {
+        seenFuncNames += funcName
+      }
       
       /* Convert to semantic types */
       val retType = syntaxToSemantics(f.typ)
       val paramTypes = f.params.map { p => syntaxToSemantics(p.typ) }
 
-      val funcName = f.ident.name
       val funcSignature: SemanticData.Func = SemanticData.Func(
           pos = f.info.pos,
           name = funcName,
