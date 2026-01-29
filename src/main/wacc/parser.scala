@@ -4,6 +4,7 @@ import parsley.{Parsley, Success, Failure}
 import parsley.combinator.*
 import parsley.Parsley.*
 import parsley.position.pos
+import parsley.lift.lift2
 import parsley.expr.{precedence, Ops, InfixL, InfixN, InfixR, Prefix}
 import parsley.errors.combinator.ErrorMethods
 
@@ -29,7 +30,7 @@ object parser {
     private lazy val param: Parsley[Param[SyntacticData]] = ???
 
     /* Type grammar */
-    private lazy val waccType: Parsley[SyntaxType] = baseType
+    private lazy val waccType: Parsley[SyntaxType] = baseType | pairType
 
     private lazy val baseType: Parsley[SyntaxType] = (
         "int" #> SyntaxType.Int |
@@ -38,8 +39,8 @@ object parser {
         "string" #> SyntaxType.String
     ) label "type"
     private lazy val arrayType: Parsley[SyntaxType] = ???
-    private lazy val pairType: Parsley[SyntaxType] = ???
-    private lazy val pairElemType: Parsley[SyntaxType] = ???
+    private lazy val pairType: Parsley[SyntaxType] = "pair" ~> "(" ~> lift2(SyntaxType.Pair.apply, pairElemType <~ ",", pairElemType) <~ ")"
+    private lazy val pairElemType: Parsley[SyntaxType] = baseType | arrayType | "pair" #> SyntaxType.ErasedPair
 
     /* Statement grammar */
     private lazy val stmt: Parsley[Stmt[SyntacticData]] = Block(sepBy1(singleStmt, ";")) label "statement"
@@ -81,13 +82,16 @@ object parser {
         ("(" ~> (expr label "expression" explain "expression required inside parentheses") <~ ")") label "bracketed expression"
 
     /* LValue grammar */
-    private lazy val lvalue: Parsley[LValue[SyntacticData]] = identLit label "assignable variable" // | arrayElem | pairElem
+    private lazy val lvalue: Parsley[LValue[SyntacticData]] = (identLit label "assignable variable") | (pairElem label "pair element") // | arrayElem
     private lazy val arrayElem: Parsley[ArrayElem[SyntacticData]] = ???
-    private lazy val pairElem: Parsley[PairElem[SyntacticData]] = ???
+    private lazy val pairElem: Parsley[PairElem[SyntacticData]] = PairElem("fst" #> true | "snd" #> false, lvalue) label "pair element"
 
     /* RValue grammar */
-    private lazy val rvalue: Parsley[RValue[SyntacticData]] = expr label "value expression"
-    private lazy val arrayLiter: Parsley[ArrayLiter[SyntacticData]] = ???
+    private lazy val rvalue: Parsley[RValue[SyntacticData]] = 
+        (expr label "value expression") | 
+        (NewPair("newpair" ~> "(" ~> expr <~ ",", expr <~ ")") label "newpair expression") | 
+        (pairElem label "pairElem expression")
+
     private lazy val newPair: Parsley[NewPair[SyntacticData]] = ???
     private lazy val call: Parsley[Call[SyntacticData]] = ???
     private lazy val argList: Parsley[List[Expr[SyntacticData]]] = ???
