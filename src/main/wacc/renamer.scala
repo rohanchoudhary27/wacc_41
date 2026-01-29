@@ -94,9 +94,12 @@ object Renamer {
     val funcSignature = state.funcSignatureTable(ident.name)
     val funcNameIdent = Ident[SemanticData](ident.name, funcSignature)
 
+    /* Add (renamed) params to the scope table */
+    val renamedParams = paramList.map(renameParam)
+
     val renamedBody = renameStmt(stmt, inFunc = true)
 
-    Func(typ, funcNameIdent, paramList.map(renameParam), renamedBody, synPos.toSemanticPos)
+    Func(typ, funcNameIdent, renamedParams, renamedBody, synPos.toSemanticPos)
   }
 
   private def renameParam(param: Param[SyntacticData])
