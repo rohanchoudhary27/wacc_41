@@ -107,12 +107,21 @@ object Renamer {
     
     val Param(typ, ident, synPos) = param
 
+    val paramSemData =
+      if (scope.contains(ident.name)) {
+        val errorMsg = s"Scope error: Parameter '${ident.name}' is already defined for this function"
+        state.emit(synPos.pos, errorMsg)
+        SemanticData.Error(synPos.pos)
+      } else {
+        synPos.toSemanticPos
+      }
+
     /* Add the parameters to the functions scope */
     val renameId = state.fresh(ident.name)
-    val semData: SemanticData.Var = SemanticData.Var(ident.info.pos, renameId, syntaxToSemantics(typ))
-    scope.add(ident.name, semData)
+    val identSemData: SemanticData.Var = SemanticData.Var(ident.info.pos, renameId, syntaxToSemantics(typ))
+    scope.add(ident.name, identSemData)
 
-    Param(typ, Ident(ident.name, semData), synPos.toSemanticPos)
+    Param(typ, Ident(ident.name, identSemData), paramSemData)
   }
 
   private def renameStmt(stmt: Stmt[SyntacticData], inFunc: Boolean = false)(using scope: RenamerScope, state: RenamerState): Stmt[SemanticData] = {
