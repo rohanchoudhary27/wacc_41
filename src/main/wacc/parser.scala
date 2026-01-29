@@ -87,11 +87,10 @@ object parser {
     private lazy val pairElem: Parsley[PairElem[SyntacticData]] = ???
 
     /* RValue grammar */
-    private lazy val rvalue: Parsley[RValue[SyntacticData]] = expr label "value expression"
+    private lazy val rvalue: Parsley[RValue[SyntacticData]] = expr | call label "value expression"
     private lazy val arrayLiter: Parsley[ArrayLiter[SyntacticData]] = ???
     private lazy val newPair: Parsley[NewPair[SyntacticData]] = ???
-    private lazy val call: Parsley[Call[SyntacticData]] = ???
-    private lazy val argList: Parsley[List[Expr[SyntacticData]]] = ???
+    private lazy val call: Parsley[Call[SyntacticData]] = Call("call" ~> identLit, "(" ~> sepBy1(expr, ",") <~ ")")
 
     /* Literal grammar */
     private lazy val intLit  = IntLiter(int)
