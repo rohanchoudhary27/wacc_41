@@ -28,6 +28,12 @@ object Constraint {
     /* Constraint for types that may be compared using operators <, <=, >, >= */
     val IsComparable = OneOf(Set(KnownType.Int, KnownType.Char))
 
+    /* Constraint for pairs. This is essentialy useful for accessing pair elements
+       with `fst` or `snd`. If we have `fst p` for any identifier `p`, `p` must be
+       of type pair holding any type. The type checker then can impose this constraint
+       on the identifier `p` to check if it is a pair holding any type. */
+    val IsPair = Is(KnownType.Pair(?, ?))
+
     /* Constraint for types that may be compared using == or != */
     val IsEquatable = Is(?)
 }
@@ -123,16 +129,14 @@ object TypeChecker {
         // if lval is an array elem or pair elem, idk we'll see in a few days
 
         /* get lval's semantic type */
-        val semTypeOfLVal = lval match {
-            case Ident(_, SemanticData.Var(_, _, semType)) => semType
-            case _                                         => ?
-        }
-
+        val semTypeOfLVal: SemanticType = extractLValueType(lval)
+        
         /* In any error case (e.g. out of scope identifiers), the renamer will put
            SemanticData.Error as its info. calling checkLvalue on such an identifier
            will do nothing, return the identifier back. So any out of scope identifiers
            in assignment statements will have Ident(_, SemanticData.Error(...)) */
         val typedLValue = checkLvalue(lval, Is(semTypeOfLVal))
+
 
         /* check rvalue with lvalue's semantic type */
         val typedRValue = checkRvalue(rval, Is(semTypeOfLVal))
@@ -159,34 +163,80 @@ object TypeChecker {
         ident: Ident[SemanticData],
         rvalue: RValue[SemanticData],
         semInfo: SemanticData
-    )(using TCState): Stmt.Decl[SemanticData] = {
+    )(using st: TCState): Stmt.Decl[SemanticData] = {
 
         val semType = syntaxToSemantics(typ)
-
-        /* the right side of the assignment must be compatible with
-           the left side declared type */
-        val typedRvalue = checkRvalue(rvalue, Is(semType))
-
+        
         /* verify the renamer typed it correctly */
         val typedIdent = checkIdent(ident, Is(semType))
 
-        Stmt.Decl(typ, typedIdent, typedRvalue, semInfo)
+        /* the right side of the assignment must be compatible with
+           the left side declared type */
+        val typedRValue = checkRvalue(rvalue, Is(semType))
+        Stmt.Decl(typ, typedIdent, typedRValue, semInfo)
     }
 
     private def checkLvalue(lvalue: LValue[SemanticData], c: Constraint)
                            (using TCState): LValue[SemanticData] = lvalue match {
-        case i @ Ident(name, info) => checkIdent(i, c)
-        case _                     => ???
+        case i @ Ident(name, info)           => checkIdent(i, c)
+        case p @ PairElem(isFst, lval, info) => PairElem(isFst, checkLvalue(lval, Constraint.IsPair), info)
+        case _                               => ???
     }
+
+    /**
+      * Extract the type of an lvalue for assignment statements. 
+      * 
+      * This is used to infer the type of the lvalue used in assignments, and
+      * then to impose a constraint with that type to the rvalue later.
+      * 
+      * @param lval the lvalue in assignment
+      * @return `SemanticType` the type of lvalue
+      */ 
+    private def extractLValueType(lval: LValue[SemanticData]): SemanticType = lval match {
+        case Ident(_, SemanticData.Var(_, _, semType)) => semType
+        case PairElem(isFst, pairLValue , _) => {
+            val pairType: SemanticType = extractLValueType(pairLValue)
+            pairType match {
+                case KnownType.Pair(fst, snd) => if isFst then fst else snd
+                case _                        => ?
+            }
+        }
+        case _ => ?
+    }   
 
     /**
      * Type-check an RValue
      */
     private def checkRvalue(rvalue: RValue[SemanticData], c: Constraint)
-                           (using TCState): RValue[SemanticData] = rvalue match {
+                           (using tcState: TCState): RValue[SemanticData] = rvalue match {
 
-       // other cases added in future...
-       case expr: Expr[SemanticData] => checkExpr(expr, c)
+        // other cases added in future...
+        case expr: Expr[SemanticData] => checkExpr(expr, c)
+        case NewPair(e1, e2, info)    => c match {
+            case Constraint.Is(KnownType.Pair(fstType, sndType)) => {
+                val checkedExpr1 = checkExpr(e1, Constraint.Is(fstType))
+                val checkedExpr2 = checkExpr(e2, Constraint.Is(sndType))
+                NewPair(checkedExpr1, checkedExpr2, info)
+            }
+            case other => { 
+                tcState.emit(info.pos, s"Type mismatch: Expected Pair but got ${other.toString()}") 
+                NewPair(e1, e2, SemanticData.Error(info.pos)) // FIXME: what is the semantic data info?
+            }
+        }
+        case pp @ PairElem(isFst, pairLValue, info) => {
+            val typedLVal = checkLvalue(pairLValue, Constraint.IsPair)
+            val pairType: SemanticType = extractLValueType(pairLValue)
+            val resType = pairType match {
+                case KnownType.Pair(fst, snd) => 
+                    if isFst then fst.satisfies(c, info.pos, tcState.errorLogger).getOrElse(?) 
+                    else snd.satisfies(c, info.pos, tcState.errorLogger).getOrElse(?)
+                case _                        => ?
+            }
+            resType match {
+                case ? => PairElem(isFst, typedLVal, SemanticData.Error(info.pos))
+                case _ => PairElem(isFst, typedLVal, info)
+            }
+        }
     }
 
     /**
@@ -317,6 +367,11 @@ object TypeChecker {
             case (ty, ?) => Some(ty)
             case (KnownType.Array(ety1), KnownType.Array(ety2)) =>
                 (ety1 ~ ety2).map(KnownType.Array(_))
+            case (KnownType.Pair(ty11, ty12), KnownType.Pair(ty21, ty22)) =>
+                for {
+                    t1 <- ty11 ~ ty21
+                    t2 <- ty12 ~ ty22
+                } yield KnownType.Pair(t1, t2)
 
             /* Exact type match */
             case (ty1, ty2) if ty1 == ty2 => Some(ty1)
