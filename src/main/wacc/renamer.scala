@@ -202,8 +202,23 @@ object Renamer {
 
     val (funcIdent, semInfo) = state.funcSignatureTable.get(ident.name) match
 
-      case Some(signature) =>
-        (Ident[SemanticData](signature.name, signature), synPos.toSemanticPos)
+      case Some(signature) => {
+
+        val numFuncParams = signature.params.length
+        val numCallArgs = exprList.length
+        val funcIdent = Ident[SemanticData](signature.name, signature)
+
+        val semInfo =
+          if (numFuncParams != numCallArgs) {
+            val errorMsg = s"Argument error: Function '${ident.name}' takes ${numFuncParams} arguments but ${numCallArgs} were given"
+            state.emit(ident.info.pos, errorMsg)
+            SemanticData.Error(ident.info.pos)
+          } else {
+            synPos.toSemanticPos
+          }
+
+        (funcIdent, semInfo)
+      }
 
       case None => {
         val errorMsg = s"Scope error: Function '${ident.name}' is not defined"
