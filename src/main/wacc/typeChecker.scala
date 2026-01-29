@@ -213,17 +213,21 @@ object TypeChecker {
      */
     private def checkCall(ident: Ident[SemanticData],
                           exprList: List[Expr[SemanticData]],
+                          c: Constraint,
                           semInfo: SemanticData)
                            (using tcState: TCState): Call[SemanticData] = semInfo match {
 
-        case SemanticData.Pos(_) => {
+        case SemanticData.Pos(pos) => {
             val signature = tcState.funcSignatureTable(ident.name)
             val typedArgs = exprList
                 .zip(signature.params)
                 .map((expr, expectedType) => checkExpr(expr, Is(expectedType)))
 
-            Call(ident, typedArgs, semInfo)
+            val finalType = signature.returnType.satisfies(c, pos, tcState.errorLogger).getOrElse(?)
+
+            Call(ident, typedArgs, SemanticData.Expr(pos, finalType))
         }
+
 
         case SemanticData.Error(_) => Call(ident, exprList, semInfo)
     }
@@ -235,7 +239,7 @@ object TypeChecker {
     private def checkRvalue(rvalue: RValue[SemanticData], c: Constraint)
                            (using tcState: TCState): RValue[SemanticData] = rvalue match {
 
-        case Call(ident, exprList, semInfo) => checkCall(ident, exprList, semInfo)
+        case Call(ident, exprList, semInfo) => checkCall(ident, exprList, c, semInfo)
         case expr: Expr[SemanticData] => checkExpr(expr, c)
     }
 
