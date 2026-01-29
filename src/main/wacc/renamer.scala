@@ -81,29 +81,53 @@ object Renamer {
     }
 
     /* Rename the functions and program statement */
-    val newFuncs = prog.funcs.map(f => renameFunc(f))
+    val newFuncs = prog.funcs.map(f => renameFunc(f)(using scope.newScope))
     val newStmt = renameStmt(prog.stmt)
     
     Program(newFuncs, newStmt, SemanticData.TopLevel(state.allFuncs))
   }
 
-  private def renameFunc(func: Func[SyntacticData])(using RenamerScope, RenamerState): Func[SemanticData] = ???
+  private def renameFunc(func: Func[SyntacticData])(using scope: RenamerScope, state: RenamerState): Func[SemanticData] = {
+    val Func(typ, ident, paramList, stmt, synPos) = func
 
-  private def renameStmt(stmt: Stmt[SyntacticData])(using scope: RenamerScope, state: RenamerState): Stmt[SemanticData] = {
+    /* Tag the Ident() (function name identifier) node with SemanticData.Func */
+    val funcSignature = state.funcSignatureTable(ident.name)
+    val funcNameIdent = Ident[SemanticData](ident.name, funcSignature)
+
+    val renamedBody = renameStmt(stmt, inFunc = true)
+
+    Func(typ, funcNameIdent, paramList.map(renameParam), renamedBody, synPos.toSemanticPos)
+  }
+
+  private def renameParam(param: Param[SyntacticData])
+                        (using scope: RenamerScope, state: RenamerState): Param[SemanticData] = {
+    
+    val Param(typ, ident, synPos) = param
+
+    /* Add the parameters to the functions scope */
+    val renameId = state.fresh(ident.name)
+    val semData: SemanticData.Var = SemanticData.Var(ident.info.pos, renameId, syntaxToSemantics(typ))
+    scope.add(ident.name, semData)
+
+    Param(typ, Ident(ident.name, semData), synPos.toSemanticPos)
+  }
+
+  private def renameStmt(stmt: Stmt[SyntacticData], inFunc: Boolean = false)(using scope: RenamerScope, state: RenamerState): Stmt[SemanticData] = {
     stmt match {
       case Stmt.Skip(synPos) => Stmt.Skip(synPos.toSemanticPos)
       case Stmt.Exit(expr, synPos) => Stmt.Exit(renameExpr(expr), synPos.toSemanticPos)
       case Stmt.Print(expr, synPos) => Stmt.Print(renameExpr(expr), synPos.toSemanticPos)
       case Stmt.Println(expr, synPos) => Stmt.Println(renameExpr(expr), synPos.toSemanticPos)
-      case Stmt.Block(stmtList, synPos) => renameBlock(stmtList, synPos)
+      case Stmt.Return(expr, synPos) => renameReturn(expr, synPos, inFunc)
+      case Stmt.Block(stmtList, synPos) => renameBlock(stmtList, synPos, inFunc)
 
       case Stmt.If(expr, stmtIf, stmtElse, synPos) => Stmt.If(renameExpr(expr),
-                                                              renameStmt(stmtIf),
-                                                              renameStmt(stmtElse),
+                                                              renameStmt(stmtIf, inFunc),
+                                                              renameStmt(stmtElse, inFunc),
                                                               synPos.toSemanticPos)
 
       case Stmt.While(condExpr, stmt, synPos) => Stmt.While(renameExpr(condExpr),
-                                                            renameStmt(stmt),
+                                                            renameStmt(stmt, inFunc),
                                                             synPos.toSemanticPos)
 
       case Stmt.Decl(syntacticType, ident, rval, synPos) => {
@@ -136,10 +160,27 @@ object Renamer {
   }
 
   private def renameBlock(stmtList: List[Stmt[SyntacticData]],
-                          synPos: SyntacticData)
+                          synPos: SyntacticData,
+                          inFunc: Boolean)
                          (using scope: RenamerScope, state: RenamerState): Stmt.Block[SemanticData] = {
     /* Create new scope and use it for the block */
-    Stmt.Block(renameStmtList(stmtList)(using scope.newScope), synPos.toSemanticPos)
+    Stmt.Block(renameStmtList(stmtList, inFunc)(using scope.newScope), synPos.toSemanticPos)
+  }
+
+  private def renameReturn(expr: Expr[SyntacticData],
+                           synPos: SyntacticData,
+                           inFunc: Boolean) (using scope: RenamerScope, state: RenamerState): Stmt.Return[SemanticData] = {
+    
+    val semData =
+      if (!inFunc) {
+        val errorMsg = "Return error: Return statements can only be used inside functions"
+        state.emit(synPos.pos, errorMsg)
+        SemanticData.Error(synPos.pos)
+      } else {
+        synPos.toSemanticPos
+      }
+
+    Stmt.Return(renameExpr(expr), semData)
   }
 
   private def renameRValue(rvalue: RValue[SyntacticData])
@@ -204,6 +245,8 @@ object Renamer {
     distMat(len1)(len2)
   }
 
+  /* Pre-Condition: `Ident` is tagged with SemanticData.Var as it
+     does not make sense to rename a function identifier in WACC */
   private def renameIdent(ident: Ident[SyntacticData])
                          (using scope: RenamerScope, state: RenamerState): Ident[SemanticData] = {
     val semData = scope.lookup(ident.name) match {
@@ -222,9 +265,9 @@ object Renamer {
     Ident(ident.name, semData)
   }
 
-  private def renameStmtList(exprList: List[Stmt[SyntacticData]])
+  private def renameStmtList(exprList: List[Stmt[SyntacticData]], inFunc: Boolean)
                             (using RenamerScope, RenamerState): List[Stmt[SemanticData]] = {
-    exprList.map(s => renameStmt(s))
+    exprList.map(s => renameStmt(s, inFunc))
   }
 
   private def renameLiteral[A](
