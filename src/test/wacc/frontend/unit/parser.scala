@@ -197,6 +197,43 @@ class ParserTests extends AnyFlatSpec with Matchers {
     /* ==================== {/PRINT(LN)} ==================== */
 
     /* ==================== {IF} ==================== */
+     "The if statement parser" should "parse if statements with a valid condition expression and body statement" in {
+      val input = "begin int x = 0; if true then x = 4+4 else x = 5+5 fi end"
+      val result = parser.parse(input)
+      result.isRight shouldBe true
+      
+      val program = result.toOption.get
+      program.stmt match {
+        case Stmt.Block(stmts, _) =>
+          stmts.length shouldBe 2
+          stmts(1) shouldBe a[Stmt.If[?]]
+        case _ => fail("Expected Block statement")
+      }
+    }
+
+    it should "fail to parse if statements with a statement check instead of an expression check" in {
+      val input = "begin int x = 0; if println x then x = 4+4 else x = 5+5 fi end"
+      val result = parser.parse(input)
+      result.isLeft shouldBe true
+    }
+
+    it should "fail to parse if statements with an expression body instead of a statement" in {
+      val input = "begin int x = 0; if true then 4+4 else 5+5 fi end"
+      val result = parser.parse(input)
+      result.isLeft shouldBe true
+    }
+
+    it should "fail to parse if statements without else" in {
+      val input = "begin int x = 0; if true then x = 4+4 fi end"
+      val result = parser.parse(input)
+      result.isLeft shouldBe true
+    }
+
+     it should "fail to parse if statements without fi" in {
+      val input = "begin int x = 0; if true then x = 4+4 else x = 5+5 end"
+      val result = parser.parse(input)
+      result.isLeft shouldBe true
+    }
     /* ==================== {/IF} ==================== */
     
     /* ==================== {WHILE} ==================== */
