@@ -5,6 +5,7 @@ import org.scalatest.matchers.should.Matchers
 
 import wacc.parser
 import wacc.Stmt
+import wacc.{BinaryExpr, BinaryOperator, UnaryExpr, UnaryOperator, Ident, BoolLiter, StrLiter, IntLiter, RValue}
 
 class ParserTests extends AnyFlatSpec with Matchers {
 
@@ -277,10 +278,224 @@ class ParserTests extends AnyFlatSpec with Matchers {
     /* ==================== {/WHILE} ==================== */
 
     /* ==================== {UNARY EXPRESSIONS} ==================== */
+    "The unary operation expression parser" should "parse integer negation" in {
+      val input = "begin int x = -5 end"
+      val result = parser.parse(input)
+      result.isRight shouldBe true
+
+      val program = result.toOption.get
+      program.stmt match {
+        case Stmt.Block(stmts, _) =>
+          stmts(0) match {
+            case Stmt.Decl(_, _, rval, _) =>
+              alert("parser now handles -5 as an integer literal, do we want it to behave like that or treat `-` as a unary operator?")
+              rval match {
+                case UnaryExpr(UnaryOperator.Neg, IntLiter(5, _), _) => succeed
+                case IntLiter(-5, info) => succeed
+                case other => fail(s"Expected Neg(5), got: $other")
+              }
+            case other => fail(s"Expected Decl, got: $other")
+          }
+        case _ => fail("Expected Block statement")
+      }
+    }
+
+    it should "parse boolean negation" in {
+      val input = "begin bool b = !true end"
+      val result = parser.parse(input)
+      result.isRight shouldBe true
+
+      val program = result.toOption.get
+      program.stmt match {
+        case Stmt.Block(stmts, _) =>
+          stmts(0) match {
+            case Stmt.Decl(_, _, rval, _) =>
+              rval match {
+                case UnaryExpr(UnaryOperator.Not, BoolLiter(true, _), _) => succeed
+                case other => fail(s"Expected Not(true), got: $other")
+              }
+            case other => fail(s"Expected Decl, got: $other")
+          }
+        case _ => fail("Expected Block statement")
+      }
+    }
+
+    it should "parse len on a string literal" in {
+      val input = """begin int n = len "hello" end"""
+      val result = parser.parse(input)
+      result.isRight shouldBe true
+
+      val program = result.toOption.get
+      program.stmt match {
+        case Stmt.Block(stmts, _) =>
+          stmts(0) match {
+            case Stmt.Decl(_, _, rval, _) =>
+              rval match {
+                case UnaryExpr(UnaryOperator.Len, StrLiter("hello", _), _) => succeed
+                case other => fail(s"""Expected Len("hello"), got: $other""")
+              }
+            case other => fail(s"Expected Decl, got: $other")
+          }
+        case _ => fail("Expected Block statement")
+      }
+    }
+
+    it should "bind unary stronger than binary" in {
+      val input = "begin int x = -5 + 3 end"
+      val result = parser.parse(input)
+      result.isRight shouldBe true
+
+      val program = result.toOption.get
+      program.stmt match {
+        case Stmt.Block(stmts, _) =>
+          stmts(0) match {
+            case Stmt.Decl(_, _, rval, _) =>
+              rval match {
+                case BinaryExpr(BinaryOperator.Add, left, IntLiter(3, _), _) =>
+                  alert("parser now handles -5 as an integer literal, do we want it to behave like that or treat `-` as a unary operator?")
+                  left match {
+                    case UnaryExpr(UnaryOperator.Neg, IntLiter(5, _), _) => succeed
+                    case IntLiter(-5, info) => succeed
+                    case other => fail(s"Expected Neg(5) on LHS, got: $other")
+                  }
+                case other => fail(s"Expected Add(Neg(5),3), got: $other")
+              }
+            case other => fail(s"Expected Decl, got: $other")
+          }
+        case _ => fail("Expected Block statement")
+      }
+    }
+
+    it should "fail when a unary operator is missing its operand" in {
+      val input = "begin int x = - end"
+      val result = parser.parse(input)
+      result.isLeft shouldBe true
+    }
     /* ==================== {/UNARY EXPRESSIONS} ==================== */
 
     /* ==================== {BINARY EXPRESSIONS} ==================== */
+    "The binary operation expression parser" should "parse a simple addition expression" in {
+      val input = "begin int x = 4 + 4 end"
+      val result = parser.parse(input)
+      result.isRight shouldBe true
+
+      val program = result.toOption.get
+      program.stmt match {
+        case Stmt.Block(stmts, _) =>
+          stmts.length shouldBe 1
+          stmts(0) match {
+            case Stmt.Decl(_, _, rval, _) =>
+              rval match {
+                case BinaryExpr(BinaryOperator.Add, IntLiter(4, _), IntLiter(4, _), _) => succeed
+                case other => fail(s"Expected Add(4,4), got: $other")
+              }
+            case other => fail(s"Expected Decl, got: $other")
+          }
+        case _ => fail("Expected Block statement")
+      }
+    }
+
+    it should "respect precedence: * binds stronger than +" in {
+      val input = "begin int x = 5 + 3 * 2 end"
+      val result = parser.parse(input)
+      result.isRight shouldBe true
+
+      val program = result.toOption.get
+      program.stmt match {
+        case Stmt.Block(stmts, _) =>
+          stmts(0) match {
+            case Stmt.Decl(_, _, rval, _) =>
+              rval match {
+                case BinaryExpr(BinaryOperator.Add, IntLiter(5, _), rhs, _) =>
+                  rhs match {
+                    case BinaryExpr(BinaryOperator.Mul, IntLiter(3, _), IntLiter(2, _), _) => succeed
+                    case other => fail(s"Expected Mul(3,2) on RHS, got: $other")
+                  }
+                case other => fail(s"Expected Add(5, Mul(3,2)), got: $other")
+              }
+            case other => fail(s"Expected Decl, got: $other")
+          }
+        case _ => fail("Expected Block statement")
+      }
+    }
+
+    it should "respect left associativity for -" in {
+      val input = "begin int x = 10 - 3 - 2 end"
+      val result = parser.parse(input)
+      result.isRight shouldBe true
+
+      val program = result.toOption.get
+      program.stmt match {
+        case Stmt.Block(stmts, _) =>
+          stmts(0) match {
+            case Stmt.Decl(_, _, rval, _) =>
+              rval match {
+                case BinaryExpr(BinaryOperator.Sub, left, IntLiter(2, _), _) =>
+                  left match {
+                    case BinaryExpr(BinaryOperator.Sub, IntLiter(10, _), IntLiter(3, _), _) => succeed
+                    case other => fail(s"Expected (10 - 3) on LHS, got: $other")
+                  }
+                case other => fail(s"Expected (10 - 3) - 2, got: $other")
+              }
+            case other => fail(s"Expected Decl, got: $other")
+          }
+        case _ => fail("Expected Block statement")
+      }
+    }
+
+    it should "parse a boolean binary operator (&&)" in {
+      val input = "begin bool b = true && false end"
+      val result = parser.parse(input)
+      result.isRight shouldBe true
+
+      val program = result.toOption.get
+      program.stmt match {
+        case Stmt.Block(stmts, _) =>
+          stmts(0) match {
+            case Stmt.Decl(_, _, rval, _) =>
+              rval match {
+                case BinaryExpr(BinaryOperator.And, BoolLiter(true, _), BoolLiter(false, _), _) => succeed
+                case other => fail(s"Expected true && false, got: $other")
+              }
+            case other => fail(s"Expected Decl, got: $other")
+          }
+        case _ => fail("Expected Block statement")
+      }
+    }
+
+    it should "fail when a binary operator is missing a right operand" in {
+      val input = "begin int x = 4 + end"
+      val result = parser.parse(input)
+      result.isLeft shouldBe true
+    }
     /* ==================== {/BINARY EXPRESSIONS} ==================== */
 
+    /* ==================== {IDENTIFIERS} ==================== */
+    "The identifier parser" should "parse a valid identifier usage in an expression" in {
+      val input = "begin int x = 5; int y = x end"
+      val result = parser.parse(input)
+      result.isRight shouldBe true
 
+      val program = result.toOption.get
+      program.stmt match {
+        case Stmt.Block(stmts, _) =>
+          stmts.length shouldBe 2
+          stmts(1) match {
+            case Stmt.Decl(_, _, rval, _) =>
+              rval match {
+                case Ident("x", _) => succeed
+                case other => fail(s"Expected identifier x, got: $other")
+              }
+            case other => fail(s"Expected Decl, got: $other")
+          }
+        case _ => fail("Expected Block statement")
+      }
+    }
+
+    it should "fail when parsing an invalid identifier" in {
+      val input = "begin int 1x = 5 end"
+      val result = parser.parse(input)
+      result.isLeft shouldBe true
+    }
+    /* ==================== {/IDENTIFIERS} ==================== */
 }
