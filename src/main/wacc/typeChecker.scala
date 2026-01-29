@@ -38,7 +38,8 @@ object Constraint {
  */
 class TCState(
   val errorLogger: SemanticErrorLogger,
-  val funcSignatureTable: Map[String, SemanticData.Func]
+  val funcSignatureTable: Map[String, SemanticData.Func],
+  var currFuncName: String = "",
 ) {
   /** Emit an error message */
   def emit(pos: SourcePos, msg: String): Unit = {
@@ -90,7 +91,16 @@ object TypeChecker {
     /**
      * Type-check a function definition
      */
-    private def checkFunc(f: Func[SemanticData])(using TCState): Func[SemanticData] = ???
+    private def checkFunc(func: Func[SemanticData])(using tcState: TCState): Func[SemanticData] = {
+        tcState.currFuncName = func.ident.name
+        val Func(typ, ident, params, stmt, info) = func
+        Func(typ, ident, func.params, checkStmt(stmt), info)
+    }
+
+    /**
+     * Type-check a function parameter
+     */
+    private def checkParam(func: Param[SemanticData])(using TCState): Param[SemanticData] = ???
 
     /**
      * Type-check a statement
@@ -112,6 +122,7 @@ object TypeChecker {
       case Stmt.Decl(typ, ident, rvalue, semInfo) => checkDecl(typ, ident, rvalue, semInfo)
       case Stmt.Asgn(lval, rval, semInfo) => checkAsgn(lval, rval, semInfo)
       case Stmt.Read(lval, semInfo) => checkRead(lval, semInfo)
+      case Stmt.Return(expr, semInfo) => checkReturn(expr, semInfo)
       case _ => ???
     }
 
@@ -149,6 +160,24 @@ object TypeChecker {
         val readableTypes: Set[SemanticType] = Set(KnownType.Int, KnownType.Char)
         val typedLValue = checkLvalue(lval, Constraint.OneOf(readableTypes))
         Stmt.Read(typedLValue, semInfo)
+    }
+
+    /**
+     * Type-check a read statement
+     */
+    private def checkReturn(expr: Expr[SemanticData], semInfo: SemanticData)
+                         (using tcState: TCState): Stmt.Return[SemanticData] = {
+
+        /* Fetch the current function's return type */
+        val SemanticData.Func(_, _, funcRetType, _) = 
+            tcState.funcSignatureTable(tcState.currFuncName)
+        
+        val constraint = (semInfo: @unchecked) match {
+            case SemanticData.Pos(_) => Is(funcRetType)
+            case SemanticData.Error(pos) => Is(?)
+        }
+
+        Stmt.Return(checkExpr(expr, constraint), semInfo)
     }
 
     /**
