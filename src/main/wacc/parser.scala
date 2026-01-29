@@ -24,9 +24,10 @@ object parser {
         "begin" ~> many(func) label "function definitions",
         (stmt label "program body" explain "program must contain at least one statement") <~ "end"
     )
-    private lazy val func: Parsley[Func[SyntacticData]] = Parsley.empty
-    private lazy val paramList: Parsley[List[Param[SyntacticData]]] = ???
-    private lazy val param: Parsley[Param[SyntacticData]] = ???
+    private lazy val func: Parsley[Func[SyntacticData]] =
+        Func(waccType, identLit, "(" ~> paramList <~ ")", "is" ~> stmt <~ "end")
+    private lazy val paramList: Parsley[List[Param[SyntacticData]]] = sepBy(param, ",")
+    private lazy val param: Parsley[Param[SyntacticData]] = Param(waccType, identLit)
 
     /* Type grammar */
     private lazy val waccType: Parsley[SyntaxType] = baseType
@@ -44,13 +45,13 @@ object parser {
     /* Statement grammar */
     private lazy val stmt: Parsley[Stmt[SyntacticData]] = Block(sepBy1(singleStmt, ";")) label "statement"
     private lazy val singleStmt: Parsley[Stmt[SyntacticData]] = skip | exit | print | println_stmt | decl | asgn |
-                                                                read | scope | ifStmt | whileStmt
+                                                                read | scope | ifStmt | whileStmt | returnStmt
     private lazy val skip: Parsley[Stmt[SyntacticData]] = Skip from "skip"
     private lazy val decl: Parsley[Stmt[SyntacticData]] = Decl(baseType, identLit, "=" ~> (rvalue label "initial value" explain "variable must be initialised with a value"))
     private lazy val asgn: Parsley[Stmt[SyntacticData]] = Asgn(lvalue, "=" ~> (rvalue label "value" explain "assignment requires a value"))
     private lazy val read: Parsley[Stmt[SyntacticData]] = Read("read" ~> lvalue)
     private lazy val free: Parsley[Stmt[SyntacticData]] = ???
-    private lazy val return_stmt: Parsley[Stmt[SyntacticData]] = ???
+    private lazy val returnStmt: Parsley[Stmt[SyntacticData]] = Return("return" ~> expr)
     private lazy val exit: Parsley[Stmt[SyntacticData]] = Exit("exit" ~> expr label "exit code")
     private lazy val print: Parsley[Stmt[SyntacticData]] = Print("print" ~> expr label "value to print")
     private lazy val println_stmt: Parsley[Stmt[SyntacticData]] = Println("println" ~> expr label "value to print")
