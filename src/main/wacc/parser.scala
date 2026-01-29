@@ -21,7 +21,7 @@ object parser {
     /* Top-level grammar */
     private lazy val programParser = fully(program)
     private lazy val program = Program(
-        "begin" ~> many(func) label "function definitions",
+        "begin" ~> many(atomic(func)) label "function definitions",
         (stmt label "program body" explain "program must contain at least one statement") <~ "end"
     )
     private lazy val func: Parsley[Func[SyntacticData]] =
