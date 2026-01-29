@@ -40,14 +40,14 @@ object parser {
     ) label "type"
     private lazy val arrayType: Parsley[SyntaxType] = ???
     private lazy val pairType: Parsley[SyntaxType] = "pair" ~> "(" ~> lift2(SyntaxType.Pair.apply, pairElemType <~ ",", pairElemType) <~ ")"
-    private lazy val pairElemType: Parsley[SyntaxType] = baseType | arrayType | "pair" #> SyntaxType.ErasedPair
+    private lazy val pairElemType: Parsley[SyntaxType] = baseType | "pair" #> SyntaxType.ErasedPair // | arrayType 
 
     /* Statement grammar */
     private lazy val stmt: Parsley[Stmt[SyntacticData]] = Block(sepBy1(singleStmt, ";")) label "statement"
     private lazy val singleStmt: Parsley[Stmt[SyntacticData]] = skip | exit | print | println_stmt | decl | asgn |
                                                                 read | scope | ifStmt | whileStmt
     private lazy val skip: Parsley[Stmt[SyntacticData]] = Skip from "skip"
-    private lazy val decl: Parsley[Stmt[SyntacticData]] = Decl(baseType, identLit, "=" ~> (rvalue label "initial value" explain "variable must be initialised with a value"))
+    private lazy val decl: Parsley[Stmt[SyntacticData]] = Decl(waccType, identLit, "=" ~> (rvalue label "initial value" explain "variable must be initialised with a value"))
     private lazy val asgn: Parsley[Stmt[SyntacticData]] = Asgn(lvalue, "=" ~> (rvalue label "value" explain "assignment requires a value"))
     private lazy val read: Parsley[Stmt[SyntacticData]] = Read("read" ~> lvalue)
     private lazy val free: Parsley[Stmt[SyntacticData]] = ???
