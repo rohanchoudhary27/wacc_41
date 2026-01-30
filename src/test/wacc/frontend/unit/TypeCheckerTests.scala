@@ -3,9 +3,12 @@ package wacc.frontend.unit
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-import wacc.{parser, Renamer, TypeChecker, ErrorLogger}
+import wacc._
 
 class TypeCheckerTests extends AnyFlatSpec with Matchers {
+
+    val synPos = SyntacticData.Pos(0, 0)
+    val semPos = synPos.toSemanticPos
 
     "The type checker for read statements" should "accept read with int variable" in {
       val input = "begin int x = 0; read x end"
@@ -93,4 +96,21 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
       errors should include ("Type Mismatch")
     }
 
+    "Type-checking functions" should "correctly type-check a valid function call" in {
+
+        val funcSignature: SemanticData.Func = SemanticData.Func(synPos.pos, "f", KnownType.Int, List(KnownType.Int))
+        val funcTable: Map[String, SemanticData.Func] = Map("f" -> funcSignature)
+
+        val callExpr =
+          Call(Ident("f", funcSignature), List(IntLiter(10, SemanticData.Expr(synPos.pos, KnownType.Int))), semPos)
+        val decl =
+            Stmt.Decl(SyntaxType.Int, Ident("y", SemanticData.Var(synPos.pos, 1, KnownType.Int)), callExpr, semPos)
+
+        val inputAST = Program(List(), Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
+        val errorLogger = new ErrorLogger()
+
+        TypeChecker.check(inputAST, errorLogger, funcTable)
+
+        if (errorLogger.hasErrors()) fail(errorLogger.retrieveAllErrors())
+    }
 }
