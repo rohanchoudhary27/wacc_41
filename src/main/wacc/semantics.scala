@@ -15,6 +15,17 @@ enum KnownType extends SemanticType {
     case Int, Bool, Char, String
     case Array(t: SemanticType)
     case Pair(fst: SemanticType, snd: SemanticType)
+
+    override def toString: String = this match
+      case Int        => "int"
+      case Bool       => "bool"
+      case Char       => "char"
+      case String     => "string"
+      case Array(t)   => s"$t[]"
+      case Pair(a, b) =>
+        (a, b) match
+          case (?, ?) => "pair"
+          case _      => s"pair($a, $b)"
 }
 
 /* Polymorphic semantic types created and used in the typechecker */
