@@ -10,7 +10,8 @@ import scala.io.Source
 import wacc.parser
 import wacc.TypeChecker
 import wacc.Renamer
-import wacc.SemanticErrorLogger
+import wacc.ErrorLogger
+import wacc.SyntaxPass
 
 final class FrontendIntegrationSpec extends AnyFlatSpec with Matchers {
     private val scopeConfigPath: Path = Paths.get("config", "test-scope.txt")
@@ -39,18 +40,30 @@ final class FrontendIntegrationSpec extends AnyFlatSpec with Matchers {
                 case Left(_) => 100
                 
                 case Right(syntacticAST) =>
-                    val semanticErrors = new SemanticErrorLogger(codeLines)
-                    val renamedAST = Renamer.rename(syntacticAST, semanticErrors)
+                    val semanticErrors = new ErrorLogger(codeLines)
+                    val syntacticErrors = new ErrorLogger(codeLines)
 
-                    val funcTable = renamedAST.info match {
-                        case wacc.SemanticData.TopLevel(ft) => ft
-                        case _ => Map.empty[String, wacc.SemanticData.Func]
+                    SyntaxPass.syntaxCheck(syntacticAST, syntacticErrors)
+
+                    // If there were complex syntax errors, exit with 100
+                    if (syntacticErrors.hasErrors()) {
+                        Console.err.println("Failure: 100 - Syntax error:\n")
+                        Console.err.println(syntacticErrors.retrieveAllErrors())
+                        100
+
+                    } else {
+                        val renamedAST = Renamer.rename(syntacticAST, semanticErrors)
+
+                        val funcTable = renamedAST.info match {
+                            case wacc.SemanticData.TopLevel(ft) => ft
+                            case _ => Map.empty[String, wacc.SemanticData.Func]
+                        }
+
+                        TypeChecker.check(renamedAST, semanticErrors, funcTable)
+
+                        if (semanticErrors.hasErrors()) 200 // Semantic Error
+                        else 0                              // Success
                     }
-
-                    TypeChecker.check(renamedAST, semanticErrors, funcTable)
-
-                    if (semanticErrors.hasErrors()) 200 // Semantic Error
-                    else 0                              // Success
             }
         }
     }

@@ -3,7 +3,7 @@ package wacc.frontend.unit
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-import wacc.{parser, Renamer, TypeChecker, SemanticErrorLogger}
+import wacc.{parser, Renamer, TypeChecker, ErrorLogger}
 
 class TypeCheckerTests extends AnyFlatSpec with Matchers {
 
@@ -13,7 +13,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
       parseResult.isRight shouldBe true
       
       val program = parseResult.toOption.get
-      val errorLogger = SemanticErrorLogger()
+      val errorLogger = ErrorLogger()
       val renamedProgram = Renamer.rename(program, errorLogger)
       
       errorLogger.hasErrors() shouldBe false
@@ -34,7 +34,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
       parseResult.isRight shouldBe true
       
       val program = parseResult.toOption.get
-      val errorLogger = SemanticErrorLogger()
+      val errorLogger = ErrorLogger()
       val renamedProgram = Renamer.rename(program, errorLogger)
       
       errorLogger.hasErrors() shouldBe false
@@ -55,7 +55,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
       parseResult.isRight shouldBe true
       
       val program = parseResult.toOption.get
-      val errorLogger = SemanticErrorLogger()
+      val errorLogger = ErrorLogger()
       val renamedProgram = Renamer.rename(program, errorLogger)
       
       errorLogger.hasErrors() shouldBe false
@@ -77,7 +77,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
       parseResult.isRight shouldBe true
       
       val program = parseResult.toOption.get
-      val errorLogger = SemanticErrorLogger()
+      val errorLogger = ErrorLogger()
       val renamedProgram = Renamer.rename(program, errorLogger)
       
       errorLogger.hasErrors() shouldBe false

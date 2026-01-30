@@ -24,7 +24,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
 
         val inputAST = Program(List[Func[SyntacticData]](), testBlock, SyntacticData.Pos(0,0))
 
-        val renamedAST = Renamer.rename(inputAST, new SemanticErrorLogger())
+        val renamedAST = Renamer.rename(inputAST, new ErrorLogger())
 
         val mainStmt = renamedAST.stmt
 
@@ -59,7 +59,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         val testBlock = Stmt.Block(List(decl, readStmt), SyntacticData.Pos(0,0))
         val inputAST = Program(List[Func[SyntacticData]](), testBlock, SyntacticData.Pos(0,0))
         
-        val errorLogger = SemanticErrorLogger()
+        val errorLogger = ErrorLogger()
         val renamedAST = Renamer.rename(inputAST, errorLogger)
         
         errorLogger.hasErrors() shouldBe false
@@ -97,7 +97,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         val testBlock = Stmt.Block(List(decl, printStmt), SyntacticData.Pos(0,0))
         val inputAST = Program(List[Func[SyntacticData]](), testBlock, SyntacticData.Pos(0,0))
 
-        val errorLogger = new SemanticErrorLogger() 
+        val errorLogger = new ErrorLogger() 
         Renamer.rename(inputAST, errorLogger)
 
         errorLogger.hasErrors() shouldBe true
@@ -125,7 +125,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         val testBlock = Stmt.Block(List(outerDecl, innerBlock), SyntacticData.Pos(0,0))
         val inputAST = Program(List[Func[SyntacticData]](), testBlock, SyntacticData.Pos(0,0))
 
-        val errorLogger = new SemanticErrorLogger()
+        val errorLogger = new ErrorLogger()
         Renamer.rename(inputAST, errorLogger)
 
         errorLogger.hasErrors() shouldBe true
@@ -151,7 +151,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         val testBlock = Stmt.Block(List(decl, printStmt), SyntacticData.Pos(0,0))
         val inputAST = Program(List[Func[SyntacticData]](), testBlock, SyntacticData.Pos(0,0))
 
-        val errorLogger = new SemanticErrorLogger()
+        val errorLogger = new ErrorLogger()
         Renamer.rename(inputAST, errorLogger)
 
         errorLogger.hasErrors() shouldBe true
@@ -180,7 +180,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         val testBlock = Stmt.Block(List(decl1, decl2), SyntacticData.Pos(0,0))
         val inputAST = Program(List[Func[SyntacticData]](), testBlock, SyntacticData.Pos(0,0))
 
-        val errorLogger = new SemanticErrorLogger()
+        val errorLogger = new ErrorLogger()
         Renamer.rename(inputAST, errorLogger)
 
         errorLogger.hasErrors() shouldBe true
