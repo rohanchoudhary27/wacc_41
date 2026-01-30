@@ -92,15 +92,14 @@ object TypeChecker {
      * Type-check a function definition
      */
     private def checkFunc(func: Func[SemanticData])(using tcState: TCState): Func[SemanticData] = {
+
+        /* Record the current function being type checked so that we know what
+           function we're in when type checking Return and Call statements */
         tcState.currFuncName = func.ident.name
+
         val Func(typ, ident, params, stmt, info) = func
         Func(typ, ident, func.params, checkStmt(stmt), info)
     }
-
-    /**
-     * Type-check a function parameter
-     */
-    private def checkParam(func: Param[SemanticData])(using TCState): Param[SemanticData] = ???
 
     /**
      * Type-check a statement
@@ -172,6 +171,8 @@ object TypeChecker {
         val SemanticData.Func(_, _, funcRetType, _) = 
             tcState.funcSignatureTable(tcState.currFuncName)
         
+        /* Return expression must match the function return type (unless
+           we're allowing a mismatch because of a Renamer found error) */
         val constraint = (semInfo: @unchecked) match {
             case SemanticData.Pos(_) => Is(funcRetType)
             case SemanticData.Error(pos) => Is(?)
@@ -217,18 +218,27 @@ object TypeChecker {
                           semInfo: SemanticData)
                            (using tcState: TCState): Call[SemanticData] = semInfo match {
 
+        /* Standard case for a Call() statement */
         case SemanticData.Pos(pos) => {
+
+            /* Fetch the function signature */
             val signature = tcState.funcSignatureTable(ident.name)
+
+            /* Check each provided argument matches the type of the
+               function param */
             val typedArgs = exprList
                 .zip(signature.params)
                 .map((expr, expectedType) => checkExpr(expr, Is(expectedType)))
 
+            /* Check the function being called satisfies the `Decl()` enforced
+               type constraint */
             val finalType = signature.returnType.satisfies(c, pos, tcState.errorLogger).getOrElse(?)
 
             Call(ident, typedArgs, SemanticData.Expr(pos, finalType))
         }
 
-
+        /* Renamer found an argument count mismatch or undefined function use
+           error so skip type-check */
         case SemanticData.Error(_) => Call(ident, exprList, semInfo)
     }
 

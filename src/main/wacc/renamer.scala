@@ -98,26 +98,30 @@ object Renamer {
     Program(newFuncs, newStmt, SemanticData.TopLevel(state.allFuncs))
   }
 
-  private def renameFunc(func: Func[SyntacticData])(using scope: RenamerScope, state: RenamerState): Func[SemanticData] = {
+  /* Rename a Function AST node */
+  private def renameFunc(func: Func[SyntacticData])
+                        (using scope: RenamerScope, state: RenamerState): Func[SemanticData] = {
     val Func(typ, ident, paramList, stmt, synPos) = func
 
     /* Tag the Ident() (function name identifier) node with SemanticData.Func */
     val funcSignature = state.funcSignatureTable(ident.name)
     val funcNameIdent = Ident[SemanticData](ident.name, funcSignature)
 
-    /* Add (renamed) params to the scope table */
     val renamedParams = paramList.map(renameParam)
-
     val renamedBody = renameStmt(stmt, inFunc = true)
 
     Func(typ, funcNameIdent, renamedParams, renamedBody, synPos.toSemanticPos)
   }
 
+  /* Rename a function parameter (Param) AST node */
   private def renameParam(param: Param[SyntacticData])
                         (using scope: RenamerScope, state: RenamerState): Param[SemanticData] = {
     
     val Param(typ, ident, synPos) = param
 
+    /* Define the SemanticData to annotate a Param() node with either 
+       a SemanticData.Error annotation in the redeclaration case or
+       SemanticData.Pos */
     val paramSemData =
       if (scope.contains(ident.name)) {
         val errorMsg = s"Scope error: Parameter '${ident.name}' is already defined for this function"
@@ -127,7 +131,7 @@ object Renamer {
         synPos.toSemanticPos
       }
 
-    /* Add the parameters to the functions scope */
+    /* Add the parameters (renamed) to the function's scope */
     val renameId = state.fresh(ident.name)
     val identSemData: SemanticData.Var = SemanticData.Var(ident.info.pos, renameId, syntaxToSemantics(typ))
     scope.add(ident.name, identSemData)
@@ -190,10 +194,13 @@ object Renamer {
     Stmt.Block(renameStmtList(stmtList, inFunc)(using scope.newScope), synPos.toSemanticPos)
   }
 
+  /* Rename a Return() statement AST node */
   private def renameReturn(expr: Expr[SyntacticData],
                            synPos: SyntacticData,
                            inFunc: Boolean) (using scope: RenamerScope, state: RenamerState): Stmt.Return[SemanticData] = {
     
+    /* Get the SemanticData to tag the return statement with as either
+       an error annotation or the position */
     val semData =
       if (!inFunc) {
         val errorMsg = "Return error: Return statements can only be used inside functions"
@@ -206,19 +213,28 @@ object Renamer {
     Stmt.Return(renameExpr(expr), semData)
   }
 
+  /* Rename a Call() AST node */
   private def renameCall(ident: Ident[SyntacticData],
                          exprList: List[Expr[SyntacticData]],
                          synPos: SyntacticData)
                         (using scope: RenamerScope, state: RenamerState): RValue[SemanticData] = {
 
+    /* Find the function's identifer and SemanticData tag via a
+       lookup to the function signature table */
     val (funcIdent, semInfo) = state.funcSignatureTable.get(ident.name) match
 
+      /* Function signature found */
       case Some(signature) => {
 
+        /* Number of provided and given args for mismatch checks */
         val numFuncParams = signature.params.length
         val numCallArgs = exprList.length
+
+        /* The function's identifier from the table */
         val funcIdent = Ident[SemanticData](signature.name, signature)
 
+        /* Get the SemanticData annotation for the Call() statement as either
+           an error (for argument number mismatch) or a position */
         val semInfo =
           if (numFuncParams != numCallArgs) {
             val errorMsg = s"Argument error: Function '${ident.name}' takes ${numFuncParams} arguments but ${numCallArgs} were given"
@@ -231,6 +247,7 @@ object Renamer {
         (funcIdent, semInfo)
       }
 
+      /* Function being called is not defined */
       case None => {
         val errorMsg = s"Scope error: Function '${ident.name}' is not defined"
         state.emit(ident.info.pos, errorMsg)

@@ -70,7 +70,6 @@ def main(args: Array[String]): Unit = {
             if (syntacticErrors.hasErrors()) {
                 Console.err.println("Failure: 100 - Syntax error:\n")
                 Console.err.println(syntacticErrors.retrieveAllErrors())
-                println("EXITING WITH 100")
                 sys.exit(100)
             }
 
