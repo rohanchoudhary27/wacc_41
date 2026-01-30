@@ -12,7 +12,7 @@ import SyntacticData.*
 class RenamerState(
   val variableIdMap: mutable.Map[String, Int],
   val funcSignatureTable: mutable.Map[String, SemanticData.Func],
-  val errorLogger: SemanticErrorLogger
+  val errorLogger: ErrorLogger
 ) {
   /** Get the next unique ID for a variable name and increment the counter */
   def fresh(name: String): Int = {
@@ -48,11 +48,11 @@ object Renamer {
   * Renames the input Program AST and logs any semantic errors found.
   *
   * @param prog: The `Program` abstract syntax tree to rename
-  * @param errorLogger: A `SemanticErrorLogger` object to which semantic errors are logged
+  * @param errorLogger: A `ErrorLogger` object to which semantic errors are logged
   *
   * @return: The renamed AST
   */
-  def rename(prog: Program[SyntacticData], errorLogger: SemanticErrorLogger): Program[SemanticData] = {
+  def rename(prog: Program[SyntacticData], errorLogger: ErrorLogger): Program[SemanticData] = {
     /* Initialise state */
     given state: RenamerState = RenamerState(
       mutable.Map.empty,
@@ -61,14 +61,25 @@ object Renamer {
     )
     given scope: RenamerScope = RenamerScope.empty
 
+    val seenFuncNames: mutable.Set[String] = mutable.Set()
+
     /* Add the functions to the function signature map */
     prog.funcs.foreach { f =>
+
+      val funcName = f.ident.name
+
+      /* Trying to define a function with the same name */
+      if (seenFuncNames.contains(funcName)) {
+        val errorMsg = s"Name error: '${funcName}' is already defined as a function"
+        state.emit(f.info.pos, errorMsg)
+      } else {
+        seenFuncNames += funcName
+      }
       
       /* Convert to semantic types */
       val retType = syntaxToSemantics(f.typ)
       val paramTypes = f.params.map { p => syntaxToSemantics(p.typ) }
 
-      val funcName = f.ident.name
       val funcSignature: SemanticData.Func = SemanticData.Func(
           pos = f.info.pos,
           name = funcName,
@@ -81,29 +92,69 @@ object Renamer {
     }
 
     /* Rename the functions and program statement */
-    val newFuncs = prog.funcs.map(f => renameFunc(f))
+    val newFuncs = prog.funcs.map(f => renameFunc(f)(using scope.newScope))
     val newStmt = renameStmt(prog.stmt)
     
     Program(newFuncs, newStmt, SemanticData.TopLevel(state.allFuncs))
   }
 
-  private def renameFunc(func: Func[SyntacticData])(using RenamerScope, RenamerState): Func[SemanticData] = ???
+  /* Rename a Function AST node */
+  private def renameFunc(func: Func[SyntacticData])
+                        (using scope: RenamerScope, state: RenamerState): Func[SemanticData] = {
+    val Func(typ, ident, paramList, stmt, synPos) = func
 
-  private def renameStmt(stmt: Stmt[SyntacticData])(using scope: RenamerScope, state: RenamerState): Stmt[SemanticData] = {
+    /* Tag the Ident() (function name identifier) node with SemanticData.Func */
+    val funcSignature = state.funcSignatureTable(ident.name)
+    val funcNameIdent = Ident[SemanticData](ident.name, funcSignature)
+
+    val renamedParams = paramList.map(renameParam)
+    val renamedBody = renameStmt(stmt, inFunc = true)
+
+    Func(typ, funcNameIdent, renamedParams, renamedBody, synPos.toSemanticPos)
+  }
+
+  /* Rename a function parameter (Param) AST node */
+  private def renameParam(param: Param[SyntacticData])
+                        (using scope: RenamerScope, state: RenamerState): Param[SemanticData] = {
+    
+    val Param(typ, ident, synPos) = param
+
+    /* Define the SemanticData to annotate a Param() node with either 
+       a SemanticData.Error annotation in the redeclaration case or
+       SemanticData.Pos */
+    val paramSemData =
+      if (scope.contains(ident.name)) {
+        val errorMsg = s"Scope error: Parameter '${ident.name}' is already defined for this function"
+        state.emit(synPos.pos, errorMsg)
+        SemanticData.Error(synPos.pos)
+      } else {
+        synPos.toSemanticPos
+      }
+
+    /* Add the parameters (renamed) to the function's scope */
+    val renameId = state.fresh(ident.name)
+    val identSemData: SemanticData.Var = SemanticData.Var(ident.info.pos, renameId, syntaxToSemantics(typ))
+    scope.add(ident.name, identSemData)
+
+    Param(typ, Ident(ident.name, identSemData), paramSemData)
+  }
+
+  private def renameStmt(stmt: Stmt[SyntacticData], inFunc: Boolean = false)(using scope: RenamerScope, state: RenamerState): Stmt[SemanticData] = {
     stmt match {
       case Stmt.Skip(synPos) => Stmt.Skip(synPos.toSemanticPos)
       case Stmt.Exit(expr, synPos) => Stmt.Exit(renameExpr(expr), synPos.toSemanticPos)
       case Stmt.Print(expr, synPos) => Stmt.Print(renameExpr(expr), synPos.toSemanticPos)
       case Stmt.Println(expr, synPos) => Stmt.Println(renameExpr(expr), synPos.toSemanticPos)
-      case Stmt.Block(stmtList, synPos) => renameBlock(stmtList, synPos)
+      case Stmt.Return(expr, synPos) => renameReturn(expr, synPos, inFunc)
+      case Stmt.Block(stmtList, synPos) => renameBlock(stmtList, synPos, inFunc)
 
       case Stmt.If(expr, stmtIf, stmtElse, synPos) => Stmt.If(renameExpr(expr),
-                                                              renameStmt(stmtIf),
-                                                              renameStmt(stmtElse),
+                                                              renameStmt(stmtIf, inFunc),
+                                                              renameStmt(stmtElse, inFunc),
                                                               synPos.toSemanticPos)
 
       case Stmt.While(condExpr, stmt, synPos) => Stmt.While(renameExpr(condExpr),
-                                                            renameStmt(stmt),
+                                                            renameStmt(stmt, inFunc),
                                                             synPos.toSemanticPos)
 
       case Stmt.Decl(syntacticType, ident, rval, synPos) => {
@@ -136,15 +187,80 @@ object Renamer {
   }
 
   private def renameBlock(stmtList: List[Stmt[SyntacticData]],
-                          synPos: SyntacticData)
+                          synPos: SyntacticData,
+                          inFunc: Boolean)
                          (using scope: RenamerScope, state: RenamerState): Stmt.Block[SemanticData] = {
     /* Create new scope and use it for the block */
-    Stmt.Block(renameStmtList(stmtList)(using scope.newScope), synPos.toSemanticPos)
+    Stmt.Block(renameStmtList(stmtList, inFunc)(using scope.newScope), synPos.toSemanticPos)
+  }
+
+  /* Rename a Return() statement AST node */
+  private def renameReturn(expr: Expr[SyntacticData],
+                           synPos: SyntacticData,
+                           inFunc: Boolean) (using scope: RenamerScope, state: RenamerState): Stmt.Return[SemanticData] = {
+    
+    /* Get the SemanticData to tag the return statement with as either
+       an error annotation or the position */
+    val semData =
+      if (!inFunc) {
+        val errorMsg = "Return error: Return statements can only be used inside functions"
+        state.emit(synPos.pos, errorMsg)
+        SemanticData.Error(synPos.pos)
+      } else {
+        synPos.toSemanticPos
+      }
+
+    Stmt.Return(renameExpr(expr), semData)
+  }
+
+  /* Rename a Call() AST node */
+  private def renameCall(ident: Ident[SyntacticData],
+                         exprList: List[Expr[SyntacticData]],
+                         synPos: SyntacticData)
+                        (using scope: RenamerScope, state: RenamerState): RValue[SemanticData] = {
+
+    /* Find the function's identifer and SemanticData tag via a
+       lookup to the function signature table */
+    val (funcIdent, semInfo) = state.funcSignatureTable.get(ident.name) match
+
+      /* Function signature found */
+      case Some(signature) => {
+
+        /* Number of provided and given args for mismatch checks */
+        val numFuncParams = signature.params.length
+        val numCallArgs = exprList.length
+
+        /* The function's identifier from the table */
+        val funcIdent = Ident[SemanticData](signature.name, signature)
+
+        /* Get the SemanticData annotation for the Call() statement as either
+           an error (for argument number mismatch) or a position */
+        val semInfo =
+          if (numFuncParams != numCallArgs) {
+            val errorMsg = s"Argument error: Function '${ident.name}' takes ${numFuncParams} arguments but ${numCallArgs} were given"
+            state.emit(ident.info.pos, errorMsg)
+            SemanticData.Error(ident.info.pos)
+          } else {
+            synPos.toSemanticPos
+          }
+
+        (funcIdent, semInfo)
+      }
+
+      /* Function being called is not defined */
+      case None => {
+        val errorMsg = s"Scope error: Function '${ident.name}' is not defined"
+        state.emit(ident.info.pos, errorMsg)
+        (Ident[SemanticData](ident.name, ident.info.toSemanticPos), SemanticData.Error(ident.info.pos))
+      }
+
+    Call(funcIdent, exprList.map(renameExpr), semInfo)
   }
 
   private def renameRValue(rvalue: RValue[SyntacticData])
-                          (using RenamerScope, RenamerState): RValue[SemanticData] = rvalue match {
-    // right now, rvalue is only ever an expr but later other cases will go here
+                          (using scope: RenamerScope, state: RenamerState): RValue[SemanticData] = rvalue match {
+
+    case Call(ident, exprList, synPos) => renameCall(ident, exprList, synPos)
     case expr: Expr[SyntacticData] => renameExpr(expr)
     case _                         => ???
   }
@@ -204,6 +320,8 @@ object Renamer {
     distMat(len1)(len2)
   }
 
+  /* Pre-Condition: `Ident` is tagged with SemanticData.Var as it
+     does not make sense to rename a function identifier in WACC */
   private def renameIdent(ident: Ident[SyntacticData])
                          (using scope: RenamerScope, state: RenamerState): Ident[SemanticData] = {
     val semData = scope.lookup(ident.name) match {
@@ -222,9 +340,9 @@ object Renamer {
     Ident(ident.name, semData)
   }
 
-  private def renameStmtList(exprList: List[Stmt[SyntacticData]])
+  private def renameStmtList(exprList: List[Stmt[SyntacticData]], inFunc: Boolean)
                             (using RenamerScope, RenamerState): List[Stmt[SemanticData]] = {
-    exprList.map(s => renameStmt(s))
+    exprList.map(s => renameStmt(s, inFunc))
   }
 
   private def renameLiteral[A](

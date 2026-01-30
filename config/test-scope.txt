@@ -28,3 +28,36 @@ valid/variables
 # I/O statement tests (read)
 valid/IO/read
 # invalid/semanticErr/read
+
+# function tests (without arrays and pairs)
+valid/function/nested_functions/fibonacciFullRec.wacc
+valid/function/nested_functions/fibonacciRecursive.wacc
+valid/function/nested_functions/fixedPointRealArithmetic.wacc
+valid/function/nested_functions/functionConditionalReturn.wacc
+valid/function/nested_functions/mutualRecursion.wacc
+valid/function/nested_functions/printInputTriangle.wacc
+valid/function/nested_functions/printTriangle.wacc
+valid/function/nested_functions/simpleRecursion.wacc
+valid/function/simple_functions/argScopeCanBeShadowed.wacc
+valid/function/simple_functions/asciiTable.wacc
+valid/function/simple_functions/clashNames.wacc
+valid/function/simple_functions/functionDeclaration.wacc
+valid/function/simple_functions/functionDoubleReturn.wacc
+valid/function/simple_functions/functionIfReturns.wacc
+valid/function/simple_functions/functionMultiReturns.wacc
+valid/function/simple_functions/functionSimple.wacc
+valid/function/simple_functions/functionSimpleLoop.wacc
+valid/function/simple_functions/functionUpdateParameter.wacc
+valid/function/simple_functions/incFunction.wacc
+valid/function/simple_functions/lotsOfLocals.wacc
+valid/function/simple_functions/manyArgumentsChar.wacc
+valid/function/simple_functions/manyArgumentsInt.wacc
+valid/function/simple_functions/negFunction.wacc
+valid/function/simple_functions/punning.wacc
+valid/function/simple_functions/sameArgName.wacc
+valid/function/simple_functions/sameArgName2.wacc
+valid/function/simple_functions/sameNameAsVar.wacc
+valid/function/simple_functions/usesArgumentWhilstMakingArgument.wacc
+
+invalid/syntaxErr/function
+invalid/semanticErr/function
