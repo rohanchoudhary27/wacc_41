@@ -17,6 +17,11 @@ enum Constraint {
 
     /* The expression must have a type that is one of the given set */
     case OneOf(ts: Set[SemanticType])
+
+    override def toString(): String = this match
+        case Is(t) => t.toString()
+        case OneOf(ts) => ts.mkString("one of { ", ", ", " }")
+    
 }
 
 object Constraint {
@@ -36,6 +41,9 @@ object Constraint {
 
     /* Constraint for types that may be compared using == or != */
     val IsEquatable = Is(?)
+
+    /* Read can only take int or char types */
+    val IsReadable = Constraint.OneOf(Set(KnownType.Int, KnownType.Char))
 }
 
 /**
