@@ -177,9 +177,13 @@ object TypeChecker {
     }
 
     private def checkLvalue(lvalue: LValue[SemanticData], c: Constraint)
-                           (using TCState): LValue[SemanticData] = lvalue match {
+                           (using state: TCState): LValue[SemanticData] = lvalue match {
         case i @ Ident(name, info)           => checkIdent(i, c)
-        case p @ PairElem(isFst, lval, info) => PairElem(isFst, checkLvalue(lval, Constraint.IsPair), info)
+        case p @ PairElem(isFst, lval, info)     => 
+            val typedLValue = checkLvalue(lval, Constraint.IsPair) 
+            val pairElementType = extractLValueType(p)
+            pairElementType.satisfies(c, info.pos, state.errorLogger)
+            PairElem(isFst, typedLValue, info)
         case _                               => ???
     }
 
@@ -220,23 +224,25 @@ object TypeChecker {
             }
             case other => { 
                 tcState.emit(info.pos, s"Type mismatch: Expected Pair but got ${other.toString()}") 
-                NewPair(e1, e2, SemanticData.Error(info.pos)) // FIXME: what is the semantic data info?
+                NewPair(e1, e2, SemanticData.Error(info.pos)) 
             }
         }
-        case pp @ PairElem(isFst, pairLValue, info) => {
+        case PairElem(isFst, pairLValue, info) => {
             val typedLVal = checkLvalue(pairLValue, Constraint.IsPair)
-            val pairType: SemanticType = extractLValueType(pairLValue)
-            val resType = pairType match {
+            extractLValueType(pairLValue) match {
                 case KnownType.Pair(fst, snd) => 
-                    if isFst then fst.satisfies(c, info.pos, tcState.errorLogger).getOrElse(?) 
-                    else snd.satisfies(c, info.pos, tcState.errorLogger).getOrElse(?)
-                case _                        => ?
-            }
-            resType match {
-                case ? => PairElem(isFst, typedLVal, SemanticData.Error(info.pos))
-                case _ => PairElem(isFst, typedLVal, info)
+                    if isFst then fst.satisfies(c, info.pos, tcState.errorLogger)
+                        .fold
+                            {PairElem(isFst, typedLVal, SemanticData.Error(info.pos))} 
+                            { _ => PairElem(isFst, typedLVal, info) }
+                    else snd.satisfies(c, info.pos, tcState.errorLogger)
+                        .fold 
+                            { PairElem(isFst, typedLVal, SemanticData.Error(info.pos))}
+                            {_ => PairElem(isFst, typedLVal, info) }
+                case _ => PairElem(isFst, typedLVal, SemanticData.Error(info.pos))
             }
         }
+        case _ => ???
     }
 
     /**
