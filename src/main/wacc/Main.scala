@@ -57,17 +57,32 @@ def main(args: Array[String]): Unit = {
 
         // Parsing complete successfully
         case Right(syntacticAST) =>
-            // Create an errors object
-            val semanticErrors = new SemanticErrorLogger(codeLines)
+            // Create a semantic errors object
+            val semanticErrors = new ErrorLogger(codeLines)
+
+            // Create a syntactic errors object for complex return checks
+            val syntacticErrors = new ErrorLogger(codeLines)
+
+            // Check complex (post-parse) syntax rules
+            SyntaxPass.syntaxCheck(syntacticAST, syntacticErrors)
+
+            // If there were complex syntax errors, exit with 100
+            if (syntacticErrors.hasErrors()) {
+                Console.err.println("Failure: 100 - Syntax error:\n")
+                Console.err.println(syntacticErrors.retrieveAllErrors())
+                println("EXITING WITH 100")
+                sys.exit(100)
+            }
 
             // Rename the AST and return this AST, build the senamtic errors if there are any
-            val renamedAST = Renamer.rename(syntacticAST,semanticErrors)
+            val renamedAST = Renamer.rename(syntacticAST, semanticErrors)
 
             // Type check the renamed AST, adding the errors if there are any
             val funcTable = renamedAST.info match {
                 case SemanticData.TopLevel(ft) => ft
                 case _ => Map.empty[String, SemanticData.Func]
             }
+
             TypeChecker.check(renamedAST, semanticErrors, funcTable)
 
             // If there were no errors then exit with 0, else 200

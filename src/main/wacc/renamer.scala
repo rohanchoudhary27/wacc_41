@@ -12,7 +12,7 @@ import SyntacticData.*
 class RenamerState(
   val variableIdMap: mutable.Map[String, Int],
   val funcSignatureTable: mutable.Map[String, SemanticData.Func],
-  val errorLogger: SemanticErrorLogger
+  val errorLogger: ErrorLogger
 ) {
   /** Get the next unique ID for a variable name and increment the counter */
   def fresh(name: String): Int = {
@@ -48,11 +48,11 @@ object Renamer {
   * Renames the input Program AST and logs any semantic errors found.
   *
   * @param prog: The `Program` abstract syntax tree to rename
-  * @param errorLogger: A `SemanticErrorLogger` object to which semantic errors are logged
+  * @param errorLogger: A `ErrorLogger` object to which semantic errors are logged
   *
   * @return: The renamed AST
   */
-  def rename(prog: Program[SyntacticData], errorLogger: SemanticErrorLogger): Program[SemanticData] = {
+  def rename(prog: Program[SyntacticData], errorLogger: ErrorLogger): Program[SemanticData] = {
     /* Initialise state */
     given state: RenamerState = RenamerState(
       mutable.Map.empty,

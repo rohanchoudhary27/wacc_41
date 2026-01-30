@@ -37,7 +37,7 @@ object Constraint {
  * Contains the error logger and function signature table.
  */
 class TCState(
-  val errorLogger: SemanticErrorLogger,
+  val errorLogger: ErrorLogger,
   val funcSignatureTable: Map[String, SemanticData.Func],
   var currFuncName: String = "",
 ) {
@@ -66,7 +66,7 @@ object TypeChecker {
       * @return Some(typedProgram) if no errors were found, otherwise None
       */
     def check(
-        prog: Program[SemanticData], errorLogger: SemanticErrorLogger,
+        prog: Program[SemanticData], errorLogger: ErrorLogger,
         funcSignatureTable: Map[String, SemanticData.Func]
     ): Option[Program[SemanticData]] = {
         given state: TCState = TCState(errorLogger, funcSignatureTable)
@@ -404,7 +404,7 @@ object TypeChecker {
          *
          * @return `Some(SemanticType)` if the constraint is satisfied, otherwise logs a type mismatch error and `None`
          */
-        def satisfies(c: Constraint, pos: SourcePos, logger: SemanticErrorLogger): Option[SemanticType] = {
+        def satisfies(c: Constraint, pos: SourcePos, logger: ErrorLogger): Option[SemanticType] = {
             ty.matches(c).orElse {
                 val expectedTypeStr = c match {
                     case Constraint.Is(t)     => t.toString
