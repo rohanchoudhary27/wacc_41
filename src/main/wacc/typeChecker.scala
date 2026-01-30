@@ -89,8 +89,10 @@ object TypeChecker {
         
         // Type-check the main statement (which will be Stmt.Block)
         val typedStmt = checkStmt(prog.stmt)
-
-        if (errorLogger.hasErrors()) None
+        if (errorLogger.hasErrors()) {
+            print(errorLogger.retrieveAllErrors())
+            None
+        }
         else
             Some(
                 Program(
@@ -156,12 +158,16 @@ object TypeChecker {
      * Type-check a read statement
      */
     private def checkRead(lval: LValue[SemanticData], semInfo: SemanticData)
-                         (using TCState): Stmt.Read[SemanticData] = {
-        /* Read can only take int or char types */
-        val readableTypes: Set[SemanticType] = Set(KnownType.Int, KnownType.Char)
-        val typedLValue = checkLvalue(lval, Constraint.OneOf(readableTypes))
-        Stmt.Read(typedLValue, semInfo)
-    }
+                         (using tcState: TCState): Stmt.Read[SemanticData] = 
+        extractLValueType(lval) match {
+            case ? => 
+                tcState.emit(semInfo.pos, "Ambiguous assignment between unknown types. Both the left-hand side and right-hand side of this statement have unresolved types.")
+                Stmt.Read(lval, SemanticData.Error(semInfo.pos))
+            case _ =>
+                val typedLValue = checkLvalue(lval, Constraint.IsReadable)
+                Stmt.Read(typedLValue, semInfo)
+        }
+    
 
     /**
      * Type-check an declaration statement
@@ -184,12 +190,17 @@ object TypeChecker {
         Stmt.Decl(typ, typedIdent, typedRValue, semInfo)
     }
 
+    // for read statements, constraint is oneof(int, char)
     private def checkLvalue(lvalue: LValue[SemanticData], c: Constraint)
                            (using state: TCState): LValue[SemanticData] = lvalue match {
         case i @ Ident(name, info)           => checkIdent(i, c)
         case p @ PairElem(isFst, lval, info)     => 
             val typedLValue = checkLvalue(lval, Constraint.IsPair) 
-            val pairElementType = extractLValueType(p)
+            val pairElementType = extractLValueType(p) // this returns ?
+            // CONSIDERATION:
+            //      * read    <lval>: if lval type is ? -> error
+            //      * asgn    <lval>
+            //      * fst/snd <lval> if lval type is ? -> error
             pairElementType.satisfies(c, info.pos, state.errorLogger)
             PairElem(isFst, typedLValue, info)
         case _                               => ???
@@ -247,6 +258,13 @@ object TypeChecker {
                         .fold 
                             { PairElem(isFst, typedLVal, SemanticData.Error(info.pos))}
                             {_ => PairElem(isFst, typedLVal, info) }
+                case PairAny => 
+                    c match {
+                        case Is(?) => 
+                            tcState.emit(info.pos, "Ambiguous assignment between unknown types. Both the left-hand side and right-hand side of this statement have unresolved types.")
+                            PairElem(isFst, typedLVal, SemanticData.Error(info.pos))
+                        case _     => PairElem(isFst, typedLVal, info)
+                    }
                 case _ => PairElem(isFst, typedLVal, SemanticData.Error(info.pos))
             }
         }
@@ -366,21 +384,17 @@ object TypeChecker {
      */
     extension (ty1: SemanticType) {
         def ~(ty2: SemanticType): Option[SemanticType] = (ty1, ty2) match {
-            
-            /* `?` matches anything, this will come in handy when checking constraints:
-                if we represent Null (pair literal) as `Pair(?)``, then for the statement:
-                    ```
-                    pair(int, bool) p = null
-                    ```
-                we will impose a constraint of `Is(Pair(Int, Bool))` from the LHS, then
-                will check this against the RHS which will be `Pair(?)`. We can define the
-                constraint satisfaction such that `Pair(?).satisfies(Pair(Int, Bool))` will
-                check `? ~ Pair(Int, Bool)`, which will match and return `Pair(Int, Bool)`
-            */
             case (?, ty) => Some(ty)
             case (ty, ?) => Some(ty)
             case (KnownType.Array(ety1), KnownType.Array(ety2)) =>
                 (ety1 ~ ety2).map(KnownType.Array(_))
+
+            case (PairAny | Null, KnownType.Pair(fst, snd)) => Some(KnownType.Pair(fst, snd))
+
+            case (KnownType.Pair(fst, snd), PairAny | Null) => Some(KnownType.Pair(fst, snd))
+
+            case (PairAny, Null) | (Null, PairAny) => Some(Null)
+
             case (KnownType.Pair(ty11, ty12), KnownType.Pair(ty21, ty22)) =>
                 for {
                     t1 <- ty11 ~ ty21
