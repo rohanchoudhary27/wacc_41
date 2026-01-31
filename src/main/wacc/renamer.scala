@@ -261,13 +261,16 @@ object Renamer {
                           (using scope: RenamerScope, state: RenamerState): RValue[SemanticData] = rvalue match {
 
     case Call(ident, exprList, synPos) => renameCall(ident, exprList, synPos)
-    case expr: Expr[SyntacticData] => renameExpr(expr)
-    case _                         => ???
+    case expr: Expr[SyntacticData]   => renameExpr(expr)
+    case PairElem(isFst, lval, info) => PairElem(isFst, renameLValue(lval), info.toSemanticPos) // FIXME: is it SD.Pos?
+    case NewPair(e1, e2, info)       => NewPair(renameExpr(e1), renameExpr(e2), info.toSemanticPos) // FIXME: is it SD.Pos?
+    case _                           => ???
   }
 
   private def renameLValue(lvalue: LValue[SyntacticData])
                           (using RenamerScope, RenamerState): LValue[SemanticData] = lvalue match {
     case i: Ident[SyntacticData] => renameIdent(i)
+    case PairElem(isFst, lval, info) => PairElem(isFst, renameLValue(lval), info.toSemanticPos)
     case _                       => ???
   }
   
@@ -356,13 +359,16 @@ object Renamer {
 
   private def renameExpr(expr: Expr[SyntacticData])
                         (using RenamerScope, RenamerState): Expr[SemanticData] = expr match {
+    // <atom>                      
     case IntLiter(value, info) => renameLiteral(value, info, KnownType.Int, IntLiter.apply)
     case BoolLiter(value, info) => renameLiteral(value, info, KnownType.Bool, BoolLiter.apply)
     case CharLiter(value, info) => renameLiteral(value, info, KnownType.Char, CharLiter.apply)
     case StrLiter(value, info) => renameLiteral(value, info, KnownType.String, StrLiter.apply)
     case PairLiter(info) => PairLiter(SemanticData.Expr(info.pos, Null))
     case i @ Ident(name, info) => renameIdent(i)
+    // <unary-oper> <expr>
     case UnaryExpr(op, expr, synPos) => UnaryExpr(op, renameExpr(expr), synPos.toSemanticPos)
+    // <expr> <binary-oper> <expr
     case BinaryExpr(op, left, right, synPos) => BinaryExpr(op, renameExpr(left), renameExpr(right), synPos.toSemanticPos)
     case _ => ???
   }

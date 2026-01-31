@@ -1,3 +1,5 @@
+package wacc.frontend.unit
+
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import wacc._
@@ -245,4 +247,85 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         errorLogger.hasErrors() shouldBe true
         errorLogger.retrieveAllErrors() should include ("Function 'imaginaryFunc' is not defined")
     }
+
+    "Renaming pairs" should "let a declared pair identifier be used inside fst/snd" in {
+        val declP = Stmt.Decl(SyntaxType.Pair(SyntaxType.Int, SyntaxType.Int), Ident("p", pos), PairLiter(pos), pos)
+        val declX = Stmt.Decl(SyntaxType.Int, Ident("x", pos), PairElem(isFst = true, Ident("p", pos), pos), pos)
+
+        val inputAST = Program(Nil, Stmt.Block(List(declP, declX), pos), pos)
+        val renamedAST = Renamer.rename(inputAST, new ErrorLogger())
+
+        val Stmt.Block(stmts, _) = renamedAST.stmt: @unchecked
+        val Stmt.Decl(_, pIdent: Ident[SemanticData], _, _) = stmts(0): @unchecked
+        val Stmt.Decl(_, _, PairElem(_, usedP: Ident[SemanticData], _), _) = stmts(1): @unchecked
+
+        extractId(usedP) shouldBe extractId(pIdent)
+    }
+
+    it should "rename nested pair extractions" in {
+        // pair(pair, int) p = null;
+        // int q = fst fst p
+        val declP = Stmt.Decl(SyntaxType.Pair(SyntaxType.ErasedPair, SyntaxType.Int), Ident("p", pos), PairLiter(pos), pos)
+
+        // fst fst p  ==> PairElem(fst, PairElem(fst, Ident(p)))
+        val nested =
+            PairElem(isFst = true, PairElem(isFst = true, Ident("p", pos), pos),pos)
+
+        val declQ = Stmt.Decl(SyntaxType.Int, Ident("q", pos), nested, pos)
+
+        val inputAST = Program(Nil, Stmt.Block(List(declP, declQ), pos), pos)
+        val renamedAST = Renamer.rename(inputAST, new ErrorLogger())
+
+        val Stmt.Block(stmts, _) = renamedAST.stmt: @unchecked
+        val Stmt.Decl(_, pIdent: Ident[SemanticData], _, _) = stmts(0): @unchecked
+        val Stmt.Decl(_, _, PairElem(_, innerLval, _), _) = stmts(1): @unchecked
+
+        // innerLval is PairElem(fst, Ident(p))
+        val PairElem(_, usedP: Ident[SemanticData], _) = innerLval: @unchecked
+        extractId(usedP) shouldBe extractId(pIdent)
+    }
+
+    it should "report an error when fst/snd refers to an out-of-scope identifier" in {
+        // int x = fst p  (p is never declared)
+        val declX = Stmt.Decl(SyntaxType.Int, Ident("x", pos), PairElem(isFst = true, Ident("p", pos), pos), pos)
+
+        val inputAST = Program(Nil, Stmt.Block(List(declX), pos), pos)
+        val errorLogger = new ErrorLogger()
+
+        Renamer.rename(inputAST, errorLogger)
+
+        errorLogger.hasErrors() shouldBe true
+        errorLogger.retrieveAllErrors() should include ("Scope error")
+    }
+
+    it should "resolve shadowing correctly for pair identifiers inside nested blocks" in {
+        // begin
+        //   pair(int, int) p = null;
+        //   begin
+        //     pair(int, int) p = null;
+        //     int x = fst p;
+        //   end
+        // end
+        val outerDeclP = Stmt.Decl(SyntaxType.Pair(SyntaxType.Int, SyntaxType.Int), Ident("p", pos), PairLiter(pos), pos)
+
+        val innerDeclP = Stmt.Decl(SyntaxType.Pair(SyntaxType.Int, SyntaxType.Int), Ident("p", pos), PairLiter(pos), pos)
+        val innerDeclX = Stmt.Decl(SyntaxType.Int, Ident("x", pos), PairElem(isFst = true, Ident("p", pos), pos), pos)
+
+        val innerBlock = Stmt.Block(List(innerDeclP, innerDeclX), pos)
+        val inputAST = Program(Nil, Stmt.Block(List(outerDeclP, innerBlock), pos), pos)
+
+        val renamedAST = Renamer.rename(inputAST, new ErrorLogger())
+
+        val Stmt.Block(outerStmts, _) = renamedAST.stmt: @unchecked
+        val Stmt.Decl(_, outerP: Ident[SemanticData], _, _) = outerStmts(0): @unchecked
+        val Stmt.Block(innerStmts, _) = outerStmts(1): @unchecked
+
+        val Stmt.Decl(_, innerP: Ident[SemanticData], _, _) = innerStmts(0): @unchecked
+        val Stmt.Decl(_, _, PairElem(_, usedP: Ident[SemanticData], _), _) = innerStmts(1): @unchecked
+
+        // The use in fst p should bind to the inner p, not the outer p
+        extractId(usedP) shouldBe extractId(innerP)
+        extractId(innerP) should not be extractId(outerP)
+    }
+
 }
