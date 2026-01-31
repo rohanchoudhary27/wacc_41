@@ -16,6 +16,13 @@ class Lexer extends AnyFlatSpec {
         lexer.integer.parse("-2") shouldBe Success(-2)
     }
 
+    it should "fail on integer numbers greater than 2^31 - 1 or smaller than -2^31" in {
+        lexer.integer.parse("-2147483649").isFailure shouldBe true
+        lexer.integer.parse("2147483648").isFailure shouldBe true
+        lexer.integer.parse("99999999999999").isFailure shouldBe true
+        lexer.integer.parse("-99999999999999").isFailure shouldBe true
+    }
+
     "The char lexer" should "be able to parse standard characters" in {
         lexer.char.parse("'a'") shouldBe Success('a')
         lexer.char.parse("'3'") shouldBe Success('3')
