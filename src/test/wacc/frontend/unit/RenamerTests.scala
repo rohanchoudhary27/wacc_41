@@ -10,6 +10,8 @@ def extractId(ident: Ident[SemanticData]): Option[Int] = ident.info match {
 
 class RenamerSpec extends AnyFlatSpec with Matchers {
 
+    val pos = SyntacticData.Pos(0, 0)
+
     "The Renamer" should "assign different rename IDs to shadowed variables" in {
         val innerDecl = Stmt.Decl(SyntaxType.Int, Ident("x", SyntacticData.Pos(0,0)), IntLiter(0, SyntacticData.Pos(0,0)), SyntacticData.Pos(0,0))
         val outerDecl = Stmt.Decl(SyntaxType.Int, Ident("x", SyntacticData.Pos(0,0)), IntLiter(0, SyntacticData.Pos(0,0)), SyntacticData.Pos(0,0))
@@ -24,7 +26,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
 
         val inputAST = Program(List[Func[SyntacticData]](), testBlock, SyntacticData.Pos(0,0))
 
-        val renamedAST = Renamer.rename(inputAST, new SemanticErrorLogger())
+        val renamedAST = Renamer.rename(inputAST, new ErrorLogger())
 
         val mainStmt = renamedAST.stmt
 
@@ -59,7 +61,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         val testBlock = Stmt.Block(List(decl, readStmt), SyntacticData.Pos(0,0))
         val inputAST = Program(List[Func[SyntacticData]](), testBlock, SyntacticData.Pos(0,0))
         
-        val errorLogger = SemanticErrorLogger()
+        val errorLogger = ErrorLogger()
         val renamedAST = Renamer.rename(inputAST, errorLogger)
         
         errorLogger.hasErrors() shouldBe false
@@ -97,7 +99,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         val testBlock = Stmt.Block(List(decl, printStmt), SyntacticData.Pos(0,0))
         val inputAST = Program(List[Func[SyntacticData]](), testBlock, SyntacticData.Pos(0,0))
 
-        val errorLogger = new SemanticErrorLogger() 
+        val errorLogger = new ErrorLogger() 
         Renamer.rename(inputAST, errorLogger)
 
         errorLogger.hasErrors() shouldBe true
@@ -125,7 +127,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         val testBlock = Stmt.Block(List(outerDecl, innerBlock), SyntacticData.Pos(0,0))
         val inputAST = Program(List[Func[SyntacticData]](), testBlock, SyntacticData.Pos(0,0))
 
-        val errorLogger = new SemanticErrorLogger()
+        val errorLogger = new ErrorLogger()
         Renamer.rename(inputAST, errorLogger)
 
         errorLogger.hasErrors() shouldBe true
@@ -151,7 +153,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         val testBlock = Stmt.Block(List(decl, printStmt), SyntacticData.Pos(0,0))
         val inputAST = Program(List[Func[SyntacticData]](), testBlock, SyntacticData.Pos(0,0))
 
-        val errorLogger = new SemanticErrorLogger()
+        val errorLogger = new ErrorLogger()
         Renamer.rename(inputAST, errorLogger)
 
         errorLogger.hasErrors() shouldBe true
@@ -180,7 +182,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         val testBlock = Stmt.Block(List(decl1, decl2), SyntacticData.Pos(0,0))
         val inputAST = Program(List[Func[SyntacticData]](), testBlock, SyntacticData.Pos(0,0))
 
-        val errorLogger = new SemanticErrorLogger()
+        val errorLogger = new ErrorLogger()
         Renamer.rename(inputAST, errorLogger)
 
         errorLogger.hasErrors() shouldBe true
@@ -190,5 +192,57 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         
         errors should include ("10") 
         errors should include ("1")
+    }
+
+    "Renaming functions" should "detect duplicate function definitions" in {
+
+        val func1 = Func(SyntaxType.Int, Ident("f", pos), List(), 
+                        Stmt.Block(List(Stmt.Return(IntLiter(0, pos), pos)), pos), pos)
+        
+        val func2 = Func(SyntaxType.Int, Ident("f", pos), List(), 
+                        Stmt.Block(List(Stmt.Return(IntLiter(1, pos), pos)), pos), pos)
+
+        val inputAST = Program(List(func1, func2), Stmt.Skip(pos), pos)
+        val errorLogger = new ErrorLogger()
+        
+        Renamer.rename(inputAST, errorLogger)
+
+        errorLogger.hasErrors() shouldBe true
+
+        val errors = errorLogger.retrieveAllErrors()
+        errors should include ("'f' is already defined")
+    }
+
+    it should "let function parameters to be used in the function body" in {
+
+        val paramX = Param(SyntaxType.Int, Ident("x", pos), pos)
+        val returnStmt = Stmt.Return(Ident("x", pos), pos)
+        
+        val func = Func(SyntaxType.Int, Ident("f", pos), List(paramX), 
+                       Stmt.Block(List(returnStmt), pos), pos)
+
+        val inputAST = Program(List(func), Stmt.Skip(pos), pos)
+        val renamedAST = Renamer.rename(inputAST, new ErrorLogger())
+
+        val renamedFunc = renamedAST.funcs.head
+        val Stmt.Block(List(Stmt.Return(retIdent: Ident[SemanticData], _)), _) =
+            renamedFunc.stmt: @unchecked
+        val Param(_, paramIdent, _) = renamedFunc.params.head
+
+        extractId(retIdent) shouldBe extractId(paramIdent)
+    }
+
+    it should "report an error when calling an undefined function" in {
+
+        val callExpr = Call(Ident("imaginaryFunc", pos), List(), pos)
+        val decl = Stmt.Decl(SyntaxType.Int, Ident("x", pos), callExpr, pos)
+        
+        val inputAST = Program(List(), Stmt.Block(List(decl), pos), pos)
+        val errorLogger = new ErrorLogger()
+        
+        Renamer.rename(inputAST, errorLogger)
+
+        errorLogger.hasErrors() shouldBe true
+        errorLogger.retrieveAllErrors() should include ("Function 'imaginaryFunc' is not defined")
     }
 }

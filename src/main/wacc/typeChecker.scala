@@ -51,8 +51,9 @@ object Constraint {
  * Contains the error logger and function signature table.
  */
 class TCState(
-    val errorLogger: SemanticErrorLogger,
-    val funcSignatureTable: Map[String, SemanticData.Func]
+  val errorLogger: ErrorLogger,
+  val funcSignatureTable: Map[String, SemanticData.Func],
+  var currFuncName: String = "",
 ) {
     /** Emit an error message */
     def emit(pos: SourcePos, msg: String): Unit = {
@@ -79,7 +80,7 @@ object TypeChecker {
       * @return Some(typedProgram) if no errors were found, otherwise None
       */
     def check(
-        prog: Program[SemanticData], errorLogger: SemanticErrorLogger,
+        prog: Program[SemanticData], errorLogger: ErrorLogger,
         funcSignatureTable: Map[String, SemanticData.Func]
     ): Option[Program[SemanticData]] = {
         given state: TCState = TCState(errorLogger, funcSignatureTable)
@@ -106,7 +107,15 @@ object TypeChecker {
     /**
      * Type-check a function definition
      */
-    private def checkFunc(f: Func[SemanticData])(using TCState): Func[SemanticData] = ???
+    private def checkFunc(func: Func[SemanticData])(using tcState: TCState): Func[SemanticData] = {
+
+        /* Record the current function being type checked so that we know what
+           function we're in when type checking Return and Call statements */
+        tcState.currFuncName = func.ident.name
+
+        val Func(typ, ident, params, stmt, info) = func
+        Func(typ, ident, func.params, checkStmt(stmt), info)
+    }
 
     /**
      * Type-check a statement
@@ -127,7 +136,8 @@ object TypeChecker {
         case Stmt.Decl(typ, ident, rvalue, semInfo) => checkDecl(typ, ident, rvalue, semInfo)
         case Stmt.Asgn(lval, rval, semInfo) => checkAsgn(lval, rval, semInfo)
         case Stmt.Read(lval, semInfo) => checkRead(lval, semInfo)
-        case _ => ???
+        case Stmt.Return(expr, semInfo) => checkReturn(expr, semInfo)
+      case _ => ???
     }
 
     /**
@@ -179,6 +189,26 @@ object TypeChecker {
                 Stmt.Read(typedLValue, semInfo)
         }
     
+
+    /**
+     * Type-check a read statement
+     */
+    private def checkReturn(expr: Expr[SemanticData], semInfo: SemanticData)
+                         (using tcState: TCState): Stmt.Return[SemanticData] = {
+
+        /* Fetch the current function's return type */
+        val SemanticData.Func(_, _, funcRetType, _) = 
+            tcState.funcSignatureTable(tcState.currFuncName)
+        
+        /* Return expression must match the function return type (unless
+           we're allowing a mismatch because of a Renamer found error) */
+        val constraint = (semInfo: @unchecked) match {
+            case SemanticData.Pos(_) => Is(funcRetType)
+            case SemanticData.Error(pos) => Is(?)
+        }
+
+        Stmt.Return(checkExpr(expr, constraint), semInfo)
+    }
 
     /**
      * Type-check an declaration statement
@@ -255,6 +285,40 @@ object TypeChecker {
     }   
 
     /**
+     * Type-check a Call
+     */
+    private def checkCall(ident: Ident[SemanticData],
+                          exprList: List[Expr[SemanticData]],
+                          c: Constraint,
+                          semInfo: SemanticData)
+                           (using tcState: TCState): Call[SemanticData] = semInfo match {
+
+        /* Standard case for a Call() statement */
+        case SemanticData.Pos(pos) => {
+
+            /* Fetch the function signature */
+            val signature = tcState.funcSignatureTable(ident.name)
+
+            /* Check each provided argument matches the type of the
+               function param */
+            val typedArgs = exprList
+                .zip(signature.params)
+                .map((expr, expectedType) => checkExpr(expr, Is(expectedType)))
+
+            /* Check the function being called satisfies the `Decl()` enforced
+               type constraint */
+            val finalType = signature.returnType.satisfies(c, pos, tcState.errorLogger).getOrElse(?)
+
+            Call(ident, typedArgs, SemanticData.Expr(pos, finalType))
+        }
+
+        /* Renamer found an argument count mismatch or undefined function use
+           error so skip type-check */
+        case SemanticData.Error(_) => Call(ident, exprList, semInfo)
+    }
+
+
+    /**
      * Type-check an RValue
      * 
      * @param rvalue the rvalue to type check
@@ -264,6 +328,7 @@ object TypeChecker {
      */
     private def checkRvalue(rvalue: RValue[SemanticData], c: Constraint)
                            (using tcState: TCState): RValue[SemanticData] = rvalue match {
+        case Call(ident, exprList, semInfo) => checkCall(ident, exprList, c, semInfo)
         case expr: Expr[SemanticData] => checkExpr(expr, c)
 
         /* for newpair(e1, e2), both e1 and e2 must match the pair types imposed in the
@@ -501,7 +566,7 @@ object TypeChecker {
          *
          * @return `Some(SemanticType)` if the constraint is satisfied, otherwise logs a type mismatch error and `None`
          */
-        def satisfies(c: Constraint, pos: SourcePos, logger: SemanticErrorLogger): Option[SemanticType] = {
+        def satisfies(c: Constraint, pos: SourcePos, logger: ErrorLogger): Option[SemanticType] = {
             ty.matches(c).orElse {
                 logger.logError(pos, s"Type mismatch:\n\texpected $c\n\tunexpected $ty")
                 None

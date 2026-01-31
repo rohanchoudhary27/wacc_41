@@ -140,7 +140,7 @@ case class SemanticError(pos: SourcePos, msg: String, codeLine: String)
 /**
 * A logger class for recording semantic errors.
 */
-case class SemanticErrorLogger(val codeLines: Vector[String] = Vector.empty) {
+case class ErrorLogger(val codeLines: Vector[String] = Vector.empty) {
 
   val errors = ListBuffer[SemanticError]()
   val indentTrackedLines = codeLines.map {line => indentAlign(line)}

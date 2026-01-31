@@ -2,13 +2,13 @@ package wacc.frontend.unit
 
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import wacc.SemanticErrorLogger
+import wacc.ErrorLogger
 
 class SemanticErrorTests extends AnyFlatSpec with Matchers {
 
-    "A SemanticErrorLogger" should "store and format errors passed to it" in {
+    "A ErrorLogger" should "store and format errors passed to it" in {
 
-      val logger = new SemanticErrorLogger()
+      val logger = new ErrorLogger()
 
       val msgOne = "some error message"
       val posOne = (2, 4)
@@ -31,7 +31,7 @@ class SemanticErrorTests extends AnyFlatSpec with Matchers {
     }
 
     it should "start off empty" in {
-      val logger = new SemanticErrorLogger()
+      val logger = new ErrorLogger()
       logger.hasErrors() shouldBe false
       
       // Check for empty string instead of empty List
