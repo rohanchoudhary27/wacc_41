@@ -68,7 +68,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
       
       errorLogger.hasErrors() shouldBe true
       val errors = errorLogger.retrieveAllErrors()
-      errors should include ("Type Mismatch")
+      errors should include ("Type mismatch")
     }
 
     it should "reject read with string variable" in {
@@ -90,7 +90,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
       
       errorLogger.hasErrors() shouldBe true
       val errors = errorLogger.retrieveAllErrors()
-      errors should include ("Type Mismatch")
+      errors should include ("Type mismatch")
     }
 
 }
