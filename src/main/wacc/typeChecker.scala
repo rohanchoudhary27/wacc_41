@@ -180,7 +180,7 @@ object TypeChecker {
         extractLValueType(lval) match {
             case ? => /* the type of lval must be known when used in a read statement */
                 tcState.emit(semInfo.pos,
-                 """Ambiguous assignment between unknown types. 
+                 """Type error: ambiguous assignment between unknown types. 
                    |Both the left-hand side and right-hand side of this statement have unresolved types."""
                 )
                 Stmt.Read(lval, SemanticData.Error(semInfo.pos)) /* annotate statement with SemanticData.Error */
@@ -379,8 +379,8 @@ object TypeChecker {
                 c match {
                     case Is(?) => 
                         tcState.emit(info.pos, 
-                        """Ambiguous assignment between unknown types.
-                            |Both the left-hand side and right-hand side of this statement have unresolved types.""")
+                        """Type error: ambiguous assignment between unknown types.
+                          |Both the left-hand side and right-hand side of this statement have unresolved types.""")
                         PairElem(isFst, typedLVal, SemanticData.Error(info.pos))
                     case _     => PairElem(isFst, typedLVal, info)
                 }
