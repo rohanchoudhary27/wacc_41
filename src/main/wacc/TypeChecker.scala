@@ -58,8 +58,8 @@ class TCState(
   var currFuncName: String = "",
 ) {
     /** Emit an error message */
-    def emit(pos: SourcePos, msg: String): Unit = {
-        errorLogger.logError(pos, msg)
+    def emit(pos: SourcePos, msg: String, extraInfo: String = ""): Unit = {
+        errorLogger.logError(pos, msg, extraInfo)
     }
 }
 
@@ -203,11 +203,10 @@ object TypeChecker {
 
             /* the type of lval must be known when used in a read statement */
             case ? => 
-                tcState.emit(semInfo.pos,
-                 """Type error: ambiguous assignment between unknown types. 
-                   |Both the left-hand side and right-hand side of this statement have unresolved types."""
-                )
-                Stmt.Read(lval, SemanticData.Error(semInfo.pos)) /* annotate statement with SemanticData.Error */
+                val errorMsg = "Type error: ambiguous assignment between unknown types."
+                val errorDesc = "\nBoth the left-hand side and right-hand side of this statement have unresolved types."
+                tcState.emit(semInfo.pos, errorMsg, errorDesc)
+                Stmt.Read(lval, SemanticData.Error(semInfo.pos))
             case _ =>
                 val typedLValue = checkLvalue(lval, Constraint.IsReadable)
                 Stmt.Read(typedLValue, semInfo)
@@ -436,9 +435,9 @@ object TypeChecker {
             case PairAny => 
                 c match {
                     case Is(?) => 
-                        tcState.emit(info.pos, 
-                        """Type error: ambiguous assignment between unknown types.
-                          |Both the left-hand side and right-hand side of this statement have unresolved types.""")
+                        val errorMsg = "Type error: ambiguous assignment between unknown types."
+                        val errorDesc = "\nBoth the left-hand side and right-hand side of this statement have unresolved types."
+                        tcState.emit(info.pos, errorMsg, errorDesc)
                         PairElem(isFst, typedLVal, SemanticData.Error(info.pos))
                     case _     => PairElem(isFst, typedLVal, info)
                 }
