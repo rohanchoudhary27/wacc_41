@@ -14,7 +14,7 @@ import wacc.ErrorLogger
 import wacc.SyntaxPass
 
 final class FrontendIntegrationSpec extends AnyFlatSpec with Matchers {
-    private val scopeConfigPath: Path = Paths.get("config", "test-scope.txt")
+    private val scopeConfigPath: Path = Paths.get("config", "TestScope.txt")
 
     private val examplesRoot: Path = Paths.get("examples")
     
