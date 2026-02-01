@@ -563,18 +563,22 @@ object TypeChecker {
 
             val typedLExpr = checkExpr(left, inputLConstraint)
 
-            def getType(e: Expr[SemanticData]): SemanticType = e.info match {
-                case SemanticData.Expr(_, t) => t
-                case SemanticData.Var(_, _, t) => t
-                case _ => ?
-            }
-
-            val matchR = op match {
+            /* Constraint for the right expression */
+            val constraintR = op match {
                 case BinaryOperator.GT | BinaryOperator.GTE | BinaryOperator.LT | BinaryOperator.LTE | BinaryOperator.EQ | BinaryOperator.NEQ => 
-                    Constraint.Is(getType(typedLExpr))
+
+                    /* Semantic type of the right expression */
+                    val rightEnforcedType = typedLExpr.info match {
+                        case SemanticData.Expr(_, t) => t
+                        case SemanticData.Var(_, _, t) => t
+                        case _ => ?
+                    }
+                    Constraint.Is(rightEnforcedType)
+
                 case _ => inputRConstraint
             }
-            val typedRExpr = checkExpr(right, matchR)
+
+            val typedRExpr = checkExpr(right, constraintR)
             val finalType = resultType.satisfies(c, pos, tcState.errorLogger).getOrElse(?)
             BinaryExpr(op, typedLExpr, typedRExpr, SemanticData.Expr(pos, finalType))
         }
