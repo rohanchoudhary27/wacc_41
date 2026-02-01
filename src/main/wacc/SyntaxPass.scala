@@ -28,7 +28,8 @@ object SyntaxPass {
            found and then stop */
         prog.funcs.collectFirst { case func if !checkReturn(func.stmt) => func } match {
             case Some(func) =>
-                val errorMsg = s"Function error: Function '${func.ident.name}' is not guaranteed to return"
+                val errorMsg =
+                    s"Function error: Function '${func.ident.name}' is not guaranteed to return"
                 errorLogger.logError(func.info.pos, errorMsg)
                 prog
             case None => prog

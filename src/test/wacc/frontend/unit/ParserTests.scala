@@ -66,7 +66,8 @@ class ParserTests extends AnyFlatSpec with Matchers {
         }
 
     /** Parse and require the indexed statement to be print or println and return it */
-    private def expectPrintOrPrintlnAt(input: String, i: Int): Either[Stmt.Print[?], Stmt.Println[?]] =
+    private def expectPrintOrPrintlnAt(input: String,
+                                       i: Int): Either[Stmt.Print[?], Stmt.Println[?]] =
         stmtAt(input, i) match {
             case i @ Stmt.Print(_, _) => Left(i)
             case j @ Stmt.Println(_, _) => Right(j)
@@ -225,13 +226,13 @@ class ParserTests extends AnyFlatSpec with Matchers {
     /* ==================== {/PRINT(LN)} ==================== */
 
     /* ==================== {IF} ==================== */
-    "The if statement parser" should "parse if statements with a valid condition expression and body statement" in {
+    "The if statement parser" should "parse if statements with valid cond and body statement" in {
         val input = "begin int x = 0; if true then x = 4+4 else x = 5+5 fi end"
         expectIfAt(input, 1)
     }
     
 
-    it should "fail to parse if statements with a statement check instead of an expression check" in {
+    it should "fail to parse if statements with a statement instead of an expression check" in {
         val input = "begin int x = 0; if println x then x = 4+4 else x = 5+5 fi end"
         parseFail(input)
     }
@@ -253,12 +254,12 @@ class ParserTests extends AnyFlatSpec with Matchers {
     /* ==================== {/IF} ==================== */
     
     /* ==================== {WHILE} ==================== */
-    "The while statement parser" should "parse while statements with a valid condition expression and body statement" in {
+    "The while statement parser" should "parse while statements with a valid cond and body" in {
         val input = "begin int x = 0; while true do x = 4+4 done end"
         expectWhileAt(input, 1)
     }
 
-    it should "fail to parse while statements with a statement condition instead of an expression condition" in {
+    it should "fail to parse while statements with a statement cond instead of an expression " in {
         val input = "begin int x = 0; while println x do x = 4+4 done end"
         parseFail(input)
     }
@@ -377,7 +378,8 @@ class ParserTests extends AnyFlatSpec with Matchers {
         val rval  = expectDeclAt(input, 0)
 
         rval match {
-            case BinaryExpr(BinaryOperator.And, BoolLiter(true, _), BoolLiter(false, _), _) => succeed
+            case BinaryExpr(BinaryOperator.And, BoolLiter(true, _),
+                            BoolLiter(false, _), _) => succeed
             case other => fail(s"Expected true && false, got: $other")
         }
     }

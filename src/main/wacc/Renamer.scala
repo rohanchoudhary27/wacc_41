@@ -385,8 +385,9 @@ object Renamer {
                        a position */
                     val semInfo =
                         if (numFuncParams != numCallArgs) {
-                            val errorMsg =
-                                s"Argument error: Function '${ident.name}' takes ${numFuncParams} arguments but ${numCallArgs} were given"
+                            val errorMsg = 
+                                s"Argument error: Function '${ident.name}' takes ${numFuncParams}" +
+                                s" arguments but ${numCallArgs} were given"
                             state.emit(ident.info.pos, errorMsg)
                             SemanticData.Error(ident.info.pos)
                         } else {

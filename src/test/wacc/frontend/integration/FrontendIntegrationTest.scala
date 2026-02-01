@@ -69,8 +69,8 @@ final class FrontendIntegrationSpec extends AnyFlatSpec with Matchers {
 
     /* expected status codes:
         examples/valid/  => 0 (all valid programs should return 0)
-        examples/invalid/syntaxErr/ => 100 (all programs with syntax errors should return 100)
-        examples/invalid/semanticErr/ => 200 (all programs with semantic errors should return 200) */
+        examples/invalid/syntaxErr/ => 100 (programs with syntax errors should return 100)
+        examples/invalid/semanticErr/ => 200 (programs with semantic errors should return 200) */
     private def expectedStatus(file: Path): Int = {
 
         /* make the file relative to examples root to get the scope */

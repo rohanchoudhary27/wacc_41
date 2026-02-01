@@ -139,24 +139,30 @@ object TypeChecker {
      * 
      * @return The type-checked `Stmt` node
      */
-    private def checkStmt(stmt: Stmt[SemanticData])(using TCState): Stmt[SemanticData] = (stmt: @unchecked) match {
-        case s @ Stmt.Skip(_) => s
-        case Stmt.Exit(expr, semInfo) => Stmt.Exit(checkExpr(expr, Is(KnownType.Int)), semInfo)
-        case Stmt.Print(expr, semInfo) => Stmt.Print(checkExpr(expr, Constraint.Infer), semInfo)
-        case Stmt.Println(expr, semInfo) => Stmt.Println(checkExpr(expr, Constraint.Infer), semInfo)
-        case Stmt.If(expr, stmtIf, stmtElse, semInfo) => Stmt.If(checkExpr(expr, Is(KnownType.Bool)),
-                                                                 checkStmt(stmtIf),
-                                                                 checkStmt(stmtElse),
-                                                                 semInfo)
-        case Stmt.While(condExpr, stmt, semInfo) => Stmt.While(checkExpr(condExpr, Is(KnownType.Bool)),
-                                                               checkStmt(stmt),
-                                                               semInfo)
-        case Stmt.Block(stmtList, semInfo) => Stmt.Block(checkStmtList(stmtList), semInfo)
-        case Stmt.Decl(typ, ident, rvalue, semInfo) => checkDecl(typ, ident, rvalue, semInfo)
-        case Stmt.Asgn(lval, rval, semInfo) => checkAsgn(lval, rval, semInfo)
-        case Stmt.Read(lval, semInfo) => checkRead(lval, semInfo)
-        case Stmt.Return(expr, semInfo) => checkReturn(expr, semInfo)
-    }
+    private def checkStmt(stmt: Stmt[SemanticData])(using TCState): Stmt[SemanticData] =
+        (stmt: @unchecked) match {
+            case s @ Stmt.Skip(_) => s
+            case Stmt.Exit(expr, semInfo) =>
+                Stmt.Exit(checkExpr(expr, Is(KnownType.Int)), semInfo)
+            case Stmt.Print(expr, semInfo) =>
+                Stmt.Print(checkExpr(expr, Constraint.Infer), semInfo)
+            case Stmt.Println(expr, semInfo) =>
+                Stmt.Println(checkExpr(expr, Constraint.Infer), semInfo)
+            case Stmt.If(expr, stmtIf, stmtElse, semInfo) =>
+                Stmt.If(checkExpr(expr, Is(KnownType.Bool)),
+                        checkStmt(stmtIf),
+                        checkStmt(stmtElse),
+                        semInfo)
+            case Stmt.While(condExpr, stmt, semInfo) =>
+                Stmt.While(checkExpr(condExpr, Is(KnownType.Bool)),
+                           checkStmt(stmt),
+                           semInfo)
+            case Stmt.Block(stmtList, semInfo) => Stmt.Block(checkStmtList(stmtList), semInfo)
+            case Stmt.Decl(typ, ident, rvalue, semInfo) => checkDecl(typ, ident, rvalue, semInfo)
+            case Stmt.Asgn(lval, rval, semInfo) => checkAsgn(lval, rval, semInfo)
+            case Stmt.Read(lval, semInfo) => checkRead(lval, semInfo)
+            case Stmt.Return(expr, semInfo) => checkReturn(expr, semInfo)
+        }
 
     /**
      * Type check an assignment statement. 
@@ -204,7 +210,8 @@ object TypeChecker {
             /* the type of lval must be known when used in a read statement */
             case ? => 
                 val errorMsg = "Type error: ambiguous assignment between unknown types."
-                val errorDesc = "\nBoth the left-hand side and right-hand side of this statement have unresolved types."
+                val errorDesc = "\nBoth the left-hand side and right-hand side of this statement" +
+                                " have unresolved types."
                 tcState.emit(semInfo.pos, errorMsg, errorDesc)
                 Stmt.Read(lval, SemanticData.Error(semInfo.pos))
             case _ =>
@@ -284,21 +291,23 @@ object TypeChecker {
      * @return `LValue[SemanticData]` type-checked `LValue` node
      */ 
     private def checkLvalue(lvalue: LValue[SemanticData], c: Constraint)
-                           (using tcState: TCState): LValue[SemanticData] = (lvalue: @unchecked) match {
+                           (using tcState: TCState): LValue[SemanticData] =
+        
+        (lvalue: @unchecked) match {
 
-        case i @ Ident(name, info) => checkIdent(i, c)
-        case p @ PairElem(isFst, lval, info) => 
+            case i @ Ident(name, info) => checkIdent(i, c)
+            case p @ PairElem(isFst, lval, info) => 
 
-            /* make sure that the thing we are referencing has a pair type */
-            val typedLValue = checkLvalue(lval, Constraint.IsPair) 
-            
-            val pairElementType = extractLValueType(p) 
+                /* make sure that the thing we are referencing has a pair type */
+                val typedLValue = checkLvalue(lval, Constraint.IsPair) 
+                
+                val pairElementType = extractLValueType(p) 
 
-            /* this lvalue's type must satisfy the constraint */
-            pairElementType.satisfies(c, info.pos, tcState.errorLogger)
+                /* this lvalue's type must satisfy the constraint */
+                pairElementType.satisfies(c, info.pos, tcState.errorLogger)
 
-            PairElem(isFst, typedLValue, info)
-    }
+                PairElem(isFst, typedLValue, info)
+        }
 
     /**
       * Extract the type of an lvalue
@@ -341,31 +350,34 @@ object TypeChecker {
                           exprList: List[Expr[SemanticData]],
                           c: Constraint,
                           semInfo: SemanticData)
-                           (using tcState: TCState): Call[SemanticData] = (semInfo: @unchecked) match {
+                           (using tcState: TCState): Call[SemanticData] =
+        
+        (semInfo: @unchecked) match {
 
-        /* Standard case for a Call() statement */
-        case SemanticData.Pos(pos) => {
+            /* Standard case for a Call() statement */
+            case SemanticData.Pos(pos) => {
 
-            /* Fetch the function signature */
-            val signature = tcState.funcSignatureTable(ident.name)
+                /* Fetch the function signature */
+                val signature = tcState.funcSignatureTable(ident.name)
 
-            /* Check each provided argument matches the type of the
-               function param */
-            val typedArgs = exprList
-                .zip(signature.params)
-                .map((expr, expectedType) => checkExpr(expr, Is(expectedType)))
+                /* Check each provided argument matches the type of the
+                function param */
+                val typedArgs = exprList
+                    .zip(signature.params)
+                    .map((expr, expectedType) => checkExpr(expr, Is(expectedType)))
 
-            /* Check the function being called satisfies the `Decl()` enforced
-               type constraint */
-            val finalType = signature.returnType.satisfies(c, pos, tcState.errorLogger).getOrElse(?)
+                /* Check the function being called satisfies the `Decl()` enforced
+                type constraint */
+                val finalType =
+                    signature.returnType.satisfies(c, pos, tcState.errorLogger).getOrElse(?)
 
-            Call(ident, typedArgs, SemanticData.Expr(pos, finalType))
+                Call(ident, typedArgs, SemanticData.Expr(pos, finalType))
+            }
+
+            /* Renamer found an argument count mismatch or undefined function use
+            error so skip type-check */
+            case SemanticData.Error(_) => Call(ident, exprList, semInfo)
         }
-
-        /* Renamer found an argument count mismatch or undefined function use
-           error so skip type-check */
-        case SemanticData.Error(_) => Call(ident, exprList, semInfo)
-    }
 
 
     /**
@@ -377,40 +389,42 @@ object TypeChecker {
      * @return: `RValue[SemanticData]` type-checked `RValue` node
      */
     private def checkRvalue(rvalue: RValue[SemanticData], c: Constraint)
-                           (using tcState: TCState): RValue[SemanticData] = (rvalue: @unchecked) match {
+                           (using tcState: TCState): RValue[SemanticData] =
+        
+        (rvalue: @unchecked) match {
 
-        case Call(ident, exprList, semInfo) => checkCall(ident, exprList, c, semInfo)
-        case expr: Expr[SemanticData] => checkExpr(expr, c)
+            case Call(ident, exprList, semInfo) => checkCall(ident, exprList, c, semInfo)
+            case expr: Expr[SemanticData] => checkExpr(expr, c)
 
-        /* for newpair(e1, e2), both e1 and e2 must match the pair types imposed in the
-           constraint, otherwise we get an error. */
-        case NewPair(e1, e2, info)    => c match {
+            /* for newpair(e1, e2), both e1 and e2 must match the pair types imposed in the
+            constraint, otherwise we get an error. */
+            case NewPair(e1, e2, info)    => c match {
 
-            case Constraint.Is(KnownType.Pair(fstType, sndType)) => {
-                val checkedExpr1 = checkExpr(e1, Constraint.Is(fstType))
-                val checkedExpr2 = checkExpr(e2, Constraint.Is(sndType))
-                NewPair(checkedExpr1, checkedExpr2, info)
+                case Constraint.Is(KnownType.Pair(fstType, sndType)) => {
+                    val checkedExpr1 = checkExpr(e1, Constraint.Is(fstType))
+                    val checkedExpr2 = checkExpr(e2, Constraint.Is(sndType))
+                    NewPair(checkedExpr1, checkedExpr2, info)
+                }
+
+                case other => { 
+                    tcState.emit(info.pos, s"Type mismatch: Expected Pair but got ${other.toString()}") 
+
+                    /* error indicated by SemanticData.Error */
+                    NewPair(e1, e2, SemanticData.Error(info.pos))  
+                }
             }
 
-            case other => { 
-                tcState.emit(info.pos, s"Type mismatch: Expected Pair but got ${other.toString()}") 
+            /* for fst/snd dereferencing, we have to make sure that we dereference a pair (erased or non-erased).
 
-                /* error indicated by SemanticData.Error */
-                NewPair(e1, e2, SemanticData.Error(info.pos))  
-            }
+            For erased case, check that we at least know something about the type from the constraint, if
+            the constraint also doesn't have a known type, there's a type ambiguity error. Otherwise, 
+            return the PairElem node.
+            
+            For non-erased case, check that either the type first or second element of pair, depending on
+            `fst/snd`, matches the constraint. Any errors will get reported to the logger and the resultant
+            node will have `SemanticData.Error` annotation. */
+            case p: PairElem[SemanticData] => checkPairDereferencing(p, c)
         }
-
-        /* for fst/snd dereferencing, we have to make sure that we dereference a pair (erased or non-erased).
-
-           For erased case, check that we at least know something about the type from the constraint, if
-           the constraint also doesn't have a known type, there's a type ambiguity error. Otherwise, 
-           return the PairElem node.
-           
-           For non-erased case, check that either the type first or second element of pair, depending on
-           `fst/snd`, matches the constraint. Any errors will get reported to the logger and the resultant
-           node will have `SemanticData.Error` annotation. */
-        case p: PairElem[SemanticData] => checkPairDereferencing(p, c)
-    }
 
     private def checkPairDereferencing(pairElem: PairElem[SemanticData], c: Constraint)
                                (using tcState: TCState): RValue[SemanticData] = 
@@ -436,7 +450,9 @@ object TypeChecker {
                 c match {
                     case Is(?) => 
                         val errorMsg = "Type error: ambiguous assignment between unknown types."
-                        val errorDesc = "\nBoth the left-hand side and right-hand side of this statement have unresolved types."
+                        val errorDesc =
+                            "\nBoth the left-hand side and right-hand side of this statement have" +
+                            "unresolved types."
                         tcState.emit(info.pos, errorMsg, errorDesc)
                         PairElem(isFst, typedLVal, SemanticData.Error(info.pos))
                     case _     => PairElem(isFst, typedLVal, info)
@@ -476,7 +492,9 @@ object TypeChecker {
      * @return: `List[Stmt[SemanticData]]` list of type-checked statements
      */
     private def checkStmtList(stmtList: List[Stmt[SemanticData]])
-                             (using TCState): List[Stmt[SemanticData]] = stmtList.map(s => checkStmt(s))
+                             (using TCState): List[Stmt[SemanticData]] = {
+        stmtList.map(s => checkStmt(s))
+     }
 
     /**
      * Type-check a literal
@@ -537,7 +555,8 @@ object TypeChecker {
             val (inputConstraint, resultType) = op match {
                 case UnaryOperator.Not => (Constraint.Is(KnownType.Bool), KnownType.Bool)
                 case UnaryOperator.Neg => (Constraint.Is(KnownType.Int), KnownType.Int)
-                case UnaryOperator.Len => (Constraint.OneOf(Set(KnownType.Array(?),KnownType.String)), KnownType.Int)
+                case UnaryOperator.Len =>
+                    (Constraint.OneOf(Set(KnownType.Array(?),KnownType.String)), KnownType.Int)
                 case UnaryOperator.Ord => (Constraint.Is(KnownType.Char), KnownType.Int)
                 case UnaryOperator.Chr => (Constraint.Is(KnownType.Int), KnownType.Char)
             }
@@ -551,9 +570,11 @@ object TypeChecker {
 
             /* Unary expression constraints and types */
             val (inputLConstraint, inputRConstraint, resultType) = op match {
-                case BinaryOperator.Add | BinaryOperator.Sub | BinaryOperator.Mul | BinaryOperator.Div | BinaryOperator.Mod => 
+                case BinaryOperator.Add | BinaryOperator.Sub | BinaryOperator.Mul |
+                     BinaryOperator.Div | BinaryOperator.Mod => 
                     (Constraint.Is(KnownType.Int), Constraint.Is(KnownType.Int), KnownType.Int)
-                case BinaryOperator.GT | BinaryOperator.GTE | BinaryOperator.LT | BinaryOperator.LTE => 
+                case BinaryOperator.GT | BinaryOperator.GTE |
+                     BinaryOperator.LT | BinaryOperator.LTE => 
                     (IsComparable, IsComparable, KnownType.Bool)
                 case BinaryOperator.EQ | BinaryOperator.NEQ => 
                     (Constraint.IsEquatable, Constraint.IsEquatable, KnownType.Bool)
@@ -565,7 +586,8 @@ object TypeChecker {
 
             /* Constraint for the right expression */
             val constraintR = op match {
-                case BinaryOperator.GT | BinaryOperator.GTE | BinaryOperator.LT | BinaryOperator.LTE | BinaryOperator.EQ | BinaryOperator.NEQ => 
+                case BinaryOperator.GT | BinaryOperator.GTE | BinaryOperator.LT |
+                     BinaryOperator.LTE | BinaryOperator.EQ | BinaryOperator.NEQ => 
 
                     /* Semantic type of the right expression */
                     val rightEnforcedType = typedLExpr.info match {

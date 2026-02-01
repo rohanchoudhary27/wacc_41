@@ -99,15 +99,25 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
 
     "Type-checking functions" should "correctly type-check a valid function call" in {
 
-        val funcSignature: SemanticData.Func = SemanticData.Func(synPos.pos, "f", KnownType.Int, List(KnownType.Int))
+        val funcSignature: SemanticData.Func =
+            SemanticData.Func(synPos.pos, "f", KnownType.Int, List(KnownType.Int))
         val funcTable: Map[String, SemanticData.Func] = Map("f" -> funcSignature)
 
-        val callExpr =
-            Call(Ident("f", funcSignature), List(IntLiter(10, SemanticData.Expr(synPos.pos, KnownType.Int))), semPos)
-        val decl =
-            Stmt.Decl(SyntaxType.Int, Ident("y", SemanticData.Var(synPos.pos, 1, KnownType.Int)), callExpr, semPos)
+        val callExpr = Call(
+            Ident("f", funcSignature),
+            List(IntLiter(10, SemanticData.Expr(synPos.pos, KnownType.Int))),
+            semPos
+        )
 
-        val inputAST = Program(List(), Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
+        val decl = Stmt.Decl(
+            SyntaxType.Int,
+            Ident("y", SemanticData.Var(synPos.pos, 1, KnownType.Int)), 
+            callExpr,
+            semPos
+        )
+
+        val inputAST =
+            Program(List(), Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
         val errorLogger = new ErrorLogger()
 
         TypeChecker.check(inputAST, errorLogger, funcTable)
@@ -115,12 +125,16 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         if (errorLogger.hasErrors()) fail(errorLogger.retrieveAllErrors())
     }
 
-    "The type checker for pairs" should "accept assigning null to a pair type and extracting fst/snd" in {
+    "The type checker for pairs" should "accept null asgn to a pair and extracting fst/snd" in {
         val funcTable: Map[String, SemanticData.Func] = Map.empty
         val errorLogger = new ErrorLogger()
 
         // pair(int, int) p = null;
-        val pVar = Ident("p", SemanticData.Var(synPos.pos, 1, KnownType.Pair(KnownType.Int, KnownType.Int)))
+        val pVar = Ident(
+            "p",
+            SemanticData.Var(synPos.pos, 1, KnownType.Pair(KnownType.Int, KnownType.Int))
+        )
+
         val declP =
             Stmt.Decl(
                 SyntaxType.Pair(SyntaxType.Int, SyntaxType.Int),
@@ -134,7 +148,11 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         val fstP =
             PairElem(
                 isFst = true,
-                Ident("p", SemanticData.Var(synPos.pos, 1, KnownType.Pair(KnownType.Int, KnownType.Int))),
+                Ident("p", SemanticData.Var(synPos.pos,
+                                            1,
+                                            KnownType.Pair(KnownType.Int, KnownType.Int)
+                                            )
+                ),
                 semPos
             )
         val declX = Stmt.Decl(SyntaxType.Int, xVar, fstP, semPos)
@@ -144,13 +162,18 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         val sndP =
             PairElem(
                 isFst = false,
-                Ident("p", SemanticData.Var(synPos.pos, 1, KnownType.Pair(KnownType.Int, KnownType.Int))),
+                Ident("p",
+                      SemanticData.Var(synPos.pos, 1, KnownType.Pair(KnownType.Int, KnownType.Int))
+                ),
                 semPos
             )
         val declY = Stmt.Decl(SyntaxType.Int, yVar, sndP, semPos)
 
         val inputAST =
-            Program(Nil, Stmt.Block(List(declP, declX, declY), semPos), SemanticData.TopLevel(funcTable))
+            Program(Nil,
+                    Stmt.Block(List(declP, declX, declY), semPos),
+                    SemanticData.TopLevel(funcTable)
+            )
 
         val typeCheckResult = TypeChecker.check(inputAST, errorLogger, funcTable)
 
@@ -164,7 +187,9 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
 
         // pair(int, char) p = newpair(true, 'a') 
         val pVar =
-            Ident("p", SemanticData.Var(synPos.pos, 1, KnownType.Pair(KnownType.Int, KnownType.Char)))
+            Ident("p",
+                  SemanticData.Var(synPos.pos, 1, KnownType.Pair(KnownType.Int, KnownType.Char))
+            )
 
         val badNewPair =
             NewPair(
@@ -197,7 +222,12 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
 
         // int x = 5;
         val xVar = Ident("x", SemanticData.Var(synPos.pos, 1, KnownType.Int))
-        val declX = Stmt.Decl(SyntaxType.Int, xVar, IntLiter(5, SemanticData.Expr(synPos.pos, KnownType.Int)), semPos)
+        val declX = Stmt.Decl(
+            SyntaxType.Int,
+            xVar,
+            IntLiter(5, SemanticData.Expr(synPos.pos, KnownType.Int)),
+            semPos
+        )
 
         // int y = fst x;  
         val yVar = Ident("y", SemanticData.Var(synPos.pos, 2, KnownType.Int))
@@ -236,7 +266,8 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
             )
 
         // pair(pair, int) q = null
-        val qVar = Ident("q", SemanticData.Var(synPos.pos, 2,KnownType.Pair(PairAny, KnownType.Int)))
+        val qVar =
+            Ident("q", SemanticData.Var(synPos.pos, 2,KnownType.Pair(PairAny, KnownType.Int)))
 
         val declQ =
             Stmt.Decl(
@@ -273,7 +304,11 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         // fst fst p = fst fst q
         val asgn = Stmt.Asgn(fstFstP, fstFstQ, semPos)
 
-        val inputAST = Program(Nil, Stmt.Block(List(declP, declQ, asgn), semPos), SemanticData.TopLevel(funcTable))
+        val inputAST = Program(
+            Nil,
+            Stmt.Block(List(declP, declQ, asgn), semPos),
+            SemanticData.TopLevel(funcTable)
+        )
 
         TypeChecker.check(inputAST, errorLogger, funcTable)
 

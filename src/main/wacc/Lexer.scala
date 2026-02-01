@@ -142,7 +142,8 @@ object lexer {
         
         /* Label text literals */
         override def labelCharUtf16: LabelWithExplainConfig = Label("character literal")
-        override def labelStringUtf16(multi: Boolean, raw: Boolean): LabelWithExplainConfig = Label("string literal")
+        override def labelStringUtf16(multi: Boolean, raw: Boolean): LabelWithExplainConfig =
+            Label("string literal")
         
         /* Label identifiers and operators */
         override def labelNameIdentifier: String = "identifier"
