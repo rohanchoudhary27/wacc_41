@@ -139,7 +139,7 @@ object TypeChecker {
      * 
      * @return The type-checked `Stmt` node
      */
-    private def checkStmt(stmt: Stmt[SemanticData])(using TCState): Stmt[SemanticData] = stmt match {
+    private def checkStmt(stmt: Stmt[SemanticData])(using TCState): Stmt[SemanticData] = (stmt: @unchecked) match {
         case s @ Stmt.Skip(_) => s
         case Stmt.Exit(expr, semInfo) => Stmt.Exit(checkExpr(expr, Is(KnownType.Int)), semInfo)
         case Stmt.Print(expr, semInfo) => Stmt.Print(checkExpr(expr, Constraint.Infer), semInfo)
@@ -156,7 +156,6 @@ object TypeChecker {
         case Stmt.Asgn(lval, rval, semInfo) => checkAsgn(lval, rval, semInfo)
         case Stmt.Read(lval, semInfo) => checkRead(lval, semInfo)
         case Stmt.Return(expr, semInfo) => checkReturn(expr, semInfo)
-        case _ => ???
     }
 
     /**
@@ -286,7 +285,7 @@ object TypeChecker {
      * @return `LValue[SemanticData]` type-checked `LValue` node
      */ 
     private def checkLvalue(lvalue: LValue[SemanticData], c: Constraint)
-                           (using tcState: TCState): LValue[SemanticData] = lvalue match {
+                           (using tcState: TCState): LValue[SemanticData] = (lvalue: @unchecked) match {
 
         case i @ Ident(name, info) => checkIdent(i, c)
         case p @ PairElem(isFst, lval, info) => 
@@ -300,8 +299,6 @@ object TypeChecker {
             pairElementType.satisfies(c, info.pos, tcState.errorLogger)
 
             PairElem(isFst, typedLValue, info)
-
-        case _ => ???
     }
 
     /**
@@ -345,7 +342,7 @@ object TypeChecker {
                           exprList: List[Expr[SemanticData]],
                           c: Constraint,
                           semInfo: SemanticData)
-                           (using tcState: TCState): Call[SemanticData] = semInfo match {
+                           (using tcState: TCState): Call[SemanticData] = (semInfo: @unchecked) match {
 
         /* Standard case for a Call() statement */
         case SemanticData.Pos(pos) => {
@@ -381,14 +378,14 @@ object TypeChecker {
      * @return: `RValue[SemanticData]` type-checked `RValue` node
      */
     private def checkRvalue(rvalue: RValue[SemanticData], c: Constraint)
-                           (using tcState: TCState): RValue[SemanticData] = rvalue match {
+                           (using tcState: TCState): RValue[SemanticData] = (rvalue: @unchecked) match {
 
         case Call(ident, exprList, semInfo) => checkCall(ident, exprList, c, semInfo)
         case expr: Expr[SemanticData] => checkExpr(expr, c)
 
         /* for newpair(e1, e2), both e1 and e2 must match the pair types imposed in the
            constraint, otherwise we get an error. */
-        case np @ NewPair(e1, e2, info)    => c match {
+        case NewPair(e1, e2, info)    => c match {
 
             case Constraint.Is(KnownType.Pair(fstType, sndType)) => {
                 val checkedExpr1 = checkExpr(e1, Constraint.Is(fstType))
@@ -414,8 +411,6 @@ object TypeChecker {
            `fst/snd`, matches the constraint. Any errors will get reported to the logger and the resultant
            node will have `SemanticData.Error` annotation. */
         case p: PairElem[SemanticData] => checkPairDereferencing(p, c)
-
-        case _ => ???
     }
 
     private def checkPairDereferencing(pairElem: PairElem[SemanticData], c: Constraint)
@@ -518,7 +513,7 @@ object TypeChecker {
      * @return: `Expr[SemanticData]` type-checked `Expr` node
      */
     private def checkExpr(expr: Expr[SemanticData], c: Constraint)
-                         (using tcState: TCState): Expr[SemanticData] = expr match {
+                         (using tcState: TCState): Expr[SemanticData] = (expr: @unchecked) match {
 
         case IntLiter(value, info: SemanticData.Expr) => 
             checkLiteral(value, info, IntLiter.apply, c)
@@ -584,8 +579,6 @@ object TypeChecker {
             val finalType = resultType.satisfies(c, pos, tcState.errorLogger).getOrElse(?)
             BinaryExpr(op, typedLExpr, typedRExpr, SemanticData.Expr(pos, finalType))
         }
-
-        case _ => ???
     }
     
     extension (ty1: SemanticType) {
@@ -637,8 +630,6 @@ object TypeChecker {
                 ts.iterator
                   .map(t => kty.matches(Constraint.Is(t)))
                   .collectFirst {case Some(res) => res }
-            
-            case (?, _) => Some(?)
         }
         
         /**

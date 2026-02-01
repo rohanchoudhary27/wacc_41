@@ -173,7 +173,7 @@ object Renamer {
   * @return: The renamed `Stmt` node
   */
   private def renameStmt(stmt: Stmt[SyntacticData], inFunc: Boolean = false)(using scope: RenamerScope, state: RenamerState): Stmt[SemanticData] = {
-    stmt match {
+    (stmt: @unchecked) match {
       case Stmt.Skip(synPos) => Stmt.Skip(synPos.toSemanticPos)
       case Stmt.Exit(expr, synPos) => Stmt.Exit(renameExpr(expr), synPos.toSemanticPos)
       case Stmt.Print(expr, synPos) => Stmt.Print(renameExpr(expr), synPos.toSemanticPos)
@@ -199,7 +199,6 @@ object Renamer {
       case Stmt.Read(lval, synPos) =>
         Stmt.Read(renameLValue(lval), synPos.toSemanticPos)
 
-      case _ => ???
     }
   }
 
@@ -361,13 +360,12 @@ object Renamer {
   * @return: The renamed `RValue` node
   */
   private def renameRValue(rvalue: RValue[SyntacticData])
-                          (using scope: RenamerScope, state: RenamerState): RValue[SemanticData] = rvalue match {
+                          (using scope: RenamerScope, state: RenamerState): RValue[SemanticData] = (rvalue: @unchecked) match {
 
     case Call(ident, exprList, synPos) => renameCall(ident, exprList, synPos)
     case expr: Expr[SyntacticData]   => renameExpr(expr)
     case PairElem(isFst, lval, info) => PairElem(isFst, renameLValue(lval), info.toSemanticPos)
     case NewPair(e1, e2, info)       => NewPair(renameExpr(e1), renameExpr(e2), info.toSemanticPos)
-    case _                           => ???
   }
 
   /**
@@ -381,11 +379,10 @@ object Renamer {
   * @return: The renamed `LValue` node
   */
   private def renameLValue(lvalue: LValue[SyntacticData])
-                          (using RenamerScope, RenamerState): LValue[SemanticData] = lvalue match {
+                          (using RenamerScope, RenamerState): LValue[SemanticData] = (lvalue: @unchecked) match {
 
     case i: Ident[SyntacticData] => renameIdent(i)
     case PairElem(isFst, lval, info) => PairElem(isFst, renameLValue(lval), info.toSemanticPos)
-    case _                       => ???
   }
   
   /**
@@ -546,7 +543,7 @@ object Renamer {
   * @return: The renamed `Expr` node
   */
   private def renameExpr(expr: Expr[SyntacticData])
-                        (using RenamerScope, RenamerState): Expr[SemanticData] = expr match {
+                        (using RenamerScope, RenamerState): Expr[SemanticData] = (expr: @unchecked) match {
 
     /* Atomic expressions */
     case IntLiter(value, info) => renameLiteral(value, info, KnownType.Int, IntLiter.apply)
@@ -561,7 +558,5 @@ object Renamer {
 
     /* Binary expressions */
     case BinaryExpr(op, left, right, synPos) => BinaryExpr(op, renameExpr(left), renameExpr(right), synPos.toSemanticPos)
-
-    case _ => ???
   }
 }

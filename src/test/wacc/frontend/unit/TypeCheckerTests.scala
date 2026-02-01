@@ -67,7 +67,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
             case wacc.SemanticData.TopLevel(ft) => ft
             case _ => Map.empty
         }
-        val typeCheckResult = TypeChecker.check(renamedProgram, errorLogger, funcTable)
+        TypeChecker.check(renamedProgram, errorLogger, funcTable)
         
         errorLogger.hasErrors() shouldBe true
         val errors = errorLogger.retrieveAllErrors()
@@ -89,7 +89,8 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
             case wacc.SemanticData.TopLevel(ft) => ft
             case _ => Map.empty
         }
-        val typeCheckResult = TypeChecker.check(renamedProgram, errorLogger, funcTable)
+
+        TypeChecker.check(renamedProgram, errorLogger, funcTable)
         
         errorLogger.hasErrors() shouldBe true
         val errors = errorLogger.retrieveAllErrors()
