@@ -190,7 +190,37 @@ object Renamer {
                                                             renameStmt(stmt, inFunc),
                                                             synPos.toSemanticPos)
 
-      case Stmt.Decl(syntacticType, ident, rval, synPos) => {
+      case Stmt.Decl(syntacticType, ident, rval, synPos) =>
+        renameDecl(ident, rval, synPos, syntacticType)
+
+      case Stmt.Asgn(lval, rval, synPos) =>
+        Stmt.Asgn(renameLValue(lval), renameRValue(rval), synPos.toSemanticPos)
+      
+      case Stmt.Read(lval, synPos) =>
+        Stmt.Read(renameLValue(lval), synPos.toSemanticPos)
+
+      case _ => ???
+    }
+  }
+
+  /**
+  * Renames a `Decl` AST node (statement)
+  *
+  * @param ident: The identifier of the declaration
+  * @param rval: The RValue being assigned to the new identifier
+  * @param synPos: The syntactic position of the declaration
+  * @param syntacticType: The syntactic type of the declaration
+  * @param scope: A `RenamerScope` tracking in scope variables
+  * @param state: A `RenamerState` containing an error logger, and
+  * error/function state maps
+  *
+  * @return: The renamed `Decl` node
+  */
+  private def renameDecl(ident: Ident[SyntacticData],
+                         rval: RValue[SyntacticData],
+                         synPos: SyntacticData,
+                         syntacticType: SyntaxType)
+                         (using scope: RenamerScope, state: RenamerState): Stmt.Decl[SemanticData] = {
 
         val renamedRVal = renameRValue(rval)
 
@@ -209,19 +239,7 @@ object Renamer {
         scope.add(ident.name, varSemData)
 
         Stmt.Decl(syntacticType, renameIdent(ident), renamedRVal, synPos.toSemanticPos)
-      }
 
-      case Stmt.Asgn(lval, rval, synPos) => {
-        val renamedLVal = renameLValue(lval)
-        val renamedRVal = renameRValue(rval)
-        Stmt.Asgn(renamedLVal, renamedRVal, synPos.toSemanticPos)
-      }
-      case Stmt.Read(lval, synPos) => {
-        val renamedLVal = renameLValue(lval)
-        Stmt.Read(renamedLVal, synPos.toSemanticPos)
-      }
-      case _ => ???
-    }
   }
 
   /**
