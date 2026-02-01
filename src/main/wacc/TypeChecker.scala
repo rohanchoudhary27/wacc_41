@@ -621,9 +621,7 @@ object TypeChecker {
 
             case _  => None
         }
-    }
 
-    extension (ty: SemanticType) {
         /** 
          * Checks whether type `ty` matches constraint `c`. This method
          * performs no error logging.
@@ -632,7 +630,7 @@ object TypeChecker {
          * 
          * @return `Some(SemanticType)` on success, or `None` on failure.
          */
-        private def matches(c: Constraint): Option[SemanticType] = (ty, c) match {
+        private def matches(c: Constraint): Option[SemanticType] = (ty1, c) match {
             case (kty, Constraint.Is(refTy)) => kty ~ refTy
             
             case (kty, Constraint.OneOf(ts)) => 
@@ -655,8 +653,8 @@ object TypeChecker {
          * otherwise logs a type mismatch error and `None`
          */
         def satisfies(c: Constraint, pos: SourcePos, logger: ErrorLogger): Option[SemanticType] = {
-            ty.matches(c).orElse {
-                logger.logError(pos, s"Type mismatch:\n\texpected $c\n\tunexpected $ty")
+            ty1.matches(c).orElse {
+                logger.logError(pos, s"Type mismatch:\n\texpected $c\n\tunexpected $ty1")
                 None
             }
 
@@ -664,3 +662,4 @@ object TypeChecker {
     }
 
 }
+
