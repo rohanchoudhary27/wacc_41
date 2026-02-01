@@ -26,10 +26,18 @@ enum UnaryOperator {
     case Neg, Not, Len, Ord, Chr
 }
 
+/* The top-level program */
 case class Program[A](funcs: List[Func[A]], stmt: Stmt[A], @isMeta info: A)
-case class Func[A](typ: SyntaxType, ident: Ident[A], params: List[Param[A]], stmt: Stmt[A], @isMeta info: A)
+
+/* Function nodes */
+case class Func[A](typ: SyntaxType,
+                   ident: Ident[A],
+                   params: List[Param[A]],
+                   stmt: Stmt[A],
+                   @isMeta info: A)
 case class Param[A](typ: SyntaxType, ident: Ident[A], @isMeta info: A)
 
+/* WACC statements */
 enum Stmt[A] {
     case Skip(@isMeta info: A)
     case Decl(typ: SyntaxType, ident: Ident[A], rval: RValue[A], @isMeta info: A)
@@ -47,12 +55,19 @@ enum Stmt[A] {
 
 /* Operator nodes */
 case class UnaryExpr[A](op: UnaryOperator, expr: Expr[A], @isMeta info: A) extends Expr[A]
-case class BinaryExpr[A](op: BinaryOperator, left: Expr[A], right: Expr[A], @isMeta info: A) extends Expr[A]
+case class BinaryExpr[A](op: BinaryOperator,
+                         left: Expr[A],
+                         right: Expr[A],
+                         @isMeta info: A) extends Expr[A]
 
 /* LValues and reference access */
 case class Ident[A](name: String, @isMeta info: A) extends LValue[A] with Expr[A]
-case class ArrayElem[A](ident: Ident[A], indices: List[Expr[A]], @isMeta info: A) extends LValue[A] with Expr[A]
-case class PairElem[A](isFst: Boolean, lval: LValue[A], @isMeta info: A) extends LValue[A] with RValue[A]
+case class ArrayElem[A](ident: Ident[A],
+                        indices: List[Expr[A]],
+                        @isMeta info: A) extends LValue[A] with Expr[A]
+case class PairElem[A](isFst: Boolean,
+                       lval: LValue[A],
+                       @isMeta info: A) extends LValue[A] with RValue[A]
 
 /* Complex RValues */
 case class NewPair[A](e1: Expr[A], e2: Expr[A], @isMeta info: A) extends RValue[A]

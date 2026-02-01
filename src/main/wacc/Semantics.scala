@@ -29,10 +29,10 @@ enum KnownType extends SemanticType {
 }
 
 /* Polymorphic semantic types created and used in the typechecker */
-case object PairAny extends SemanticType     // corresponding to `ErasedPair`
-case object Null extends SemanticType        // corresponding to a pair literal
-case object EmptyArray extends SemanticType  // corresponding to an empty array literal
-case object ? extends SemanticType           // corresponding to typing error causing code
+case object PairAny extends SemanticType     /* corresponding to `ErasedPair` */
+case object Null extends SemanticType        /* corresponding to a pair literal */
+case object EmptyArray extends SemanticType  /* corresponding to an empty array literal */
+case object ? extends SemanticType           /* corresponding to typing error causing code */
 
 /**
 * The `info` annotation to the AST nodes for a renamed AST. Also ouptut
@@ -95,8 +95,8 @@ enum SemanticData {
   case TopLevel(funcTable: Map[String, Func])
 
   /**
-  * Annotating a node that caused a semantic error so the tree can still
-  * be built to catch more semantic errors.
+  * Annotating a node that caused a semantic error in the renamer so the tree
+  * can still be built to catch more semantic errors.
   *
   * @param pos: A (row, column) tuple in the program where the AST
   * node is located
@@ -109,6 +109,7 @@ object SemanticData {
   * Extension methods for working with SemanticData positions.
   */
   extension (data: SemanticData) {
+
     /** Extract the source position from semantic data */
     def pos: SourcePos = data match {
       case SemanticData.Pos(p) => p
@@ -116,14 +117,16 @@ object SemanticData {
       case SemanticData.Func(p, _, _, _) => p
       case SemanticData.Expr(p, _) => p
       case SemanticData.Error(p) => p
-      case SemanticData.TopLevel(_) => (0, 0) // TopLevel has no position
+      case SemanticData.TopLevel(_) => (0, 0) /* TopLevel has initial position */
     }
     
     /** Update the semantic type while preserving position and other data */
     def withType(newType: SemanticType): SemanticData = data match {
       case SemanticData.Expr(pos, _) => SemanticData.Expr(pos, newType)
       case SemanticData.Var(pos, id, _) => SemanticData.Var(pos, id, newType)
-      case other => other  // Pos, Func, Error, TopLevel don't have updatable types
+
+      /* Pos, Func, Error, TopLevel don't have updatable types */
+      case other => other  
     }
   }
 }
@@ -185,17 +188,23 @@ case class ErrorLogger(val codeLines: Vector[String] = Vector.empty) {
   def retrieveAllErrors(): String = {
 
     val errorBuilder = new StringBuilder
+
+    /* Add each error to the error builder for a final string output */
     for (err <- errors) {
+
+      /* Error location and main message */
       errorBuilder.append(s"[Line ${err.pos(0)}, column ${err.pos(1)}] ${err.msg}\n\n")
 
+      /* Code where the error occured and a pointer to the position
+         in the line */
       if (indentTrackedLines.nonEmpty) {
         val (codeLine, indent) = indentTrackedLines(err.pos(0) - 1)
         val errorPointerLine = " " * (err.pos(1) - indent - 1) + "^\n"
         errorBuilder.append(s"${codeLine}\n")
         errorBuilder.append(s"${errorPointerLine}")
       }
-
     }
+
     errorBuilder.toString() 
   }
 

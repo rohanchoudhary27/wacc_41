@@ -7,14 +7,21 @@ import parsley.token.Basic
 import parsley.token.descriptions.ExponentDesc.NoExponents
 import parsley.token.errors.{ErrorConfig, Label, LabelConfig, LabelWithExplainConfig}
 
+/**
+* The Parsley lexer, describing language structure and creating the base case
+* primitive parsers.
+*/
 object lexer {
+
     private val desc = LexicalDesc.plain.copy(
 
+        /* Identifier rules */
         nameDesc = NameDesc.plain.copy(
             identifierStart = Basic(c => c.isLetter || c == '_'),
             identifierLetter = Basic(c => c.isLetterOrDigit || c == '_'),
         ),
 
+        /* Reserved keywords and operators */
         symbolDesc = SymbolDesc.plain.copy(
             hardKeywords = Set(
                 "begin", "end", "is", "skip", "read", "free", "return",
@@ -23,7 +30,6 @@ object lexer {
                 "fst", "snd", "int", "bool", "char", "string",
                 "pair", "len", "ord", "chr", "true", "false", "null"
             ),
-
             hardOperators = Set(
               "!", "-", "*", "/", "%", "+",
               "-", ">", ">=", "<", "<=", "==", "!=", "&&", "||",
@@ -31,6 +37,7 @@ object lexer {
             ),
         ),
 
+        /* Description of WACC number features */
         numericDesc = NumericDesc.plain.copy(
             integerNumbersCanBeHexadecimal = false,
             integerNumbersCanBeOctal = false,
@@ -43,6 +50,7 @@ object lexer {
             binaryExponentDesc = NoExponents,
         ),
 
+        /* Description of WACC string/char features */
         textDesc = TextDesc.plain.copy(
             escapeSequences = EscapeDesc.plain.copy(
                 escBegin = '\\',
@@ -55,22 +63,25 @@ object lexer {
             characterLiteralEnd = '\'',
         ),
 
+        /* Description of WACC comments and whitespace */
         spaceDesc = SpaceDesc.plain.copy(
             lineCommentStart = "#",
         ),
     )
 
     private val errorConfig = new ErrorConfig {
-        // Label operators, delimiters, and keywords with meaningful names
+
+        /* Label operators, delimiters, and keywords with meaningful names */
         override def labelSymbol = Map(
-            // Arithmetic operators
+
+            /* Arithmetic operators */
             "+" -> Label("addition operator"),
             "-" -> Label("subtraction operator"),
             "*" -> Label("multiplication operator"),
             "/" -> Label("division operator"),
             "%" -> Label("modulo operator"),
             
-            // Comparison operators
+            /* Comparison operators */
             ">"  -> Label("greater than operator"),
             ">=" -> Label("greater than or equal operator"),
             "<"  -> Label("less than operator"),
@@ -78,12 +89,12 @@ object lexer {
             "==" -> Label("equality operator"),
             "!=" -> Label("inequality operator"),
             
-            // Logical operators
+            /* Logical operators */
             "&&" -> Label("logical AND operator"),
             "||" -> Label("logical OR operator"),
             "!"  -> Label("logical NOT operator"),
             
-            // Assignment and delimiters
+            /* Assignment and delimiters */
             "=" -> Label("assignment operator"),
             "[" -> Label("opening bracket"),
             "]" -> Label("closing bracket"),
@@ -92,7 +103,7 @@ object lexer {
             "," -> Label("comma"),
             ";" -> Label("semicolon"),
             
-            // Keywords
+            /* Keywords */
             "begin"   -> Label("'begin' keyword"),
             "end"     -> Label("'end' keyword"),
             "skip"    -> Label("'skip' statement"),
@@ -126,21 +137,22 @@ object lexer {
             "null"    -> Label("null literal")
         )
         
-        // Label numeric literals
+        /* Label numeric literals */
         override def labelIntegerUnsignedDecimal: LabelConfig = Label("integer literal")
         
-        // Label text literals
+        /* Label text literals */
         override def labelCharUtf16: LabelWithExplainConfig = Label("character literal")
-        override def labelStringUtf16(multi: Boolean, raw: Boolean): LabelWithExplainConfig = Label("string literal")
+        override def labelStringUtf16(multi: Boolean, raw: Boolean): LabelWithExplainConfig =
+            Label("string literal")
         
-        // Label identifiers and operators
+        /* Label identifiers and operators */
         override def labelNameIdentifier: String = "identifier"
         override def labelNameOperator: String = "operator"
     }
 
     private val lexer = Lexer(desc, errorConfig)
 
-    // Primitive parsers for use in parser.scala
+    /* Primitive parsers for use in parser.scala */
     val integer = lexer.lexeme.integer.decimal32
     val implicits = lexer.lexeme.symbol.implicits
     val ident = lexer.lexeme.names.identifier

@@ -15,8 +15,18 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
     val pos = SyntacticData.Pos(0, 0)
 
     "The Renamer" should "assign different rename IDs to shadowed variables" in {
-        val innerDecl = Stmt.Decl(SyntaxType.Int, Ident("x", SyntacticData.Pos(0,0)), IntLiter(0, SyntacticData.Pos(0,0)), SyntacticData.Pos(0,0))
-        val outerDecl = Stmt.Decl(SyntaxType.Int, Ident("x", SyntacticData.Pos(0,0)), IntLiter(0, SyntacticData.Pos(0,0)), SyntacticData.Pos(0,0))
+
+        val innerDecl = Stmt.Decl(
+            SyntaxType.Int,
+            Ident("x", SyntacticData.Pos(0,0)),
+            IntLiter(0, SyntacticData.Pos(0,0)),
+            SyntacticData.Pos(0,0))
+
+        val outerDecl = Stmt.Decl(
+            SyntaxType.Int,
+            Ident("x", SyntacticData.Pos(0,0)), 
+            IntLiter(0, SyntacticData.Pos(0,0)),
+            SyntacticData.Pos(0,0))
 
         val testBlock = Stmt.Block(
             List(
@@ -46,18 +56,24 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         val innerId = extractId(innerIdent)
 
         if (outerId.isEmpty) {
-            fail("Error in variable shadowing test - outer variable not tagged with `Var` semantic data")
+            fail("Error in variable shadowing test - outer var not tagged with `Var` semantic data")
         }
 
         if (innerId.isEmpty) {
-            fail("Error in variable shadowing test - inner variable not tagged with `Var` semantic data")
+            fail("Error in variable shadowing test - inner var not tagged with `Var` semantic data")
         }
 
         outerId should not equal innerId
     }
 
     it should "maintain the lvalue in a read statement after renaming" in {
-        val decl = Stmt.Decl(SyntaxType.Int, Ident("x", SyntacticData.Pos(0,0)), IntLiter(5, SyntacticData.Pos(0,0)), SyntacticData.Pos(0,0))
+
+        val decl = Stmt.Decl(
+            SyntaxType.Int,
+            Ident("x", SyntacticData.Pos(0,0)),
+            IntLiter(5, SyntacticData.Pos(0,0)),
+            SyntacticData.Pos(0,0))
+
         val readStmt = Stmt.Read(Ident("x", SyntacticData.Pos(0,0)), SyntacticData.Pos(0,0))
         
         val testBlock = Stmt.Block(List(decl, readStmt), SyntacticData.Pos(0,0))
@@ -249,8 +265,20 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
     }
 
     "Renaming pairs" should "let a declared pair identifier be used inside fst/snd" in {
-        val declP = Stmt.Decl(SyntaxType.Pair(SyntaxType.Int, SyntaxType.Int), Ident("p", pos), PairLiter(pos), pos)
-        val declX = Stmt.Decl(SyntaxType.Int, Ident("x", pos), PairElem(isFst = true, Ident("p", pos), pos), pos)
+
+        val declP = Stmt.Decl(
+            SyntaxType.Pair(SyntaxType.Int, SyntaxType.Int),
+            Ident("p", pos),
+            PairLiter(pos),
+            pos
+        )
+
+        val declX = Stmt.Decl(
+            SyntaxType.Int,
+            Ident("x", pos),
+            PairElem(isFst = true, Ident("p", pos), pos),
+            pos
+        )
 
         val inputAST = Program(Nil, Stmt.Block(List(declP, declX), pos), pos)
         val renamedAST = Renamer.rename(inputAST, new ErrorLogger())
@@ -263,9 +291,15 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
     }
 
     it should "rename nested pair extractions" in {
+
         // pair(pair, int) p = null;
         // int q = fst fst p
-        val declP = Stmt.Decl(SyntaxType.Pair(SyntaxType.ErasedPair, SyntaxType.Int), Ident("p", pos), PairLiter(pos), pos)
+        val declP = Stmt.Decl(
+            SyntaxType.Pair(SyntaxType.ErasedPair, SyntaxType.Int),
+            Ident("p", pos),
+            PairLiter(pos),
+            pos
+        )
 
         // fst fst p  ==> PairElem(fst, PairElem(fst, Ident(p)))
         val nested =
@@ -287,7 +321,12 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
 
     it should "report an error when fst/snd refers to an out-of-scope identifier" in {
         // int x = fst p  (p is never declared)
-        val declX = Stmt.Decl(SyntaxType.Int, Ident("x", pos), PairElem(isFst = true, Ident("p", pos), pos), pos)
+        val declX = Stmt.Decl(
+            SyntaxType.Int, Ident("x", pos), 
+            PairElem(isFst = true,
+            Ident("p", pos), pos),
+            pos
+        )
 
         val inputAST = Program(Nil, Stmt.Block(List(declX), pos), pos)
         val errorLogger = new ErrorLogger()
@@ -306,10 +345,26 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         //     int x = fst p;
         //   end
         // end
-        val outerDeclP = Stmt.Decl(SyntaxType.Pair(SyntaxType.Int, SyntaxType.Int), Ident("p", pos), PairLiter(pos), pos)
+        val outerDeclP = Stmt.Decl(
+            SyntaxType.Pair(SyntaxType.Int, SyntaxType.Int),
+            Ident("p", pos),
+            PairLiter(pos),
+            pos
+        )
 
-        val innerDeclP = Stmt.Decl(SyntaxType.Pair(SyntaxType.Int, SyntaxType.Int), Ident("p", pos), PairLiter(pos), pos)
-        val innerDeclX = Stmt.Decl(SyntaxType.Int, Ident("x", pos), PairElem(isFst = true, Ident("p", pos), pos), pos)
+        val innerDeclP = Stmt.Decl(
+            SyntaxType.Pair(SyntaxType.Int, SyntaxType.Int),
+            Ident("p", pos),
+            PairLiter(pos),
+            pos
+        )
+
+        val innerDeclX = Stmt.Decl(
+            SyntaxType.Int,
+            Ident("x", pos),
+            PairElem(isFst = true, Ident("p", pos), pos),
+            pos
+        )
 
         val innerBlock = Stmt.Block(List(innerDeclP, innerDeclX), pos)
         val inputAST = Program(Nil, Stmt.Block(List(outerDeclP, innerBlock), pos), pos)
@@ -321,7 +376,8 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         val Stmt.Block(innerStmts, _) = outerStmts(1): @unchecked
 
         val Stmt.Decl(_, innerP: Ident[SemanticData], _, _) = innerStmts(0): @unchecked
-        val Stmt.Decl(_, _, PairElem(_, usedP: Ident[SemanticData], _), _) = innerStmts(1): @unchecked
+        val Stmt.Decl(_, _, PairElem(_, usedP: Ident[SemanticData], _), _) =
+            innerStmts(1): @unchecked
 
         // The use in fst p should bind to the inner p, not the outer p
         extractId(usedP) shouldBe extractId(innerP)

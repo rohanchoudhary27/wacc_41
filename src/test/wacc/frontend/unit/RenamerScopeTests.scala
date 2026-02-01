@@ -3,7 +3,7 @@ package wacc.frontend.unit
 import org.scalatest.matchers.should.Matchers.*
 import org.scalatest.flatspec.AnyFlatSpec
 import wacc.{RenamerScope, KnownType}
-import wacc.{SemanticData,SourcePos}
+import wacc.{SemanticData}
 
 /**
 * Unit tests for RenamerScope
