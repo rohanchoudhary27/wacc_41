@@ -14,19 +14,17 @@ import wacc.ErrorLogger
 import wacc.SyntaxPass
 
 final class FrontendIntegrationSpec extends AnyFlatSpec with Matchers {
+
     private val scopeConfigPath: Path = Paths.get("config", "TestScope.txt")
-
     private val examplesRoot: Path = Paths.get("examples")
-    
     private val programExtension: String = "wacc"
-
     private val enabledScopes: Set[String] = readScopes(scopeConfigPath)
 
-    // Runs the frontend pipeline against an integration test
+    /* Runs the frontend pipeline against an integration test */
     private object FrontendCompilerDriver {
         def frontendCompile(path: Path): Int = {
 
-            // Load file as String
+            /* Load file as String */
             val source = Source.fromFile(path.toFile)
             val codeLines: Vector[String] =
                 try source.getLines().toVector
@@ -45,7 +43,7 @@ final class FrontendIntegrationSpec extends AnyFlatSpec with Matchers {
 
                     SyntaxPass.syntaxCheck(syntacticAST, syntacticErrors)
 
-                    // If there were complex syntax errors, exit with 100
+                    /* If there were complex syntax errors, exit with 100 */
                     if (syntacticErrors.hasErrors()) {
                         Console.err.println("Failure: 100 - Syntax error:\n")
                         Console.err.println(syntacticErrors.retrieveAllErrors())
@@ -61,19 +59,21 @@ final class FrontendIntegrationSpec extends AnyFlatSpec with Matchers {
 
                         TypeChecker.check(renamedAST, semanticErrors, funcTable)
 
-                        if (semanticErrors.hasErrors()) 200 // Semantic Error
-                        else 0                              // Success
+                        if (semanticErrors.hasErrors()) 200 /* Semantic Error */
+                        else 0                              /* Success */
                     }
             }
         }
     }
 
-    // expected status codes:
-    //  examples/valid/**  => 0 (all valid programs should return 0)
-    //  examples/invalid/syntaxErr/** => 100 (all programs with syntax errors should return 100)
-    //  examples/invalid/semanticErr/** => 200 (all programs with semantic errors should return 200)
+
+    /* expected status codes:
+        examples/valid/  => 0 (all valid programs should return 0)
+        examples/invalid/syntaxErr/ => 100 (all programs with syntax errors should return 100)
+        examples/invalid/semanticErr/ => 200 (all programs with semantic errors should return 200) */
     private def expectedStatus(file: Path): Int = {
-        // make the file relative to examples root to get the scope
+
+        /* make the file relative to examples root to get the scope */
         val rel = examplesRoot.relativize(file).toString 
 
         if (rel.startsWith("valid/")) 0
@@ -85,7 +85,7 @@ final class FrontendIntegrationSpec extends AnyFlatSpec with Matchers {
     private val validDir = examplesRoot.resolve("valid")
     private val invalidDir = examplesRoot.resolve("invalid")
 
-    // extract all the example WACC programs in the examples dir
+    /* extract all the example WACC programs in the examples dir */
     private val allPrograms: Seq[Path] =
         getWaccProgramsUnder(validDir) ++ getWaccProgramsUnder(invalidDir)
 
@@ -95,10 +95,12 @@ final class FrontendIntegrationSpec extends AnyFlatSpec with Matchers {
 
     private val grouped: Map[String, Seq[Path]] =
         allPrograms.groupBy { f =>
-            // turn examples/{valid, invalid}/... into {valid, invalid}/...
+
+            /* turn examples/{valid, invalid}/... into {valid, invalid}/... */
             val rel = examplesRoot.relativize(f).toString 
-            // get the scope name (if the file is "invalid/syntaxError/basic/skpErr.wacc", 
-            // this gets "invalid/syntaxError")
+
+            /* get the scope name (if the file is "invalid/syntaxError/basic/skpErr.wacc", 
+               this gets "invalid/syntaxError") */
             rel.split('/').take(2).mkString("/") 
         }.map { case (k, v) => k -> v.sorted }
 
@@ -132,8 +134,8 @@ final class FrontendIntegrationSpec extends AnyFlatSpec with Matchers {
         }
     }
 
-    // scope key is the parent directory relative to examples
-    // e.g. examples/invalid/syntaxErr/basic/skpErr.wacc -> "invalid/syntaxErr/basic"
+    /* scope key is the parent directory relative to examples
+       e.g. examples/invalid/syntaxErr/basic/skpErr.wacc -> "invalid/syntaxErr/basic" */
     private def scopeFor(file: Path): String = {
         Option(file.getParent) match {
             case Some(parent) => examplesRoot.relativize(parent).toString
@@ -145,13 +147,13 @@ final class FrontendIntegrationSpec extends AnyFlatSpec with Matchers {
     private def readScopes(path: Path): Set[String] = {
         if (!Files.exists(path)) Set.empty
         else Files.readAllLines(path).asScala
-            .map(s => s.takeWhile(_ != '#')) // treat '#' as a comment
+            .map(s => s.takeWhile(_ != '#')) /* treat '#' as a comment */
             .map(_.trim)
             .filter(s => s.nonEmpty)
             .toSet
     }
 
-    // return all .wacc files under dir
+    /* return all .wacc files under dir */
     private def getWaccProgramsUnder(dir: Path): Seq[Path] = {
         if (!Files.isDirectory(dir)) Seq.empty
         else Files.walk(dir).toScala(List)

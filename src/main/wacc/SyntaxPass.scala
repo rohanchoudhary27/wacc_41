@@ -13,7 +13,8 @@ object SyntaxPass {
     /**
      * Checks whether a Program[SyntacticData] output by the parser satisfies
      * syntax rules not specified in the BNF grammar, logging syntax errors if
-     * it does not.
+     * it does not. These rules only involve non-returning path checking in
+     * a function body.
      *
      * @param prog: The Program AST node output by the parser
      * @param errorLogger: An error logger object for logging syntax errors
@@ -23,6 +24,8 @@ object SyntaxPass {
     def syntaxCheck(prog: Program[SyntacticData],
                     errorLogger: ErrorLogger): Program[SyntacticData] = {
 
+        /* Log an error for the first non-returning function
+           found and then stop */
         prog.funcs.collectFirst { case func if !checkReturn(func.stmt) => func } match {
             case Some(func) =>
                 val errorMsg = s"Function error: Function '${func.ident.name}' is not guaranteed to return"

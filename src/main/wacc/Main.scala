@@ -8,6 +8,8 @@ import scala.io.Source
 *
 * Stages:
 * Parsing: Source text to a SyntacticAST, Exit code 100 on failure
+* Additional Syntax Check: Check SyntacticAST for non-returning paths in
+* functions, returning exit code 100 on failure
 * Renaming: Transforms SyntacticAST to use SemanticData, Log errors on failure
 * Type Checker: Verifies Type correctness and, Log errors on failure
 *
@@ -17,66 +19,67 @@ import scala.io.Source
 *   200 - Semantic Errors
 *   -1 - System Error
 *
-* @param args: Command Line arguments. Only 1 is expected.
+* @param args: Command Line arguments. Only 1 is expected (the path of the
+* file to compile).
 */
 def main(args: Array[String]): Unit = {
 
-    // Expect a singular argument
+    /* Expect a singular argument */
     if(args.length != 1) {
         println("Requires file.")
         sys.exit(-1)
     }
 
-    // Put in file
+    /* Load file */
     val file = new File(args(0))
 
-    // Check file created succesfully
+    /* Check file created succesfully */
     if(!file.exists()) {
         println("File does not exist.")
         sys.exit(-1)
     }
 
-    // Load file as String
+    /* Load file as String and a list of lines */
     val source = Source.fromFile(file)
     val codeLines: Vector[String] =
         try source.getLines().toVector
         finally source.close()
-
     val sourceCode: String = codeLines.mkString("\n")
 
-
-    // Parse the string
+    /* Parse the string */
     val result = parser.parse(sourceCode)
 
     result match {
-        // Syntax error from parsing - exit with 100
+
+        /* Syntax error from parsing - exit with 100 */
         case Left(msg) =>
             Console.err.println("Failure: 100 - Syntax error:")
             Console.err.println(msg)
             sys.exit(100)
 
-        // Parsing complete successfully
+        /* Parsing complete successfully */
         case Right(syntacticAST) =>
-            // Create a semantic errors object
+
+            /* Create a semantic errors object */
             val semanticErrors = new ErrorLogger(codeLines)
 
-            // Create a syntactic errors object for complex return checks
+            /* Create a syntactic errors object for complex return checks */
             val syntacticErrors = new ErrorLogger(codeLines)
 
-            // Check complex (post-parse) syntax rules
+            /* Check complex (post-parse) syntax rules */
             SyntaxPass.syntaxCheck(syntacticAST, syntacticErrors)
 
-            // If there were complex syntax errors, exit with 100
+            /* If there were complex syntax errors, exit with 100 */
             if (syntacticErrors.hasErrors()) {
                 Console.err.println("Failure: 100 - Syntax error:\n")
                 Console.err.println(syntacticErrors.retrieveAllErrors())
                 sys.exit(100)
             }
 
-            // Rename the AST and return this AST, build the senamtic errors if there are any
+            /* Rename the AST and return this AST, build the senamtic errors if there are any */
             val renamedAST = Renamer.rename(syntacticAST, semanticErrors)
 
-            // Type check the renamed AST, adding the errors if there are any
+            /* Type check the renamed AST, adding the errors if there are any */
             val funcTable = renamedAST.info match {
                 case SemanticData.TopLevel(ft) => ft
                 case _ => Map.empty[String, SemanticData.Func]
@@ -84,7 +87,7 @@ def main(args: Array[String]): Unit = {
 
             TypeChecker.check(renamedAST, semanticErrors, funcTable)
 
-            // If there were no errors then exit with 0, else 200
+            /* If there were no errors then exit with 0, else 200 */
             semanticErrors.hasErrors() match {
                 case false =>
                     println("Successfully compiled file with no errors.")

@@ -12,7 +12,20 @@ import lexer.{fully, ident, string, boolLiter, nullLiter}
 import lexer.implicits.given
 import Bridges.*
 
+/**
+* The Parsley parser, using combinators to create higher-level parsers to
+* ultimately be able to parse an entire WACC program. 
+*/
 object parser {
+
+    /**
+    * Parse a WACC program inputted as a string.
+    * 
+    * @param input: The input WACC program
+    * 
+    * @return Either[String, Program[SyntacticData]]: Either a parsed
+    * AST tagged with SyntacticData on success, or an error string on failure
+    */
     def parse(input: String): Either[String, Program[SyntacticData]] = 
         programParser.parse(input) match {
             case Success(ast) => Right(ast)
@@ -32,7 +45,6 @@ object parser {
 
     /* Type grammar */
     private lazy val waccType: Parsley[SyntaxType] = baseType | pairType
-
     private lazy val baseType: Parsley[SyntaxType] = (
         "int" #> SyntaxType.Int |
         "char" #> SyntaxType.Char |
@@ -104,7 +116,7 @@ object parser {
     private lazy val pairLit = PairLiter from nullLiter
     private lazy val identLit  = Ident(ident)
 
-    /* Operators */
+    /* Operator grammar */
     private lazy val unaryOps: Parsley[Expr[SyntacticData] => Expr[SyntacticData]] = {
         prefix("!", UnaryOperator.Not) |
         prefix("-", UnaryOperator.Neg) |
@@ -138,7 +150,7 @@ object parser {
         infix("||", BinaryOperator.Or)
     }
 
-    /* Helper */
+    /* Helper functions for expression grammar */
     private def prefix(str: String, op: UnaryOperator): Parsley[Expr[SyntacticData] => Expr[SyntacticData]] = 
         (str *> pos).map{p => (e: Expr[SyntacticData]) => (new UnaryExpr(op, e, SyntacticData.Pos(p)))}
 

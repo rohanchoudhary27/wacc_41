@@ -26,10 +26,14 @@ enum UnaryOperator {
     case Neg, Not, Len, Ord, Chr
 }
 
+/* The top-level program */
 case class Program[A](funcs: List[Func[A]], stmt: Stmt[A], @isMeta info: A)
+
+/* Function nodes */
 case class Func[A](typ: SyntaxType, ident: Ident[A], params: List[Param[A]], stmt: Stmt[A], @isMeta info: A)
 case class Param[A](typ: SyntaxType, ident: Ident[A], @isMeta info: A)
 
+/* WACC statements */
 enum Stmt[A] {
     case Skip(@isMeta info: A)
     case Decl(typ: SyntaxType, ident: Ident[A], rval: RValue[A], @isMeta info: A)

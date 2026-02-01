@@ -11,6 +11,7 @@ import wacc.Constraint.IsComparable
  * imposes a Constraint and the child expression is checked against it.
  */
 enum Constraint {
+
     /* The expression must have a type that matches `t`. Matching is defined 
        by the `~` relation on SemanticType (not strict equality).  */
     case Is(t: SemanticType)      
@@ -25,6 +26,7 @@ enum Constraint {
 }
 
 object Constraint {
+
     /* Means that the expression may have any type. This is typically used
        when the context does not impose a specific expectation and the type 
        should be inferred bottom up (type inference). */
@@ -83,17 +85,22 @@ object TypeChecker {
         prog: Program[SemanticData], errorLogger: ErrorLogger,
         funcSignatureTable: Map[String, SemanticData.Func]
     ): Option[Program[SemanticData]] = {
+
         given state: TCState = TCState(errorLogger, funcSignatureTable)
         
-        // Type-check each function
+        /* Type-check each function */
         val typedFuncs = prog.funcs.map(f => checkFunc(f))
         
-        // Type-check the main statement (which will be Stmt.Block)
+        /* Type-check the main statement */
         val typedStmt = checkStmt(prog.stmt)
+
+        /* Log errors and return None */
         if (errorLogger.hasErrors()) {
             print(errorLogger.retrieveAllErrors())
             None
         }
+        
+        /* return a type checked semantic AST */
         else
             Some(
                 Program(
@@ -106,6 +113,12 @@ object TypeChecker {
   
     /**
      * Type-check a function definition
+     * 
+     * @param func: The `Func` node to be type checked
+     * @param tcState: The type-checker state with an error logger, current
+     * function name, and function table
+     * 
+     * @return The type-checked `Func` node
      */
     private def checkFunc(func: Func[SemanticData])(using tcState: TCState): Func[SemanticData] = {
 
@@ -118,7 +131,13 @@ object TypeChecker {
     }
 
     /**
-     * Type-check a statement
+     * Type-check a statement definition
+     * 
+     * @param stmt: The `Stmt` node to be type checked
+     * @param tcState: The type-checker state with an error logger, current
+     * function name, and function table
+     * 
+     * @return The type-checked `Stmt` node
      */
     private def checkStmt(stmt: Stmt[SemanticData])(using TCState): Stmt[SemanticData] = stmt match {
         case s @ Stmt.Skip(_) => s
@@ -137,7 +156,7 @@ object TypeChecker {
         case Stmt.Asgn(lval, rval, semInfo) => checkAsgn(lval, rval, semInfo)
         case Stmt.Read(lval, semInfo) => checkRead(lval, semInfo)
         case Stmt.Return(expr, semInfo) => checkReturn(expr, semInfo)
-      case _ => ???
+        case _ => ???
     }
 
     /**
@@ -146,8 +165,10 @@ object TypeChecker {
      * @param lval left-hand side of the assignment statement
      * @param rval right-hand side of the assignment statement
      * @param semInfo semantic data associated with the statement (`SemanticData.Pos`)
+     * @param tcState: The type-checker state with an error logger, current
+     * function name, and function table
      * 
-     * @returns `Stmt.Asgn[SemanticData]` type-checked Asgn node
+     * @return `Stmt.Asgn[SemanticData]` type-checked Asgn node
      */
     private def checkAsgn(lval: LValue[SemanticData], 
                           rval: RValue[SemanticData], 
@@ -160,7 +181,6 @@ object TypeChecker {
         /* check lvalue against its own type */
         val typedLValue = checkLvalue(lval, Is(semTypeOfLVal))
 
-
         /* check rvalue with lvalue's semantic type */
         val typedRValue = checkRvalue(rval, Is(semTypeOfLVal))
 
@@ -172,13 +192,18 @@ object TypeChecker {
      * 
      * @param lval value to be read
      * @param semInfo semantic data associated with the statement (`SemanticData.Pos`)
+     * @param tcState: The type-checker state with an error logger, current
+     * function name, and function table
      * 
-     * @returns `Stmt.Read[SemanticData]` type-checked Read node
+     * @return `Stmt.Read[SemanticData]` type-checked Read node
      */
     private def checkRead(lval: LValue[SemanticData], semInfo: SemanticData)
-                         (using tcState: TCState): Stmt.Read[SemanticData] = 
+                         (using tcState: TCState): Stmt.Read[SemanticData] = {
+
         extractLValueType(lval) match {
-            case ? => /* the type of lval must be known when used in a read statement */
+
+            /* the type of lval must be known when used in a read statement */
+            case ? => 
                 tcState.emit(semInfo.pos,
                  """Type error: ambiguous assignment between unknown types. 
                    |Both the left-hand side and right-hand side of this statement have unresolved types."""
@@ -188,10 +213,18 @@ object TypeChecker {
                 val typedLValue = checkLvalue(lval, Constraint.IsReadable)
                 Stmt.Read(typedLValue, semInfo)
         }
-    
+    }
 
     /**
-     * Type-check a read statement
+     * Type-check a return statement
+     * 
+     * @param expr: The expression being returned
+     * @param semInfo: Semantic data associated with the statement
+     * (`SemanticData.Pos`)
+     * @param tcState: The type-checker state with an error logger, current
+     * function name, and function table
+     * 
+     * @return `Stmt.Read[SemanticData]` type-checked Read node
      */
     private def checkReturn(expr: Expr[SemanticData], semInfo: SemanticData)
                          (using tcState: TCState): Stmt.Return[SemanticData] = {
@@ -211,14 +244,17 @@ object TypeChecker {
     }
 
     /**
-     * Type-check an declaration statement
+     * Type-check a declaration statement
      * 
-     * @param typ syntax type of the declaration
-     * @param ident identifier to be declared
-     * @param rvalue right-hand side of the declaration statement
-     * @param semInfo semantic data associated with the statement (`SemanticData.Pos`)
+     * @param typ: Syntax type of the declaration
+     * @param ident: Identifier to be declared
+     * @param rvalue: Right-hand side of the declaration statement
+     * @param semInfo: Semantic data associated with the statement
+     * (`SemanticData.Pos`)
+     * @param tcState: The type-checker state with an error logger, current
+     * function name, and function table
      * 
-     * @returns `Stmt.Decl[SemanticData]` type-checked Decl node
+     * @return: `Stmt.Decl[SemanticData]` type-checked Decl node
      */
     private def checkDecl(
         typ: SyntaxType,
@@ -226,6 +262,7 @@ object TypeChecker {
         rvalue: RValue[SemanticData],
         semInfo: SemanticData
     )(using st: TCState): Stmt.Decl[SemanticData] = {
+
         /* both the identifier and rvalue must have this type */
         val semType = syntaxToSemantics(typ)
         
@@ -235,6 +272,7 @@ object TypeChecker {
         /* the right side of the assignment must be compatible with
            the left side declared type */
         val typedRValue = checkRvalue(rvalue, Is(semType))
+
         Stmt.Decl(typ, typedIdent, typedRValue, semInfo)
     }
 
@@ -242,15 +280,17 @@ object TypeChecker {
     /**
      * Type-check an L-value
      * 
-     * @param lvalue the lvalue to be type-checked
-     * @param c the constraint imposed to the lvalue
+     * @param lvalue: The lvalue to be type-checked
+     * @param c: The constraint imposed to the lvalue
      * 
-     * @returns `LValue[SemanticData]` type-checked `LValue` node
+     * @return `LValue[SemanticData]` type-checked `LValue` node
      */ 
     private def checkLvalue(lvalue: LValue[SemanticData], c: Constraint)
                            (using state: TCState): LValue[SemanticData] = lvalue match {
+
         case i @ Ident(name, info) => checkIdent(i, c)
         case p @ PairElem(isFst, lval, info) => 
+
             /* make sure that the thing we are referencing has a pair type */
             val typedLValue = checkLvalue(lval, Constraint.IsPair) 
             
@@ -258,15 +298,17 @@ object TypeChecker {
 
             /* this lvalue's type must satisfy the constraint */
             pairElementType.satisfies(c, info.pos, state.errorLogger)
+
             PairElem(isFst, typedLValue, info)
+
         case _ => ???
     }
 
     /**
-      * Extract the type of an lvalue.
+      * Extract the type of an lvalue
       * 
-      * @param lval the lvalue to get the type of
-      * @return `SemanticType` the type of lvalue
+      * @param lval: The lvalue to get the type of
+      * @return: The `SemanticType` of lvalue
       */ 
     private def extractLValueType(lval: LValue[SemanticData]): SemanticType = lval match {
         /* renamer already encodes identifier types in its info field */
@@ -281,11 +323,23 @@ object TypeChecker {
                 case _                        => ?
             }
         }
+
         case _ => ?
     }   
 
     /**
-     * Type-check a Call
+     * Type-check a call statement
+     * 
+     * @param ident: Identifier to be declared
+     * @param exprList: The list of arguments in the call
+     * @param c: The constrain to type-check the call against
+     * (for a declaration)
+     * @param semInfo: Semantic data associated with the statement
+     * (`SemanticData.Pos`)
+     * @param tcState: The type-checker state with an error logger, current
+     * function name, and function table
+     * 
+     * @return: `Stmt.Call[SemanticData]` type-checked Call node
      */
     private def checkCall(ident: Ident[SemanticData],
                           exprList: List[Expr[SemanticData]],
@@ -321,26 +375,30 @@ object TypeChecker {
     /**
      * Type-check an RValue
      * 
-     * @param rvalue the rvalue to type check
-     * @param c the constraint imposed to this rvalue
+     * @param rvalue: The rvalue to type check
+     * @param c: The constraint imposed to this rvalue
      * 
-     * @returns `RValue[SemanticData]` type-checked `RValue` node
+     * @return: `RValue[SemanticData]` type-checked `RValue` node
      */
     private def checkRvalue(rvalue: RValue[SemanticData], c: Constraint)
                            (using tcState: TCState): RValue[SemanticData] = rvalue match {
+
         case Call(ident, exprList, semInfo) => checkCall(ident, exprList, c, semInfo)
         case expr: Expr[SemanticData] => checkExpr(expr, c)
 
         /* for newpair(e1, e2), both e1 and e2 must match the pair types imposed in the
            constraint, otherwise we get an error. */
         case np @ NewPair(e1, e2, info)    => c match {
+
             case Constraint.Is(KnownType.Pair(fstType, sndType)) => {
                 val checkedExpr1 = checkExpr(e1, Constraint.Is(fstType))
                 val checkedExpr2 = checkExpr(e2, Constraint.Is(sndType))
                 NewPair(checkedExpr1, checkedExpr2, info)
             }
+
             case other => { 
                 tcState.emit(info.pos, s"Type mismatch: Expected Pair but got ${other.toString()}") 
+
                 /* error indicated by SemanticData.Error */
                 NewPair(e1, e2, SemanticData.Error(info.pos))  
             }
@@ -362,10 +420,14 @@ object TypeChecker {
 
     private def checkPairDereferencing(pairElem: PairElem[SemanticData], c: Constraint)
                                (using tcState: TCState): RValue[SemanticData] = 
+
         val PairElem(isFst, lvalue, info) = pairElem
         val typedLVal = checkLvalue(lvalue, Constraint.IsPair)
+
         extractLValueType(lvalue) match {
-            case KnownType.Pair(fst, snd) => /* non-erased pair case */
+
+            /* non-erased pair case */
+            case KnownType.Pair(fst, snd) => 
                 if isFst then fst.satisfies(c, info.pos, tcState.errorLogger)
                     .fold
                         {PairElem(isFst, typedLVal, SemanticData.Error(info.pos))} 
@@ -375,7 +437,8 @@ object TypeChecker {
                         { PairElem(isFst, typedLVal, SemanticData.Error(info.pos))}
                         {_ => PairElem(isFst, typedLVal, info) }
 
-            case PairAny => /* erased pair case */
+            /* erased pair case */
+            case PairAny => 
                 c match {
                     case Is(?) => 
                         tcState.emit(info.pos, 
@@ -384,16 +447,17 @@ object TypeChecker {
                         PairElem(isFst, typedLVal, SemanticData.Error(info.pos))
                     case _     => PairElem(isFst, typedLVal, info)
                 }
+
             case _ => PairElem(isFst, typedLVal, SemanticData.Error(info.pos))
         }
 
     /**
      * Type-check an Ident
      * 
-     * @param ident identifier to type check
-     * @param c the constraint imposed on the identifier
+     * @param ident: Identifier to type check
+     * @param c: The constraint imposed on the identifier
      * 
-     * @returns `Ident[SemanticData]` type-checked `Ident` node
+     * @return: `Ident[SemanticData]` type-checked `Ident` node
      */
     private def checkIdent(ident: Ident[SemanticData], c: Constraint)
                           (using state: TCState): Ident[SemanticData] = ident match {
@@ -413,15 +477,24 @@ object TypeChecker {
     /**
      * Type-check a list of expressions
      * 
-     * @param stmtList list of statements to type check
+     * @param stmtList: List of statements to type check
      * 
-     * @return `List[Stmt[SemanticData]]` list of type-checked statements
+     * @return: `List[Stmt[SemanticData]]` list of type-checked statements
      */
     private def checkStmtList(stmtList: List[Stmt[SemanticData]])
                              (using TCState): List[Stmt[SemanticData]] = stmtList.map(s => checkStmt(s))
 
     /**
-     * Helper to type-check literal expressions
+     * Type-check a literal
+     * 
+     * @param value: The literal value
+     * @param info: The SemanticData annotation of the literal
+     * @param constructor: The apply method of the literal
+     * @param c: The constraint to type-check the call against
+     * @param tcState: The type-checker state with an error logger, current
+     * function name, and function table
+     * 
+     * @return: The type-checked literal node
      */
     private def checkLiteral[A](
         value: A,
@@ -437,10 +510,10 @@ object TypeChecker {
     /**
      * Type-check an expression
      * 
-     * @param expr expression to type check
-     * @param c the constraint imposed on the expression
+     * @param expr Expression to type check
+     * @param c: The constraint imposed on the expression
      * 
-     * @returns `Expr[SemanticData]` type-checked `Expr` node
+     * @return: `Expr[SemanticData]` type-checked `Expr` node
      */
     private def checkExpr(expr: Expr[SemanticData], c: Constraint)
                          (using state: TCState): Expr[SemanticData] = expr match {
@@ -463,6 +536,8 @@ object TypeChecker {
         case i: Ident[SemanticData] => checkIdent(i, c)
 
         case UnaryExpr(op, expr, SemanticData.Pos(pos)) => {
+
+            /* Unary expression constraint and types */
             val (inputConstraint, resultType) = op match {
                 case UnaryOperator.Not => (Constraint.Is(KnownType.Bool), KnownType.Bool)
                 case UnaryOperator.Neg => (Constraint.Is(KnownType.Int), KnownType.Int)
@@ -470,12 +545,15 @@ object TypeChecker {
                 case UnaryOperator.Ord => (Constraint.Is(KnownType.Char), KnownType.Int)
                 case UnaryOperator.Chr => (Constraint.Is(KnownType.Int), KnownType.Char)
             }
+
             val typedExpr = checkExpr(expr, inputConstraint)
             val finalType = resultType.satisfies(c, pos, state.errorLogger).getOrElse(?)
             UnaryExpr(op, typedExpr, SemanticData.Expr(pos, finalType))
         }
         
         case BinaryExpr(op, left, right, SemanticData.Pos(pos)) => {
+
+            /* Unary expression constraints and types */
             val (inputLConstraint, inputRConstraint, resultType) = op match {
                 case BinaryOperator.Add | BinaryOperator.Sub | BinaryOperator.Mul | BinaryOperator.Div | BinaryOperator.Mod => 
                     (Constraint.Is(KnownType.Int), Constraint.Is(KnownType.Int), KnownType.Int)
@@ -486,6 +564,7 @@ object TypeChecker {
                 case BinaryOperator.And | BinaryOperator.Or => 
                     (Constraint.Is(KnownType.Bool), Constraint.Is(KnownType.Bool), KnownType.Bool)
             }
+
             val typedLExpr = checkExpr(left, inputLConstraint)
 
             def getType(e: Expr[SemanticData]): SemanticType = e.info match {
@@ -510,8 +589,8 @@ object TypeChecker {
     extension (ty1: SemanticType) {
 
         /**
-         * Type compatibility: ty1 ~ ty2 succeeds if the two types are compatible and returns
-         * the "stricter" resulting type.
+         * Type compatibility: ty1 ~ ty2 succeeds if the two types are
+         * compatible and returns the "stricter" resulting type.
          */
         def ~(ty2: SemanticType): Option[SemanticType] = (ty1, ty2) match {
             case (?, ty) => Some(ty)
@@ -544,9 +623,10 @@ object TypeChecker {
 
     extension (ty: SemanticType) {
         /** 
-         * Checks whether type `ty` matches constraint `c`.
+         * Checks whether type `ty` matches constraint `c`. This method
+         * performs no error logging.
          * 
-         * This method performs no error logging.
+         * @param c: The constraint to check the type against
          * 
          * @return `Some(SemanticType)` on success, or `None` on failure.
          */
@@ -562,9 +642,15 @@ object TypeChecker {
         }
         
         /**
-         * Checks whether a type satisfies a given constraint, reports an error on failure.
+         * Checks whether a type satisfies a given constraint,
+         * reports an error on failure.
+         * 
+         * @param c: The constraint to check the type against
+         * @param pos: The position where the type is used for error logging
+         * @param logger: The error logger for logging a type mismatch error
          *
-         * @return `Some(SemanticType)` if the constraint is satisfied, otherwise logs a type mismatch error and `None`
+         * @return `Some(SemanticType)` if the constraint is satisfied, 
+         * otherwise logs a type mismatch error and `None`
          */
         def satisfies(c: Constraint, pos: SourcePos, logger: ErrorLogger): Option[SemanticType] = {
             ty.matches(c).orElse {

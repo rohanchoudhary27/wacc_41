@@ -4,6 +4,10 @@ import parsley.Parsley
 import parsley.position.pos
 import parsley.macros.{bridge, ParsableMetadata}
 
+/**
+* Parsley bridges to reduce .zip and .map boilerplate in Parser.scala when
+* creating AST nodes.
+*/
 object Bridges {
     /* Type-converted lexer parsers */
     val int       = lexer.integer.map(_.toInt)
