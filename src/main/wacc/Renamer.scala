@@ -501,16 +501,16 @@ object Renamer {
   /**
   * Renames a list of `Stmt` nodes
   *
-  * @param exprList: The list of statement nodes to rename
+  * @param stmtList: The list of statement nodes to rename
   * @param scope: A `RenamerScope` tracking in scope variables
   * @param state: A `RenamerState` containing an error logger, and
   * error/function state maps
   *
   * @return: The renamed list of `Stmt` nodes
   */
-  private def renameStmtList(exprList: List[Stmt[SyntacticData]], inFunc: Boolean)
+  private def renameStmtList(stmtList: List[Stmt[SyntacticData]], inFunc: Boolean)
                             (using scope: RenamerScope, state: RenamerState): List[Stmt[SemanticData]] = {
-    exprList.map(s => renameStmt(s, inFunc))
+    stmtList.map(s => renameStmt(s, inFunc))
   }
 
   /**
