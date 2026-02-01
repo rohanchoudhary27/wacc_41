@@ -322,9 +322,14 @@ object TypeChecker {
         /* for fst/snd dereferencing, we have to make sure that we're referencing a pair
            or we return `?` */
         case PairElem(isFst, pairLValue , _) => {
+            /* LValue inside PairElem can be a PairElem too, and that can go on. For example,
+               `fst fst fst p`.*/
             val pairType: SemanticType = extractLValueType(pairLValue)
             pairType match {
+                /* If the lvalue inside is not an erased pair, return the given type */
                 case KnownType.Pair(fst, snd) => if isFst then fst else snd
+                /* If the inner lvalue is an erased pair type or something else, we
+                   can't know its field types, so return `?`. */
                 case _                        => ?
             }
         }
@@ -397,7 +402,7 @@ object TypeChecker {
             case expr: Expr[SemanticData] => checkExpr(expr, c)
 
             /* for newpair(e1, e2), both e1 and e2 must match the pair types imposed in the
-            constraint, otherwise we get an error. */
+               constraint, otherwise we get an error. */
             case NewPair(e1, e2, info)    => c match {
 
                 case Constraint.Is(KnownType.Pair(fstType, sndType)) => {
@@ -407,25 +412,48 @@ object TypeChecker {
                 }
 
                 case other => { 
-                    tcState.emit(info.pos, s"Type mismatch: Expected Pair but got ${other.toString()}") 
+                    tcState.emit(info.pos, 
+                        s"Type mismatch: Expected Pair but got ${other.toString()}"
+                    ) 
 
                     /* error indicated by SemanticData.Error */
                     NewPair(e1, e2, SemanticData.Error(info.pos))  
                 }
             }
 
-            /* for fst/snd dereferencing, we have to make sure that we dereference a pair (erased or non-erased).
+            /* for fst/snd dereferencing, we have to make sure that we dereference a 
+               pair (erased or non-erased).
 
-            For erased case, check that we at least know something about the type from the constraint, if
-            the constraint also doesn't have a known type, there's a type ambiguity error. Otherwise, 
-            return the PairElem node.
+               For erased case, check that we at least know something about the type from the
+               constraint, if the constraint also doesn't have a known type, there's a type 
+               ambiguity error. Otherwise, return the PairElem node.
             
-            For non-erased case, check that either the type first or second element of pair, depending on
-            `fst/snd`, matches the constraint. Any errors will get reported to the logger and the resultant
-            node will have `SemanticData.Error` annotation. */
+               For non-erased case, check that either the type first or second element of pair, 
+               depending on `fst/snd`, matches the constraint. Any errors will get reported to 
+               the logger and the resultant node will have `SemanticData.Error` annotation. */
             case p: PairElem[SemanticData] => checkPairDereferencing(p, c)
         }
 
+    /**
+      * Type-check pair dereferencing.
+      * 
+      * Checks that the lvalue we are dereferencing has the type pair. 
+      * 
+      * If the type of lvalue is a known (non-erased) pair, type-checks the first or the second
+      * element of the lvalue, depending on `isFst` field of the given `pairElem`, against the
+      * given constraint `c`. 
+      * 
+      * If the type of lvalue is not known (erased), it either returns the given `pairElem` but
+      * with a typed lvalue, or if the constraint is also unknown, emits an error to avoid
+      * ambiguous assignment between unknown types. 
+      * 
+      * In any case of error, it annotates the return value with `SemanticData.Error`.
+      *
+      * @param pairElem  Dereference statement (e.g `fst p`)
+      * @param c The constraint imposed to the dereferenced element of the pair
+      * @param tcState Implicit typechecker state
+      * @return Type-checked pair elem
+      */
     private def checkPairDereferencing(pairElem: PairElem[SemanticData], c: Constraint)
                                (using tcState: TCState): RValue[SemanticData] = 
 
@@ -549,61 +577,117 @@ object TypeChecker {
 
         case i: Ident[SemanticData] => checkIdent(i, c)
 
-        case UnaryExpr(op, expr, SemanticData.Pos(pos)) => {
-
-            /* Unary expression constraint and types */
-            val (inputConstraint, resultType) = op match {
-                case UnaryOperator.Not => (Constraint.Is(KnownType.Bool), KnownType.Bool)
-                case UnaryOperator.Neg => (Constraint.Is(KnownType.Int), KnownType.Int)
-                case UnaryOperator.Len =>
-                    (Constraint.OneOf(Set(KnownType.Array(?),KnownType.String)), KnownType.Int)
-                case UnaryOperator.Ord => (Constraint.Is(KnownType.Char), KnownType.Int)
-                case UnaryOperator.Chr => (Constraint.Is(KnownType.Int), KnownType.Char)
-            }
-
-            val typedExpr = checkExpr(expr, inputConstraint)
-            val finalType = resultType.satisfies(c, pos, tcState.errorLogger).getOrElse(?)
-            UnaryExpr(op, typedExpr, SemanticData.Expr(pos, finalType))
-        }
+        case uExpr: UnaryExpr[SemanticData] => checkUnaryExpr(uExpr, c)
         
-        case BinaryExpr(op, left, right, SemanticData.Pos(pos)) => {
+        case bExpr: BinaryExpr[SemanticData] => checkBinaryExpr(bExpr, c)
+    }
 
-            /* Unary expression constraints and types */
-            val (inputLConstraint, inputRConstraint, resultType) = op match {
-                case BinaryOperator.Add | BinaryOperator.Sub | BinaryOperator.Mul |
-                     BinaryOperator.Div | BinaryOperator.Mod => 
-                    (Constraint.Is(KnownType.Int), Constraint.Is(KnownType.Int), KnownType.Int)
-                case BinaryOperator.GT | BinaryOperator.GTE |
-                     BinaryOperator.LT | BinaryOperator.LTE => 
-                    (IsComparable, IsComparable, KnownType.Bool)
-                case BinaryOperator.EQ | BinaryOperator.NEQ => 
-                    (Constraint.IsEquatable, Constraint.IsEquatable, KnownType.Bool)
-                case BinaryOperator.And | BinaryOperator.Or => 
-                    (Constraint.Is(KnownType.Bool), Constraint.Is(KnownType.Bool), KnownType.Bool)
-            }
-
-            val typedLExpr = checkExpr(left, inputLConstraint)
-
-            /* Constraint for the right expression */
-            val constraintR = op match {
-                case BinaryOperator.GT | BinaryOperator.GTE | BinaryOperator.LT |
-                     BinaryOperator.LTE | BinaryOperator.EQ | BinaryOperator.NEQ => 
-
-                    /* Semantic type of the right expression */
-                    val rightEnforcedType = typedLExpr.info match {
-                        case SemanticData.Expr(_, t) => t
-                        case SemanticData.Var(_, _, t) => t
-                        case _ => ?
-                    }
-                    Constraint.Is(rightEnforcedType)
-
-                case _ => inputRConstraint
-            }
-
-            val typedRExpr = checkExpr(right, constraintR)
-            val finalType = resultType.satisfies(c, pos, tcState.errorLogger).getOrElse(?)
-            BinaryExpr(op, typedLExpr, typedRExpr, SemanticData.Expr(pos, finalType))
+    /**
+      * Type-check a unary expression
+      * 
+      * The type table for unary expressions is given as
+      *  +-----------+---------------+-------------+
+      *  | Operator  | Argument Type | Return Type |
+      *  +-----------+---------------+-------------+
+      *  | !         | bool          | bool        |
+      *  | -         | int           | int         |
+      *  | len       | τ[]           | int         |
+      *  | ord       | char          | int         |
+      *  | chr       | int           | char        |
+      *  +-----------+---------------+-------------+
+      *
+      * Based on the operator type, it emposes an input constraint on the
+      * input expression and checks that the constraint matches the result type.
+      *
+      * @param unExpr the unary expression to type-check
+      * @param c constraint imposed on the unary expression
+      * @param tcState type checker state
+      * 
+      * @return: type-annotated unary expression
+      */
+    private def checkUnaryExpr(unExpr: UnaryExpr[SemanticData], c: Constraint)
+                              (using tcState: TCState): UnaryExpr[SemanticData] = {
+        val UnaryExpr(op, expr, SemanticData.Pos(pos)) = (unExpr: @unchecked)
+        val (inputConstraint, resultType) = op match {
+            case UnaryOperator.Not => (Constraint.Is(KnownType.Bool), KnownType.Bool)
+            case UnaryOperator.Neg => (Constraint.Is(KnownType.Int), KnownType.Int)
+            case UnaryOperator.Len =>
+                (Constraint.OneOf(Set(KnownType.Array(?),KnownType.String)), KnownType.Int)
+            case UnaryOperator.Ord => (Constraint.Is(KnownType.Char), KnownType.Int)
+            case UnaryOperator.Chr => (Constraint.Is(KnownType.Int), KnownType.Char)
         }
+
+        val typedExpr = checkExpr(expr, inputConstraint)
+        val finalType = resultType.satisfies(c, pos, tcState.errorLogger).getOrElse(?)
+        UnaryExpr(op, typedExpr, SemanticData.Expr(pos, finalType))
+    }
+
+    /**
+      * Type-check a binary expression
+      * 
+      * The type table for binary expressions is given as
+      *  +----------------------+----------------+-----------------+-------------+
+      *  | Operators            | Left-Hand Type | Right-Hand Type | Return Type |
+      *  +----------------------+----------------+-----------------+-------------+
+      *  | *  /  %  +  -        | int            | int             | int         |
+      *  | >  >=  <  <=         | int / char     | int / char      | bool        |
+      *  | ==  !=               | τ              | τ               | bool        |
+      *  | &&  ||               | bool           | bool            | bool        |
+      *  +----------------------+----------------+-----------------+-------------+
+      * 
+      *
+      * Based on the operator type, it emposes input constraints on the
+      * input expressions and checks that the constraint matches the result type.
+      * 
+      * For comparison operators (==, >=, <=, !=, >, <), the types of left and right 
+      * expressions should match. 
+      *
+      * @param binExpr the binary expression to type-check
+      * @param c constraint imposed on the binary expression
+      * @param tcState type checker state
+      * 
+      * @return: type-annotated binary expression
+      */
+    private def checkBinaryExpr(binExpr: BinaryExpr[SemanticData], c: Constraint)
+                                (using tcState: TCState): BinaryExpr[SemanticData] = {
+        /* Unary expression constraints and types */
+        val BinaryExpr(op, left, right, SemanticData.Pos(pos)) = (binExpr: @unchecked)
+        val (inputLConstraint, inputRConstraint, resultType) = op match {
+            case BinaryOperator.Add | BinaryOperator.Sub | BinaryOperator.Mul |
+                    BinaryOperator.Div | BinaryOperator.Mod => 
+                (Constraint.Is(KnownType.Int), Constraint.Is(KnownType.Int), KnownType.Int)
+            case BinaryOperator.GT | BinaryOperator.GTE |
+                    BinaryOperator.LT | BinaryOperator.LTE => 
+                (IsComparable, IsComparable, KnownType.Bool)
+            case BinaryOperator.EQ | BinaryOperator.NEQ => 
+                (Constraint.IsEquatable, Constraint.IsEquatable, KnownType.Bool)
+            case BinaryOperator.And | BinaryOperator.Or => 
+                (Constraint.Is(KnownType.Bool), Constraint.Is(KnownType.Bool), KnownType.Bool)
+        }
+
+        val typedLExpr = checkExpr(left, inputLConstraint)
+
+        /* Constraint for the right expression: it is either the constraint defined
+           above if the operator is not a comparison operator, or it is the same constraint
+           as the left expression. */
+        val constraintR = op match {
+            case BinaryOperator.GT | BinaryOperator.GTE | BinaryOperator.LT |
+                    BinaryOperator.LTE | BinaryOperator.EQ | BinaryOperator.NEQ => 
+
+                /* Semantic type of the right expression */
+                val rightEnforcedType = typedLExpr.info match {
+                    case SemanticData.Expr(_, t) => t
+                    case SemanticData.Var(_, _, t) => t
+                    case _ => ?
+                }
+                Constraint.Is(rightEnforcedType)
+
+            case _ => inputRConstraint
+        }
+
+        val typedRExpr = checkExpr(right, constraintR)
+        val finalType = resultType.satisfies(c, pos, tcState.errorLogger).getOrElse(?)
+        BinaryExpr(op, typedLExpr, typedRExpr, SemanticData.Expr(pos, finalType))
     }
     
     extension (ty1: SemanticType) {
