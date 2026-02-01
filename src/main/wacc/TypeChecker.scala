@@ -261,7 +261,7 @@ object TypeChecker {
         ident: Ident[SemanticData],
         rvalue: RValue[SemanticData],
         semInfo: SemanticData
-    )(using st: TCState): Stmt.Decl[SemanticData] = {
+    )(using tcState: TCState): Stmt.Decl[SemanticData] = {
 
         /* both the identifier and rvalue must have this type */
         val semType = syntaxToSemantics(typ)
@@ -286,7 +286,7 @@ object TypeChecker {
      * @return `LValue[SemanticData]` type-checked `LValue` node
      */ 
     private def checkLvalue(lvalue: LValue[SemanticData], c: Constraint)
-                           (using state: TCState): LValue[SemanticData] = lvalue match {
+                           (using tcState: TCState): LValue[SemanticData] = lvalue match {
 
         case i @ Ident(name, info) => checkIdent(i, c)
         case p @ PairElem(isFst, lval, info) => 
@@ -297,7 +297,7 @@ object TypeChecker {
             val pairElementType = extractLValueType(p) 
 
             /* this lvalue's type must satisfy the constraint */
-            pairElementType.satisfies(c, info.pos, state.errorLogger)
+            pairElementType.satisfies(c, info.pos, tcState.errorLogger)
 
             PairElem(isFst, typedLValue, info)
 
@@ -460,11 +460,11 @@ object TypeChecker {
      * @return: `Ident[SemanticData]` type-checked `Ident` node
      */
     private def checkIdent(ident: Ident[SemanticData], c: Constraint)
-                          (using state: TCState): Ident[SemanticData] = ident match {
+                          (using tcState: TCState): Ident[SemanticData] = ident match {
 
         /* Check for type mismatch error */
         case Ident(_, SemanticData.Var(pos, _, actualType)) => 
-            actualType.satisfies(c, pos, state.errorLogger)
+            actualType.satisfies(c, pos, tcState.errorLogger)
             ident
 
         /* Variable not found by renamer (error already logged) */
@@ -501,9 +501,9 @@ object TypeChecker {
         info: SemanticData.Expr,
         constructor: (A, SemanticData) => Expr[SemanticData],
         c: Constraint
-    )(using state: TCState): Expr[SemanticData] = {
+    )(using tcState: TCState): Expr[SemanticData] = {
         val SemanticData.Expr(pos, actualType) = info
-        val ty = actualType.satisfies(c, pos, state.errorLogger).getOrElse(?)
+        val ty = actualType.satisfies(c, pos, tcState.errorLogger).getOrElse(?)
         constructor(value, info.withType(ty))
     }
 
@@ -512,11 +512,13 @@ object TypeChecker {
      * 
      * @param expr Expression to type check
      * @param c: The constraint imposed on the expression
+     * @param tcState: The type-checker state with an error logger, current
+     * function name, and function table
      * 
      * @return: `Expr[SemanticData]` type-checked `Expr` node
      */
     private def checkExpr(expr: Expr[SemanticData], c: Constraint)
-                         (using state: TCState): Expr[SemanticData] = expr match {
+                         (using tcState: TCState): Expr[SemanticData] = expr match {
 
         case IntLiter(value, info: SemanticData.Expr) => 
             checkLiteral(value, info, IntLiter.apply, c)
@@ -547,7 +549,7 @@ object TypeChecker {
             }
 
             val typedExpr = checkExpr(expr, inputConstraint)
-            val finalType = resultType.satisfies(c, pos, state.errorLogger).getOrElse(?)
+            val finalType = resultType.satisfies(c, pos, tcState.errorLogger).getOrElse(?)
             UnaryExpr(op, typedExpr, SemanticData.Expr(pos, finalType))
         }
         
@@ -579,7 +581,7 @@ object TypeChecker {
                 case _ => inputRConstraint
             }
             val typedRExpr = checkExpr(right, matchR)
-            val finalType = resultType.satisfies(c, pos, state.errorLogger).getOrElse(?)
+            val finalType = resultType.satisfies(c, pos, tcState.errorLogger).getOrElse(?)
             BinaryExpr(op, typedLExpr, typedRExpr, SemanticData.Expr(pos, finalType))
         }
 
