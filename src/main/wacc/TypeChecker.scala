@@ -404,6 +404,18 @@ object TypeChecker {
             case SemanticData.Error(_) => Call(ident, exprList, semInfo)
         }
 
+    /**
+     * Get the type of an expression given it is annotated with SemanticData.Expr.
+     * Helper function for `checkRvalue`.
+     * 
+     * @param expr: The expression to extract a type out of
+     * 
+     * @return: The semantic type of the expression
+     */
+    private def getExpressionType(expr: Expr[SemanticData]): SemanticType = expr.info match {
+            case SemanticData.Expr(_, t) => t
+            case _ => ?
+        }
 
     /**
      * Type-check an RValue
@@ -429,6 +441,17 @@ object TypeChecker {
                     val checkedExpr1 = checkExpr(e1, Constraint.Is(fstType))
                     val checkedExpr2 = checkExpr(e2, Constraint.Is(sndType))
                     NewPair(checkedExpr1, checkedExpr2, info)
+                }
+
+                case Constraint.Is(PairAny) | Constraint.Is(?) => {
+                    val checkedExpr1 = checkExpr(e1, Constraint.Infer)
+                    val checkedExpr2 = checkExpr(e2, Constraint.Infer)
+
+                    NewPair(checkedExpr1,
+                            checkedExpr2,
+                            SemanticData.Expr(info.pos,
+                                              KnownType.Pair(getExpressionType(checkedExpr1),
+                                                             getExpressionType(checkedExpr2))))
                 }
 
                 case other => { 
