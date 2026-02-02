@@ -92,4 +92,54 @@ object AstGenerator {
         prefix <- Gen.oneOf("x", "y", "z", "a", "b", "var", "tmp", "arr", "p", "data")
         suffix <- Gen.choose(0, 99)
     } yield s"${prefix}_$suffix"
+
+    /** Generate an identifier */
+    def genIdent: Gen[Ident[SyntacticData]] = for {
+        name <- genIdentName
+        pos <- genPos
+    } yield Ident(name, pos)
+
+    /** Generate any expression */
+    def genExpr(depth: Int): Gen[Expr[SyntacticData]] = {
+        val identGen = genIdent.map(id => id: Expr[SyntacticData])
+
+        /* (leaves) */
+        if (depth <= 0) Gen.oneOf(
+            genIntLiter, genBoolLiter, genCharLiter, genStrLiter, genPairLiter, identGen
+        )
+        else Gen.frequency(
+            (2, genIntLiter),
+            (1, genBoolLiter),
+            (1, genCharLiter),
+            (1, genStrLiter),
+            (1, genPairLiter),
+            (2, identGen),
+            (2, genUnaryExpr(depth - 1)),
+            (2, genBinaryExpr(depth - 1)),
+            (1, genArrayElem(depth - 1).map(ae => ae: Expr[SyntacticData]))
+        )
+    }
+
+    /** Generate a unary expression */
+    def genUnaryExpr(depth: Int): Gen[Expr[SyntacticData]] = for {
+        op <- Gen.oneOf(UnaryOperator.values.toSeq)
+        expr <- genExpr(depth)
+        pos <- genPos
+    } yield UnaryExpr(op, expr, pos)
+
+    /** Generate a binary expression */
+    def genBinaryExpr(depth: Int): Gen[Expr[SyntacticData]] = for {
+        op <- Gen.oneOf(BinaryOperator.values.toSeq)
+        left <- genExpr(depth)
+        right <- genExpr(depth)
+        pos <- genPos
+    } yield BinaryExpr(op, left, right, pos)
+
+    /** Generate an array element access */
+    def genArrayElem(depth: Int): Gen[ArrayElem[SyntacticData]] = for {
+        ident <- genIdent
+        indexCount <- Gen.choose(1, 3)
+        indices <- Gen.listOfN(indexCount, genExpr(depth))
+        pos <- genPos
+    } yield ArrayElem(ident, indices, pos)
 }
