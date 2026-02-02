@@ -57,7 +57,12 @@ object Pretty {
                 s"${showSynType(f.typ)} ${ident(f.ident)}($ps) is"
             )
             indent {
-                emitStmt(f.stmt)
+                f.stmt match {
+                    case Stmt.Block(stmts, _) =>
+                        emitStmtList(stmts)
+                    case other =>
+                        emitStmt(other)
+                }
             }
             emitLine("end")
         }
@@ -94,14 +99,29 @@ object Pretty {
 
                 case Stmt.If(cond, ifB, elseB, _) =>
                     emitLine(s"if ${expr(cond)} then")
-                    indent { emitStmt(ifB) }
+                    indent {
+                        ifB match {
+                            case Stmt.Block(stmts, _) => emitStmtList(stmts)
+                            case other => emitStmt(other)
+                        }
+                    }
                     emitLine("else")
-                    indent { emitStmt(elseB) }
+                    indent {
+                        elseB match {
+                            case Stmt.Block(stmts, _) => emitStmtList(stmts)
+                            case other => emitStmt(other)
+                        }
+                    }
                     emitLine("fi;")
 
                 case Stmt.While(cond, body, _) =>
                     emitLine(s"while ${expr(cond)} do")
-                    indent { emitStmt(body) }
+                    indent {
+                        body match {
+                            case Stmt.Block(stmts, _) => emitStmtList(stmts)
+                            case other => emitStmt(other)
+                        }
+                    }
                     emitLine("done;")
 
                 case other => emitLine(stmt1(other) + ";") 
@@ -117,20 +137,29 @@ object Pretty {
                     emitLine("end")
 
                 case Stmt.If(cond, ifB, elseB, _) =>
-                    emitLine(s"if ${expr(cond)} then}")
+                    emitLine(s"if ${expr(cond)} then")
                     indent {
-                        emitStmt(ifB)
+                        ifB match {
+                            case Stmt.Block(stmts, _) => emitStmtList(stmts)
+                            case other => emitStmt(other)
+                        }
                     }
                     emitLine("else")
                     indent {
-                        emitStmt(elseB)
+                        elseB match {
+                            case Stmt.Block(stmts, _) => emitStmtList(stmts)
+                            case other => emitStmt(other)
+                        }
                     }
                     emitLine("fi")
 
                 case Stmt.While(cond, body, _) =>
                     emitLine(s"while ${expr(cond)} do")
                     indent {
-                        emitStmt(body)
+                        body match {
+                            case Stmt.Block(stmts, _) => emitStmtList(stmts)
+                            case other => emitStmt(other)
+                        }
                     }
                     emitLine("done")
 
