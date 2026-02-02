@@ -456,4 +456,57 @@ class ParserTests extends AnyFlatSpec with Matchers {
         parseFail(input)
     }
     /* ==================== {/PAIRS} ==================== */
+
+    /* ==================== {FUNCTIONS} ==================== */
+
+    "The function parser" should "parse valid function definitions with params" in {
+        val input = "begin int f(int x, char y) is return x + 1 end println \"hello\" end"
+        parseOk(input) match {
+            case Program(Func(typ, ident, params, stmt, _) :: tail, _, _) =>
+                tail.length shouldBe 0
+
+                typ shouldBe SyntaxType.Int
+                ident.name shouldBe "f"
+
+                params.length shouldBe 2
+                params(0).ident.name shouldBe "x"
+                params(0).typ shouldBe SyntaxType.Int
+                params(1).ident.name shouldBe "y"
+                params(1).typ shouldBe SyntaxType.Char
+
+            case other => fail("Expected a single function in the list of program functions" +
+                               s"but got ${other}")
+        }
+    }
+
+    it should "parse valid function calls with arguments" in {
+        val input = "begin int f(int x) is return x + 1 end bool g() is return true end" +
+                    " int y = call f(3) end"
+                    
+        parseOk(input) match {
+            case Program(_, Stmt.Block(List(Stmt.Decl(_, _, Call(ident, argList, _), _)), _), _) =>
+                ident.name shouldBe "f"
+                argList.length shouldBe 1
+                argList(0) match {
+                    case IntLiter(n, _) => n shouldBe 3
+                    case other          => fail(s"Expected IntLiter(3) but got: $other")
+                }
+            
+            case other => fail("Expected a single call with `3` to function f" +
+                               s"but got ${other}")
+        }
+    }
+
+    it should "not allow a function with a non-returning path" in {
+        val input = "begin int f(int x) is if x > 2 then return x + 1 else skip fi end" +
+                    "int y = call f(3); println(y) end"
+        parseFail(input)
+    }
+    
+    it should "only allow functions to be defined at the top of the main block" in {
+       val input = "begin bool f() is return true end bool x = call f(); bool g() is false end end" 
+       parseFail(input)
+    }
+
+    /* ==================== {/FUNCTIONS} ==================== */
 }
