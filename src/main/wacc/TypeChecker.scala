@@ -99,7 +99,6 @@ object TypeChecker {
 
         /* Log errors and return None */
         if (errorLogger.hasErrors()) {
-            print(errorLogger.retrieveAllErrors())
             None
         }
         
