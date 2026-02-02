@@ -46,6 +46,9 @@ object Constraint {
 
     /* Read can only take int or char types */
     val IsReadable = Constraint.OneOf(Set(KnownType.Int, KnownType.Char))
+
+    /* Free can only take any array or pair type */
+    val IsFreeable = Constraint.OneOf(Set(KnownType.Array(?), KnownType.Pair(?, ?)))
 }
 
 /**
@@ -162,6 +165,7 @@ object TypeChecker {
             case Stmt.Asgn(lval, rval, semInfo) => checkAsgn(lval, rval, semInfo)
             case Stmt.Read(lval, semInfo) => checkRead(lval, semInfo)
             case Stmt.Return(expr, semInfo) => checkReturn(expr, semInfo)
+            case Stmt.Free(expr, semInfo) => checkFree(expr, semInfo)
         }
 
     /**
@@ -246,6 +250,22 @@ object TypeChecker {
         }
 
         Stmt.Return(checkExpr(expr, constraint), semInfo)
+    }
+
+    /**
+     * Type check a free statement
+     * 
+     * @param expr: The expression being returned
+     * @param semInfo: Semantic data associated with statement
+     * * @param tcState: The type-checker state with an error logger, current
+     * function name, and function table
+     * 
+     * @return `Stmt.Free[SemanticData]` type-checked Free node
+     */
+    private def checkFree(expr: Expr[SemanticData], semInfo: SemanticData) 
+                         (using tcState: TCState): Stmt.Free[SemanticData] = {
+        val typedExpr = checkExpr(expr,Constraint.IsFreeable)
+        Stmt.Free(typedExpr, semInfo)
     }
 
     /**
@@ -581,6 +601,7 @@ object TypeChecker {
         
         case bExpr: BinaryExpr[SemanticData] => checkBinaryExpr(bExpr, c)
     }
+
 
     /**
       * Type-check a unary expression

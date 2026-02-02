@@ -228,7 +228,7 @@ object Renamer {
 
             case Stmt.Read(lval, synPos) =>
                 Stmt.Read(renameLValue(lval), synPos.toSemanticPos)
-
+            case Stmt.Free(expr, synPos) => Stmt.Free(renameExpr(expr), synPos.toSemanticPos)
         }
     }
 
