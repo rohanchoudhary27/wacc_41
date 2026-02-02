@@ -541,4 +541,17 @@ class ParserTests extends AnyFlatSpec with Matchers {
         }    
     }
     /* ==================== {/SCOPE} ==================== */
+
+    /* ==================== {STRINGS} ==================== */
+    "String parsing" should "parse escaped characters" in {
+        val input = """begin string x = "\thel\flo\n" end"""
+        parseOk(input) match {
+            case Program(_, Stmt.Block(List(Stmt.Decl(_, _, StrLiter(strValue, _), _)), _), _) =>
+                strValue shouldBe "\thel\flo\n"
+                
+            case other => fail("Expected a string with escape characters" +
+                               s" but got ${other}")
+        }
+    }
+    /* ==================== {/STRINGS} ==================== */
 }
