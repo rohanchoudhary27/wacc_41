@@ -302,4 +302,69 @@ object AstGenerator {
             genBlock(depth - 1)
         )
     }
+
+    /** Generate a return statement */
+    def genReturn(depth: Int): Gen[Stmt[SyntacticData]] = for {
+        expr <- genExpr(depth)
+        pos <- genPos
+    } yield Stmt.Return(expr, pos)
+
+    /** Generate a statement that guarantees returning (return, exit, or returning if) */
+    def genReturningStmt(depth: Int): Gen[Stmt[SyntacticData]] = {
+        if (depth <= 0) Gen.oneOf(genReturn(depth), genExit(depth))
+        else Gen.frequency(
+            (3, genReturn(depth)),
+            (2, genExit(depth)),
+            (2, genReturningIf(depth - 1))
+        )
+    }
+
+    /** Generate an if statement where both branches return */
+    def genReturningIf(depth: Int): Gen[Stmt[SyntacticData]] = for {
+        cond <- genExpr(depth)
+        ifBranch <- genReturningBlock(depth)
+        elseBranch <- genReturningBlock(depth)
+        pos <- genPos
+    } yield Stmt.If(cond, ifBranch, elseBranch, pos)
+
+    /** Generate a block that ends with a returning statement */
+    def genReturningBlock(depth: Int): Gen[Stmt[SyntacticData]] = for {
+        prefixCount <- Gen.choose(0, 2)
+        prefixStmts <- Gen.listOfN(prefixCount, genStmt(depth))
+        returnStmt <- genReturningStmt(depth)
+        pos <- genPos
+    } yield {
+        val allStmts = prefixStmts :+ returnStmt
+        if (allStmts.length == 1) allStmts.head
+        else Stmt.Block(allStmts, pos)
+    }
+
+    /** Generate a function parameter */
+    def genParam: Gen[Param[SyntacticData]] = for {
+        typ <- genSimpleType
+        ident <- genIdent
+        pos <- genPos
+    } yield Param(typ, ident, pos)
+
+    /** Generate a function */
+    def genFunc(depth: Int): Gen[Func[SyntacticData]] = for {
+        retType <- genSimpleType
+        ident <- genIdent
+        paramCount <- Gen.choose(0, 3)
+        params <- Gen.listOfN(paramCount, genParam)
+        body <- genReturningBlock(depth)
+        pos <- genPos
+    } yield Func(retType, ident, params, body, pos)
+
+    /**
+     * Generate a complete syntactically valid program.
+     *
+     * @param maxDepth maximum depth allowed in nested expressions/statements/lvalues/rvalues
+     */
+    def genProgramSyntactic(maxDepth: Int = maxDepth): Gen[Program[SyntacticData]] = for {
+        funcCount <- Gen.choose(0, 3)
+        funcs <- Gen.listOfN(funcCount, genFunc(maxDepth))
+        mainStmts <- genStmtList(maxDepth)
+        pos <- genPos
+    } yield Program(funcs, Stmt.Block(mainStmts, pos), pos)
 }
