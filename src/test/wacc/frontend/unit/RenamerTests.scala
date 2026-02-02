@@ -250,6 +250,48 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         extractId(retIdent) shouldBe extractId(paramIdent)
     }
 
+    it should "allow functions to call others defined later" in {
+        
+        val funcG = Func(SyntaxType.Int, Ident("g", pos), List(), 
+                        Stmt.Block(List(Stmt.Return(IntLiter(0, pos), pos)), pos), pos)
+
+        val callG = Call(Ident("g", pos), List(), pos)
+        val bodyF = Stmt.Block(List(Stmt.Decl(SyntaxType.Int, Ident("u", pos), callG, pos)), pos)
+        val funcF = Func(SyntaxType.Int, Ident("f", pos), List(), bodyF, pos)
+
+        val inputAST = Program(List(funcF, funcG), Stmt.Skip(pos), pos)
+
+        val errorLogger = new ErrorLogger()
+        Renamer.rename(inputAST, errorLogger)
+
+        errorLogger.hasErrors() shouldBe false
+    }
+
+    it should "allow call to pass the same renamed arguments to the function" in {
+    
+        val declX = Stmt.Decl(SyntaxType.Int, Ident("x", pos), IntLiter(5, pos), pos)
+
+        val callF = Call(Ident("f", pos), List(Ident("x", pos)), pos)
+        val declResult = Stmt.Decl(SyntaxType.Int, Ident("res", pos), callF, pos)
+
+        val funcF = Func(SyntaxType.Int, Ident("f", pos), List(Param(SyntaxType.Int, Ident("p", pos), pos)), 
+                        Stmt.Block(List(Stmt.Return(IntLiter(0, pos), pos)), pos), pos)
+
+        val inputAST = Program(List(funcF), Stmt.Block(List(declX, declResult), pos), pos)
+        val renamedAST = Renamer.rename(inputAST, new ErrorLogger())
+
+        val Stmt.Block(stmts, _) = renamedAST.stmt: @unchecked
+        val Stmt.Decl(_, declaredX, _, _) = stmts(0): @unchecked
+        val Stmt.Decl(_, _, Call(_, args, _), _) = stmts(1): @unchecked
+        
+        val usedX = args match {
+            case (id: Ident[SemanticData]) :: _ => id
+            case _ => fail("Expected an Identifier as the first argument")
+        }
+
+        extractId(usedX) shouldBe extractId(declaredX)
+    }
+
     it should "report an error when calling an undefined function" in {
 
         val callExpr = Call(Ident("imaginaryFunc", pos), List(), pos)
@@ -262,6 +304,23 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
 
         errorLogger.hasErrors() shouldBe true
         errorLogger.retrieveAllErrors() should include ("Function 'imaginaryFunc' is not defined")
+    }
+
+    it should "report an error on an incorrect number of arguments in a Call" in {
+
+        val returnStmt = Stmt.Return(StrLiter("bye", pos), pos)
+        val func = Func(SyntaxType.String, Ident("f", pos), List(), returnStmt, pos)
+        val call = Call(Ident("f", pos), List(StrLiter("hello", pos)), pos)
+        val decl = Stmt.Decl(SyntaxType.Int, Ident("x", pos), call, pos)
+
+        val inputAST = Program(List(func), Stmt.Block(List(decl), pos), pos)
+        val errorLogger = new ErrorLogger()
+        
+        Renamer.rename(inputAST, errorLogger)
+
+        errorLogger.hasErrors() shouldBe true
+        errorLogger.retrieveAllErrors() should include
+            ("Function 'f' takes 0 arguments but 1 were given")
     }
 
     "Renaming pairs" should "let a declared pair identifier be used inside fst/snd" in {
