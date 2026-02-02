@@ -193,4 +193,113 @@ object AstGenerator {
         lval <- genLValue(depth)
         pos <- genPos
     } yield PairElem(isFst, lval, pos)
+
+    /** Generate a skip statement */
+    def genSkip: Gen[Stmt[SyntacticData]] = for {
+        pos <- genPos
+    } yield Stmt.Skip(pos)
+
+    /** Generate a declaration statement */
+    def genDecl(depth: Int): Gen[Stmt[SyntacticData]] = for {
+        typ <- genSimpleType
+        ident <- genIdent
+        rval <- genRValue(depth)
+        pos <- genPos
+    } yield Stmt.Decl(typ, ident, rval, pos)
+
+    /** Generate an assignment statement */
+    def genAsgn(depth: Int): Gen[Stmt[SyntacticData]] = for {
+        lval <- genLValue(depth)
+        rval <- genRValue(depth)
+        pos <- genPos
+    } yield Stmt.Asgn(lval, rval, pos)
+
+    /** Generate a read statement */
+    def genRead(depth: Int): Gen[Stmt[SyntacticData]] = for {
+        lval <- genLValue(depth)
+        pos <- genPos
+    } yield Stmt.Read(lval, pos)
+
+    /** Generate a free statement */
+    def genFree(depth: Int): Gen[Stmt[SyntacticData]] = for {
+        expr <- genExpr(depth)
+        pos <- genPos
+    } yield Stmt.Free(expr, pos)
+
+    /** Generate a print statement */
+    def genPrint(depth: Int): Gen[Stmt[SyntacticData]] = for {
+        expr <- genExpr(depth)
+        pos <- genPos
+    } yield Stmt.Print(expr, pos)
+
+    /** Generate a println statement */
+    def genPrintln(depth: Int): Gen[Stmt[SyntacticData]] = for {
+        expr <- genExpr(depth)
+        pos <- genPos
+    } yield Stmt.Println(expr, pos)
+
+    /** Generate an exit statement */
+    def genExit(depth: Int): Gen[Stmt[SyntacticData]] = for {
+        expr <- genExpr(depth)
+        pos <- genPos
+    } yield Stmt.Exit(expr, pos)
+
+    /** Generate an if statement */
+    def genIf(depth: Int): Gen[Stmt[SyntacticData]] = for {
+        cond <- genExpr(depth)
+        ifBlock <- genStmtBlock(depth)
+        elseBlock <- genStmtBlock(depth)
+        pos <- genPos
+    } yield Stmt.If(cond, ifBlock, elseBlock, pos)
+
+    /** Generate a while statement */
+    def genWhile(depth: Int): Gen[Stmt[SyntacticData]] = for {
+        cond <- genExpr(depth)
+        body <- genStmtBlock(depth)
+        pos <- genPos
+    } yield Stmt.While(cond, body, pos)
+
+    /** Generate a block statement */
+    def genBlock(depth: Int): Gen[Stmt[SyntacticData]] = for {
+        stmts <- genStmtList(depth)
+        pos <- genPos
+    } yield Stmt.Block(stmts, pos)
+
+    /** Generate a list of statements */
+    def genStmtList(depth: Int): Gen[List[Stmt[SyntacticData]]] = for {
+        count <- Gen.choose(1, 10)
+        stmts <- Gen.listOfN(count, genStmt(depth))
+    } yield stmts
+
+    /** Generate a statement block (single statement or block) */
+    def genStmtBlock(depth: Int): Gen[Stmt[SyntacticData]] = for {
+        stmts <- genStmtList(depth)
+        pos <- genPos
+    } yield if (stmts.length == 1) stmts.head else Stmt.Block(stmts, pos)
+
+    /** Generate a single non-returning statement */
+    def genStmt(depth: Int): Gen[Stmt[SyntacticData]] = {
+        // leaf cases
+        if (depth <= 0) Gen.oneOf(
+            genSkip,
+            genDecl(depth),
+            genAsgn(depth),
+            genRead(depth),
+            genFree(depth),
+            genPrint(depth),
+            genPrintln(depth)
+        )
+        else Gen.oneOf(
+            genSkip,
+            genDecl(depth),
+            genAsgn(depth),
+            genRead(depth),
+            genFree(depth),
+            genPrint(depth),
+            genPrintln(depth),
+            genIf(depth - 1),
+            genWhile(depth - 1),
+            genBlock(depth - 1)
+        )
+    }
 }
