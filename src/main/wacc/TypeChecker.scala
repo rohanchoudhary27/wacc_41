@@ -437,10 +437,10 @@ object TypeChecker {
                constraint, otherwise we get an error. */
             case NewPair(e1, e2, info)    => c match {
 
-                case Constraint.Is(KnownType.Pair(fstType, sndType)) => {
+                case Constraint.Is(pairType @ KnownType.Pair(fstType, sndType)) => {
                     val checkedExpr1 = checkExpr(e1, Constraint.Is(fstType))
                     val checkedExpr2 = checkExpr(e2, Constraint.Is(sndType))
-                    NewPair(checkedExpr1, checkedExpr2, info)
+                    NewPair(checkedExpr1, checkedExpr2, SemanticData.Expr(info.pos, pairType))
                 }
 
                 case Constraint.Is(PairAny) | Constraint.Is(?) => {
