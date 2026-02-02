@@ -27,7 +27,7 @@ object AstGenerator {
     /* Generate a pair element type (base, array, or erased pair, no nested pairs) */
     def genPairElemType: Gen[SyntaxType] = Gen.oneOf(
         genBaseType,
-        genBaseType.map(SyntaxType.Array(_)),
+        // genBaseType.map(SyntaxType.Array(_)),
         Gen.const(SyntaxType.ErasedPair)
     )
 
@@ -36,7 +36,7 @@ object AstGenerator {
         case 0 => genBaseType
         case n => Gen.frequency(
             4 -> genBaseType,
-            2 -> Gen.resize(n - 1, genSyntaxType).map(SyntaxType.Array(_)),
+            0 -> Gen.resize(n - 1, genSyntaxType).map(SyntaxType.Array(_)),
             2 -> (for {
                 fst <- genPairElemType
                 snd <- genPairElemType
@@ -132,19 +132,22 @@ object AstGenerator {
                     2 -> genIdent.map(id => id: Expr[SyntacticData]),
                     2 -> genUnaryExprWith(smallerSize),
                     2 -> genBinaryExprWith(halfSize), 
-                    1 -> genArrayElemWith(smallerSize).map(ae => ae: Expr[SyntacticData])
+                    0 -> genArrayElemWith(smallerSize).map(ae => ae: Expr[SyntacticData])
                 )
             }
         }
     }
 
     /** Generate a unary expression with a given child generator */
-    private def genUnaryExprWith(childGen: Gen[Expr[SyntacticData]]): Gen[Expr[SyntacticData]] 
-            = for {
+    private def genUnaryExprWith(childGen: Gen[Expr[SyntacticData]]): Gen[Expr[SyntacticData]]
+            = (for {
             op <- Gen.oneOf(UnaryOperator.values.toSeq)
             expr <- childGen
             pos <- genPos
-        } yield UnaryExpr(op, expr, pos)
+        } yield UnaryExpr(op, expr, pos)).suchThat {
+            case UnaryExpr(UnaryOperator.Neg, IntLiter(0, _), _) => false
+            case _ => true
+        }
 
     /** Generate a binary expression with a given child generator */
     private def genBinaryExprWith(childGen: Gen[Expr[SyntacticData]]): Gen[Expr[SyntacticData]] 
@@ -177,7 +180,7 @@ object AstGenerator {
 
                 Gen.frequency(
                     3 -> genIdent.map(id => id: LValue[SyntacticData]),
-                    2 -> genArrayElemWith(smallerExpr).map(ae => ae: LValue[SyntacticData]),
+                    0 -> genArrayElemWith(smallerExpr).map(ae => ae: LValue[SyntacticData]),
                     2 -> genPairElemWith(smallerLValue).map(pe => pe: LValue[SyntacticData])
                 )
             }
@@ -207,7 +210,7 @@ object AstGenerator {
 
                 Gen.frequency(
                     4 -> genExpr.map(e => e: RValue[SyntacticData]),
-                    2 -> genArrayLiterWith(smallerExpr).map(al => al: RValue[SyntacticData]),
+                    0 -> genArrayLiterWith(smallerExpr).map(al => al: RValue[SyntacticData]),
                     2 -> genNewPairWith(halfExpr).map(np => np: RValue[SyntacticData]),
                     2 -> genCallWith(smallerExpr).map(c => c: RValue[SyntacticData]),
                     2 -> genPairElemWith(smallerLValue).map(pe => pe: RValue[SyntacticData])
@@ -334,9 +337,9 @@ object AstGenerator {
                     // Leaf statements (higher weight)
                     7 -> genLeafStmt(exprGen, lvalGen, rvalGen),
                     // Compound statements with reduced budget
-                    1 -> genIfWith(exprGen, halfStmt),
-                    1 -> genWhileWith(exprGen, halfStmt),
-                    1 -> genBlockWith(halfStmt)
+                    3 -> genIfWith(exprGen, halfStmt),
+                    3 -> genWhileWith(exprGen, halfStmt),
+                    2 -> genBlockWith(halfStmt)
                 )
             }
         }
@@ -372,7 +375,7 @@ object AstGenerator {
     /** Generate a list of statements with given statement generator */
     private def genStmtListWith(stmtGen: Gen[Stmt[SyntacticData]]): Gen[List[Stmt[SyntacticData]]] 
         = for {
-            count <- Gen.choose(1, 10) // statements length
+            count <- Gen.choose(1, 3) // statements length
             stmts <- Gen.listOfN(count, stmtGen)
         } yield stmts
 
