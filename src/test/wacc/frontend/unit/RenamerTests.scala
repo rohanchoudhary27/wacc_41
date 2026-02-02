@@ -66,39 +66,59 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         outerId should not equal innerId
     }
 
-    it should "maintain the lvalue in a read statement after renaming" in {
+    it should "not allow variables to be referenced before declaration" in {
 
-        val decl = Stmt.Decl(
-            SyntaxType.Int,
-            Ident("x", SyntacticData.Pos(0,0)),
-            IntLiter(5, SyntacticData.Pos(0,0)),
-            SyntacticData.Pos(0,0))
+        val decl2 = Stmt.Decl(
+            SyntaxType.Int, 
+            Ident("var2", pos), 
+            IntLiter(5, pos), 
+            pos
+        )
 
-        val readStmt = Stmt.Read(Ident("x", SyntacticData.Pos(0,0)), SyntacticData.Pos(0,0))
+        val decl1 = Stmt.Decl(
+            SyntaxType.Int, 
+            Ident("var1", pos), 
+            Ident("var2", pos),
+            pos
+        )
+
+        val testBlock = Stmt.Block(List(decl1, decl2), pos)
+        val inputAST = Program(List[Func[SyntacticData]](), testBlock, pos)
+
+        val errorLogger = new ErrorLogger() 
+        Renamer.rename(inputAST, errorLogger)
+
+        errorLogger.hasErrors() shouldBe true
+        val errors = errorLogger.retrieveAllErrors()
         
-        val testBlock = Stmt.Block(List(decl, readStmt), SyntacticData.Pos(0,0))
-        val inputAST = Program(List[Func[SyntacticData]](), testBlock, SyntacticData.Pos(0,0))
-        
-        val errorLogger = ErrorLogger()
-        val renamedAST = Renamer.rename(inputAST, errorLogger)
-        
-        errorLogger.hasErrors() shouldBe false
-        
-        val Stmt.Block(
-            List(
-                Stmt.Decl(_, declIdent, _, _),
-                Stmt.Read(readIdent: Ident[SemanticData], _)
-            ), 
-            _
-        ) = renamedAST.stmt: @unchecked
-        
-        val declId = extractId(declIdent)
-        val readId = extractId(readIdent)
-        
-        declId.isDefined shouldBe true
-        readId.isDefined shouldBe true
-        declId shouldEqual readId
+        errors should include ("Variable 'var2' is not defined")
     }
+
+    it should "not allow a variable in one branch of an If-Else be referenced by another" in {
+        val cond = BinaryExpr(BinaryOperator.GT, IntLiter(2, pos), IntLiter(4, pos), pos)
+        
+        val ifBlock = Stmt.Block(List(
+            Stmt.Decl(SyntaxType.Int, Ident("x", pos), IntLiter(5, pos), pos)
+        ), pos)
+
+        val elseBlock = Stmt.Block(List(
+            Stmt.Print(Ident("x", pos), pos)
+        ), pos)
+
+        val ifStmt = Stmt.If(cond, ifBlock, elseBlock, pos)
+
+        val testBlock = Stmt.Block(List(ifStmt), pos)
+        val inputAST = Program(List[Func[SyntacticData]](), testBlock, pos)
+
+        val errorLogger = new ErrorLogger() 
+        Renamer.rename(inputAST, errorLogger)
+
+        errorLogger.hasErrors() shouldBe true
+        val errors = errorLogger.retrieveAllErrors()
+        
+        errors should include ("Variable 'x' is not defined")
+    }
+
 
     it should "suggest a similar variable name when a typo occurs in the same scope" in {
 
