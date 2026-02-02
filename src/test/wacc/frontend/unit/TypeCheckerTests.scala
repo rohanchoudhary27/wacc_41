@@ -10,6 +10,126 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
     val synPos = SyntacticData.Pos(0, 0)
     val semPos = synPos.toSemanticPos
 
+    "Type checking declarations" should "allow a validly typed variable declaration" in {
+        val funcTable: Map[String, SemanticData.Func] = Map.empty
+        val errorLogger = new ErrorLogger()
+
+        val ident = Ident("a", SemanticData.Var(synPos.pos, 1, KnownType.Char))
+        val rval = CharLiter('c', SemanticData.Expr(synPos.pos, KnownType.Char))
+        val decl = Stmt.Decl(SyntaxType.Char, ident, rval, semPos)
+
+        val inputAST =
+            Program(Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
+
+        TypeChecker.check(inputAST, errorLogger, funcTable)
+
+        errorLogger.hasErrors() shouldBe false
+    }
+
+    it should "error on a type mismatch when declaring" in {
+        val funcTable: Map[String, SemanticData.Func] = Map.empty
+        val errorLogger = new ErrorLogger()
+
+        val ident = Ident("a", SemanticData.Var(synPos.pos, 1, KnownType.Char))
+        val rval = CharLiter('c', SemanticData.Expr(synPos.pos, KnownType.Char))
+        val decl = Stmt.Decl(SyntaxType.String, ident, rval, semPos)
+
+        val inputAST =
+            Program(Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
+
+        TypeChecker.check(inputAST, errorLogger, funcTable)
+
+        errorLogger.hasErrors() shouldBe true
+        errorLogger.retrieveAllErrors() should include ("expected string")
+        errorLogger.retrieveAllErrors() should include ("unexpected char")
+    }
+
+
+    "Type checking assignments" should "allow a validly typed assignment" in {
+        val funcTable: Map[String, SemanticData.Func] = Map.empty
+        val errorLogger = new ErrorLogger()
+
+        val varInfo = SemanticData.Var(synPos.pos, 1, KnownType.Char)
+
+        val identDecl = Ident("a", varInfo)
+        val rvalDecl = CharLiter('c', SemanticData.Expr(synPos.pos, KnownType.Char))
+        val decl = Stmt.Decl(SyntaxType.Char, identDecl, rvalDecl, semPos)
+        val identAsgn = Ident("a", varInfo) 
+        val rvalAsgn = CharLiter('d', SemanticData.Expr(synPos.pos, KnownType.Char))
+        
+        val asgn = Stmt.Asgn(identAsgn, rvalAsgn, semPos)
+
+        val inputAST =
+            Program(Nil, Stmt.Block(List(decl, asgn), semPos), SemanticData.TopLevel(funcTable))
+
+        TypeChecker.check(inputAST, errorLogger, funcTable)
+
+        errorLogger.hasErrors() shouldBe false
+    }
+
+    it should "allow assigning a variable to another variable of the same type" in {
+        val funcTable: Map[String, SemanticData.Func] = Map.empty
+        val errorLogger = new ErrorLogger()
+
+        val varInfo = SemanticData.Var(synPos.pos, 1, KnownType.Int)
+        val declY = Stmt.Decl(
+            SyntaxType.Int,
+            Ident("y", varInfo),
+            IntLiter(10, SemanticData.Expr(synPos.pos, KnownType.Int)),
+            semPos
+        )
+
+        val declX = Stmt.Decl(
+            SyntaxType.Int,
+            Ident("x", varInfo),
+            IntLiter(0, SemanticData.Expr(synPos.pos, KnownType.Int)),
+            semPos
+        )
+
+        val asgn = Stmt.Asgn(
+            Ident("x", varInfo),
+            Ident("y", varInfo),
+            semPos
+        )
+
+        val inputAST = Program(
+            Nil, 
+            Stmt.Block(List(declY, declX, asgn), semPos), 
+            SemanticData.TopLevel(funcTable)
+        )
+
+        TypeChecker.check(inputAST, errorLogger, funcTable)
+
+        errorLogger.hasErrors() shouldBe false
+    }
+
+    it should "error on an assignment type mismatch" in {
+        val funcTable: Map[String, SemanticData.Func] = Map.empty
+        val errorLogger = new ErrorLogger()
+
+        val varInfo = SemanticData.Var(synPos.pos, 1, KnownType.Char)
+        val decl = Stmt.Decl(
+            SyntaxType.Char, 
+            Ident("a", varInfo), 
+            CharLiter('c', SemanticData.Expr(synPos.pos, KnownType.Char)), 
+            semPos
+        )
+
+        val identAsgn = Ident("a", varInfo) 
+        val rvalAsgn = IntLiter(2, SemanticData.Expr(synPos.pos, KnownType.Int))
+        val asgn = Stmt.Asgn(identAsgn, rvalAsgn, semPos)
+
+        val inputAST = Program(Nil, Stmt.Block(List(decl, asgn), semPos), SemanticData.TopLevel(funcTable))
+
+        TypeChecker.check(inputAST, errorLogger, funcTable)
+
+        errorLogger.hasErrors() shouldBe true
+        val errors = errorLogger.retrieveAllErrors()
+        
+        errors should include ("unexpected int")
+        errors should include ("expected char")
+    }
+
     "The type checker for read statements" should "accept read with int variable" in {
         val input = "begin int x = 0; read x end"
         val parseResult = parser.parse(input)
@@ -123,6 +243,37 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         TypeChecker.check(inputAST, errorLogger, funcTable)
 
         if (errorLogger.hasErrors()) fail(errorLogger.retrieveAllErrors())
+    }
+
+        it should "semantic error on a call argument type mismatch" in {
+
+        val funcSignature: SemanticData.Func =
+            SemanticData.Func(synPos.pos, "f", KnownType.Int, List(KnownType.Bool))
+        val funcTable: Map[String, SemanticData.Func] = Map("f" -> funcSignature)
+
+        val callExpr = Call(
+            Ident("f", funcSignature),
+            List(IntLiter(10, SemanticData.Expr(synPos.pos, KnownType.Int))),
+            semPos
+        )
+
+        val decl = Stmt.Decl(
+            SyntaxType.Int,
+            Ident("y", SemanticData.Var(synPos.pos, 1, KnownType.Int)), 
+            callExpr,
+            semPos
+        )
+
+        val inputAST =
+            Program(List(), Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
+        val errorLogger = new ErrorLogger()
+
+        TypeChecker.check(inputAST, errorLogger, funcTable)
+
+        errorLogger.hasErrors() shouldBe true
+        errorLogger.retrieveAllErrors() should include ("expected bool")
+        errorLogger.retrieveAllErrors() should include ("unexpected int")
+
     }
 
     "The type checker for pairs" should "accept null asgn to a pair and extracting fst/snd" in {
