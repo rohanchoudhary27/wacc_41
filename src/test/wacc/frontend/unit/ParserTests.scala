@@ -509,4 +509,36 @@ class ParserTests extends AnyFlatSpec with Matchers {
     }
 
     /* ==================== {/FUNCTIONS} ==================== */
+
+    /* ==================== {SCOPE} ==================== */
+    "Scope parsing" should "allow scopes to be nested" in {
+        val input = "begin begin int x = 1 end end"
+        parseOk(input) match {
+            case Program(funcs, Stmt.Block(List(Stmt.Block(innerStmts, _)), _), _) =>
+                innerStmts.length shouldBe 1
+            
+            case other => fail("Expected a scope containing another scope" +
+                               s" but got ${other}")
+        }
+    }
+
+    it should "allow scopes inside of statements" in {
+        val input = "begin while true do begin skip end done end"
+        parseOk(input) match {
+            case Program(_,
+                        Stmt.Block(List(Stmt.While(_,
+                                                   Stmt.Block(List(Stmt.Block(stmts, _)), _),
+                                                    _)), _), _) =>
+                stmts.length shouldBe 1
+                stmts(0) match {
+                    case Stmt.Skip(_) => true
+                    case other          => fail("Expected skip statement in inner block but got" +
+                                                s"${other}")
+                }
+            case other => fail("Expected a scope containing another scope" +
+                               s" but got ${other}")
+
+        }    
+    }
+    /* ==================== {/SCOPE} ==================== */
 }
