@@ -212,6 +212,40 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         errors should include ("1")
     }
 
+    "The Renamer in for read" should "maintain the lvalue in a read statement after renaming" in {
+
+        val decl = Stmt.Decl(
+            SyntaxType.Int,
+            Ident("x", SyntacticData.Pos(0,0)),
+            IntLiter(5, SyntacticData.Pos(0,0)),
+            SyntacticData.Pos(0,0))
+
+        val readStmt = Stmt.Read(Ident("x", SyntacticData.Pos(0,0)), SyntacticData.Pos(0,0))
+        
+        val testBlock = Stmt.Block(List(decl, readStmt), SyntacticData.Pos(0,0))
+        val inputAST = Program(List[Func[SyntacticData]](), testBlock, SyntacticData.Pos(0,0))
+        
+        val errorLogger = ErrorLogger()
+        val renamedAST = Renamer.rename(inputAST, errorLogger)
+        
+        errorLogger.hasErrors() shouldBe false
+        
+        val Stmt.Block(
+            List(
+                Stmt.Decl(_, declIdent, _, _),
+                Stmt.Read(readIdent: Ident[SemanticData], _)
+            ), 
+            _
+        ) = renamedAST.stmt: @unchecked
+        
+        val declId = extractId(declIdent)
+        val readId = extractId(readIdent)
+        
+        declId.isDefined shouldBe true
+        readId.isDefined shouldBe true
+        declId shouldEqual readId
+    }
+
     "Renaming functions" should "detect duplicate function definitions" in {
 
         val func1 = Func(SyntaxType.Int, Ident("f", pos), List(), 
