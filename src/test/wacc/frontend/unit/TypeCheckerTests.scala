@@ -245,7 +245,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         if (errorLogger.hasErrors()) fail(errorLogger.retrieveAllErrors())
     }
 
-        it should "semantic error on a call argument type mismatch" in {
+    it should "semantic error on a call argument type mismatch" in {
 
         val funcSignature: SemanticData.Func =
             SemanticData.Func(synPos.pos, "f", KnownType.Int, List(KnownType.Bool))
@@ -271,9 +271,76 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         TypeChecker.check(inputAST, errorLogger, funcTable)
 
         errorLogger.hasErrors() shouldBe true
-        errorLogger.retrieveAllErrors() should include ("expected bool")
-        errorLogger.retrieveAllErrors() should include ("unexpected int")
+        val errors = errorLogger.retrieveAllErrors()
+        errors should include ("expected bool")
+        errors should include ("unexpected int")
+    }
 
+    it should "semantic error on a return type mismatch in definition" in {
+
+        val funcSignature: SemanticData.Func =
+            SemanticData.Func(synPos.pos, "f", KnownType.Int, List())
+        val funcTable: Map[String, SemanticData.Func] = Map("f" -> funcSignature)
+
+        val returnExpr = StrLiter("hello", SemanticData.Expr(synPos.pos, KnownType.String))
+        val returnStmt = Stmt.Return(returnExpr, semPos)
+        val func = Func(SyntaxType.Int, Ident("f", semPos), List(), returnStmt, semPos)
+
+        val inputAST =
+            Program(List(func),
+                    Stmt.Block(List(Stmt.Skip(semPos)), semPos),
+                    SemanticData.TopLevel(funcTable))
+        val errorLogger = new ErrorLogger()
+
+        TypeChecker.check(inputAST, errorLogger, funcTable)
+
+        errorLogger.hasErrors() shouldBe true
+        val errors = errorLogger.retrieveAllErrors()
+        errors should include ("expected int")
+        errors should include ("unexpected string")
+    }
+
+    "The type checker for if" should "error on if statements with a non bool condition" in {
+        val funcTable: Map[String, SemanticData.Func] = Map.empty
+        val errorLogger = new ErrorLogger()
+
+        val badCondition = IntLiter(10, SemanticData.Expr(synPos.pos, KnownType.Int))
+        
+        val thenBranch: Stmt.Block[SemanticData] = Stmt.Block(List(Stmt.Skip(semPos)), semPos)
+        val elseBranch: Stmt.Block[SemanticData] = Stmt.Block(List(Stmt.Skip(semPos)), semPos)
+
+        val ifStmt = Stmt.If(badCondition, thenBranch, elseBranch, semPos)
+        val inputAST = Program(Nil,
+                               Stmt.Block(List(ifStmt), semPos),
+                               SemanticData.TopLevel(funcTable))
+
+        TypeChecker.check(inputAST, errorLogger, funcTable)
+
+        errorLogger.hasErrors() shouldBe true
+        val errors = errorLogger.retrieveAllErrors().toLowerCase
+        errors should include ("expected bool")
+        errors should include ("unexpected int")
+    }
+
+    "The type checker for while" should "error on while statements with a non bool condition" in {
+        val funcTable: Map[String, SemanticData.Func] = Map.empty
+        val errorLogger = new ErrorLogger()
+
+        val badCondition = StrLiter("loop", SemanticData.Expr(synPos.pos, KnownType.String))
+        
+        val body: Stmt.Block[SemanticData] = Stmt.Block(List(Stmt.Skip(semPos)), semPos)
+
+        val whileStmt = Stmt.While(badCondition, body, semPos)
+        val inputAST = Program(Nil,
+                               Stmt.Block(List(whileStmt), semPos),
+                               SemanticData.TopLevel(funcTable))
+
+        TypeChecker.check(inputAST, errorLogger, funcTable)
+
+        errorLogger.hasErrors() shouldBe true
+        val errors = errorLogger.retrieveAllErrors().toLowerCase
+        errors should include ("expected bool")
+        errors should include ("unexpected string")
     }
 
     "The type checker for pairs" should "accept null asgn to a pair and extracting fst/snd" in {
