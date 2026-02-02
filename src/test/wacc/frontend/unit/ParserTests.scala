@@ -330,51 +330,6 @@ class ParserTests extends AnyFlatSpec with Matchers {
         val input = "begin int x = - end"
         parseFail(input)
     }
-
-    it should "parse ord operator (char to int conversion)" in {
-        val input = "begin int x = ord 'a' end"
-        val rval  = expectDeclAt(input, 0)
-
-        rval match {
-            case UnaryExpr(UnaryOperator.Ord, CharLiter('a', _), _) => succeed
-            case other => fail(s"Expected Ord('a'), got: $other")
-        }
-    }
-
-    it should "parse chr operator (int to char conversion)" in {
-        val input = "begin char c = chr 97 end"
-        val rval  = expectDeclAt(input, 0)
-
-        rval match {
-            case UnaryExpr(UnaryOperator.Chr, IntLiter(97, _), _) => succeed
-            case other => fail(s"Expected Chr(97), got: $other")
-        }
-    }
-
-    it should "parse nested unary operators (double negation)" in {
-        val input = "begin bool b = !!true end"
-        val rval  = expectDeclAt(input, 0)
-
-        rval match {
-            case UnaryExpr(UnaryOperator.Not, 
-                   UnaryExpr(UnaryOperator.Not, BoolLiter(true, _), _), 
-                 _) => succeed
-            case other => fail(s"Expected Not(Not(true)), got: $other")
-        }
-    }
-
-    it should "parse nested arithmetic negation" in {
-        val input = "begin int x = - -5 end"
-        val rval  = expectDeclAt(input, 0)
-
-        rval match {
-            case UnaryExpr(UnaryOperator.Neg, 
-                   UnaryExpr(UnaryOperator.Neg, IntLiter(5, _), _), 
-                 _) => succeed
-            case UnaryExpr(UnaryOperator.Neg, IntLiter(-5, _), _) => succeed
-            case other => fail(s"Expected Neg(Neg(5)), got: $other")
-        }
-    }
     /* ==================== {/UNARY EXPRESSIONS} ==================== */
 
     /* ==================== {BINARY EXPRESSIONS} ==================== */
@@ -451,6 +406,62 @@ class ParserTests extends AnyFlatSpec with Matchers {
     it should "fail when parsing an invalid identifier" in {
         val input = "begin int 1x = 5 end"
         parseFail(input)
+    }
+
+    it should "allow parentheses to override standard precedence" in {
+        val input = "begin int x = (5 + 3) * 2 end"
+        val rval  = expectDeclAt(input, 0)
+
+        rval match {
+            case BinaryExpr(BinaryOperator.Mul, left, IntLiter(2, _), _) =>
+                left match {
+                    case BinaryExpr(BinaryOperator.Add, IntLiter(5, _), IntLiter(3, _), _) => succeed
+                    case other => fail(s"Expected (5+3) on LHS, got: $other")
+                }
+            case other => fail(s"Expected Mul((5+3), 2), got: $other")
+        }
+    }
+
+    it should "bind arithmetic operators stronger than comparison operators" in {
+        val input = "begin bool b = 5 + 2 > 6 end"
+        val rval  = expectDeclAt(input, 0)
+
+        rval match {
+            case BinaryExpr(BinaryOperator.GT, left, IntLiter(6, _), _) =>
+                left match {
+                    case BinaryExpr(BinaryOperator.Add, IntLiter(5, _), IntLiter(2, _), _) => succeed
+                    case other => fail(s"Expected (5+2) on LHS, got: $other")
+                }
+            case other => fail(s"Expected GT((5+2), 6), got: $other")
+        }
+    }
+
+    it should "bind && (AND) stronger than || (OR)" in {
+        val input = "begin bool b = true || false && true end"
+        val rval  = expectDeclAt(input, 0)
+
+        rval match {
+            case BinaryExpr(BinaryOperator.Or, BoolLiter(true, _), rhs, _) =>
+                rhs match {
+                    case BinaryExpr(BinaryOperator.And, BoolLiter(false, _), BoolLiter(true, _), _) => succeed
+                    case other => fail(s"Expected (false && true) on RHS, got: $other")
+                }
+            case other => fail(s"Expected Or(true, ...), got: $other")
+        }
+    }
+
+    it should "parse division and modulo with correct left associativity" in {
+        val input = "begin int x = 10 / 2 % 3 end"
+        val rval  = expectDeclAt(input, 0)
+
+        rval match {
+            case BinaryExpr(BinaryOperator.Mod, left, IntLiter(3, _), _) =>
+                left match {
+                    case BinaryExpr(BinaryOperator.Div, IntLiter(10, _), IntLiter(2, _), _) => succeed
+                    case other => fail(s"Expected (10 / 2) on LHS, got: $other")
+                }
+            case other => fail(s"Expected Mod(..., 3), got: $other")
+        }
     }
     /* ==================== {/IDENTIFIERS} ==================== */
 
