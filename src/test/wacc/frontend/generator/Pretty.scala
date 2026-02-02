@@ -86,7 +86,7 @@ object Pretty {
         private def emitStmtWithTrailingSemi(stmt: Stmt[A]): Unit =
             stmt match
                 case Stmt.Block(stmts, _) =>
-                    emitLine(s"begin")
+                    emitLine("begin")
                     indent {
                         emitStmtList(stmts)
                     }
@@ -110,7 +110,7 @@ object Pretty {
         def emitStmt(stmt: Stmt[A]): Unit =
             stmt match
                 case Stmt.Block(stmts, _) =>
-                    emitLine(s"begin")
+                    emitLine("begin")
                     indent {
                         emitStmtList(stmts)
                     }
@@ -140,7 +140,7 @@ object Pretty {
         /** display single line statements */
         private def stmt1(stmt: Stmt[A]): String =
             stmt match
-                case Stmt.Skip(_) => s"skip"
+                case Stmt.Skip(_) => "skip"
                 case Stmt.Decl(ty, id, rv, _) => s"${showSynType(ty)} ${ident(id)} = ${rvalue(rv)}"
                 case Stmt.Asgn(lv, rv, _) => s"${lvalue(lv)} = ${rvalue(rv)}"
                 case Stmt.Read(lv, _) => s"read ${lvalue(lv)}"
