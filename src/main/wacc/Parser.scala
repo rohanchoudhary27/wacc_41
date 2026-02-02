@@ -62,7 +62,7 @@ object parser {
         Block(sepBy1(singleStmt, ";")) label "statement"
     private lazy val singleStmt: Parsley[Stmt[SyntacticData]] = skip | exit | print | println_stmt |
                                                                 decl | asgn | read | scope |
-                                                                ifStmt | whileStmt | returnStmt
+                                                                ifStmt | whileStmt | returnStmt | free
     private lazy val skip: Parsley[Stmt[SyntacticData]] = Skip from "skip"
     private lazy val decl: Parsley[Stmt[SyntacticData]] =
         Decl(waccType, identLit, "=" ~> (
@@ -72,7 +72,7 @@ object parser {
         Asgn(lvalue, "=" ~> (rvalue label "value" explain "assignment requires a value"))
     private lazy val read: Parsley[Stmt[SyntacticData]] =
         Read("read" ~> lvalue)
-    private lazy val free: Parsley[Stmt[SyntacticData]] = ???
+    private lazy val free: Parsley[Stmt[SyntacticData]] = Free("free" ~> expr)
     private lazy val returnStmt: Parsley[Stmt[SyntacticData]] = Return("return" ~> expr)
     private lazy val exit: Parsley[Stmt[SyntacticData]] = Exit("exit" ~> expr label "exit code")
     private lazy val print: Parsley[Stmt[SyntacticData]] =
