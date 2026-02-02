@@ -317,4 +317,33 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         val errors = errorLogger.retrieveAllErrors()
         errors should include ("ambiguous")
     }
+
+    it should "allow `newpair` to be used on an erased inner pair assignment" in {
+        val funcTable: Map[String, SemanticData.Func] = Map.empty
+
+        val pairSemType = KnownType.Pair(PairAny, KnownType.Int)
+        val pairVarInfo = SemanticData.Var(semPos.pos, 1, pairSemType)
+        val pairIdent   = Ident("p", pairVarInfo)
+
+        val newPair = NewPair(
+            IntLiter(10, SemanticData.Expr(semPos.pos, KnownType.Int)),
+            CharLiter('b', SemanticData.Expr(semPos.pos, KnownType.Char)),
+            semPos
+        )
+
+        val pairSynType = SyntaxType.Pair(SyntaxType.Pair(SyntaxType.ErasedPair, SyntaxType.ErasedPair), SyntaxType.Int)
+        val nullRVal = PairLiter(SemanticData.Expr(semPos.pos, Null))
+        
+        val pairDecl = Stmt.Decl(pairSynType, pairIdent, nullRVal, semPos)
+
+        val pairElem = PairElem(isFst = true, pairIdent, semPos) 
+        val pairElemAsgn = Stmt.Asgn(pairElem, newPair, semPos)
+
+        val errorLogger = new ErrorLogger()
+        val inputAST = Program(Nil, Stmt.Block(List(pairDecl, pairElemAsgn), semPos), SemanticData.TopLevel(funcTable))
+        TypeChecker.check(inputAST, errorLogger, funcTable)
+
+        errorLogger.hasErrors() shouldBe false
+    }
+
 }
