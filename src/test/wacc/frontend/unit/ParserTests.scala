@@ -330,6 +330,51 @@ class ParserTests extends AnyFlatSpec with Matchers {
         val input = "begin int x = - end"
         parseFail(input)
     }
+
+    it should "parse ord operator (char to int conversion)" in {
+        val input = "begin int x = ord 'a' end"
+        val rval  = expectDeclAt(input, 0)
+
+        rval match {
+            case UnaryExpr(UnaryOperator.Ord, CharLiter('a', _), _) => succeed
+            case other => fail(s"Expected Ord('a'), got: $other")
+        }
+    }
+
+    it should "parse chr operator (int to char conversion)" in {
+        val input = "begin char c = chr 97 end"
+        val rval  = expectDeclAt(input, 0)
+
+        rval match {
+            case UnaryExpr(UnaryOperator.Chr, IntLiter(97, _), _) => succeed
+            case other => fail(s"Expected Chr(97), got: $other")
+        }
+    }
+
+    it should "parse nested unary operators (double negation)" in {
+        val input = "begin bool b = !!true end"
+        val rval  = expectDeclAt(input, 0)
+
+        rval match {
+            case UnaryExpr(UnaryOperator.Not, 
+                   UnaryExpr(UnaryOperator.Not, BoolLiter(true, _), _), 
+                 _) => succeed
+            case other => fail(s"Expected Not(Not(true)), got: $other")
+        }
+    }
+
+    it should "parse nested arithmetic negation" in {
+        val input = "begin int x = - -5 end"
+        val rval  = expectDeclAt(input, 0)
+
+        rval match {
+            case UnaryExpr(UnaryOperator.Neg, 
+                   UnaryExpr(UnaryOperator.Neg, IntLiter(5, _), _), 
+                 _) => succeed
+            case UnaryExpr(UnaryOperator.Neg, IntLiter(-5, _), _) => succeed
+            case other => fail(s"Expected Neg(Neg(5)), got: $other")
+        }
+    }
     /* ==================== {/UNARY EXPRESSIONS} ==================== */
 
     /* ==================== {BINARY EXPRESSIONS} ==================== */
