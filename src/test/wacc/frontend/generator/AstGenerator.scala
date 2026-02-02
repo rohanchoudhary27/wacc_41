@@ -142,4 +142,55 @@ object AstGenerator {
         indices <- Gen.listOfN(indexCount, genExpr(depth))
         pos <- genPos
     } yield ArrayElem(ident, indices, pos)
+
+    /** Generate any lvalue */
+    def genLValue(depth: Int): Gen[LValue[SyntacticData]] = {
+        if (depth <= 0) genIdent.map(id => id: LValue[SyntacticData]) // leaf case
+        else Gen.frequency(
+            (3, genIdent.map(id => id: LValue[SyntacticData])),
+            (2, genArrayElem(depth - 1).map(ae => ae: LValue[SyntacticData])),
+            (2, genPairElem(depth - 1).map(pe => pe: LValue[SyntacticData]))
+        )
+    }
+
+    /** Generate any rvalue */
+    def genRValue(depth: Int): Gen[RValue[SyntacticData]] = {
+        if (depth <= 0) genExpr(depth).map(e => e: RValue[SyntacticData]) // leaf case here
+         else Gen.frequency(
+            (4, genExpr(depth).map(e => e: RValue[SyntacticData])),
+            (2, genArrayLiter(depth - 1).map(al => al: RValue[SyntacticData])),
+            (2, genNewPair(depth - 1).map(np => np: RValue[SyntacticData])),
+            (2, genCall(depth - 1).map(c => c: RValue[SyntacticData])),
+            (2, genPairElem(depth - 1).map(pe => pe: RValue[SyntacticData]))
+        )
+    }
+
+    /** Generate an array literal */
+    def genArrayLiter(depth: Int): Gen[ArrayLiter[SyntacticData]] = for {
+        len <- Gen.choose(0, 4)
+        elems <- Gen.listOfN(len, genExpr(depth))
+        pos <- genPos
+    } yield ArrayLiter(elems, pos)
+
+    /** Generate a newpair expression */
+    def genNewPair(depth: Int): Gen[NewPair[SyntacticData]] = for {
+        fst <- genExpr(depth)
+        snd <- genExpr(depth)
+        pos <- genPos
+    } yield NewPair(fst, snd, pos)
+
+    /** Generate a function call */
+    def genCall(depth: Int): Gen[Call[SyntacticData]] = for {
+        ident <- genIdent
+        argCount <- Gen.choose(0, 3)
+        args <- Gen.listOfN(argCount, genExpr(depth))
+        pos <- genPos
+    } yield Call(ident, args, pos)
+
+    /** Generate a pair element access */
+    def genPairElem(depth: Int): Gen[PairElem[SyntacticData]] = for {
+        isFst <- Gen.oneOf(true, false)
+        lval <- genLValue(depth)
+        pos <- genPos
+    } yield PairElem(isFst, lval, pos)
 }
