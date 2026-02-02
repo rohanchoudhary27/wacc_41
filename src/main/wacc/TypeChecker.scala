@@ -324,9 +324,10 @@ object TypeChecker {
                 val pairElementType = extractLValueType(p) 
 
                 /* this lvalue's type must satisfy the constraint */
-                pairElementType.satisfies(c, info.pos, tcState.errorLogger)
+                val elemType =
+                    pairElementType.satisfies(c, info.pos, tcState.errorLogger).getOrElse(?)
 
-                PairElem(isFst, typedLValue, info)
+                PairElem(isFst, typedLValue, SemanticData.Expr(info.pos, elemType))
         }
 
     /**
@@ -510,11 +511,11 @@ object TypeChecker {
                 if isFst then fst.satisfies(c, info.pos, tcState.errorLogger)
                     .fold
                         {PairElem(isFst, typedLVal, SemanticData.Error(info.pos))} 
-                        { _ => PairElem(isFst, typedLVal, info) }
+                        { t => PairElem(isFst, typedLVal, SemanticData.Expr(info.pos, t)) }
                 else snd.satisfies(c, info.pos, tcState.errorLogger)
                     .fold 
                         { PairElem(isFst, typedLVal, SemanticData.Error(info.pos))}
-                        {_ => PairElem(isFst, typedLVal, info) }
+                        {t => PairElem(isFst, typedLVal, SemanticData.Expr(info.pos, t)) }
 
             /* erased pair case */
             case PairAny => 
