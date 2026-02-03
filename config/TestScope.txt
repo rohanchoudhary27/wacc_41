@@ -3,6 +3,8 @@ valid/basic/exit
 valid/sequence
 valid/expressions
 
+# non-ascii in prog test
+invalid/syntaxErr/literals/stringLiteralOnlyAscii.wacc
 
 # if statement integration tests
 invalid/syntaxErr/if
