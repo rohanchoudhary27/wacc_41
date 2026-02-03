@@ -12,6 +12,7 @@ import wacc.TypeChecker
 import wacc.Renamer
 import wacc.ErrorLogger
 import wacc.SyntaxPass
+import wacc.Sanitiser
 
 final class FrontendIntegrationSpec extends AnyFlatSpec with Matchers {
 
@@ -19,6 +20,25 @@ final class FrontendIntegrationSpec extends AnyFlatSpec with Matchers {
     private val examplesRoot: Path = Paths.get("examples")
     private val programExtension: String = "wacc"
     private val enabledScopes: Set[String] = readScopes(scopeConfigPath)
+
+    /**
+    * Checks for syntax errors in an error logger and prints them with a 100 return code
+    * if any were logged.
+    *
+    * @param errorLogger: The `ErrorLogger` for syntax errors
+    * 
+    * @return: true if any syntax errors were found, false otherwise
+    */
+    private def reportSyntaxErrors(errorLogger: ErrorLogger): Boolean = {
+        /* If there were complex syntax errors, exit with 100 */
+        if (errorLogger.hasErrors()) {
+            Console.err.println("Failure: 100 - Syntax error:\n")
+            Console.err.println(errorLogger.retrieveAllErrors())
+            true
+        } else {
+            false
+        }
+    }
 
     /* Runs the frontend pipeline against an integration test */
     private object FrontendCompilerDriver {
@@ -31,37 +51,39 @@ final class FrontendIntegrationSpec extends AnyFlatSpec with Matchers {
                 finally source.close()
 
             val sourceCode: String = codeLines.mkString("\n")
+            val syntacticErrors = new ErrorLogger(codeLines)
 
-            val result = parser.parse(sourceCode)
+            Sanitiser.sanitise(sourceCode, syntacticErrors)
 
-            result match {
-                case Left(_) => 100
-                
-                case Right(syntacticAST) =>
-                    val semanticErrors = new ErrorLogger(codeLines)
-                    val syntacticErrors = new ErrorLogger(codeLines)
+            if (reportSyntaxErrors(syntacticErrors)) {
+                100
+            } else {
 
-                    SyntaxPass.syntaxCheck(syntacticAST, syntacticErrors)
+                val result = parser.parse(sourceCode)
 
-                    /* If there were complex syntax errors, exit with 100 */
-                    if (syntacticErrors.hasErrors()) {
-                        Console.err.println("Failure: 100 - Syntax error:\n")
-                        Console.err.println(syntacticErrors.retrieveAllErrors())
-                        100
+                result match {
+                    case Left(_) => 100
+                    
+                    case Right(syntacticAST) =>
+                        val semanticErrors = new ErrorLogger(codeLines)
 
-                    } else {
-                        val renamedAST = Renamer.rename(syntacticAST, semanticErrors)
+                        SyntaxPass.syntaxCheck(syntacticAST, syntacticErrors)
+                        if (reportSyntaxErrors(syntacticErrors)) {
+                            100
+                        } else {
+                            val renamedAST = Renamer.rename(syntacticAST, semanticErrors)
 
-                        val funcTable = renamedAST.info match {
-                            case wacc.SemanticData.TopLevel(ft) => ft
-                            case _ => Map.empty[String, wacc.SemanticData.Func]
+                            val funcTable = renamedAST.info match {
+                                case wacc.SemanticData.TopLevel(ft) => ft
+                                case _ => Map.empty[String, wacc.SemanticData.Func]
+                            }
+
+                            TypeChecker.check(renamedAST, semanticErrors, funcTable)
+
+                            if (semanticErrors.hasErrors()) 200 /* Semantic Error */
+                            else 0                              /* Success */
                         }
-
-                        TypeChecker.check(renamedAST, semanticErrors, funcTable)
-
-                        if (semanticErrors.hasErrors()) 200 /* Semantic Error */
-                        else 0                              /* Success */
-                    }
+                }
             }
         }
     }
@@ -79,6 +101,7 @@ final class FrontendIntegrationSpec extends AnyFlatSpec with Matchers {
         if (rel.startsWith("valid/")) 0
         else if (rel.startsWith("invalid/syntaxErr/")) 100
         else if (rel.startsWith("invalid/semanticErr/")) 200
+        else if (rel.startsWith("invalid/whack/")) 100
         else 1
     }
 

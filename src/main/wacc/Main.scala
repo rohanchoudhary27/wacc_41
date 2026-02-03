@@ -4,6 +4,21 @@ import java.io.File
 import scala.io.Source
 
 /**
+* Checks for syntax errors in an error logger and prints them with a 100 return code
+* if any were logged.
+*
+* @param errorLogger: The `ErrorLogger` for syntax errors
+*/
+def reportSyntaxErrors(errorLogger: ErrorLogger) = {
+    /* If there were complex syntax errors, exit with 100 */
+    if (errorLogger.hasErrors()) {
+        Console.err.println("Failure: 100 - Syntax error:\n")
+        Console.err.println(errorLogger.retrieveAllErrors())
+        sys.exit(100)
+    }
+}
+
+/**
 * Main function for WACC compiler.
 *
 * Stages:
@@ -46,6 +61,14 @@ def main(args: Array[String]): Unit = {
         finally source.close()
     val sourceCode: String = codeLines.mkString("\n")
 
+    /* Create a syntactic errors object for complex return checks */
+    val syntacticErrors = new ErrorLogger(codeLines)
+
+    /* Sanitise the text, throwing a syntax error if non-ascii chars are found */
+    Sanitiser.sanitise(sourceCode, syntacticErrors)
+
+    reportSyntaxErrors(syntacticErrors)
+
     /* Parse the string */
     val result = parser.parse(sourceCode)
 
@@ -63,18 +86,11 @@ def main(args: Array[String]): Unit = {
             /* Create a semantic errors object */
             val semanticErrors = new ErrorLogger(codeLines)
 
-            /* Create a syntactic errors object for complex return checks */
-            val syntacticErrors = new ErrorLogger(codeLines)
-
             /* Check complex (post-parse) syntax rules */
             SyntaxPass.syntaxCheck(syntacticAST, syntacticErrors)
 
             /* If there were complex syntax errors, exit with 100 */
-            if (syntacticErrors.hasErrors()) {
-                Console.err.println("Failure: 100 - Syntax error:\n")
-                Console.err.println(syntacticErrors.retrieveAllErrors())
-                sys.exit(100)
-            }
+            reportSyntaxErrors(syntacticErrors)
 
             /* Rename the AST and return this AST, build the senamtic errors if there are any */
             val renamedAST = Renamer.rename(syntacticAST, semanticErrors)
