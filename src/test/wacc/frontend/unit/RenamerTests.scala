@@ -384,4 +384,75 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         extractId(innerP) should not be extractId(outerP)
     }
 
+    "Renaming arrays" should "let a declared array identifier be used in array element access" in {
+        // int[] arr = [1, 2, 3]; int x = arr[0]
+        val declArr = Stmt.Decl(
+            SyntaxType.Array(SyntaxType.Int),
+            Ident("arr", pos),
+            ArrayLiter(List(IntLiter(1, pos), IntLiter(2, pos), IntLiter(3, pos)), pos),
+            pos
+        )
+
+        val declX = Stmt.Decl(
+            SyntaxType.Int,
+            Ident("x", pos),
+            ArrayElem(Ident("arr", pos), List(IntLiter(0, pos)), pos),
+            pos
+        )
+
+        val inputAST = Program(Nil, Stmt.Block(List(declArr, declX), pos), pos)
+        val renamedAST = Renamer.rename(inputAST, new ErrorLogger())
+
+        val Stmt.Block(stmts, _) = renamedAST.stmt: @unchecked
+        val Stmt.Decl(_, arrIdent: Ident[SemanticData], _, _) = stmts(0): @unchecked
+        val Stmt.Decl(_, _, ArrayElem(usedArr: Ident[SemanticData], _, _), _) = stmts(1): @unchecked
+
+        extractId(usedArr) shouldBe extractId(arrIdent)
+    }
+
+    it should "rename array element access as lvalue in assignment" in {
+        // int[] arr = [1]; arr[0] = 5
+        val declArr = Stmt.Decl(
+            SyntaxType.Array(SyntaxType.Int),
+            Ident("arr", pos),
+            ArrayLiter(List(IntLiter(1, pos)), pos),
+            pos
+        )
+
+        val asgn = Stmt.Asgn(
+            ArrayElem(Ident("arr", pos), List(IntLiter(0, pos)), pos),
+            IntLiter(5, pos),
+            pos
+        )
+
+        val inputAST = Program(Nil, Stmt.Block(List(declArr, asgn), pos), pos)
+        val errorLogger = new ErrorLogger()
+        val renamedAST = Renamer.rename(inputAST, errorLogger)
+
+        errorLogger.hasErrors() shouldBe false
+
+        val Stmt.Block(stmts, _) = renamedAST.stmt: @unchecked
+        val Stmt.Decl(_, arrIdent: Ident[SemanticData], _, _) = stmts(0): @unchecked
+        val Stmt.Asgn(ArrayElem(usedArr: Ident[SemanticData], _, _), _, _) = stmts(1): @unchecked
+
+        extractId(usedArr) shouldBe extractId(arrIdent)
+    }
+
+    it should "report an error when array element refers to an out-of-scope identifier" in {
+        // int x = arr[0]  (arr is never declared)
+        val declX = Stmt.Decl(
+            SyntaxType.Int,
+            Ident("x", pos),
+            ArrayElem(Ident("arr", pos), List(IntLiter(0, pos)), pos),
+            pos
+        )
+
+        val inputAST = Program(Nil, Stmt.Block(List(declX), pos), pos)
+        val errorLogger = new ErrorLogger()
+
+        Renamer.rename(inputAST, errorLogger)
+
+        errorLogger.hasErrors() shouldBe true
+        errorLogger.retrieveAllErrors() should include ("Scope error")
+    }
 }
