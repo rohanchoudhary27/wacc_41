@@ -2,7 +2,6 @@ package wacc.frontend.unit
 
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-
 import wacc._
 
 class TypeCheckerTests extends AnyFlatSpec with Matchers {
@@ -534,5 +533,40 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
 
         val errors = errorLogger.retrieveAllErrors()
         errors should include ("ambiguous")
+    }
+
+    "The Unary Expression type checker" should "expect the operand for NOT to be a boolean" in {
+        val funcTable: Map[String, SemanticData.Func] = Map.empty
+        val errorLogger = new ErrorLogger()
+        val pos = SyntacticData.Pos(0,0)
+
+        // bool b = !true;
+        val expr = UnaryExpr(UnaryOperator.Not, BoolLiter(true, pos), pos)
+        val decl = Stmt.Decl(SyntaxType.Bool, Ident("b", pos), expr, pos)
+        
+        val ast = Program(Nil, Stmt.Block(List(decl), pos), pos)
+        val renamedAST = Renamer.rename(ast, errorLogger)
+        
+        TypeChecker.check(renamedAST, errorLogger, funcTable)
+        
+        errorLogger.hasErrors() shouldBe false
+    }
+
+    it should "not allow NOT with a non boolean operand" in {
+        // bool b = !5;
+        val pos = SyntacticData.Pos(0,0)
+        val funcTable: Map[String, SemanticData.Func] = Map.empty
+        val errorLogger = new ErrorLogger()
+        val expr = UnaryExpr(UnaryOperator.Not, IntLiter(5, pos), pos)
+        val decl = Stmt.Decl(SyntaxType.Bool, Ident("b", pos), expr, pos)
+        
+        val ast = Program(Nil, Stmt.Block(List(decl), pos), pos)
+        val renamedAST = Renamer.rename(ast, errorLogger)
+        
+        TypeChecker.check(renamedAST, errorLogger, funcTable)
+        
+        errorLogger.hasErrors() shouldBe true
+        errorLogger.retrieveAllErrors() should include ("Type mismatch")
+        errorLogger.retrieveAllErrors() should include ("expected bool")
     }
 }
