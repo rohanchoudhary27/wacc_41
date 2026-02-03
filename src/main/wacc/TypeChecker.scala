@@ -239,7 +239,7 @@ object TypeChecker {
 
       /* the type of lval must be known when used in a read statement */
       case ? =>
-        val errorMsg = "Type error: ambiguous assignment between unknown types."
+        val errorMsg = "Type Error: ambiguous assignment between unknown types."
         val errorDesc = "\nDestination type unresolved so cannot be read into"
         tcState.emit(lval.info.pos, errorMsg, errorDesc)
         Stmt.Read(lval, SemanticData.Error(lval.info.pos))
@@ -477,6 +477,7 @@ object TypeChecker {
     */
   private def getExpressionType(expr: Expr[SemanticData]): SemanticType =
     expr.info match {
+      case SemanticData.Var(_, _, t) => t
       case SemanticData.Typed(_, t) => t
       case _                        => ?
     }
@@ -536,7 +537,7 @@ object TypeChecker {
           case other => {
             tcState.emit(
               info.pos,
-              s"Type mismatch: Expected '${other.toString()}' but got '${PairAny.toString()}'"
+              s"Type Error: Expected '${other.toString()}' but got '${PairAny.toString()}'"
             )
 
             /* error indicated by SemanticData.Error */
@@ -560,7 +561,7 @@ object TypeChecker {
               val typesList = elemTypes.distinct.mkString(", ")
               tcState.emit(
                 info.pos,
-                "Type error: array literal mismatch",
+                "Type Error: array literal mismatch",
                 s"\nliteral contains mix of $typesList\nexpected $arrType"
               )
               ArrayLiter(typedElems, SemanticData.Error(info.pos))
@@ -601,7 +602,7 @@ object TypeChecker {
                   val typesList = elemTypes.mkString(", ")
                   tcState.emit(
                     info.pos,
-                    "Type error: array literal has incompatible element types",
+                    "Type Error: array literal has incompatible element types",
                     s"\nElement types: [$typesList]\nNo common ancestor type exists"
                   )
                   ArrayLiter(typedElems, SemanticData.Error(info.pos))
@@ -609,7 +610,7 @@ object TypeChecker {
             }
 
           case other =>
-            tcState.emit(info.pos, s"Type mismatch: Expected Array but got ${other.toString()}")
+            tcState.emit(info.pos, s"Type Error: Expected Array but got ${other.toString()}")
             ArrayLiter(elems, SemanticData.Error(info.pos))
         }
 
@@ -680,7 +681,7 @@ object TypeChecker {
         c match {
           case Is(?) =>
             val errorMsg =
-              "Type error: ambiguous assignment between unknown types."
+              "Type Error: ambiguous assignment between unknown types."
             val errorDesc =
               "\nBoth the left-hand side and right-hand side of this statement have" +
                 " unresolved types."
@@ -727,7 +728,7 @@ object TypeChecker {
       val identType = extractLValueType(ident)
       tcState.emit(
         info.pos,
-        "Type error: array accessed with too many indices",
+        "Type Error: array accessed with too many indices",
         s"\nExpression '${ident.name}' has type $identType but accessed with ${indices.length} indices"
       )
       ArrayElem(typedIdent, typedIndices, SemanticData.Error(info.pos))
@@ -875,11 +876,7 @@ object TypeChecker {
     val (inputConstraint, resultType) = op match {
       case UnaryOperator.Not => (Constraint.Is(KnownType.Bool), KnownType.Bool)
       case UnaryOperator.Neg => (Constraint.Is(KnownType.Int), KnownType.Int)
-      case UnaryOperator.Len =>
-        (
-          Constraint.OneOf(Set(KnownType.Array(?), KnownType.String)),
-          KnownType.Int
-        )
+      case UnaryOperator.Len => (Constraint.Is(KnownType.Array(?)), KnownType.Int)
       case UnaryOperator.Ord => (Constraint.Is(KnownType.Char), KnownType.Int)
       case UnaryOperator.Chr => (Constraint.Is(KnownType.Int), KnownType.Char)
     }
@@ -1055,7 +1052,7 @@ object TypeChecker {
       ty1.matches(c).orElse {
         logger.logError(
           pos,
-          s"Type error: Expected '$c' but got '$ty1'"
+          s"Type Error: Expected '$c' but got '$ty1'"
         )
         None
       }
