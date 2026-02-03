@@ -53,13 +53,15 @@ object parser {
         "string" #> SyntaxType.String
     ) label "type"
     private lazy val arrayType: Parsley[SyntaxType] =
-        chain.postfix(baseType | pairType)(
+        chain.postfix(baseType | atomic(pairType))(
             brackets(unit) #> ((t: SyntaxType) => SyntaxType.Array(t))
         )
     private lazy val pairType: Parsley[SyntaxType] =
         "pair" ~> "(" ~> lift2(SyntaxType.Pair.apply, pairElemType <~ ",", pairElemType) <~ ")"
     private lazy val pairElemType: Parsley[SyntaxType] =
-        arrayType | "pair" #> SyntaxType.ErasedPair
+        chain.postfix(baseType | "pair" #> SyntaxType.ErasedPair)(
+            brackets(unit) #> ((t: SyntaxType) => SyntaxType.Array(t))
+        )
 
     /* Statement grammar */
     private lazy val stmt: Parsley[Stmt[SyntacticData]] =
