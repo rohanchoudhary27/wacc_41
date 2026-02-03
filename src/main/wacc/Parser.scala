@@ -39,9 +39,9 @@ object parser {
         (stmt label "program body" explain "program must contain at least one statement") <~ "end"
     )
     private lazy val func: Parsley[Func[SyntacticData]] =
-        Func(waccType, identLit, "(" ~> paramList <~ ")", "is" ~> stmt <~ "end")
-    private lazy val paramList: Parsley[List[Param[SyntacticData]]] = sepBy(param, ",")
-    private lazy val param: Parsley[Param[SyntacticData]] = Param(waccType, identLit)
+        Func(waccType, identLit, "(" ~> paramList <~ ")", "is" ~> stmt <~ "end") label "function definition"
+    private lazy val paramList: Parsley[List[Param[SyntacticData]]] = sepBy(param, ",") label "parameter list"
+    private lazy val param: Parsley[Param[SyntacticData]] = Param(waccType, identLit) label "parameter"
 
     /* Type grammar */
     /* arrayType uses chain.postfix, so is equivalent to base/pair types if no brackets */
@@ -57,7 +57,7 @@ object parser {
             brackets(unit) #> ((t: SyntaxType) => SyntaxType.Array(t))
         )
     private lazy val pairType: Parsley[SyntaxType] =
-        "pair" ~> "(" ~> lift2(SyntaxType.Pair.apply, pairElemType <~ ",", pairElemType) <~ ")"
+        "pair" ~> "(" ~> lift2(SyntaxType.Pair.apply, pairElemType <~ ",", pairElemType) <~ ")" label "pair type"
     private lazy val pairElemType: Parsley[SyntaxType] =
         chain.postfix(baseType | "pair" #> SyntaxType.ErasedPair)(
             brackets(unit) #> ((t: SyntaxType) => SyntaxType.Array(t))
@@ -138,15 +138,15 @@ object parser {
     private lazy val arrayLiter: Parsley[ArrayLiter[SyntacticData]] =
         ArrayLiter(brackets(sepBy(expr, ",")))
     private lazy val call: Parsley[Call[SyntacticData]] =
-        Call("call" ~> identLit, "(" ~> sepBy(expr, ",") <~ ")")
+        Call("call" ~> identLit, "(" ~> sepBy(expr, ",") <~ ")") label "function call"
 
     /* Literal grammar */
-    private lazy val intLit  = IntLiter(int)
-    private lazy val boolLit = BoolLiter(boolLiter)
-    private lazy val charLit = CharLiter(character)
-    private lazy val strLit  = StrLiter(string)
-    private lazy val pairLit = PairLiter from nullLiter
-    private lazy val identLit  = Ident(ident)
+    private lazy val intLit  = IntLiter(int) label "integer"
+    private lazy val boolLit = BoolLiter(boolLiter) label "boolean"
+    private lazy val charLit = CharLiter(character) label "character"
+    private lazy val strLit  = StrLiter(string) label "string"
+    private lazy val pairLit = (PairLiter from nullLiter) label "pair literal"
+    private lazy val identLit  = Ident(ident) label "identifier"
 
     /* Operator grammar */
     private lazy val unaryOps: Parsley[Expr[SyntacticData] => Expr[SyntacticData]] = {
