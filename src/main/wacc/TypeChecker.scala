@@ -243,8 +243,8 @@ object TypeChecker {
         val errorDesc =
           "\nBoth the left-hand side and right-hand side of this statement" +
             " have unresolved types."
-        tcState.emit(semInfo.pos, errorMsg, errorDesc)
-        Stmt.Read(lval, SemanticData.Error(semInfo.pos))
+        tcState.emit(lval.info.pos, errorMsg, errorDesc)
+        Stmt.Read(lval, SemanticData.Error(lval.info.pos))
       case _ =>
         val typedLValue = checkLvalue(lval, Constraint.IsReadable)
         Stmt.Read(typedLValue, semInfo)

@@ -163,8 +163,8 @@ object Renamer {
       if (scope.contains(ident.name)) {
         val errorMsg =
           s"Scope error: Parameter '${ident.name}' is already defined for this function"
-        state.emit(synPos.pos, errorMsg)
-        SemanticData.Error(synPos.pos)
+        state.emit(ident.info.pos, errorMsg)
+        SemanticData.Error(ident.info.pos)
       } else {
         synPos.toSemanticPos
       }
@@ -280,7 +280,7 @@ object Renamer {
         s"Scope error: Variable '${ident.name}' is already declared in this scope"
       val originalDeclMsg =
         s"\nOriginal declaration was at Line ${oldPos(0)}, Column ${oldPos(1)}"
-      state.emit(synPos.pos, errorMsg, originalDeclMsg)
+      state.emit(ident.info.pos, errorMsg, originalDeclMsg)
     }
 
     /* Add a renamed variable to the scope table */
