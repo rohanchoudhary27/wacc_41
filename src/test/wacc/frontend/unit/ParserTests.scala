@@ -153,6 +153,44 @@ class ParserTests extends AnyFlatSpec with Matchers {
     }
     /* ==================== {/READ} ==================== */
 
+    /* ==================== {FREE} ==================== */
+
+    "The free statement parser" should "parse free with an identifier" in {
+        val input = "begin free x end"
+        stmtAt(input, 0) match {
+            case Stmt.Free(Ident("x", _), _) => succeed
+            case other => fail(s"Expected Free(Ident(x)) but got: $other")
+        }
+    }
+
+    it should "parse free with an array element" in {
+        val input = "begin free arr[0] end"
+        stmtAt(input, 0) match {
+            case Stmt.Free(ArrayElem(Ident("arr", _), List(IntLiter(0, _)), _), _) => succeed
+            case other => fail(s"Expected Free(ArrayElem(arr[0])) but got: $other")
+        }
+    }
+
+    it should "parse free with expression (syntactically valid)" in {
+        val input = "begin free x + 5 end"
+        stmtAt(input, 0) match {
+            case Stmt.Free(BinaryExpr(_, _, _, _), _) => succeed
+            case other => fail(s"Expected Free(BinaryExpr(...)) but got: $other")
+        }
+    }
+
+    it should "fail when free is missing an expression" in {
+        val input = "begin free end"
+        parseFail(input)
+    }
+
+    it should "fail when free is followed by a statement" in {
+        val input = "begin free int x = 5 end"
+        parseFail(input)
+    }
+
+    /* ==================== {/FREE} ==================== */
+
     /* ==================== {DECLARATION} ==================== */
     "The declaration statement parser" should "parse a simple integer variable declaration" in {
         val input = "begin int x = 1 end"
