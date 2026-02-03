@@ -881,32 +881,31 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         
         errorLogger.hasErrors() shouldBe false
     }
-
-    // TODO: enable this once refactor/constraints branch is merged
-    // it should "not allow LEN to be used with string type" in {
-    //     // begin 
-    //     //    println len "hello" 
-    //     // end
-    //     val funcTable: Map[String, SemanticData.Func] = Map.empty
+    
+    it should "not allow LEN to be used with string type" in {
+        // begin 
+        //    println len "hello" 
+        // end
+        val funcTable: Map[String, SemanticData.Func] = Map.empty
         
-    //     val strLiter: Expr[SemanticData] = 
-    //         StrLiter("hello", SemanticData.Typed(semPos.pos, KnownType.String))
-    //     val unaryLenExprWithString: Expr[SemanticData] =
-    //         UnaryExpr(UnaryOperator.Len, strLiter, semPos)
-    //     val printStmt = Stmt.Println(unaryLenExprWithString, semPos)
+        val strLiter: Expr[SemanticData] = 
+            StrLiter("hello", SemanticData.Typed(semPos.pos, KnownType.String))
+        val unaryLenExprWithString: Expr[SemanticData] =
+            UnaryExpr(UnaryOperator.Len, strLiter, semPos)
+        val printStmt = Stmt.Println(unaryLenExprWithString, semPos)
 
-    //     val errorLogger = new ErrorLogger()
-    //     val inputAST = Program(
-    //         Nil,
-    //         Stmt.Block(List(printStmt), semPos),
-    //         SemanticData.TopLevel(funcTable)
-    //     )
-    //     TypeChecker.check(inputAST, errorLogger, funcTable)
+        val errorLogger = new ErrorLogger()
+        val inputAST = Program(
+            Nil,
+            Stmt.Block(List(printStmt), semPos),
+            SemanticData.TopLevel(funcTable)
+        )
+        TypeChecker.check(inputAST, errorLogger, funcTable)
 
-    //     errorLogger.hasErrors() shouldBe true
-    //     val errors = errorLogger.retrieveAllErrors()
-    //     errors should include("Type")
-    // }
+        errorLogger.hasErrors() shouldBe true
+        val errors = errorLogger.retrieveAllErrors()
+        errors should include("Type")
+    }
 
 
     it should "not allow NOT with a non boolean operand" in {
