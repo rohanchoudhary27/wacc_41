@@ -153,6 +153,44 @@ class ParserTests extends AnyFlatSpec with Matchers {
     }
     /* ==================== {/READ} ==================== */
 
+    /* ==================== {FREE} ==================== */
+
+    "The free statement parser" should "parse free with an identifier" in {
+        val input = "begin free x end"
+        stmtAt(input, 0) match {
+            case Stmt.Free(Ident("x", _), _) => succeed
+            case other => fail(s"Expected Free(Ident(x)) but got: $other")
+        }
+    }
+
+    it should "parse free with an array element" in {
+        val input = "begin free arr[0] end"
+        stmtAt(input, 0) match {
+            case Stmt.Free(ArrayElem(Ident("arr", _), List(IntLiter(0, _)), _), _) => succeed
+            case other => fail(s"Expected Free(ArrayElem(arr[0])) but got: $other")
+        }
+    }
+
+    it should "parse free with expression (syntactically valid)" in {
+        val input = "begin free x + 5 end"
+        stmtAt(input, 0) match {
+            case Stmt.Free(BinaryExpr(_, _, _, _), _) => succeed
+            case other => fail(s"Expected Free(BinaryExpr(...)) but got: $other")
+        }
+    }
+
+    it should "fail when free is missing an expression" in {
+        val input = "begin free end"
+        parseFail(input)
+    }
+
+    it should "fail when free is followed by a statement" in {
+        val input = "begin free int x = 5 end"
+        parseFail(input)
+    }
+
+    /* ==================== {/FREE} ==================== */
+
     /* ==================== {DECLARATION} ==================== */
     "The declaration statement parser" should "parse a simple integer variable declaration" in {
         val input = "begin int x = 1 end"
@@ -407,6 +445,62 @@ class ParserTests extends AnyFlatSpec with Matchers {
         val input = "begin int 1x = 5 end"
         parseFail(input)
     }
+
+    it should "allow parentheses to override standard precedence" in {
+        val input = "begin int x = (5 + 3) * 2 end"
+        val rval  = expectDeclAt(input, 0)
+
+        rval match {
+            case BinaryExpr(BinaryOperator.Mul, left, IntLiter(2, _), _) =>
+                left match {
+                    case BinaryExpr(BinaryOperator.Add, IntLiter(5, _), IntLiter(3, _), _) => succeed
+                    case other => fail(s"Expected (5+3) on LHS, got: $other")
+                }
+            case other => fail(s"Expected Mul((5+3), 2), got: $other")
+        }
+    }
+
+    it should "bind arithmetic operators stronger than comparison operators" in {
+        val input = "begin bool b = 5 + 2 > 6 end"
+        val rval  = expectDeclAt(input, 0)
+
+        rval match {
+            case BinaryExpr(BinaryOperator.GT, left, IntLiter(6, _), _) =>
+                left match {
+                    case BinaryExpr(BinaryOperator.Add, IntLiter(5, _), IntLiter(2, _), _) => succeed
+                    case other => fail(s"Expected (5+2) on LHS, got: $other")
+                }
+            case other => fail(s"Expected GT((5+2), 6), got: $other")
+        }
+    }
+
+    it should "bind && (AND) stronger than || (OR)" in {
+        val input = "begin bool b = true || false && true end"
+        val rval  = expectDeclAt(input, 0)
+
+        rval match {
+            case BinaryExpr(BinaryOperator.Or, BoolLiter(true, _), rhs, _) =>
+                rhs match {
+                    case BinaryExpr(BinaryOperator.And, BoolLiter(false, _), BoolLiter(true, _), _) => succeed
+                    case other => fail(s"Expected (false && true) on RHS, got: $other")
+                }
+            case other => fail(s"Expected Or(true, ...), got: $other")
+        }
+    }
+
+    it should "parse division and modulo with correct left associativity" in {
+        val input = "begin int x = 10 / 2 % 3 end"
+        val rval  = expectDeclAt(input, 0)
+
+        rval match {
+            case BinaryExpr(BinaryOperator.Mod, left, IntLiter(3, _), _) =>
+                left match {
+                    case BinaryExpr(BinaryOperator.Div, IntLiter(10, _), IntLiter(2, _), _) => succeed
+                    case other => fail(s"Expected (10 / 2) on LHS, got: $other")
+                }
+            case other => fail(s"Expected Mod(..., 3), got: $other")
+        }
+    }
     /* ==================== {/IDENTIFIERS} ==================== */
 
     /* ==================== {PAIRS} ==================== */
@@ -456,6 +550,104 @@ class ParserTests extends AnyFlatSpec with Matchers {
         parseFail(input)
     }
     /* ==================== {/PAIRS} ==================== */
+
+    /* ==================== {FUNCTIONS} ==================== */
+
+    "The function parser" should "parse valid function definitions with params" in {
+        val input = "begin int f(int x, char y) is return x + 1 end println \"hello\" end"
+        parseOk(input) match {
+            case Program(Func(typ, ident, params, stmt, _) :: tail, _, _) =>
+                tail.length shouldBe 0
+
+                typ shouldBe SyntaxType.Int
+                ident.name shouldBe "f"
+
+                params.length shouldBe 2
+                params(0).ident.name shouldBe "x"
+                params(0).typ shouldBe SyntaxType.Int
+                params(1).ident.name shouldBe "y"
+                params(1).typ shouldBe SyntaxType.Char
+
+            case other => fail("Expected a single function in the list of program functions" +
+                               s"but got ${other}")
+        }
+    }
+
+    it should "parse valid function calls with arguments" in {
+        val input = "begin int f(int x) is return x + 1 end bool g() is return true end" +
+                    " int y = call f(3) end"
+                    
+        parseOk(input) match {
+            case Program(_, Stmt.Block(List(Stmt.Decl(_, _, Call(ident, argList, _), _)), _), _) =>
+                ident.name shouldBe "f"
+                argList.length shouldBe 1
+                argList(0) match {
+                    case IntLiter(n, _) => n shouldBe 3
+                    case other          => fail(s"Expected IntLiter(3) but got: $other")
+                }
+            
+            case other => fail("Expected a single call with `3` to function f" +
+                               s"but got ${other}")
+        }
+    }
+
+    it should "not allow a function with a non-returning path" in {
+        val input = "begin int f(int x) is if x > 2 then return x + 1 else skip fi end" +
+                    "int y = call f(3); println(y) end"
+        parseFail(input)
+    }
+    
+    it should "only allow functions to be defined at the top of the main block" in {
+       val input = "begin bool f() is return true end bool x = call f(); bool g() is false end end" 
+       parseFail(input)
+    }
+
+    /* ==================== {/FUNCTIONS} ==================== */
+
+    /* ==================== {SCOPE} ==================== */
+    "Scope parsing" should "allow scopes to be nested" in {
+        val input = "begin begin int x = 1 end end"
+        parseOk(input) match {
+            case Program(funcs, Stmt.Block(List(Stmt.Block(innerStmts, _)), _), _) =>
+                innerStmts.length shouldBe 1
+            
+            case other => fail("Expected a scope containing another scope" +
+                               s" but got ${other}")
+        }
+    }
+
+    it should "allow scopes inside of statements" in {
+        val input = "begin while true do begin skip end done end"
+        parseOk(input) match {
+            case Program(_,
+                        Stmt.Block(List(Stmt.While(_,
+                                                   Stmt.Block(List(Stmt.Block(stmts, _)), _),
+                                                    _)), _), _) =>
+                stmts.length shouldBe 1
+                stmts(0) match {
+                    case Stmt.Skip(_) => true
+                    case other          => fail("Expected skip statement in inner block but got" +
+                                                s"${other}")
+                }
+            case other => fail("Expected a scope containing another scope" +
+                               s" but got ${other}")
+
+        }    
+    }
+    /* ==================== {/SCOPE} ==================== */
+
+    /* ==================== {STRINGS} ==================== */
+    "String parsing" should "parse escaped characters" in {
+        val input = """begin string x = "\thel\flo\n" end"""
+        parseOk(input) match {
+            case Program(_, Stmt.Block(List(Stmt.Decl(_, _, StrLiter(strValue, _), _)), _), _) =>
+                strValue shouldBe "\thel\flo\n"
+                
+            case other => fail("Expected a string with escape characters" +
+                               s" but got ${other}")
+        }
+    }
+    /* ==================== {/STRINGS} ==================== */
 
     /* ==================== {ARRAYS} ==================== */
 

@@ -477,6 +477,7 @@ object TypeChecker {
     */
   private def getExpressionType(expr: Expr[SemanticData]): SemanticType =
     expr.info match {
+      case SemanticData.Var(_, _, t) => t
       case SemanticData.Typed(_, t) => t
       case _                        => ?
     }
@@ -536,7 +537,7 @@ object TypeChecker {
           case other => {
             tcState.emit(
               info.pos,
-              s"Type mismatch: Expected '${other.toString()}' but got '${PairAny.toString()}'"
+              s"Type error: Expected '${other.toString()}' but got '${PairAny.toString()}'"
             )
 
             /* error indicated by SemanticData.Error */
@@ -609,7 +610,7 @@ object TypeChecker {
             }
 
           case other =>
-            tcState.emit(info.pos, s"Type mismatch: Expected Array but got ${other.toString()}")
+            tcState.emit(info.pos, s"Type error: Expected Array but got ${other.toString()}")
             ArrayLiter(elems, SemanticData.Error(info.pos))
         }
 
@@ -875,11 +876,7 @@ object TypeChecker {
     val (inputConstraint, resultType) = op match {
       case UnaryOperator.Not => (Constraint.Is(KnownType.Bool), KnownType.Bool)
       case UnaryOperator.Neg => (Constraint.Is(KnownType.Int), KnownType.Int)
-      case UnaryOperator.Len =>
-        (
-          Constraint.OneOf(Set(KnownType.Array(?), KnownType.String)),
-          KnownType.Int
-        )
+      case UnaryOperator.Len => (Constraint.Is(KnownType.Array(?)), KnownType.Int)
       case UnaryOperator.Ord => (Constraint.Is(KnownType.Char), KnownType.Int)
       case UnaryOperator.Chr => (Constraint.Is(KnownType.Int), KnownType.Char)
     }
