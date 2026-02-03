@@ -164,4 +164,6 @@ object lexer {
       lexer.lexeme.symbol("false") #> false
 
     def fully[A](p: Parsley[A]): Parsley[A] = lexer.fully(p)
+
+    def brackets[A](p: => Parsley[A]): Parsley[A] = lexer.lexeme.brackets(p)
 }

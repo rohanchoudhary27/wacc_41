@@ -404,4 +404,248 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
     errorLogger.hasErrors() shouldBe false
   }
 
+  "The type checker for arrays" should "accept simple array literal declaration" in {
+    val input = "begin int[] arr = [1, 2, 3]; skip end"
+    val parseResult = parser.parse(input)
+    parseResult.isRight shouldBe true
+
+    val program = parseResult.toOption.get
+    val errorLogger = ErrorLogger()
+    val renamedProgram = Renamer.rename(program, errorLogger)
+
+    errorLogger.hasErrors() shouldBe false
+
+    val funcTable = renamedProgram.info match {
+      case wacc.SemanticData.TopLevel(ft) => ft
+      case _                              => Map.empty
+    }
+    val typeCheckResult =
+      TypeChecker.check(renamedProgram, errorLogger, funcTable)
+
+    errorLogger.hasErrors() shouldBe false
+    typeCheckResult.isDefined shouldBe true
+  }
+
+  it should "accept string weakening for char[] literals" in {
+    val input = "begin string s = ['h', 'e', 'l', 'l', 'o']; skip end"
+    val parseResult = parser.parse(input)
+    parseResult.isRight shouldBe true
+
+    val program = parseResult.toOption.get
+    val errorLogger = ErrorLogger()
+    val renamedProgram = Renamer.rename(program, errorLogger)
+
+    errorLogger.hasErrors() shouldBe false
+
+    val funcTable = renamedProgram.info match {
+      case wacc.SemanticData.TopLevel(ft) => ft
+      case _                              => Map.empty
+    }
+    val typeCheckResult =
+      TypeChecker.check(renamedProgram, errorLogger, funcTable)
+
+    errorLogger.hasErrors() shouldBe false
+    typeCheckResult.isDefined shouldBe true
+  }
+
+  it should "accept string weakening for char[] variables" in {
+    val input = "begin char[] arr = ['a', 'b']; string s = arr; skip end"
+    val parseResult = parser.parse(input)
+    parseResult.isRight shouldBe true
+
+    val program = parseResult.toOption.get
+    val errorLogger = ErrorLogger()
+    val renamedProgram = Renamer.rename(program, errorLogger)
+
+    errorLogger.hasErrors() shouldBe false
+
+    val funcTable = renamedProgram.info match {
+      case wacc.SemanticData.TopLevel(ft) => ft
+      case _                              => Map.empty
+    }
+    val typeCheckResult =
+      TypeChecker.check(renamedProgram, errorLogger, funcTable)
+
+    errorLogger.hasErrors() shouldBe false
+    typeCheckResult.isDefined shouldBe true
+  }
+
+  it should "accept mixed char[] and string in string[] array literal" in {
+    val input =
+      "begin char[] arr = ['a', 'b']; string[] mixed = [arr, \"hello\"]; skip end"
+    val parseResult = parser.parse(input)
+    parseResult.isRight shouldBe true
+
+    val program = parseResult.toOption.get
+    val errorLogger = ErrorLogger()
+    val renamedProgram = Renamer.rename(program, errorLogger)
+
+    errorLogger.hasErrors() shouldBe false
+
+    val funcTable = renamedProgram.info match {
+      case wacc.SemanticData.TopLevel(ft) => ft
+      case _                              => Map.empty
+    }
+    val typeCheckResult =
+      TypeChecker.check(renamedProgram, errorLogger, funcTable)
+
+    errorLogger.hasErrors() shouldBe false
+    typeCheckResult.isDefined shouldBe true
+  }
+
+  it should "accept array element access" in {
+    val input = "begin int[] arr = [1, 2, 3]; int x = arr[0]; skip end"
+    val parseResult = parser.parse(input)
+    parseResult.isRight shouldBe true
+
+    val program = parseResult.toOption.get
+    val errorLogger = ErrorLogger()
+    val renamedProgram = Renamer.rename(program, errorLogger)
+
+    errorLogger.hasErrors() shouldBe false
+
+    val funcTable = renamedProgram.info match {
+      case wacc.SemanticData.TopLevel(ft) => ft
+      case _                              => Map.empty
+    }
+    val typeCheckResult =
+      TypeChecker.check(renamedProgram, errorLogger, funcTable)
+
+    errorLogger.hasErrors() shouldBe false
+    typeCheckResult.isDefined shouldBe true
+  }
+
+  it should "accept array element assignment" in {
+    val input = "begin int[] arr = [1, 2, 3]; arr[0] = 10; skip end"
+    val parseResult = parser.parse(input)
+    parseResult.isRight shouldBe true
+
+    val program = parseResult.toOption.get
+    val errorLogger = ErrorLogger()
+    val renamedProgram = Renamer.rename(program, errorLogger)
+
+    errorLogger.hasErrors() shouldBe false
+
+    val funcTable = renamedProgram.info match {
+      case wacc.SemanticData.TopLevel(ft) => ft
+      case _                              => Map.empty
+    }
+    val typeCheckResult =
+      TypeChecker.check(renamedProgram, errorLogger, funcTable)
+
+    errorLogger.hasErrors() shouldBe false
+    typeCheckResult.isDefined shouldBe true
+  }
+
+  it should "reject array literal with incompatible element types" in {
+    val input = "begin int[] arr = [1, true, 3]; skip end"
+    val parseResult = parser.parse(input)
+    parseResult.isRight shouldBe true
+
+    val program = parseResult.toOption.get
+    val errorLogger = ErrorLogger()
+    val renamedProgram = Renamer.rename(program, errorLogger)
+
+    errorLogger.hasErrors() shouldBe false
+
+    val funcTable = renamedProgram.info match {
+      case wacc.SemanticData.TopLevel(ft) => ft
+      case _                              => Map.empty
+    }
+    TypeChecker.check(renamedProgram, errorLogger, funcTable)
+
+    errorLogger.hasErrors() shouldBe true
+    val errors = errorLogger.retrieveAllErrors()
+    errors should include("array literal mismatch")
+  }
+
+  it should "reject string assigned to char[] (no reverse weakening)" in {
+    val input = "begin char[] arr = \"hello\"; skip end"
+    val parseResult = parser.parse(input)
+    parseResult.isRight shouldBe true
+
+    val program = parseResult.toOption.get
+    val errorLogger = ErrorLogger()
+    val renamedProgram = Renamer.rename(program, errorLogger)
+
+    errorLogger.hasErrors() shouldBe false
+
+    val funcTable = renamedProgram.info match {
+      case wacc.SemanticData.TopLevel(ft) => ft
+      case _                              => Map.empty
+    }
+    TypeChecker.check(renamedProgram, errorLogger, funcTable)
+
+    errorLogger.hasErrors() shouldBe true
+    val errors = errorLogger.retrieveAllErrors()
+    errors should include("Type error")
+  }
+
+  it should "reject char[][] assigned to string[] (array invariance)" in {
+    val input =
+      "begin char[] a = ['a']; char[] b = ['b']; char[][] arr = [a, b]; string[] s = arr; skip end"
+    val parseResult = parser.parse(input)
+    parseResult.isRight shouldBe true
+
+    val program = parseResult.toOption.get
+    val errorLogger = ErrorLogger()
+    val renamedProgram = Renamer.rename(program, errorLogger)
+
+    errorLogger.hasErrors() shouldBe false
+
+    val funcTable = renamedProgram.info match {
+      case wacc.SemanticData.TopLevel(ft) => ft
+      case _                              => Map.empty
+    }
+    TypeChecker.check(renamedProgram, errorLogger, funcTable)
+
+    errorLogger.hasErrors() shouldBe true
+    val errors = errorLogger.retrieveAllErrors()
+    errors should include("Type error")
+  }
+
+  it should "reject non-int array index" in {
+    val input = "begin int[] arr = [1, 2, 3]; int x = arr[true]; skip end"
+    val parseResult = parser.parse(input)
+    parseResult.isRight shouldBe true
+
+    val program = parseResult.toOption.get
+    val errorLogger = ErrorLogger()
+    val renamedProgram = Renamer.rename(program, errorLogger)
+
+    errorLogger.hasErrors() shouldBe false
+
+    val funcTable = renamedProgram.info match {
+      case wacc.SemanticData.TopLevel(ft) => ft
+      case _                              => Map.empty
+    }
+    TypeChecker.check(renamedProgram, errorLogger, funcTable)
+
+    errorLogger.hasErrors() shouldBe true
+    val errors = errorLogger.retrieveAllErrors()
+    errors should include("Type error")
+  }
+
+  it should "reject wrong element type in array element assignment" in {
+    val input = "begin int[] arr = [1, 2, 3]; arr[0] = true; skip end"
+    val parseResult = parser.parse(input)
+    parseResult.isRight shouldBe true
+
+    val program = parseResult.toOption.get
+    val errorLogger = ErrorLogger()
+    val renamedProgram = Renamer.rename(program, errorLogger)
+
+    errorLogger.hasErrors() shouldBe false
+
+    val funcTable = renamedProgram.info match {
+      case wacc.SemanticData.TopLevel(ft) => ft
+      case _                              => Map.empty
+    }
+    TypeChecker.check(renamedProgram, errorLogger, funcTable)
+
+    errorLogger.hasErrors() shouldBe true
+    val errors = errorLogger.retrieveAllErrors()
+    errors should include("Type error")
+  }
+
 }

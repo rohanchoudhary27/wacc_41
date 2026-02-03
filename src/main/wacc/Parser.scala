@@ -5,10 +5,10 @@ import parsley.combinator.*
 import parsley.Parsley.*
 import parsley.position.pos
 import parsley.lift.lift2
-import parsley.expr.{precedence, Ops, InfixL, InfixN, InfixR, Prefix}
+import parsley.expr.{precedence, Ops, InfixL, InfixN, InfixR, Prefix, chain}
 import parsley.errors.combinator.ErrorMethods
 
-import lexer.{fully, ident, string, boolLiter, nullLiter}
+import lexer.{fully, ident, string, boolLiter, nullLiter, brackets}
 import lexer.implicits.given
 import Bridges.*
 
@@ -44,18 +44,24 @@ object parser {
     private lazy val param: Parsley[Param[SyntacticData]] = Param(waccType, identLit)
 
     /* Type grammar */
-    private lazy val waccType: Parsley[SyntaxType] = baseType | pairType
+    /* arrayType uses chain.postfix, so is equivalent to base/pair types if no brackets */
+    private lazy val waccType: Parsley[SyntaxType] = arrayType
     private lazy val baseType: Parsley[SyntaxType] = (
         "int" #> SyntaxType.Int |
         "char" #> SyntaxType.Char |
         "bool" #> SyntaxType.Bool |
         "string" #> SyntaxType.String
     ) label "type"
-    private lazy val arrayType: Parsley[SyntaxType] = ???
+    private lazy val arrayType: Parsley[SyntaxType] =
+        chain.postfix(baseType | atomic(pairType))(
+            brackets(unit) #> ((t: SyntaxType) => SyntaxType.Array(t))
+        )
     private lazy val pairType: Parsley[SyntaxType] =
         "pair" ~> "(" ~> lift2(SyntaxType.Pair.apply, pairElemType <~ ",", pairElemType) <~ ")"
     private lazy val pairElemType: Parsley[SyntaxType] =
-        baseType | "pair" #> SyntaxType.ErasedPair // | arrayType 
+        chain.postfix(baseType | "pair" #> SyntaxType.ErasedPair)(
+            brackets(unit) #> ((t: SyntaxType) => SyntaxType.Array(t))
+        )
 
     /* Statement grammar */
     private lazy val stmt: Parsley[Stmt[SyntacticData]] =
@@ -104,26 +110,32 @@ object parser {
         Ops(InfixR)(andOps),
         Ops(InfixR)(orOps)
     ) label "expression"
+    /* atomic(arrayElem) is tried before identLit since both start with ident */
     private lazy val atom: Parsley[Expr[SyntacticData]] =
-        intLit | boolLit | charLit | strLit | pairLit | identLit | 
+        intLit | boolLit | charLit | strLit | pairLit |
+        atomic(arrayElem) | identLit |
         ("(" ~> (
             expr label "expression" explain "expression required inside parentheses"
-            ) <~ ")") label "bracketed expression"
+        ) <~ ")") label "bracketed expression"
 
     /* LValue grammar */
     private lazy val lvalue: Parsley[LValue[SyntacticData]] =
-        (identLit label "assignable variable") | (pairElem label "pair element") // | arrayElem
-    private lazy val arrayElem: Parsley[ArrayElem[SyntacticData]] = ???
+        (atomic(arrayElem) label "array element") |
+        (pairElem label "pair element") |
+        (identLit label "assignable variable")
+    private lazy val arrayElem: Parsley[ArrayElem[SyntacticData]] =
+        ArrayElem(identLit, some(brackets(expr)))
     private lazy val pairElem: Parsley[PairElem[SyntacticData]] =
         PairElem("fst" #> true | "snd" #> false, lvalue) label "pair element"
 
     /* RValue grammar */
-    private lazy val rvalue: Parsley[RValue[SyntacticData]] = 
-        (expr | call label "value expression") | 
-        (NewPair("newpair" ~> "(" ~> expr <~ ",", expr <~ ")") label "newpair expression") | 
-        (pairElem label "pairElem expression")
-
-    private lazy val newPair: Parsley[NewPair[SyntacticData]] = ???
+    private lazy val rvalue: Parsley[RValue[SyntacticData]] =
+        (arrayLiter label "array literal") |
+        (expr | call label "value expression") |
+        (NewPair("newpair" ~> "(" ~> expr <~ ",", expr <~ ")") label "newpair expression") |
+        (pairElem label "pair element expression")
+    private lazy val arrayLiter: Parsley[ArrayLiter[SyntacticData]] =
+        ArrayLiter(brackets(sepBy(expr, ",")))
     private lazy val call: Parsley[Call[SyntacticData]] =
         Call("call" ~> identLit, "(" ~> sepBy(expr, ",") <~ ")")
 

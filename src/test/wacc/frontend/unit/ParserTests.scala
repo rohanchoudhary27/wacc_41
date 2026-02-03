@@ -456,4 +456,91 @@ class ParserTests extends AnyFlatSpec with Matchers {
         parseFail(input)
     }
     /* ==================== {/PAIRS} ==================== */
+
+    /* ==================== {ARRAYS} ==================== */
+
+    "The array type parser" should "parse simple array types" in {
+        val input = "begin int[] arr = [] end"
+        val (typ, _, _) = expectDeclStmtAt(input, 0)
+        typ shouldBe SyntaxType.Array(SyntaxType.Int)
+    }
+
+    it should "parse nested array types" in {
+        val input = "begin int[][] arr = [] end"
+        val (typ, _, _) = expectDeclStmtAt(input, 0)
+        typ shouldBe SyntaxType.Array(SyntaxType.Array(SyntaxType.Int))
+    }
+
+    it should "parse array of pairs" in {
+        val input = "begin pair(int, int)[] arr = [] end"
+        val (typ, _, _) = expectDeclStmtAt(input, 0)
+        typ shouldBe SyntaxType.Array(SyntaxType.Pair(SyntaxType.Int, SyntaxType.Int))
+    }
+
+    it should "parse pair containing array element type" in {
+        val input = "begin pair(int[], bool) p = null end"
+        val (typ, _, _) = expectDeclStmtAt(input, 0)
+        typ shouldBe SyntaxType.Pair(SyntaxType.Array(SyntaxType.Int), SyntaxType.Bool)
+    }
+
+    "The array literal parser" should "parse an empty array literal" in {
+        val input = "begin int[] arr = [] end"
+        val rval = expectDeclAt(input, 0)
+        rval match {
+            case ArrayLiter(elems, _) => elems shouldBe empty
+            case other => fail(s"Expected ArrayLiter([]) but got: $other")
+        }
+    }
+
+    it should "parse a single-element array literal" in {
+        val input = "begin int[] arr = [1] end"
+        val rval = expectDeclAt(input, 0)
+        rval match {
+            case ArrayLiter(elems, _) => elems.length shouldBe 1
+            case other => fail(s"Expected ArrayLiter([1]) but got: $other")
+        }
+    }
+
+    it should "parse a multi-element array literal" in {
+        val input = "begin int[] arr = [1, 2, 3] end"
+        val rval = expectDeclAt(input, 0)
+        rval match {
+            case ArrayLiter(elems, _) => elems.length shouldBe 3
+            case other => fail(s"Expected ArrayLiter([1,2,3]) but got: $other")
+        }
+    }
+
+    "The array element parser" should "parse array element access in expressions" in {
+        val input = "begin int[] arr = [1]; int x = arr[0] end"
+        val rval = expectDeclAt(input, 1)
+        rval match {
+            case ArrayElem(Ident("arr", _), indices, _) => indices.length shouldBe 1
+            case other => fail(s"Expected ArrayElem(arr, [0]) but got: $other")
+        }
+    }
+
+    it should "parse nested array element access" in {
+        val input = "begin int[][] arr = []; int x = arr[0][1] end"
+        val rval = expectDeclAt(input, 1)
+        rval match {
+            case ArrayElem(Ident("arr", _), indices, _) => indices.length shouldBe 2
+            case other => fail(s"Expected ArrayElem(arr, [0][1]) but got: $other")
+        }
+    }
+
+    it should "parse array element as lvalue in assignment" in {
+        val input = "begin int[] arr = [1]; arr[0] = 5 end"
+        val asgn = expectAsgnAt(input, 1)
+        asgn.lval match {
+            case ArrayElem(Ident("arr", _), indices, _) => indices.length shouldBe 1
+            case other => fail(s"Expected ArrayElem lvalue but got: $other")
+        }
+    }
+
+    it should "fail when array index is missing" in {
+        val input = "begin int[] arr = [1]; int x = arr[] end"
+        parseFail(input)
+    }
+
+    /* ==================== {/ARRAYS} ==================== */
 }

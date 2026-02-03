@@ -466,6 +466,8 @@ object Renamer {
   )(using scope: RenamerScope, state: RenamerState): RValue[SemanticData] =
     (rvalue: @unchecked) match {
 
+      case ArrayLiter(elems, info) =>
+        ArrayLiter(elems.map(renameExpr), info.toSemanticPos)
       case Call(ident, exprList, synPos) =>
         renameCall(ident, exprList, synPos)
       case expr: Expr[SyntacticData]   => renameExpr(expr)
@@ -496,6 +498,8 @@ object Renamer {
       case i: Ident[SyntacticData]     => renameIdent(i)
       case PairElem(isFst, lval, info) =>
         PairElem(isFst, renameLValue(lval), info.toSemanticPos)
+      case ArrayElem(ident, indices, info) =>
+        ArrayElem(renameIdent(ident), indices.map(renameExpr), info.toSemanticPos)
     }
 
   /** Computes the variable in scope with name most similar to `userVar`
@@ -713,5 +717,9 @@ object Renamer {
           renameExpr(right),
           synPos.toSemanticPos
         )
+
+      /* Array element access */
+      case ArrayElem(ident, indices, info) =>
+        ArrayElem(renameIdent(ident), indices.map(renameExpr), info.toSemanticPos)
     }
 }
