@@ -455,4 +455,58 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         errorLogger.hasErrors() shouldBe true
         errorLogger.retrieveAllErrors() should include ("Scope error")
     }
+
+    "Renaming free statements" should "correctly resolve the variable being freed" in {
+        // pair(int, int) p = newpair(1, 2);
+        // free p;
+        val pairType = SyntaxType.Pair(SyntaxType.Int, SyntaxType.Int)
+        val declP = Stmt.Decl(pairType, Ident("p", pos), PairLiter(pos), pos)
+        
+        val freeStmt = Stmt.Free(Ident("p", pos), pos)
+
+        val inputAST = Program(Nil, Stmt.Block(List(declP, freeStmt), pos), pos)
+        val renamedAST = Renamer.rename(inputAST, new ErrorLogger())
+
+        val Stmt.Block(stmts, _) = renamedAST.stmt: @unchecked
+        val Stmt.Decl(_, declaredP, _, _) = stmts(0): @unchecked
+        
+        // Check that 'p' in 'free p' points to the declaration
+        val Stmt.Free(usedP: Ident[SemanticData], _) = stmts(1): @unchecked
+
+        extractId(usedP) shouldBe extractId(declaredP)
+    }
+
+    it should "recurse into array elements inside free (e.g. free arr[0])" in {
+        // int[] arr = ...
+        // free arr[0];
+        val arrType = SyntaxType.Array(SyntaxType.Int)
+        val declArr = Stmt.Decl(arrType, Ident("arr", pos), ArrayLiter(Nil, pos), pos)
+        
+        val innerExpr = ArrayElem(Ident("arr", pos), List(IntLiter(0, pos)), pos)
+        val freeStmt = Stmt.Free(innerExpr, pos)
+
+        val inputAST = Program(Nil, Stmt.Block(List(declArr, freeStmt), pos), pos)
+        val renamedAST = Renamer.rename(inputAST, new ErrorLogger())
+
+        val Stmt.Block(stmts, _) = renamedAST.stmt: @unchecked
+        val Stmt.Decl(_, declaredArr, _, _) = stmts(0): @unchecked
+        
+        val Stmt.Free(ArrayElem(usedArr: Ident[SemanticData], _, _), _) = stmts(1): @unchecked
+
+        extractId(usedArr) shouldBe extractId(declaredArr)
+    }
+
+    it should "report an error when freeing an undefined variable" in {
+        // free x;
+        val freeStmt = Stmt.Free(Ident("x", pos), pos)
+
+        val inputAST = Program(Nil, Stmt.Block(List(freeStmt), pos), pos)
+        val errorLogger = new ErrorLogger()
+        Renamer.rename(inputAST, errorLogger)
+
+        errorLogger.hasErrors() shouldBe true
+        val errors = errorLogger.retrieveAllErrors()
+        
+        errors should include ("Variable 'x' is not defined")
+    }
 }
