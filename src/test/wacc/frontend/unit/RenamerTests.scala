@@ -497,4 +497,133 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         extractId(innerP) should not be extractId(outerP)
     }
 
+    "The Unary Expression Renamer" should "return an error when the parameter of an expression is not declared" in {
+        // x is the identifier that has not been declared
+        val notExpr = UnaryExpr(UnaryOperator.Not, Ident("x", pos), pos)
+
+        val decl = Stmt.Decl(
+            SyntaxType.Bool,
+            Ident("b", pos),
+            notExpr,
+            pos
+        )
+
+        val inputAST = Program(Nil, Stmt.Block(List(decl), pos), pos)
+        val errorLogger = new ErrorLogger()
+
+        Renamer.rename(inputAST, errorLogger)
+
+        // Assert that the renamer caught the error
+        errorLogger.hasErrors() shouldBe true
+        val errors = errorLogger.retrieveAllErrors()
+
+        errors should include ("Variable 'x' is not defined")
+    }
+
+    it should "correctly resolve variables in Negation (-)" in {
+        // int x = 10;
+        // int y = -x;
+        val declX = Stmt.Decl(SyntaxType.Int, Ident("x", pos), IntLiter(10, pos), pos)
+        val declY = Stmt.Decl(
+            SyntaxType.Int, 
+            Ident("y", pos), 
+            UnaryExpr(UnaryOperator.Neg, Ident("x", pos), pos), 
+            pos
+        )
+
+        val inputAST = Program(Nil, Stmt.Block(List(declX, declY), pos), pos)
+        val renamedAST = Renamer.rename(inputAST, new ErrorLogger())
+
+        val Stmt.Block(stmts, _) = renamedAST.stmt: @unchecked
+        val Stmt.Decl(_, declaredX, _, _) = stmts(0): @unchecked
+        val Stmt.Decl(_, _, UnaryExpr(UnaryOperator.Neg, usedX: Ident[SemanticData], _), _) = stmts(1): @unchecked
+
+        extractId(usedX) shouldBe extractId(declaredX)
+    }
+
+    it should "correctly resolve variables in Boolean Not (!)" in {
+        // bool b = true;
+        // bool res = !b;
+        val declB = Stmt.Decl(SyntaxType.Bool, Ident("b", pos), BoolLiter(true, pos), pos)
+        val declRes = Stmt.Decl(
+            SyntaxType.Bool, 
+            Ident("res", pos), 
+            UnaryExpr(UnaryOperator.Not, Ident("b", pos), pos), 
+            pos
+        )
+
+        val inputAST = Program(Nil, Stmt.Block(List(declB, declRes), pos), pos)
+        val renamedAST = Renamer.rename(inputAST, new ErrorLogger())
+
+        val Stmt.Block(stmts, _) = renamedAST.stmt: @unchecked
+        val Stmt.Decl(_, declaredB, _, _) = stmts(0): @unchecked
+        val Stmt.Decl(_, _, UnaryExpr(UnaryOperator.Not, usedB: Ident[SemanticData], _), _) = stmts(1): @unchecked
+
+        extractId(usedB) shouldBe extractId(declaredB)
+    }
+
+    it should "correctly resolve variables in Ordinal (ord)" in {
+        // char c = 'a';
+        // int i = ord c;
+        val declC = Stmt.Decl(SyntaxType.Char, Ident("c", pos), CharLiter('a', pos), pos)
+        val declI = Stmt.Decl(
+            SyntaxType.Int, 
+            Ident("i", pos), 
+            UnaryExpr(UnaryOperator.Ord, Ident("c", pos), pos), 
+            pos
+        )
+
+        val inputAST = Program(Nil, Stmt.Block(List(declC, declI), pos), pos)
+        val renamedAST = Renamer.rename(inputAST, new ErrorLogger())
+
+        val Stmt.Block(stmts, _) = renamedAST.stmt: @unchecked
+        val Stmt.Decl(_, declaredC, _, _) = stmts(0): @unchecked
+        val Stmt.Decl(_, _, UnaryExpr(UnaryOperator.Ord, usedC: Ident[SemanticData], _), _) = stmts(1): @unchecked
+
+        extractId(usedC) shouldBe extractId(declaredC)
+    }
+
+    it should "correctly resolve variables in Character Conversion (chr)" in {
+        // int i = 65;
+        // char c = chr i;
+        val declI = Stmt.Decl(SyntaxType.Int, Ident("i", pos), IntLiter(65, pos), pos)
+        val declC = Stmt.Decl(
+            SyntaxType.Char, 
+            Ident("c", pos), 
+            UnaryExpr(UnaryOperator.Chr, Ident("i", pos), pos), 
+            pos
+        )
+
+        val inputAST = Program(Nil, Stmt.Block(List(declI, declC), pos), pos)
+        val renamedAST = Renamer.rename(inputAST, new ErrorLogger())
+
+        val Stmt.Block(stmts, _) = renamedAST.stmt: @unchecked
+        val Stmt.Decl(_, declaredI, _, _) = stmts(0): @unchecked
+        val Stmt.Decl(_, _, UnaryExpr(UnaryOperator.Chr, usedI: Ident[SemanticData], _), _) = stmts(1): @unchecked
+
+        extractId(usedI) shouldBe extractId(declaredI)
+    }
+
+    it should "correctly rename nested unary expressions" in {
+        val declX = Stmt.Decl(SyntaxType.Int, Ident("x", pos), IntLiter(10, pos), pos)
+
+        // -x
+        val innerNeg = UnaryExpr(UnaryOperator.Neg, Ident("x", pos), pos)
+        // -(-x)
+        val outerNeg = UnaryExpr(UnaryOperator.Neg, innerNeg, pos)
+
+        val declY = Stmt.Decl(SyntaxType.Int, Ident("y", pos), outerNeg, pos)
+
+        val inputAST = Program(Nil, Stmt.Block(List(declX, declY), pos), pos)
+        val renamedAST = Renamer.rename(inputAST, new ErrorLogger())
+
+        val Stmt.Block(stmts, _) = renamedAST.stmt: @unchecked
+        val Stmt.Decl(_, declaredX, _, _) = stmts(0): @unchecked
+        
+        val Stmt.Decl(_, _, UnaryExpr(UnaryOperator.Neg, UnaryExpr(UnaryOperator.Neg, usedX: Ident[SemanticData], _), _), _) 
+            = stmts(1): @unchecked
+
+        extractId(usedX) shouldBe extractId(declaredX)
+    }
+
 }
