@@ -569,4 +569,109 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         errorLogger.retrieveAllErrors() should include ("Type mismatch")
         errorLogger.retrieveAllErrors() should include ("expected bool")
     }
+
+    it should "expect the operand for NEG to be an int" in {
+        val funcTable: Map[String, SemanticData.Func] = Map.empty
+        val errorLogger = new ErrorLogger()
+        val pos = SyntacticData.Pos(0,0)
+
+        // int i = -5;
+        val expr = UnaryExpr(UnaryOperator.Neg, IntLiter(5, pos), pos)
+        val decl = Stmt.Decl(SyntaxType.Int, Ident("i", pos), expr, pos)
+        
+        val ast = Program(Nil, Stmt.Block(List(decl), pos), pos)
+        val renamedAST = Renamer.rename(ast, errorLogger)
+        
+        TypeChecker.check(renamedAST, errorLogger, funcTable)
+        
+        errorLogger.hasErrors() shouldBe false
+    }
+
+    it should "not allow NEG with a non int operand" in {
+        // int i = -true;
+        val pos = SyntacticData.Pos(0,0)
+        val funcTable: Map[String, SemanticData.Func] = Map.empty
+        val errorLogger = new ErrorLogger()
+        val expr = UnaryExpr(UnaryOperator.Neg, BoolLiter(true, pos), pos)
+        val decl = Stmt.Decl(SyntaxType.Int, Ident("i", pos), expr, pos)
+        
+        val ast = Program(Nil, Stmt.Block(List(decl), pos), pos)
+        val renamedAST = Renamer.rename(ast, errorLogger)
+        
+        TypeChecker.check(renamedAST, errorLogger, funcTable)
+        
+        errorLogger.hasErrors() shouldBe true
+        errorLogger.retrieveAllErrors() should include ("Type mismatch")
+        errorLogger.retrieveAllErrors() should include ("expected int")
+    }
+
+    it should "expect the operand for ORD to be a char" in {
+        val funcTable: Map[String, SemanticData.Func] = Map.empty
+        val errorLogger = new ErrorLogger()
+        val pos = SyntacticData.Pos(0,0)
+
+        // int c = ord 'a';
+        val expr = UnaryExpr(UnaryOperator.Ord, CharLiter('a', pos), pos)
+        val decl = Stmt.Decl(SyntaxType.Int, Ident("c", pos), expr, pos)
+        
+        val ast = Program(Nil, Stmt.Block(List(decl), pos), pos)
+        val renamedAST = Renamer.rename(ast, errorLogger)
+        
+        TypeChecker.check(renamedAST, errorLogger, funcTable)
+        
+        errorLogger.hasErrors() shouldBe false
+    }
+
+    it should "not allow ORD with a non char operand" in {
+        // int i = ord true;
+        val pos = SyntacticData.Pos(0,0)
+        val funcTable: Map[String, SemanticData.Func] = Map.empty
+        val errorLogger = new ErrorLogger()
+        val expr = UnaryExpr(UnaryOperator.Ord, BoolLiter(true, pos), pos)
+        val decl = Stmt.Decl(SyntaxType.Int, Ident("c", pos), expr, pos)
+        
+        val ast = Program(Nil, Stmt.Block(List(decl), pos), pos)
+        val renamedAST = Renamer.rename(ast, errorLogger)
+        
+        TypeChecker.check(renamedAST, errorLogger, funcTable)
+        
+        errorLogger.hasErrors() shouldBe true
+        errorLogger.retrieveAllErrors() should include ("Type mismatch")
+        errorLogger.retrieveAllErrors() should include ("expected char")
+    }
+
+    it should "expect the operand for CHR to be an int" in {
+        val funcTable: Map[String, SemanticData.Func] = Map.empty
+        val errorLogger = new ErrorLogger()
+        val pos = SyntacticData.Pos(0,0)
+
+        // char c = chr 97;
+        val expr = UnaryExpr(UnaryOperator.Chr, IntLiter(97, pos), pos)
+        val decl = Stmt.Decl(SyntaxType.Char, Ident("c", pos), expr, pos)
+        
+        val ast = Program(Nil, Stmt.Block(List(decl), pos), pos)
+        val renamedAST = Renamer.rename(ast, errorLogger)
+        
+        TypeChecker.check(renamedAST, errorLogger, funcTable)
+        
+        errorLogger.hasErrors() shouldBe false
+    }
+
+    it should "not allow CHR with a non int operand" in {
+        // int c = chr true;
+        val pos = SyntacticData.Pos(0,0)
+        val funcTable: Map[String, SemanticData.Func] = Map.empty
+        val errorLogger = new ErrorLogger()
+        val expr = UnaryExpr(UnaryOperator.Chr, BoolLiter(true, pos), pos)
+        val decl = Stmt.Decl(SyntaxType.Char, Ident("c", pos), expr, pos)
+        
+        val ast = Program(Nil, Stmt.Block(List(decl), pos), pos)
+        val renamedAST = Renamer.rename(ast, errorLogger)
+        
+        TypeChecker.check(renamedAST, errorLogger, funcTable)
+        
+        errorLogger.hasErrors() shouldBe true
+        errorLogger.retrieveAllErrors() should include ("Type mismatch")
+        errorLogger.retrieveAllErrors() should include ("expected int")
+    }
 }
