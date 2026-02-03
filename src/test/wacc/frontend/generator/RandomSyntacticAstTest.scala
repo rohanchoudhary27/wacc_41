@@ -6,21 +6,22 @@ import org.scalatest.Assertion
 import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
 import org.scalacheck.Arbitrary
 import wacc.frontend.generator.AstGenerator.*
+import wacc.frontend.generator.SyntacticASTMatchers._
 import wacc.frontend.generator._
 import wacc._
 
 class RandomSyntacticAstTest extends AnyFlatSpec with Matchers with ScalaCheckDrivenPropertyChecks {
 
     "Parser" should "correctly parse syntactically valid random ASTs" in {
-        forAll("syntactically valid AST") { (p: Program[SyntacticData]) =>
-            parser.parse(Pretty.program(p)) match {
+        forAll("syntactically valid AST") { (generatedAST: Program[SyntacticData]) =>
+            parser.parse(Pretty.program(generatedAST)) match {
                 case Left(msg) =>
                     fail(msg)
-                case Right(syntacticAST) =>
-                    withClue("\nINPUT:\n" + Pretty.program(p) + "\n") {
-                        // programEq(syntacticAST, p)
-                        Pretty.program(syntacticAST) shouldBe Pretty.program(p)
+                case Right(parserAST) => {
+                    withClue("\nINPUT:\n" + Pretty.program(generatedAST) + "\n") {
+                        parserAST should matchProgram (generatedAST)
                     }
+                }
             }
         }
     }
