@@ -76,8 +76,8 @@ object Renamer {
       /* Trying to define a function with the same name */
       if (seenFuncNames.contains(funcName)) {
         val errorMsg =
-          s"Name error: '${funcName}' is already defined as a function"
-        state.emit(f.info.pos, errorMsg)
+          s"Scope error: '${funcName}' is already defined as a function"
+        state.emit(f.ident.info.pos, errorMsg)
       } else {
         seenFuncNames += funcName
       }
@@ -365,7 +365,7 @@ object Renamer {
     val semData =
       if (!inFunc) {
         val errorMsg =
-          "Return error: Return statements can only be used inside functions"
+          "Syntax error: Return statements can only be used inside functions"
         state.emit(synPos.pos, errorMsg)
         SemanticData.Error(synPos.pos)
       } else {

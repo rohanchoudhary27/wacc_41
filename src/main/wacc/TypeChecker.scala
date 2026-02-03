@@ -917,7 +917,7 @@ object TypeChecker {
       ty1.matches(c).orElse {
         logger.logError(
           pos,
-          s"Type mismatch:\n\texpected $c\n\tunexpected $ty1"
+          s"Type error: Expected '$c' but got '$ty1'"
         )
         None
       }
