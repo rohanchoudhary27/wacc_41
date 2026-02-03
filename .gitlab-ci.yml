@@ -49,6 +49,22 @@ unit_tests:
   tags:
     - vm-runner
 
+generator_tests:
+  stage: test
+  script:
+    - echo "Running Random AST Generator Tests..."
+    - scala test .  --test-only "wacc.frontend.generator.*" --server=false -- -u target/random-test-reports -oD | tee random-test.log
+  artifacts:
+    when: always
+    reports:
+      junit: target/random-test-reports/*.xml
+    paths:
+      - random-test.log
+      - target/ranodm-test-reports/
+    expire_in: 1 hour
+  tags:
+    - vm-runner
+
 integration_tests:
   stage: test
   script:
