@@ -73,7 +73,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
 
     errorLogger.hasErrors() shouldBe true
     val errors = errorLogger.retrieveAllErrors()
-    errors should include("Type mismatch")
+    errors should include("Type error")
   }
 
   it should "reject read with string variable" in {
@@ -96,7 +96,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
 
     errorLogger.hasErrors() shouldBe true
     val errors = errorLogger.retrieveAllErrors()
-    errors should include("Type mismatch")
+    errors should include("Type error")
   }
 
   "Type-checking functions" should "correctly type-check a valid function call" in {
@@ -124,6 +124,25 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         Stmt.Block(List(decl), semPos),
         SemanticData.TopLevel(funcTable)
       )
+    val errorLogger = new ErrorLogger()
+
+    TypeChecker.check(inputAST, errorLogger, funcTable)
+
+    if (errorLogger.hasErrors()) fail(errorLogger.retrieveAllErrors())
+  }
+
+  it should "handle a missing function signature in the map on a return outside a function" in {
+    val funcTable: Map[String, SemanticData.Func] = Map.empty
+
+    val typedLiteral = IntLiter(2, SemanticData.Typed(semPos.pos, KnownType.Int))
+    val returnStmt = Stmt.Return(typedLiteral, semPos)
+
+    val inputAST = Program(
+        List(),
+        Stmt.Block(List(returnStmt), semPos),
+        SemanticData.TopLevel(funcTable)
+    )
+    
     val errorLogger = new ErrorLogger()
 
     TypeChecker.check(inputAST, errorLogger, funcTable)

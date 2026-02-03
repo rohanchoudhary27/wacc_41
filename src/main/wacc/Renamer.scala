@@ -76,8 +76,8 @@ object Renamer {
       /* Trying to define a function with the same name */
       if (seenFuncNames.contains(funcName)) {
         val errorMsg =
-          s"Name error: '${funcName}' is already defined as a function"
-        state.emit(f.info.pos, errorMsg)
+          s"Scope error: '${funcName}' is already defined as a function"
+        state.emit(f.ident.info.pos, errorMsg)
       } else {
         seenFuncNames += funcName
       }
@@ -163,8 +163,8 @@ object Renamer {
       if (scope.contains(ident.name)) {
         val errorMsg =
           s"Scope error: Parameter '${ident.name}' is already defined for this function"
-        state.emit(synPos.pos, errorMsg)
-        SemanticData.Error(synPos.pos)
+        state.emit(ident.info.pos, errorMsg)
+        SemanticData.Error(ident.info.pos)
       } else {
         synPos.toSemanticPos
       }
@@ -280,7 +280,7 @@ object Renamer {
         s"Scope error: Variable '${ident.name}' is already declared in this scope"
       val originalDeclMsg =
         s"\nOriginal declaration was at Line ${oldPos(0)}, Column ${oldPos(1)}"
-      state.emit(synPos.pos, errorMsg, originalDeclMsg)
+      state.emit(ident.info.pos, errorMsg, originalDeclMsg)
     }
 
     /* Add a renamed variable to the scope table */
@@ -365,7 +365,7 @@ object Renamer {
     val semData =
       if (!inFunc) {
         val errorMsg =
-          "Return error: Return statements can only be used inside functions"
+          "Syntax error: Return statements can only be used inside functions"
         state.emit(synPos.pos, errorMsg)
         SemanticData.Error(synPos.pos)
       } else {

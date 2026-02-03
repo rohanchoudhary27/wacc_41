@@ -240,11 +240,9 @@ object TypeChecker {
       /* the type of lval must be known when used in a read statement */
       case ? =>
         val errorMsg = "Type error: ambiguous assignment between unknown types."
-        val errorDesc =
-          "\nBoth the left-hand side and right-hand side of this statement" +
-            " have unresolved types."
-        tcState.emit(semInfo.pos, errorMsg, errorDesc)
-        Stmt.Read(lval, SemanticData.Error(semInfo.pos))
+        val errorDesc = "\nDestination type unresolved so cannot be read into"
+        tcState.emit(lval.info.pos, errorMsg, errorDesc)
+        Stmt.Read(lval, SemanticData.Error(lval.info.pos))
       case _ =>
         val typedLValue = checkLvalue(lval, Constraint.IsReadable)
         Stmt.Read(typedLValue, semInfo)
@@ -269,8 +267,9 @@ object TypeChecker {
   ): Stmt.Return[SemanticData] = {
 
     /* Fetch the current function's return type */
-    val SemanticData.Func(_, _, funcRetType, _) =
-      tcState.funcSignatureTable(tcState.currFuncName)
+    val funcRetType = tcState.funcSignatureTable.get(tcState.currFuncName) match
+        case Some(SemanticData.Func(_, _, retType, _)) => retType
+        case None => ?
 
     /* Return expression must match the function return type (unless
            we're allowing a mismatch because of a Renamer found error) */
@@ -524,7 +523,7 @@ object TypeChecker {
           case other => {
             tcState.emit(
               info.pos,
-              s"Type mismatch: Expected Pair but got ${other.toString()}"
+              s"Type mismatch: Expected '${other.toString()}' but got '${PairAny.toString()}'"
             )
 
             /* error indicated by SemanticData.Error */
@@ -602,7 +601,7 @@ object TypeChecker {
               "Type error: ambiguous assignment between unknown types."
             val errorDesc =
               "\nBoth the left-hand side and right-hand side of this statement have" +
-                "unresolved types."
+                " unresolved types."
             tcState.emit(info.pos, errorMsg, errorDesc)
             PairElem(isFst, typedLVal, SemanticData.Error(info.pos))
           case _ => PairElem(isFst, typedLVal, info)
@@ -917,7 +916,7 @@ object TypeChecker {
       ty1.matches(c).orElse {
         logger.logError(
           pos,
-          s"Type mismatch:\n\texpected $c\n\tunexpected $ty1"
+          s"Type error: Expected '$c' but got '$ty1'"
         )
         None
       }
