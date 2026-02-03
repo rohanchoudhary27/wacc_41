@@ -269,8 +269,9 @@ object TypeChecker {
   ): Stmt.Return[SemanticData] = {
 
     /* Fetch the current function's return type */
-    val SemanticData.Func(_, _, funcRetType, _) =
-      tcState.funcSignatureTable(tcState.currFuncName)
+    val funcRetType = tcState.funcSignatureTable.get(tcState.currFuncName) match
+        case Some(SemanticData.Func(_, _, retType, _)) => retType
+        case None => ?
 
     /* Return expression must match the function return type (unless
            we're allowing a mismatch because of a Renamer found error) */

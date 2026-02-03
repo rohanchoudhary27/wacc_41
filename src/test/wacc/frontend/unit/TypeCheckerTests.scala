@@ -131,6 +131,25 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
     if (errorLogger.hasErrors()) fail(errorLogger.retrieveAllErrors())
   }
 
+  it should "handle a missing function signature in the map on a return outside a function" in {
+    val funcTable: Map[String, SemanticData.Func] = Map.empty
+
+    val typedLiteral = IntLiter(2, SemanticData.Typed(semPos.pos, KnownType.Int))
+    val returnStmt = Stmt.Return(typedLiteral, semPos)
+
+    val inputAST = Program(
+        List(),
+        Stmt.Block(List(returnStmt), semPos),
+        SemanticData.TopLevel(funcTable)
+    )
+    
+    val errorLogger = new ErrorLogger()
+
+    TypeChecker.check(inputAST, errorLogger, funcTable)
+
+    if (errorLogger.hasErrors()) fail(errorLogger.retrieveAllErrors())
+  }
+
   "The type checker for pairs" should "accept null asgn to a pair and extracting fst/snd" in {
     val funcTable: Map[String, SemanticData.Func] = Map.empty
     val errorLogger = new ErrorLogger()
