@@ -96,3 +96,7 @@ invalid/semanticErr/pairs/nonPairSnd.wacc
 invalid/semanticErr/pairs/readUnknown.wacc
 invalid/semanticErr/pairs/wrongTypeInParameterlessPair.wacc
 
+# Array tests
+valid/array
+invalid/syntaxErr/array
+invalid/semanticErr/array
