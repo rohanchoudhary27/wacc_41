@@ -240,9 +240,7 @@ object TypeChecker {
       /* the type of lval must be known when used in a read statement */
       case ? =>
         val errorMsg = "Type error: ambiguous assignment between unknown types."
-        val errorDesc =
-          "\nBoth the left-hand side and right-hand side of this statement" +
-            " have unresolved types."
+        val errorDesc = "\nDestination type unresolved so cannot be read into"
         tcState.emit(lval.info.pos, errorMsg, errorDesc)
         Stmt.Read(lval, SemanticData.Error(lval.info.pos))
       case _ =>
@@ -525,7 +523,7 @@ object TypeChecker {
           case other => {
             tcState.emit(
               info.pos,
-              s"Type mismatch: Expected Pair but got ${other.toString()}"
+              s"Type mismatch: Expected '${other.toString()}' but got 'Pair'"
             )
 
             /* error indicated by SemanticData.Error */
@@ -603,7 +601,7 @@ object TypeChecker {
               "Type error: ambiguous assignment between unknown types."
             val errorDesc =
               "\nBoth the left-hand side and right-hand side of this statement have" +
-                "unresolved types."
+                " unresolved types."
             tcState.emit(info.pos, errorMsg, errorDesc)
             PairElem(isFst, typedLVal, SemanticData.Error(info.pos))
           case _ => PairElem(isFst, typedLVal, info)
