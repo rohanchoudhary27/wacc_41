@@ -523,7 +523,7 @@ object TypeChecker {
           case other => {
             tcState.emit(
               info.pos,
-              s"Type mismatch: Expected '${other.toString()}' but got 'Pair'"
+              s"Type mismatch: Expected '${other.toString()}' but got '${PairAny.toString()}'"
             )
 
             /* error indicated by SemanticData.Error */

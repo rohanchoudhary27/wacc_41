@@ -5,7 +5,22 @@ import scala.collection.mutable.ListBuffer
 
 /** The semantic type system
   */
-sealed trait SemanticType
+sealed trait SemanticType {
+  override def toString: String = this match
+    case KnownType.Int        => "int"
+    case KnownType.Bool       => "bool"
+    case KnownType.Char       => "char"
+    case KnownType.String     => "string"
+    case KnownType.Array(t)   => s"$t[]"
+    case KnownType.Pair(a, b) =>
+      (a, b) match
+        case (?, ?) => "pair"
+        case _      => s"pair($a, $b)"
+    case PairAny => "pair"
+    case Null => "null"
+    case EmptyArray => "[]"
+    case ? => "unknown"
+}
 
 /** Semantic types that map 1-to-1 with syntactic types
   */
@@ -13,17 +28,6 @@ enum KnownType extends SemanticType {
   case Int, Bool, Char, String
   case Array(t: SemanticType)
   case Pair(fst: SemanticType, snd: SemanticType)
-
-  override def toString: String = this match
-    case Int        => "int"
-    case Bool       => "bool"
-    case Char       => "char"
-    case String     => "string"
-    case Array(t)   => s"$t[]"
-    case Pair(a, b) =>
-      (a, b) match
-        case (?, ?) => "pair"
-        case _      => s"pair($a, $b)"
 }
 
 /* Polymorphic semantic types created and used in the typechecker */
@@ -32,7 +36,7 @@ case object Null extends SemanticType /* corresponding to a pair literal */
 case object EmptyArray
     extends SemanticType /* corresponding to an empty array literal */
 case object ?
-    extends SemanticType /* corresponding to typing error causing code */
+    extends SemanticType /* corresponding to typing error causing code or type inference */
 
 /** The `info` annotation to the AST nodes for a renamed AST. Also ouptut by the
   * type checker.
