@@ -8,7 +8,7 @@ import parsley.lift.lift2
 import parsley.expr.{precedence, Ops, InfixL, InfixN, InfixR, Prefix, chain}
 import parsley.errors.combinator.ErrorMethods
 
-import lexer.{fully, ident, string, boolLiter, nullLiter, brackets}
+import lexer.{fully, ident, string, boolLiter, nullLiter, brackets, parens}
 import lexer.implicits.given
 import Bridges.*
 
@@ -41,7 +41,7 @@ object parser {
 
     private lazy val func =
         Func(waccType, identLit, 
-            "(" ~> paramList <~ ")", "is" ~> stmt <~ "end"
+            parens(paramList), "is" ~> stmt <~ "end"
         ) label "function definition"
 
     private lazy val paramList = sepBy(param, ",") label "parameter list"
@@ -63,8 +63,9 @@ object parser {
     )
 
     private lazy val pairType =
-        "pair" ~> "(" ~> 
-            lift2(SyntaxType.Pair.apply, pairElemType <~ ",", pairElemType) <~ ")" label "pair type"
+        "pair" ~> parens(
+            lift2(SyntaxType.Pair.apply, pairElemType <~ ",", pairElemType)
+        ) label "pair type"
 
     private lazy val pairElemType = chain.postfix(baseType | "pair" #> SyntaxType.ErasedPair)(
         brackets(unit) #> ((t: SyntaxType) => SyntaxType.Array(t))
@@ -125,9 +126,9 @@ object parser {
     /* atomic(arrayElem) is tried before identLit since both start with ident */
     private lazy val atom = intLit | boolLit | charLit | strLit | pairLit |
         atomic(arrayElem) | identLit |
-        ("(" ~> 
-            (expr label "expression" explain "expression required inside parentheses") 
-        <~ ")") label "bracketed expression"
+        parens(
+            expr label "expression" explain "expression required inside parentheses"
+        ) label "bracketed expression"
 
     /* LValue grammar */
     private lazy val lvalue: Parsley[LValue[SyntacticData]] = 
@@ -148,7 +149,7 @@ object parser {
     private lazy val arrayLiter = ArrayLiter(brackets(sepBy(expr, ",")))
     private lazy val newPair = NewPair("newpair" ~> "(" ~> expr <~ ",", expr <~ ")")
     private lazy val call = 
-        Call("call" ~> identLit, "(" ~> sepBy(expr, ",") <~ ")") label "function call"
+        Call("call" ~> identLit, parens(sepBy(expr, ","))) label "function call"
 
     /* Literal grammar */
     private lazy val intLit   = IntLiter(int) label "integer"
