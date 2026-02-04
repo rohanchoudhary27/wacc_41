@@ -337,6 +337,45 @@ object TypeChecker {
     Stmt.Decl(typ, typedIdent, typedRValue, semInfo)
   }
 
+
+  /** Type-check a pair element
+    *
+    * @param isFst:
+    *   True if the pair element is the first element of the pair, false otherwise
+    * @param lval:
+    *   The lvalue part of the pair element in e.g. `fst <lvalue>`
+    * @param info:
+    *   Semantic data associated with the pair element (`SemanticData.Typed`)
+    * @param pairElemType:
+    *   SemanticType of the pair element
+    * @param c:
+    *   The constraint to check the pair element against
+    * @param tcState:
+    *   The type-checker state with an error logger, current function name, and
+    *   function table
+    *
+    * @return:
+    *   `Stmt.PairElem[SemanticData]` type-checked PairElem node
+    */
+  private def checkPairElem(isFst: Boolean,
+                            lval: LValue[SemanticData],
+                            info: SemanticData,
+                            pairElemType: SemanticType,
+                            c: Constraint)
+                            (using tcState: TCState): PairElem[SemanticData] = {
+
+    /* make sure that the thing we are referencing has a pair type */
+    val typedLValue = checkLvalue(lval, Constraint.IsPair)
+
+    /* this lvalue's type must satisfy the constraint */
+    val elemType =
+      pairElemType
+        .satisfies(c, info.pos, tcState.errorLogger)
+        .getOrElse(?)
+
+    PairElem(isFst, typedLValue, SemanticData.Typed(info.pos, elemType))
+  }
+
   /** Type-check an L-value
     *
     * @param lvalue:
@@ -355,20 +394,7 @@ object TypeChecker {
 
       case i @ Ident(name, info)           => checkIdent(i, c)
       case p @ PairElem(isFst, lval, info) =>
-
-        /* make sure that the thing we are referencing has a pair type */
-        val typedLValue = checkLvalue(lval, Constraint.IsPair)
-
-        val pairElementType = extractLValueType(p)
-
-        /* this lvalue's type must satisfy the constraint */
-        val elemType =
-          pairElementType
-            .satisfies(c, info.pos, tcState.errorLogger)
-            .getOrElse(?)
-
-        PairElem(isFst, typedLValue, SemanticData.Typed(info.pos, elemType))
-
+        checkPairElem(isFst, lval, info, extractLValueType(p), c)
       case a @ ArrayElem(_, _, _) => checkArrayAccess(a, c)
     }
 
@@ -482,6 +508,149 @@ object TypeChecker {
       case _                        => ?
     }
 
+
+  /** 
+    *  Type check a NewPair node
+    *
+    * @param e1:
+    *   The expression for the first member in the pair
+    * @param e2:
+    *   The expression for the second member in the pair
+    * @param info:
+    *   The semantic data annotation of the NewPair node (`SemanticData.Pos`)
+    * @param c:
+    *   The constraint
+    *
+    * @return:
+    *   The semantic type of the expression
+    */
+  private def checkNewPair(e1: Expr[SemanticData],
+                          e2: Expr[SemanticData],
+                          info: SemanticData,
+                          c: Constraint)(using tcState: TCState): NewPair[SemanticData] = {
+
+    c match {
+
+      /* Type check non-erased pair */
+      case Constraint.Is(pairType @ KnownType.Pair(fstType, sndType)) => {
+        val checkedExpr1 = checkExpr(e1, Constraint.Is(fstType))
+        val checkedExpr2 = checkExpr(e2, Constraint.Is(sndType))
+        NewPair(
+          checkedExpr1,
+          checkedExpr2,
+          SemanticData.Typed(info.pos, pairType)
+        )
+      }
+
+      /* Type check erased pair */
+      case Constraint.Is(PairAny) | Constraint.Is(?) => {
+        val checkedExpr1 = checkExpr(e1, Constraint.Infer)
+        val checkedExpr2 = checkExpr(e2, Constraint.Infer)
+
+        NewPair(
+          checkedExpr1,
+          checkedExpr2,
+          SemanticData.Typed(
+            info.pos,
+            KnownType.Pair(
+              getExpressionType(checkedExpr1),
+              getExpressionType(checkedExpr2)
+            )
+          )
+        )
+      }
+
+      /* Pair not expected in the declaration/assignment */
+      case other => {
+        tcState.emit(
+          info.pos,
+          s"Type error: Expected '${other.toString()}' but got '${PairAny.toString()}'"
+        )
+
+        /* error indicated by SemanticData.Error */
+        NewPair(e1, e2, SemanticData.Error(info.pos))
+      }
+    }
+  }
+
+
+  private def checkArrayLiter(elems: List[Expr[SemanticData]],
+                         info: SemanticData,
+                         c: Constraint)(using tcState: TCState) = {
+
+    c match {
+      case Constraint.Is(arrType @ KnownType.Array(elemType)) => {
+        /* first pass: infer types of all elements to check compatibility */
+        val typedElems = elems.map(e => checkExpr(e, Constraint.Infer))
+        val elemTypes = typedElems.map(getExpressionType)
+        
+        /* check if any elements are incompatible with expected type */
+        val incompatibleTypes = elemTypes.filterNot(t => (t ~ elemType).isDefined)
+        
+        if (incompatibleTypes.nonEmpty) {
+          /* report single comprehensive error showing all types found */
+          val typesList = elemTypes.distinct.mkString(", ")
+          tcState.emit(
+            info.pos,
+            "Type error: array literal mismatch",
+            s"\nliteral contains mix of $typesList\nexpected $arrType"
+          )
+          ArrayLiter(typedElems, SemanticData.Error(info.pos))
+        } else {
+          /* all elements compatible - recheck with constraint to apply weakening */
+          val retypedElems = elems.map(e => checkExpr(e, Is(elemType)))
+          ArrayLiter(retypedElems, SemanticData.Typed(info.pos, arrType))
+        }
+      }
+
+      /* type weakening: char[] can be used where string is expected */
+      case Constraint.Is(KnownType.String) => {
+        val typedElems = elems.map(e => checkExpr(e, Is(KnownType.Char)))
+        ArrayLiter(typedElems, SemanticData.Typed(info.pos, KnownType.String))
+      }
+
+      case Constraint.Is(?) => {
+
+        /* find the Lowest Common Ancestor of all element types */
+        if (elems.isEmpty) {
+          ArrayLiter(Nil, SemanticData.Typed(info.pos, KnownType.Array(?)))
+        } else {
+          /* first pass: infer types of all elements */
+          val typedElems = elems.map(e => checkExpr(e, Constraint.Infer))
+          val elemTypes = typedElems.map(getExpressionType)
+          
+          /* find LCA by folding types with ~ operator */
+          val lcaOpt: Option[SemanticType] = elemTypes.tail.foldLeft(
+            Option(elemTypes.head)
+          ) { (acc, elemType) =>
+            acc.flatMap(_ ~ elemType)
+          }
+          
+          (lcaOpt: @unchecked) match {
+            case Some(lcaType) =>
+              /* second pass: re-check all elements against LCA to apply weakening */
+              val retypedElems = elems.map(e => checkExpr(e, Is(lcaType)))
+              ArrayLiter(retypedElems, SemanticData.Typed(info.pos, KnownType.Array(lcaType)))
+              
+            case None =>
+              val typesList = elemTypes.mkString(", ")
+              tcState.emit(
+                info.pos,
+                "Type error: array literal has incompatible element types",
+                s"\nElement types: [$typesList]\nNo common ancestor type exists"
+              )
+              ArrayLiter(typedElems, SemanticData.Error(info.pos))
+          }
+        }
+      }
+
+      case other => {
+        tcState.emit(info.pos, s"Type error: Expected Array but got ${other.toString()}")
+        ArrayLiter(elems, SemanticData.Error(info.pos))
+      }
+    }
+  }
+
   /** Type-check an RValue
     *
     * @param rvalue:
@@ -504,115 +673,10 @@ object TypeChecker {
 
       /* for newpair(e1, e2), both e1 and e2 must match the pair types imposed in the
                constraint, otherwise we get an error. */
-      case NewPair(e1, e2, info) =>
-        c match {
-
-          case Constraint.Is(pairType @ KnownType.Pair(fstType, sndType)) => {
-            val checkedExpr1 = checkExpr(e1, Constraint.Is(fstType))
-            val checkedExpr2 = checkExpr(e2, Constraint.Is(sndType))
-            NewPair(
-              checkedExpr1,
-              checkedExpr2,
-              SemanticData.Typed(info.pos, pairType)
-            )
-          }
-
-          case Constraint.Is(PairAny) | Constraint.Is(?) => {
-            val checkedExpr1 = checkExpr(e1, Constraint.Infer)
-            val checkedExpr2 = checkExpr(e2, Constraint.Infer)
-
-            NewPair(
-              checkedExpr1,
-              checkedExpr2,
-              SemanticData.Typed(
-                info.pos,
-                KnownType.Pair(
-                  getExpressionType(checkedExpr1),
-                  getExpressionType(checkedExpr2)
-                )
-              )
-            )
-          }
-
-          case other => {
-            tcState.emit(
-              info.pos,
-              s"Type error: Expected '${other.toString()}' but got '${PairAny.toString()}'"
-            )
-
-            /* error indicated by SemanticData.Error */
-            NewPair(e1, e2, SemanticData.Error(info.pos))
-          }
-        }
+      case NewPair(e1, e2, info) => checkNewPair(e1, e2, info, c)
 
       /* for [e1, e2, ...], check all elements have compatible types */
-      case ArrayLiter(elems, info) =>
-        c match {
-          case Constraint.Is(arrType @ KnownType.Array(elemType)) =>
-            /* first pass: infer types of all elements to check compatibility */
-            val typedElems = elems.map(e => checkExpr(e, Constraint.Infer))
-            val elemTypes = typedElems.map(getExpressionType)
-            
-            /* check if any elements are incompatible with expected type */
-            val incompatibleTypes = elemTypes.filterNot(t => (t ~ elemType).isDefined)
-            
-            if (incompatibleTypes.nonEmpty) {
-              /* report single comprehensive error showing all types found */
-              val typesList = elemTypes.distinct.mkString(", ")
-              tcState.emit(
-                info.pos,
-                "Type error: array literal mismatch",
-                s"\nliteral contains mix of $typesList\nexpected $arrType"
-              )
-              ArrayLiter(typedElems, SemanticData.Error(info.pos))
-            } else {
-              /* all elements compatible - recheck with constraint to apply weakening */
-              val retypedElems = elems.map(e => checkExpr(e, Is(elemType)))
-              ArrayLiter(retypedElems, SemanticData.Typed(info.pos, arrType))
-            }
-
-          /* type weakening: char[] can be used where string is expected */
-          case Constraint.Is(KnownType.String) =>
-            val typedElems = elems.map(e => checkExpr(e, Is(KnownType.Char)))
-            ArrayLiter(typedElems, SemanticData.Typed(info.pos, KnownType.String))
-
-          case Constraint.Is(?) =>
-            /* find the Lowest Common Ancestor of all element types */
-            if (elems.isEmpty) {
-              ArrayLiter(Nil, SemanticData.Typed(info.pos, KnownType.Array(?)))
-            } else {
-              /* first pass: infer types of all elements */
-              val typedElems = elems.map(e => checkExpr(e, Constraint.Infer))
-              val elemTypes = typedElems.map(getExpressionType)
-              
-              /* find LCA by folding types with ~ operator */
-              val lcaOpt: Option[SemanticType] = elemTypes.tail.foldLeft(
-                Option(elemTypes.head)
-              ) { (acc, elemType) =>
-                acc.flatMap(_ ~ elemType)
-              }
-              
-              (lcaOpt: @unchecked) match {
-                case Some(lcaType) =>
-                  /* second pass: re-check all elements against LCA to apply weakening */
-                  val retypedElems = elems.map(e => checkExpr(e, Is(lcaType)))
-                  ArrayLiter(retypedElems, SemanticData.Typed(info.pos, KnownType.Array(lcaType)))
-                  
-                case None =>
-                  val typesList = elemTypes.mkString(", ")
-                  tcState.emit(
-                    info.pos,
-                    "Type error: array literal has incompatible element types",
-                    s"\nElement types: [$typesList]\nNo common ancestor type exists"
-                  )
-                  ArrayLiter(typedElems, SemanticData.Error(info.pos))
-              }
-            }
-
-          case other =>
-            tcState.emit(info.pos, s"Type error: Expected Array but got ${other.toString()}")
-            ArrayLiter(elems, SemanticData.Error(info.pos))
-        }
+      case ArrayLiter(elems, info) => checkArrayLiter(elems, info, c)
 
       /* for fst/snd dereferencing, we have to make sure that we dereference a
                pair (erased or non-erased).
