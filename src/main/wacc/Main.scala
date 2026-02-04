@@ -1,117 +1,160 @@
 package wacc
 
-import java.io.File
+import java.nio.file.{Files, Path, Paths}
 import scala.io.Source
 
 /**
-* Checks for syntax errors in an error logger and prints them with a 100 return code
-* if any were logged.
-*
-* @param errorLogger: The `ErrorLogger` for syntax errors
+* A class holding the result of compilation. `exitCode` is the exit code of the program
+* compilation and `errors` is None if there were no errors and Some(ErrorLogger) if errors
+* where encountered.
 */
-def reportSyntaxErrors(errorLogger: ErrorLogger) = {
-    /* If there were complex syntax errors, exit with 100 */
-    if (errorLogger.hasErrors()) {
-        Console.err.println("Failure: 100 - Syntax error:\n")
-        Console.err.println(errorLogger.retrieveAllErrors())
-        sys.exit(100)
-    }
-}
+case class CompilationResult(
+    exitCode: Int,
+    errors: Option[ErrorLogger] = None
+)
 
 /**
-* Main function for WACC compiler.
-*
-* Stages:
-* Parsing: Source text to a SyntacticAST, Exit code 100 on failure
-* Additional Syntax Check: Check SyntacticAST for non-returning paths in
-* functions, returning exit code 100 on failure
-* Renaming: Transforms SyntacticAST to use SemanticData, Log errors on failure
-* Type Checker: Verifies Type correctness and, Log errors on failure
-*
-* Exit Codes:
-*   0 - Success
-*   100 - Syntactic Errors
-*   200 - Semantic Errors
-*   -1 - System Error
-*
-* @param args: Command Line arguments. Only 1 is expected (the path of the
-* file to compile).
+* The top level object of the WACC compiler frontend. Contains the `main` function as well as
+* a `compile` function which doesn't do printing (to be re-used by the integration test runner)
 */
-def main(args: Array[String]): Unit = {
+object WaccFrontend {
 
-    /* Expect a singular argument */
-    if(args.length != 1) {
-        println("Requires file.")
-        sys.exit(-1)
-    }
+    /* Compiler exit codes */
+    val successCode = 0
+    val syntacticErrorCode = 100
+    val semanticErrorCode = 200 
+    val compilerFailure = -1
 
-    /* Load file */
-    val file = new File(args(0))
+    /**
+    * Compiles a WACC program, returning a Compilation with its exit code and any errors logged
+    * in an ErrorLogger object.
+    * 
+    * @param path: The path of the file to compile
+    * 
+    * @return: A `CompilationResult` object which contains the exit code and Option[ErrorLogger]
+    */
+    def compile(path: Path): CompilationResult = {
 
-    /* Check file created succesfully */
-    if(!file.exists()) {
-        println("File does not exist.")
-        sys.exit(-1)
-    }
+        /* Load file as a list of code lines */
+        val source = Source.fromFile(path.toFile)
+        val codeLines: Vector[String] =
+            try source.getLines().toVector
+            finally source.close()
 
-    /* Load file as String and a list of lines */
-    val source = Source.fromFile(file)
-    val codeLines: Vector[String] =
-        try source.getLines().toVector
-        finally source.close()
-    val sourceCode: String = codeLines.mkString("\n")
+        /* Get the code as a single string */
+        val sourceCode: String = codeLines.mkString("\n")
 
-    /* Create a syntactic errors object for complex return checks */
-    val syntacticErrors = new ErrorLogger(codeLines)
+        /* Object to log syntax errors to */
+        val syntacticErrors = new ErrorLogger(codeLines)
 
-    /* Sanitise the text, throwing a syntax error if non-ascii chars are found */
-    Sanitiser.sanitise(sourceCode, syntacticErrors)
+        /* (Phase 1 - Sanitise): Initial sanitise check of the string
+           (no-non ASCII chars allowed) */
+        Sanitiser.sanitise(sourceCode, syntacticErrors)
 
-    reportSyntaxErrors(syntacticErrors)
+        if (syntacticErrors.hasErrors()) {
+            CompilationResult(syntacticErrorCode, Some(syntacticErrors))
 
-    /* Parse the string */
-    val result = parser.parse(sourceCode)
+        } else {
 
-    result match {
+            /* (Phase 2 - Parse) */
+            val result = parser.parse(sourceCode)
 
-        /* Syntax error from parsing - exit with 100 */
-        case Left(msg) =>
-            Console.err.println("Failure: 100 - Syntax error:")
-            Console.err.println(msg)
-            sys.exit(100)
+            result match {
 
-        /* Parsing complete successfully */
-        case Right(syntacticAST) =>
+                /* Parser syntax error */
+                case Left(_) => CompilationResult(syntacticErrorCode, Some(syntacticErrors))
+                
+                case Right(syntacticAST) =>
 
-            /* Create a semantic errors object */
-            val semanticErrors = new ErrorLogger(codeLines)
+                    /* (Phase 3 - Additional Syntax Check): Check more complex syntax
+                       rules (functions must have no non-returning paths) */
+                    SyntaxPass.syntaxCheck(syntacticAST, syntacticErrors)
 
-            /* Check complex (post-parse) syntax rules */
-            SyntaxPass.syntaxCheck(syntacticAST, syntacticErrors)
+                    if (syntacticErrors.hasErrors()) {
+                        CompilationResult(syntacticErrorCode, Some(syntacticErrors))
 
-            /* If there were complex syntax errors, exit with 100 */
-            reportSyntaxErrors(syntacticErrors)
+                    } else {
 
-            /* Rename the AST and return this AST, build the senamtic errors if there are any */
-            val renamedAST = Renamer.rename(syntacticAST, semanticErrors)
+                        /* Object to log semantic errors */
+                        val semanticErrors = new ErrorLogger(codeLines)
 
-            /* Type check the renamed AST, adding the errors if there are any */
-            val funcTable = renamedAST.info match {
-                case SemanticData.TopLevel(ft) => ft
-                case _ => Map.empty[String, SemanticData.Func]
+                        /* (Phase 4 - Renamer) */
+                        val renamedAST = Renamer.rename(syntacticAST, semanticErrors)
+
+                        /* Retrieve table of function signatures */
+                        val funcTable = renamedAST.info match {
+                            case wacc.SemanticData.TopLevel(ft) => ft
+                            case _ => Map.empty[String, wacc.SemanticData.Func]
+                        }
+
+                        /* (Phase 5 - Type Checker) */
+                        TypeChecker.check(renamedAST, semanticErrors, funcTable)
+
+                        /* Log any semantic errors */
+                        if (semanticErrors.hasErrors()) CompilationResult(semanticErrorCode,
+                                                                          Some(semanticErrors))
+                        else CompilationResult(successCode, None)
+                    }
             }
-
-            TypeChecker.check(renamedAST, semanticErrors, funcTable)
-
-            /* If there were no errors then exit with 0, else 200 */
-            semanticErrors.hasErrors() match {
-                case false =>
-                    println("Successfully compiled file with no errors.")
-                    sys.exit(0)
-                case true =>
-                    Console.err.println("Failure: 200 - Semantic errors:\n")
-                    Console.err.println(semanticErrors.retrieveAllErrors())
-                    sys.exit(200)
         }
+    }
+
+    /**
+    * Main function for WACC compiler.
+    *
+    * Stages:
+    * Sanitising: Source text checked for non-ASCII chars, Exit code 100 on failure
+    * Parsing: Source text to a SyntacticAST, Exit code 100 on failure
+    * Additional Syntax Check: Check SyntacticAST for non-returning paths in
+    *   functions, returning exit code 100 on failure
+    * Renaming: Transforms SyntacticAST to use SemanticData, Log errors on failure
+    * Type Checker: Verifies Type correctness and, Log errors on failure
+    *
+    * Exit Codes:
+    *   0 - Success
+    *   100 - Syntactic Errors
+    *   200 - Semantic Errors
+    *   -1 - System Error
+    *
+    * @param args: Command Line arguments. Only 1 is expected (the path of the
+    * file to compile).
+    */
+    def main(args: Array[String]): Unit = {
+
+        /* Expect a singular argument */
+        if(args.length != 1) {
+            println("Requires file.")
+            sys.exit(-1)
+        }
+
+        val path = Paths.get(args(0))
+
+        /* Validate file exists */
+        if (!Files.exists(path)) {
+            println(s"Error: Path '$path' does not exist.")
+            sys.exit(-1)
+        }
+
+        /* Compile the file */
+        val compilationResult: CompilationResult = compile(path)
+
+        compilationResult.errors match
+
+            /* Failure exit */
+            case Some(errorLogger) =>
+
+                val errorHeader = compilationResult.exitCode match {
+                    case `syntacticErrorCode` => "Failure: 100 - Syntax error:"
+                    case `semanticErrorCode` => "Failure: 200 - Semantic error:"
+                }
+
+                Console.err.println(errorHeader)
+                Console.err.println(errorLogger.retrieveAllErrors())
+
+                sys.exit(compilationResult.exitCode)
+
+            /* Successful exit */
+            case None => 
+                sys.exit(compilationResult.exitCode)
     }
 }
