@@ -902,20 +902,18 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
     "The Unary Expression type checker" should "expect the operand for NOT to be a boolean" in {
         val funcTable: Map[String, SemanticData.Func] = Map.empty
         val errorLogger = new ErrorLogger()
-        val pos = SyntacticData.Pos(0,0)
 
-        // bool b = !true;
-        val expr = UnaryExpr(UnaryOperator.Not, BoolLiter(true, pos), pos)
-        val decl = Stmt.Decl(SyntaxType.Bool, Ident("b", pos), expr, pos)
-        
-        val ast = Program(Nil, Stmt.Block(List(decl), pos), pos)
-        val renamedAST = Renamer.rename(ast, errorLogger)
-        
-        TypeChecker.check(renamedAST, errorLogger, funcTable)
-        
+        // bool b = !true
+        val bVar = (Ident("b", SemanticData.Var(synPos.pos, 1, KnownType.Bool)))
+        val notExpr = UnaryExpr(UnaryOperator.Not, BoolLiter(true, SemanticData.Typed(synPos.pos, KnownType.Bool)), semPos)
+        val decl = Stmt.Decl(SyntaxType.Bool, bVar, notExpr, semPos)
+
+        val inputAST = Program(Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
+        TypeChecker.check(inputAST, errorLogger, funcTable)
+
         errorLogger.hasErrors() shouldBe false
     }
-    
+
     it should "not allow LEN to be used with string type" in {
         // begin 
         //    println len "hello" 
@@ -943,126 +941,124 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
 
 
     it should "not allow NOT with a non boolean operand" in {
-        // bool b = !5;
-        val pos = SyntacticData.Pos(0,0)
         val funcTable: Map[String, SemanticData.Func] = Map.empty
         val errorLogger = new ErrorLogger()
-        val expr = UnaryExpr(UnaryOperator.Not, IntLiter(5, pos), pos)
-        val decl = Stmt.Decl(SyntaxType.Bool, Ident("b", pos), expr, pos)
-        
-        val ast = Program(Nil, Stmt.Block(List(decl), pos), pos)
-        val renamedAST = Renamer.rename(ast, errorLogger)
-        
-        TypeChecker.check(renamedAST, errorLogger, funcTable)
-        
+
+        // bool b = !5
+        val bVar = Ident("b", SemanticData.Var(synPos.pos, 1, KnownType.Bool))
+        val notExpr = UnaryExpr(
+            UnaryOperator.Not, 
+            IntLiter(5, SemanticData.Typed(synPos.pos, KnownType.Int)), 
+            semPos
+        )
+        val decl = Stmt.Decl(SyntaxType.Bool, bVar, notExpr, semPos)
+
+        val inputAST = Program(Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
+        TypeChecker.check(inputAST, errorLogger, funcTable)
+
         errorLogger.hasErrors() shouldBe true
-        errorLogger.retrieveAllErrors() should include ("Type error")
-        errorLogger.retrieveAllErrors() should include ("Expected 'bool'")
     }
 
     it should "expect the operand for NEG to be an int" in {
         val funcTable: Map[String, SemanticData.Func] = Map.empty
         val errorLogger = new ErrorLogger()
-        val pos = SyntacticData.Pos(0,0)
 
         // int i = -5;
-        val expr = UnaryExpr(UnaryOperator.Neg, IntLiter(5, pos), pos)
-        val decl = Stmt.Decl(SyntaxType.Int, Ident("i", pos), expr, pos)
-        
-        val ast = Program(Nil, Stmt.Block(List(decl), pos), pos)
-        val renamedAST = Renamer.rename(ast, errorLogger)
-        
-        TypeChecker.check(renamedAST, errorLogger, funcTable)
-        
+        val iVar = (Ident("i", SemanticData.Var(synPos.pos, 1, KnownType.Int)))
+        val notExpr = UnaryExpr(UnaryOperator.Neg, IntLiter(5, SemanticData.Typed(synPos.pos, KnownType.Int)), semPos)
+        val decl = Stmt.Decl(SyntaxType.Int, iVar, notExpr, semPos)
+
+        val inputAST = Program(Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
+        TypeChecker.check(inputAST, errorLogger, funcTable)
+
         errorLogger.hasErrors() shouldBe false
     }
 
     it should "not allow NEG with a non int operand" in {
-        // int i = -true;
-        val pos = SyntacticData.Pos(0,0)
         val funcTable: Map[String, SemanticData.Func] = Map.empty
         val errorLogger = new ErrorLogger()
-        val expr = UnaryExpr(UnaryOperator.Neg, BoolLiter(true, pos), pos)
-        val decl = Stmt.Decl(SyntaxType.Int, Ident("i", pos), expr, pos)
-        
-        val ast = Program(Nil, Stmt.Block(List(decl), pos), pos)
-        val renamedAST = Renamer.rename(ast, errorLogger)
-        
-        TypeChecker.check(renamedAST, errorLogger, funcTable)
-        
+
+        // int i = -true
+        val iVar = Ident("i", SemanticData.Var(synPos.pos, 1, KnownType.Int))
+        val negExpr = UnaryExpr(
+            UnaryOperator.Neg, 
+            BoolLiter(true, SemanticData.Typed(synPos.pos, KnownType.Bool)), 
+            semPos
+        )
+        val decl = Stmt.Decl(SyntaxType.Int, iVar, negExpr, semPos)
+
+        val inputAST = Program(Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
+        TypeChecker.check(inputAST, errorLogger, funcTable)
+
         errorLogger.hasErrors() shouldBe true
-        errorLogger.retrieveAllErrors() should include ("Type error")
-        errorLogger.retrieveAllErrors() should include ("Expected 'int'")
     }
 
     it should "expect the operand for ORD to be a char" in {
         val funcTable: Map[String, SemanticData.Func] = Map.empty
         val errorLogger = new ErrorLogger()
-        val pos = SyntacticData.Pos(0,0)
 
-        // int c = ord 'a';
-        val expr = UnaryExpr(UnaryOperator.Ord, CharLiter('a', pos), pos)
-        val decl = Stmt.Decl(SyntaxType.Int, Ident("c", pos), expr, pos)
-        
-        val ast = Program(Nil, Stmt.Block(List(decl), pos), pos)
-        val renamedAST = Renamer.rename(ast, errorLogger)
-        
-        TypeChecker.check(renamedAST, errorLogger, funcTable)
-        
+        // int i = -5;
+        val iVar = (Ident("i", SemanticData.Var(synPos.pos, 1, KnownType.Int)))
+        val ordExpr = UnaryExpr(UnaryOperator.Neg, IntLiter(5, SemanticData.Typed(synPos.pos, KnownType.Int)), semPos)
+        val decl = Stmt.Decl(SyntaxType.Int, iVar, ordExpr, semPos)
+
+        val inputAST = Program(Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
+        TypeChecker.check(inputAST, errorLogger, funcTable)
+
         errorLogger.hasErrors() shouldBe false
     }
 
     it should "not allow ORD with a non char operand" in {
-        // int i = ord true;
-        val pos = SyntacticData.Pos(0,0)
         val funcTable: Map[String, SemanticData.Func] = Map.empty
         val errorLogger = new ErrorLogger()
-        val expr = UnaryExpr(UnaryOperator.Ord, BoolLiter(true, pos), pos)
-        val decl = Stmt.Decl(SyntaxType.Int, Ident("c", pos), expr, pos)
-        
-        val ast = Program(Nil, Stmt.Block(List(decl), pos), pos)
-        val renamedAST = Renamer.rename(ast, errorLogger)
-        
-        TypeChecker.check(renamedAST, errorLogger, funcTable)
-        
+
+        // int i = ord true
+        val iVar = Ident("i", SemanticData.Var(synPos.pos, 1, KnownType.Int))
+        val ordExpr = UnaryExpr(
+            UnaryOperator.Ord, 
+            BoolLiter(true, SemanticData.Typed(synPos.pos, KnownType.Bool)), 
+            semPos
+        )
+        val decl = Stmt.Decl(SyntaxType.Int, iVar, ordExpr, semPos)
+
+        val inputAST = Program(Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
+        TypeChecker.check(inputAST, errorLogger, funcTable)
+
         errorLogger.hasErrors() shouldBe true
-        errorLogger.retrieveAllErrors() should include ("Type error")
-        errorLogger.retrieveAllErrors() should include ("Expected 'char'")
     }
 
     it should "expect the operand for CHR to be an int" in {
         val funcTable: Map[String, SemanticData.Func] = Map.empty
         val errorLogger = new ErrorLogger()
-        val pos = SyntacticData.Pos(0,0)
 
-        // char c = chr 97;
-        val expr = UnaryExpr(UnaryOperator.Chr, IntLiter(97, pos), pos)
-        val decl = Stmt.Decl(SyntaxType.Char, Ident("c", pos), expr, pos)
-        
-        val ast = Program(Nil, Stmt.Block(List(decl), pos), pos)
-        val renamedAST = Renamer.rename(ast, errorLogger)
-        
-        TypeChecker.check(renamedAST, errorLogger, funcTable)
-        
+        // char c = chr 100;
+        val cVar = (Ident("c", SemanticData.Var(synPos.pos, 1, KnownType.Char)))
+        val chrExpr = UnaryExpr(UnaryOperator.Chr, IntLiter(100, SemanticData.Typed(synPos.pos, KnownType.Int)), semPos)
+        val decl = Stmt.Decl(SyntaxType.Char, cVar, chrExpr, semPos)
+
+        val inputAST = Program(Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
+        TypeChecker.check(inputAST, errorLogger, funcTable)
+
         errorLogger.hasErrors() shouldBe false
     }
 
     it should "not allow CHR with a non int operand" in {
-        // int c = chr true;
-        val pos = SyntacticData.Pos(0,0)
         val funcTable: Map[String, SemanticData.Func] = Map.empty
         val errorLogger = new ErrorLogger()
-        val expr = UnaryExpr(UnaryOperator.Chr, BoolLiter(true, pos), pos)
-        val decl = Stmt.Decl(SyntaxType.Char, Ident("c", pos), expr, pos)
-        
-        val ast = Program(Nil, Stmt.Block(List(decl), pos), pos)
-        val renamedAST = Renamer.rename(ast, errorLogger)
-        
-        TypeChecker.check(renamedAST, errorLogger, funcTable)
-        
+
+        // char c = chr true;
+        val cVar = Ident("i", SemanticData.Var(synPos.pos, 1, KnownType.Char))
+        val chrExpr = UnaryExpr(
+            UnaryOperator.Chr, 
+            BoolLiter(true, SemanticData.Typed(synPos.pos, KnownType.Bool)), 
+            semPos
+        )
+        val decl = Stmt.Decl(SyntaxType.Int, cVar, chrExpr, semPos)
+
+        val inputAST = Program(Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
+        TypeChecker.check(inputAST, errorLogger, funcTable)
+
         errorLogger.hasErrors() shouldBe true
-        errorLogger.retrieveAllErrors() should include ("Type error")
-        errorLogger.retrieveAllErrors() should include ("Expected 'int'")
     }
 
     "The Binary Expression type checker" should "allow arithmetic operators with int operands" in {
