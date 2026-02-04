@@ -1064,34 +1064,46 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
     "The Binary Expression type checker" should "allow arithmetic operators with int operands" in {
         val funcTable: Map[String, SemanticData.Func] = Map.empty
         val errorLogger = new ErrorLogger()
-        val pos = SyntacticData.Pos(0,0)
 
-        // int x = 10 + 20;
-        val expr = BinaryExpr(BinaryOperator.Add, IntLiter(10, pos), IntLiter(20, pos), pos)
-        val decl = Stmt.Decl(SyntaxType.Int, Ident("x", pos), expr, pos)
-        
-        val ast = Program(Nil, Stmt.Block(List(decl), pos), pos)
-        val renamedAST = Renamer.rename(ast, errorLogger)
-        
-        TypeChecker.check(renamedAST, errorLogger, funcTable)
-        
+        val xVar = Ident("x", SemanticData.Var(synPos.pos, 1, KnownType.Int))
+
+        val addExpr = BinaryExpr(
+            BinaryOperator.Add,
+            IntLiter(10, SemanticData.Typed(synPos.pos, KnownType.Int)),
+            IntLiter(20, SemanticData.Typed(synPos.pos, KnownType.Int)),
+            semPos
+        )
+
+        // int x = 10 + 20
+        val decl = Stmt.Decl(SyntaxType.Int, xVar, addExpr, semPos)
+
+        val inputAST = Program(Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
+
+        TypeChecker.check(inputAST, errorLogger, funcTable)
+
         errorLogger.hasErrors() shouldBe false
     }
 
     it should "not allow arithmetic operators with non int operands" in {
         val funcTable: Map[String, SemanticData.Func] = Map.empty
         val errorLogger = new ErrorLogger()
-        val pos = SyntacticData.Pos(0,0)
 
-        // int x = 10 + true; (Error: expected Int, got Bool)
-        val expr = BinaryExpr(BinaryOperator.Add, IntLiter(10, pos), BoolLiter(true, pos), pos)
-        val decl = Stmt.Decl(SyntaxType.Int, Ident("x", pos), expr, pos)
-        
-        val ast = Program(Nil, Stmt.Block(List(decl), pos), pos)
-        val renamedAST = Renamer.rename(ast, errorLogger)
-        
-        TypeChecker.check(renamedAST, errorLogger, funcTable)
-        
+        val xVar = Ident("x", SemanticData.Var(synPos.pos, 1, KnownType.Int))
+
+        val addExpr = BinaryExpr(
+            BinaryOperator.Add,
+            IntLiter(10, SemanticData.Typed(synPos.pos, KnownType.Int)),
+            BoolLiter(true, SemanticData.Typed(synPos.pos, KnownType.Bool)),
+            semPos
+        )
+
+        // int x = 10 + true
+        val decl = Stmt.Decl(SyntaxType.Int, xVar, addExpr, semPos)
+
+        val inputAST = Program(Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
+
+        TypeChecker.check(inputAST, errorLogger, funcTable)
+
         errorLogger.hasErrors() shouldBe true
         val errors = errorLogger.retrieveAllErrors()
         errors should include ("Type error")
@@ -1102,88 +1114,118 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
     it should "allow comparison operators with int operands" in {
         val funcTable: Map[String, SemanticData.Func] = Map.empty
         val errorLogger = new ErrorLogger()
-        val pos = SyntacticData.Pos(0,0)
 
-        // bool b = 10 > 5;
-        val expr = BinaryExpr(BinaryOperator.GT, IntLiter(10, pos), IntLiter(5, pos), pos)
-        val decl = Stmt.Decl(SyntaxType.Bool, Ident("b", pos), expr, pos)
-        
-        val ast = Program(Nil, Stmt.Block(List(decl), pos), pos)
-        val renamedAST = Renamer.rename(ast, errorLogger)
-        
-        TypeChecker.check(renamedAST, errorLogger, funcTable)
-        
+        val bVar = Ident("b", SemanticData.Var(synPos.pos, 1, KnownType.Bool))
+
+        val gtExpr = BinaryExpr(
+            BinaryOperator.GT,
+            IntLiter(10, SemanticData.Typed(synPos.pos, KnownType.Int)),
+            IntLiter(5, SemanticData.Typed(synPos.pos, KnownType.Int)),
+            semPos
+        )
+
+        // bool b = 10 > 5
+        val decl = Stmt.Decl(SyntaxType.Bool, bVar, gtExpr, semPos)
+
+        val inputAST = Program(Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
+
+        TypeChecker.check(inputAST, errorLogger, funcTable)
+
         errorLogger.hasErrors() shouldBe false
     }
 
     it should "allow comparison operators with char operands" in {
         val funcTable: Map[String, SemanticData.Func] = Map.empty
         val errorLogger = new ErrorLogger()
-        val pos = SyntacticData.Pos(0,0)
 
-        // bool b = 'a' < 'z';
-        val expr = BinaryExpr(BinaryOperator.LT, CharLiter('a', pos), CharLiter('z', pos), pos)
-        val decl = Stmt.Decl(SyntaxType.Bool, Ident("b", pos), expr, pos)
-        
-        val ast = Program(Nil, Stmt.Block(List(decl), pos), pos)
-        val renamedAST = Renamer.rename(ast, errorLogger)
-        
-        TypeChecker.check(renamedAST, errorLogger, funcTable)
-        
+        val bVar = Ident("b", SemanticData.Var(synPos.pos, 1, KnownType.Bool))
+
+        val ltExpr = BinaryExpr(
+            BinaryOperator.LT,
+            CharLiter('a', SemanticData.Typed(synPos.pos, KnownType.Char)),
+            CharLiter('z', SemanticData.Typed(synPos.pos, KnownType.Char)),
+            semPos
+        )
+
+        // bool b = 'a' < 'z'
+        val decl = Stmt.Decl(SyntaxType.Bool, bVar, ltExpr, semPos)
+
+        val inputAST = Program(Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
+
+        TypeChecker.check(inputAST, errorLogger, funcTable)
+
         errorLogger.hasErrors() shouldBe false
     }
 
     it should "not allow comparison between incompatible types" in {
         val funcTable: Map[String, SemanticData.Func] = Map.empty
         val errorLogger = new ErrorLogger()
-        val pos = SyntacticData.Pos(0,0)
 
-        // bool b = 5 > 'a';
-        val expr = BinaryExpr(BinaryOperator.GT, IntLiter(5, pos), CharLiter('a', pos), pos)
-        val decl = Stmt.Decl(SyntaxType.Bool, Ident("b", pos), expr, pos)
-        
-        val ast = Program(Nil, Stmt.Block(List(decl), pos), pos)
-        val renamedAST = Renamer.rename(ast, errorLogger)
-        
-        TypeChecker.check(renamedAST, errorLogger, funcTable)
-        
+        val bVar = Ident("b", SemanticData.Var(synPos.pos, 1, KnownType.Bool))
+
+        val gtExpr = BinaryExpr(
+            BinaryOperator.GT,
+            IntLiter(5, SemanticData.Typed(synPos.pos, KnownType.Int)),
+            CharLiter('a', SemanticData.Typed(synPos.pos, KnownType.Char)),
+            semPos
+        )
+
+        // bool b = 5 > 'a'
+        val decl = Stmt.Decl(SyntaxType.Bool, bVar, gtExpr, semPos)
+
+        val inputAST = Program(Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
+
+        TypeChecker.check(inputAST, errorLogger, funcTable)
+
         errorLogger.hasErrors() shouldBe true
         val errors = errorLogger.retrieveAllErrors()
         errors should include ("Type error")
-        errors should include ("but got 'char'") 
+        errors should include ("but got 'char'")
     }
 
     it should "allow equality checks between matching types" in {
         val funcTable: Map[String, SemanticData.Func] = Map.empty
         val errorLogger = new ErrorLogger()
-        val pos = SyntacticData.Pos(0,0)
 
-        // bool b = true == false;
-        val expr = BinaryExpr(BinaryOperator.EQ, BoolLiter(true, pos), BoolLiter(false, pos), pos)
-        val decl = Stmt.Decl(SyntaxType.Bool, Ident("b", pos), expr, pos)
-        
-        val ast = Program(Nil, Stmt.Block(List(decl), pos), pos)
-        val renamedAST = Renamer.rename(ast, errorLogger)
-        
-        TypeChecker.check(renamedAST, errorLogger, funcTable)
-        
+        val bVar = Ident("b", SemanticData.Var(synPos.pos, 1, KnownType.Bool))
+
+        val eqExpr = BinaryExpr(
+            BinaryOperator.EQ,
+            BoolLiter(true, SemanticData.Typed(synPos.pos, KnownType.Bool)),
+            BoolLiter(false, SemanticData.Typed(synPos.pos, KnownType.Bool)),
+            semPos
+        )
+
+        // bool b = true == false
+        val decl = Stmt.Decl(SyntaxType.Bool, bVar, eqExpr, semPos)
+
+        val inputAST = Program(Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
+
+        TypeChecker.check(inputAST, errorLogger, funcTable)
+
         errorLogger.hasErrors() shouldBe false
     }
 
     it should "not allow equality checks between mismatched types" in {
         val funcTable: Map[String, SemanticData.Func] = Map.empty
         val errorLogger = new ErrorLogger()
-        val pos = SyntacticData.Pos(0,0)
 
-        // bool b = 5 == true;
-        val expr = BinaryExpr(BinaryOperator.EQ, IntLiter(5, pos), BoolLiter(true, pos), pos)
-        val decl = Stmt.Decl(SyntaxType.Bool, Ident("b", pos), expr, pos)
-        
-        val ast = Program(Nil, Stmt.Block(List(decl), pos), pos)
-        val renamedAST = Renamer.rename(ast, errorLogger)
-        
-        TypeChecker.check(renamedAST, errorLogger, funcTable)
-        
+        val bVar = Ident("b", SemanticData.Var(synPos.pos, 1, KnownType.Bool))
+
+        val eqExpr = BinaryExpr(
+            BinaryOperator.EQ,
+            IntLiter(5, SemanticData.Typed(synPos.pos, KnownType.Int)),
+            BoolLiter(true, SemanticData.Typed(synPos.pos, KnownType.Bool)),
+            semPos
+        )
+
+        // bool b = 5 == true
+        val decl = Stmt.Decl(SyntaxType.Bool, bVar, eqExpr, semPos)
+
+        val inputAST = Program(Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
+
+        TypeChecker.check(inputAST, errorLogger, funcTable)
+
         errorLogger.hasErrors() shouldBe true
         val errors = errorLogger.retrieveAllErrors()
         errors should include ("Type error")
@@ -1194,40 +1236,53 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
     it should "accept logical operators with bool operands" in {
         val funcTable: Map[String, SemanticData.Func] = Map.empty
         val errorLogger = new ErrorLogger()
-        val pos = SyntacticData.Pos(0,0)
 
-        // bool b = true && false;
-        val expr = BinaryExpr(BinaryOperator.And, BoolLiter(true, pos), BoolLiter(false, pos), pos)
-        val decl = Stmt.Decl(SyntaxType.Bool, Ident("b", pos), expr, pos)
-        
-        val ast = Program(Nil, Stmt.Block(List(decl), pos), pos)
-        val renamedAST = Renamer.rename(ast, errorLogger)
-        
-        TypeChecker.check(renamedAST, errorLogger, funcTable)
-        
+        val bVar = Ident("b", SemanticData.Var(synPos.pos, 1, KnownType.Bool))
+
+        val andExpr = BinaryExpr(
+            BinaryOperator.And,
+            BoolLiter(true, SemanticData.Typed(synPos.pos, KnownType.Bool)),
+            BoolLiter(false, SemanticData.Typed(synPos.pos, KnownType.Bool)),
+            semPos
+        )
+
+        // bool b = true && false
+        val decl = Stmt.Decl(SyntaxType.Bool, bVar, andExpr, semPos)
+
+        val inputAST = Program(Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
+
+        TypeChecker.check(inputAST, errorLogger, funcTable)
+
         errorLogger.hasErrors() shouldBe false
     }
 
     it should "not allow logical operators with non bool operands" in {
         val funcTable: Map[String, SemanticData.Func] = Map.empty
         val errorLogger = new ErrorLogger()
-        val pos = SyntacticData.Pos(0,0)
 
-        // bool b = true && 5;
-        val expr = BinaryExpr(BinaryOperator.And, BoolLiter(true, pos), IntLiter(5, pos), pos)
-        val decl = Stmt.Decl(SyntaxType.Bool, Ident("b", pos), expr, pos)
-        
-        val ast = Program(Nil, Stmt.Block(List(decl), pos), pos)
-        val renamedAST = Renamer.rename(ast, errorLogger)
-        
-        TypeChecker.check(renamedAST, errorLogger, funcTable)
-        
+        val bVar = Ident("b", SemanticData.Var(synPos.pos, 1, KnownType.Bool))
+
+        val andExpr = BinaryExpr(
+            BinaryOperator.And,
+            BoolLiter(true, SemanticData.Typed(synPos.pos, KnownType.Bool)),
+            IntLiter(5, SemanticData.Typed(synPos.pos, KnownType.Int)),
+            semPos
+        )
+
+        // bool b = true && 5
+        val decl = Stmt.Decl(SyntaxType.Bool, bVar, andExpr, semPos)
+
+        val inputAST = Program(Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
+
+        TypeChecker.check(inputAST, errorLogger, funcTable)
+
         errorLogger.hasErrors() shouldBe true
         val errors = errorLogger.retrieveAllErrors()
         errors should include ("Type error")
         errors should include ("Expected 'bool'")
         errors should include ("but got 'int'")
     }
+
     
 
     "The type checker for free statement" should "accept free statements with pair type" in {
