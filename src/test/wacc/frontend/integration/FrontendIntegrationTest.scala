@@ -6,13 +6,7 @@ import org.scalatest.matchers.should.Matchers
 import java.nio.file.{Files, Path, Paths}
 import scala.jdk.StreamConverters.*
 import scala.jdk.CollectionConverters.*
-import scala.io.Source
-import wacc.parser
-import wacc.TypeChecker
-import wacc.Renamer
-import wacc.ErrorLogger
-import wacc.SyntaxPass
-import wacc.Sanitiser
+import wacc.WaccFrontend
 
 final class FrontendIntegrationSpec extends AnyFlatSpec with Matchers {
 
@@ -20,74 +14,6 @@ final class FrontendIntegrationSpec extends AnyFlatSpec with Matchers {
     private val examplesRoot: Path = Paths.get("examples")
     private val programExtension: String = "wacc"
     private val enabledScopes: Set[String] = readScopes(scopeConfigPath)
-
-    /**
-    * Checks for syntax errors in an error logger and prints them with a 100 return code
-    * if any were logged.
-    *
-    * @param errorLogger: The `ErrorLogger` for syntax errors
-    * 
-    * @return: true if any syntax errors were found, false otherwise
-    */
-    private def reportSyntaxErrors(errorLogger: ErrorLogger): Boolean = {
-        /* If there were complex syntax errors, exit with 100 */
-        if (errorLogger.hasErrors()) {
-            Console.err.println("Failure: 100 - Syntax error:\n")
-            Console.err.println(errorLogger.retrieveAllErrors())
-            true
-        } else {
-            false
-        }
-    }
-
-    /* Runs the frontend pipeline against an integration test */
-    private object FrontendCompilerDriver {
-        def frontendCompile(path: Path): Int = {
-
-            /* Load file as String */
-            val source = Source.fromFile(path.toFile)
-            val codeLines: Vector[String] =
-                try source.getLines().toVector
-                finally source.close()
-
-            val sourceCode: String = codeLines.mkString("\n")
-            val syntacticErrors = new ErrorLogger(codeLines)
-
-            Sanitiser.sanitise(sourceCode, syntacticErrors)
-
-            if (reportSyntaxErrors(syntacticErrors)) {
-                100
-            } else {
-
-                val result = parser.parse(sourceCode)
-
-                result match {
-                    case Left(_) => 100
-                    
-                    case Right(syntacticAST) =>
-                        val semanticErrors = new ErrorLogger(codeLines)
-
-                        SyntaxPass.syntaxCheck(syntacticAST, syntacticErrors)
-                        if (reportSyntaxErrors(syntacticErrors)) {
-                            100
-                        } else {
-                            val renamedAST = Renamer.rename(syntacticAST, semanticErrors)
-
-                            val funcTable = renamedAST.info match {
-                                case wacc.SemanticData.TopLevel(ft) => ft
-                                case _ => Map.empty[String, wacc.SemanticData.Func]
-                            }
-
-                            TypeChecker.check(renamedAST, semanticErrors, funcTable)
-
-                            if (semanticErrors.hasErrors()) 200 /* Semantic Error */
-                            else 0                              /* Success */
-                        }
-                }
-            }
-        }
-    }
-
 
     /* expected status codes:
         examples/valid/  => 0 (all valid programs should return 0)
@@ -98,11 +24,11 @@ final class FrontendIntegrationSpec extends AnyFlatSpec with Matchers {
         /* make the file relative to examples root to get the scope */
         val rel = examplesRoot.relativize(file).toString 
 
-        if (rel.startsWith("valid/")) 0
-        else if (rel.startsWith("invalid/syntaxErr/")) 100
-        else if (rel.startsWith("invalid/semanticErr/")) 200
-        else if (rel.startsWith("invalid/whack/")) 100
-        else 1
+        if (rel.startsWith("valid/")) WaccFrontend.successCode 
+        else if (rel.startsWith("invalid/syntaxErr/") ||
+                 rel.startsWith("invalid/whack/")) WaccFrontend.syntacticErrorCode
+        else if (rel.startsWith("invalid/semanticErr/")) WaccFrontend.semanticErrorCode
+        else WaccFrontend.compilerFailure
     }
 
     private val validDir = examplesRoot.resolve("valid")
@@ -138,7 +64,7 @@ final class FrontendIntegrationSpec extends AnyFlatSpec with Matchers {
                 testDecl ignore { }
             } else {
                 testDecl in {
-                    val actual = FrontendCompilerDriver.frontendCompile(file)
+                    val actual = WaccFrontend.compile(file).exitCode
                     actual shouldBe expected
                 }
             }
