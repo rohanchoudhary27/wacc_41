@@ -68,7 +68,8 @@ object parser {
         Block(sepBy1(singleStmt, ";")) label "statement"
     private lazy val singleStmt: Parsley[Stmt[SyntacticData]] = skip | exit | print | println_stmt |
                                                                 decl | asgn | read | scope |
-                                                                ifStmt | whileStmt | returnStmt | free
+                                                                ifStmt | whileStmt | returnStmt |
+                                                                free
     private lazy val skip: Parsley[Stmt[SyntacticData]] = Skip from "skip"
     private lazy val decl: Parsley[Stmt[SyntacticData]] =
         Decl(waccType, identLit, "=" ~> (

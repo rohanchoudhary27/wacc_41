@@ -11,7 +11,9 @@ sealed trait SemanticType {
     case KnownType.Bool       => "bool"
     case KnownType.Char       => "char"
     case KnownType.String     => "string"
-    case KnownType.Array(t)   => s"$t[]"
+    case KnownType.Array(t)   => t match
+      case ? => "array"
+      case _ => s"$t[]"
     case KnownType.Pair(a, b) =>
       (a, b) match
         case (?, ?) => "pair"

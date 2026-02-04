@@ -118,7 +118,9 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         val rvalAsgn = IntLiter(2, SemanticData.Typed(synPos.pos, KnownType.Int))
         val asgn = Stmt.Asgn(identAsgn, rvalAsgn, semPos)
 
-        val inputAST = Program(Nil, Stmt.Block(List(decl, asgn), semPos), SemanticData.TopLevel(funcTable))
+        val inputAST = Program(Nil,
+                               Stmt.Block(List(decl, asgn), semPos),
+                               SemanticData.TopLevel(funcTable))
 
         TypeChecker.check(inputAST, errorLogger, funcTable)
 
@@ -833,8 +835,8 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
     }
 
     it should "reject char[][] assigned to string[] (array invariance)" in {
-        val input =
-        "begin char[] a = ['a']; char[] b = ['b']; char[][] arr = [a, b]; string[] s = arr; skip end"
+        val input = "begin char[] a = ['a']; char[] b = ['b'];" +
+                    " char[][] arr = [a, b]; string[] s = arr; skip end"
         val parseResult = parser.parse(input)
         parseResult.isRight shouldBe true
 
@@ -941,6 +943,8 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
 
 
     it should "not allow NOT with a non boolean operand" in {
+        // bool b = !5;
+        val pos = synPos
         val funcTable: Map[String, SemanticData.Func] = Map.empty
         val errorLogger = new ErrorLogger()
 
@@ -962,6 +966,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
     it should "expect the operand for NEG to be an int" in {
         val funcTable: Map[String, SemanticData.Func] = Map.empty
         val errorLogger = new ErrorLogger()
+        val pos = synPos
 
         // int i = -5;
         val iVar = (Ident("i", SemanticData.Var(synPos.pos, 1, KnownType.Int)))
@@ -975,6 +980,8 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
     }
 
     it should "not allow NEG with a non int operand" in {
+        // int i = -true;
+        val pos = synPos
         val funcTable: Map[String, SemanticData.Func] = Map.empty
         val errorLogger = new ErrorLogger()
 
@@ -996,6 +1003,17 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
     it should "expect the operand for ORD to be a char" in {
         val funcTable: Map[String, SemanticData.Func] = Map.empty
         val errorLogger = new ErrorLogger()
+        val pos = synPos
+
+        // int c = ord 'a';
+        val expr = UnaryExpr(UnaryOperator.Ord, CharLiter('a', pos), pos)
+        val decl = Stmt.Decl(SyntaxType.Int, Ident("c", pos), expr, pos)
+        
+        val ast = Program(Nil, Stmt.Block(List(decl), pos), pos)
+        val renamedAST = Renamer.rename(ast, errorLogger)
+        
+        TypeChecker.check(renamedAST, errorLogger, funcTable)
+        
 
         // int i = -5;
         val iVar = (Ident("i", SemanticData.Var(synPos.pos, 1, KnownType.Int)))
@@ -1009,6 +1027,8 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
     }
 
     it should "not allow ORD with a non char operand" in {
+        // int i = ord true;
+        val pos = synPos
         val funcTable: Map[String, SemanticData.Func] = Map.empty
         val errorLogger = new ErrorLogger()
 
@@ -1043,6 +1063,8 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
     }
 
     it should "not allow CHR with a non int operand" in {
+        // int c = chr true;
+        val pos = synPos
         val funcTable: Map[String, SemanticData.Func] = Map.empty
         val errorLogger = new ErrorLogger()
 
