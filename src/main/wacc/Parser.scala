@@ -4,7 +4,7 @@ import parsley.{Parsley, Success, Failure}
 import parsley.combinator.*
 import parsley.Parsley.*
 import parsley.position.pos
-import parsley.lift.lift2
+
 import parsley.expr.{precedence, Ops, InfixL, InfixN, InfixR, Prefix, chain}
 import parsley.errors.combinator.ErrorMethods
 
@@ -63,9 +63,7 @@ object parser {
     )
 
     private lazy val pairType =
-        "pair" ~> parens(
-            lift2(SyntaxType.Pair.apply, pairElemType <~ ",", pairElemType)
-        ) label "pair type"
+        "pair" ~> parens(Pair(pairElemType <~ ",", pairElemType)) label "pair type"
 
     private lazy val pairElemType = chain.postfix(baseType | "pair" #> SyntaxType.ErasedPair)(
         brackets(unit) #> ((t: SyntaxType) => SyntaxType.Array(t))
