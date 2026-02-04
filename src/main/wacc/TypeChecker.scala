@@ -531,6 +531,7 @@ object TypeChecker {
 
     c match {
 
+      /* Type check non-erased pair */
       case Constraint.Is(pairType @ KnownType.Pair(fstType, sndType)) => {
         val checkedExpr1 = checkExpr(e1, Constraint.Is(fstType))
         val checkedExpr2 = checkExpr(e2, Constraint.Is(sndType))
@@ -541,6 +542,7 @@ object TypeChecker {
         )
       }
 
+      /* Type check erased pair */
       case Constraint.Is(PairAny) | Constraint.Is(?) => {
         val checkedExpr1 = checkExpr(e1, Constraint.Infer)
         val checkedExpr2 = checkExpr(e2, Constraint.Infer)
@@ -558,6 +560,7 @@ object TypeChecker {
         )
       }
 
+      /* Pair not expected in the declaration/assignment */
       case other => {
         tcState.emit(
           info.pos,
