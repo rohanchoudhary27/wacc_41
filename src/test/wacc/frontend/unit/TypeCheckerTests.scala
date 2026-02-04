@@ -904,7 +904,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
     "The Unary Expression type checker" should "expect the operand for NOT to be a boolean" in {
         val funcTable: Map[String, SemanticData.Func] = Map.empty
         val errorLogger = new ErrorLogger()
-        val pos = SyntacticData.Pos(0,0)
+        val pos = synPos
 
         // bool b = !true;
         val expr = UnaryExpr(UnaryOperator.Not, BoolLiter(true, pos), pos)
@@ -946,7 +946,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
 
     it should "not allow NOT with a non boolean operand" in {
         // bool b = !5;
-        val pos = SyntacticData.Pos(0,0)
+        val pos = synPos
         val funcTable: Map[String, SemanticData.Func] = Map.empty
         val errorLogger = new ErrorLogger()
         val expr = UnaryExpr(UnaryOperator.Not, IntLiter(5, pos), pos)
@@ -965,7 +965,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
     it should "expect the operand for NEG to be an int" in {
         val funcTable: Map[String, SemanticData.Func] = Map.empty
         val errorLogger = new ErrorLogger()
-        val pos = SyntacticData.Pos(0,0)
+        val pos = synPos
 
         // int i = -5;
         val expr = UnaryExpr(UnaryOperator.Neg, IntLiter(5, pos), pos)
@@ -981,7 +981,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
 
     it should "not allow NEG with a non int operand" in {
         // int i = -true;
-        val pos = SyntacticData.Pos(0,0)
+        val pos = synPos
         val funcTable: Map[String, SemanticData.Func] = Map.empty
         val errorLogger = new ErrorLogger()
         val expr = UnaryExpr(UnaryOperator.Neg, BoolLiter(true, pos), pos)
@@ -1000,7 +1000,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
     it should "expect the operand for ORD to be a char" in {
         val funcTable: Map[String, SemanticData.Func] = Map.empty
         val errorLogger = new ErrorLogger()
-        val pos = SyntacticData.Pos(0,0)
+        val pos = synPos
 
         // int c = ord 'a';
         val expr = UnaryExpr(UnaryOperator.Ord, CharLiter('a', pos), pos)
@@ -1016,7 +1016,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
 
     it should "not allow ORD with a non char operand" in {
         // int i = ord true;
-        val pos = SyntacticData.Pos(0,0)
+        val pos = synPos
         val funcTable: Map[String, SemanticData.Func] = Map.empty
         val errorLogger = new ErrorLogger()
         val expr = UnaryExpr(UnaryOperator.Ord, BoolLiter(true, pos), pos)
@@ -1035,7 +1035,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
     it should "expect the operand for CHR to be an int" in {
         val funcTable: Map[String, SemanticData.Func] = Map.empty
         val errorLogger = new ErrorLogger()
-        val pos = SyntacticData.Pos(0,0)
+        val pos = synPos
 
         // char c = chr 97;
         val expr = UnaryExpr(UnaryOperator.Chr, IntLiter(97, pos), pos)
@@ -1051,7 +1051,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
 
     it should "not allow CHR with a non int operand" in {
         // int c = chr true;
-        val pos = SyntacticData.Pos(0,0)
+        val pos = synPos
         val funcTable: Map[String, SemanticData.Func] = Map.empty
         val errorLogger = new ErrorLogger()
         val expr = UnaryExpr(UnaryOperator.Chr, BoolLiter(true, pos), pos)
@@ -1070,7 +1070,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
     "The Binary Expression type checker" should "allow arithmetic operators with int operands" in {
         val funcTable: Map[String, SemanticData.Func] = Map.empty
         val errorLogger = new ErrorLogger()
-        val pos = SyntacticData.Pos(0,0)
+        val pos = synPos
 
         // int x = 10 + 20;
         val expr = BinaryExpr(BinaryOperator.Add, IntLiter(10, pos), IntLiter(20, pos), pos)
@@ -1087,7 +1087,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
     it should "not allow arithmetic operators with non int operands" in {
         val funcTable: Map[String, SemanticData.Func] = Map.empty
         val errorLogger = new ErrorLogger()
-        val pos = SyntacticData.Pos(0,0)
+        val pos = synPos
 
         // int x = 10 + true; (Error: expected Int, got Bool)
         val expr = BinaryExpr(BinaryOperator.Add, IntLiter(10, pos), BoolLiter(true, pos), pos)
@@ -1108,7 +1108,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
     it should "allow comparison operators with int operands" in {
         val funcTable: Map[String, SemanticData.Func] = Map.empty
         val errorLogger = new ErrorLogger()
-        val pos = SyntacticData.Pos(0,0)
+        val pos = synPos
 
         // bool b = 10 > 5;
         val expr = BinaryExpr(BinaryOperator.GT, IntLiter(10, pos), IntLiter(5, pos), pos)
@@ -1125,7 +1125,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
     it should "allow comparison operators with char operands" in {
         val funcTable: Map[String, SemanticData.Func] = Map.empty
         val errorLogger = new ErrorLogger()
-        val pos = SyntacticData.Pos(0,0)
+        val pos = synPos
 
         // bool b = 'a' < 'z';
         val expr = BinaryExpr(BinaryOperator.LT, CharLiter('a', pos), CharLiter('z', pos), pos)
@@ -1142,7 +1142,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
     it should "not allow comparison between incompatible types" in {
         val funcTable: Map[String, SemanticData.Func] = Map.empty
         val errorLogger = new ErrorLogger()
-        val pos = SyntacticData.Pos(0,0)
+        val pos = synPos
 
         // bool b = 5 > 'a';
         val expr = BinaryExpr(BinaryOperator.GT, IntLiter(5, pos), CharLiter('a', pos), pos)
@@ -1162,7 +1162,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
     it should "allow equality checks between matching types" in {
         val funcTable: Map[String, SemanticData.Func] = Map.empty
         val errorLogger = new ErrorLogger()
-        val pos = SyntacticData.Pos(0,0)
+        val pos = synPos
 
         // bool b = true == false;
         val expr = BinaryExpr(BinaryOperator.EQ, BoolLiter(true, pos), BoolLiter(false, pos), pos)
@@ -1179,7 +1179,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
     it should "not allow equality checks between mismatched types" in {
         val funcTable: Map[String, SemanticData.Func] = Map.empty
         val errorLogger = new ErrorLogger()
-        val pos = SyntacticData.Pos(0,0)
+        val pos = synPos
 
         // bool b = 5 == true;
         val expr = BinaryExpr(BinaryOperator.EQ, IntLiter(5, pos), BoolLiter(true, pos), pos)
@@ -1200,7 +1200,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
     it should "accept logical operators with bool operands" in {
         val funcTable: Map[String, SemanticData.Func] = Map.empty
         val errorLogger = new ErrorLogger()
-        val pos = SyntacticData.Pos(0,0)
+        val pos = synPos
 
         // bool b = true && false;
         val expr = BinaryExpr(BinaryOperator.And, BoolLiter(true, pos), BoolLiter(false, pos), pos)
@@ -1217,7 +1217,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
     it should "not allow logical operators with non bool operands" in {
         val funcTable: Map[String, SemanticData.Func] = Map.empty
         val errorLogger = new ErrorLogger()
-        val pos = SyntacticData.Pos(0,0)
+        val pos = synPos
 
         // bool b = true && 5;
         val expr = BinaryExpr(BinaryOperator.And, BoolLiter(true, pos), IntLiter(5, pos), pos)

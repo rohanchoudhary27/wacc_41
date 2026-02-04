@@ -18,25 +18,25 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
 
         val innerDecl = Stmt.Decl(
             SyntaxType.Int,
-            Ident("x", SyntacticData.Pos(0,0)),
-            IntLiter(0, SyntacticData.Pos(0,0)),
-            SyntacticData.Pos(0,0))
+            Ident("x", pos),
+            IntLiter(0, pos),
+            pos)
 
         val outerDecl = Stmt.Decl(
             SyntaxType.Int,
-            Ident("x", SyntacticData.Pos(0,0)), 
-            IntLiter(0, SyntacticData.Pos(0,0)),
-            SyntacticData.Pos(0,0))
+            Ident("x", pos), 
+            IntLiter(0, pos),
+            pos)
 
         val testBlock = Stmt.Block(
             List(
             outerDecl,
-            Stmt.Block(List(innerDecl), SyntacticData.Pos(0,0))
+            Stmt.Block(List(innerDecl), pos)
             ), 
-            SyntacticData.Pos(0,0)
+            pos
         )
 
-        val inputAST = Program(List[Func[SyntacticData]](), testBlock, SyntacticData.Pos(0,0))
+        val inputAST = Program(List[Func[SyntacticData]](), testBlock, pos)
 
         val renamedAST = Renamer.rename(inputAST, new ErrorLogger())
 
@@ -123,19 +123,19 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
     it should "suggest a similar variable name when a typo occurs in the same scope" in {
 
         val decl = Stmt.Decl(
-            SyntaxType.Int, 
-            Ident("myVariable", SyntacticData.Pos(0,0)), 
-            IntLiter(5, SyntacticData.Pos(0,0)), 
-            SyntacticData.Pos(0,0)
+            SyntaxType.Int,
+            Ident("myVariable", pos), 
+            IntLiter(5, pos), 
+            pos
         )
 
         val printStmt = Stmt.Print(
-            Ident("myVarble", SyntacticData.Pos(0,0)), 
-            SyntacticData.Pos(0,0)
+            Ident("myVarble", pos), 
+            pos
         )
 
-        val testBlock = Stmt.Block(List(decl, printStmt), SyntacticData.Pos(0,0))
-        val inputAST = Program(List[Func[SyntacticData]](), testBlock, SyntacticData.Pos(0,0))
+        val testBlock = Stmt.Block(List(decl, printStmt), pos)
+        val inputAST = Program(List[Func[SyntacticData]](), testBlock, pos)
 
         val errorLogger = new ErrorLogger() 
         Renamer.rename(inputAST, errorLogger)
@@ -151,19 +151,19 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
 
         val outerDecl = Stmt.Decl(
             SyntaxType.Int, 
-            Ident("jamie", SyntacticData.Pos(0,0)), 
-            IntLiter(10, SyntacticData.Pos(0,0)), 
-            SyntacticData.Pos(0,0)
+            Ident("jamie", pos), 
+            IntLiter(10, pos), 
+            pos
         )
         
         val innerPrint = Stmt.Print(
-            Ident("jame", SyntacticData.Pos(0,0)), 
-            SyntacticData.Pos(0,0)
+            Ident("jame", pos), 
+            pos
         )
-        val innerBlock = Stmt.Block(List(innerPrint), SyntacticData.Pos(0,0))
+        val innerBlock = Stmt.Block(List(innerPrint), pos)
 
-        val testBlock = Stmt.Block(List(outerDecl, innerBlock), SyntacticData.Pos(0,0))
-        val inputAST = Program(List[Func[SyntacticData]](), testBlock, SyntacticData.Pos(0,0))
+        val testBlock = Stmt.Block(List(outerDecl, innerBlock), pos)
+        val inputAST = Program(List[Func[SyntacticData]](), testBlock, pos)
 
         val errorLogger = new ErrorLogger()
         Renamer.rename(inputAST, errorLogger)
@@ -178,18 +178,18 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
     it should "not suggest anything if no variable is similar enough" in {
         val decl = Stmt.Decl(
             SyntaxType.Int, 
-            Ident("number", SyntacticData.Pos(0,0)), 
-            IntLiter(5, SyntacticData.Pos(0,0)), 
-            SyntacticData.Pos(0,0)
+            Ident("number", pos), 
+            IntLiter(5, pos), 
+            pos
         )
 
         val printStmt = Stmt.Print(
-            Ident("konstantinos", SyntacticData.Pos(0,0)), 
-            SyntacticData.Pos(0,0)
+            Ident("konstantinos", pos), 
+            pos
         )
 
-        val testBlock = Stmt.Block(List(decl, printStmt), SyntacticData.Pos(0,0))
-        val inputAST = Program(List[Func[SyntacticData]](), testBlock, SyntacticData.Pos(0,0))
+        val testBlock = Stmt.Block(List(decl, printStmt), pos)
+        val inputAST = Program(List[Func[SyntacticData]](), testBlock, pos)
 
         val errorLogger = new ErrorLogger()
         Renamer.rename(inputAST, errorLogger)
@@ -217,8 +217,8 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
             SyntacticData.Pos(20, 1)
         )
 
-        val testBlock = Stmt.Block(List(decl1, decl2), SyntacticData.Pos(0,0))
-        val inputAST = Program(List[Func[SyntacticData]](), testBlock, SyntacticData.Pos(0,0))
+        val testBlock = Stmt.Block(List(decl1, decl2), pos)
+        val inputAST = Program(List[Func[SyntacticData]](), testBlock, pos)
 
         val errorLogger = new ErrorLogger()
         Renamer.rename(inputAST, errorLogger)
@@ -236,14 +236,14 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
 
         val decl = Stmt.Decl(
             SyntaxType.Int,
-            Ident("x", SyntacticData.Pos(0,0)),
-            IntLiter(5, SyntacticData.Pos(0,0)),
-            SyntacticData.Pos(0,0))
+            Ident("x", pos),
+            IntLiter(5, pos),
+            pos)
 
-        val readStmt = Stmt.Read(Ident("x", SyntacticData.Pos(0,0)), SyntacticData.Pos(0,0))
+        val readStmt = Stmt.Read(Ident("x", pos), pos)
         
-        val testBlock = Stmt.Block(List(decl, readStmt), SyntacticData.Pos(0,0))
-        val inputAST = Program(List[Func[SyntacticData]](), testBlock, SyntacticData.Pos(0,0))
+        val testBlock = Stmt.Block(List(decl, readStmt), pos)
+        val inputAST = Program(List[Func[SyntacticData]](), testBlock, pos)
         
         val errorLogger = ErrorLogger()
         val renamedAST = Renamer.rename(inputAST, errorLogger)
