@@ -793,7 +793,8 @@ object TypeChecker {
       tcState.emit(
         info.pos,
         "Type error: array accessed with too many indices",
-        s"\nExpression '${ident.name}' has type $identType but accessed with ${indices.length} indices"
+        s"\nExpression '${ident.name}' has type $identType but accessed" +
+          s" with ${indices.length} indices"
       )
       ArrayElem(typedIdent, typedIndices, SemanticData.Error(info.pos))
     else

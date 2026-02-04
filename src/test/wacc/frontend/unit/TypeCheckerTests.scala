@@ -118,7 +118,9 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         val rvalAsgn = IntLiter(2, SemanticData.Typed(synPos.pos, KnownType.Int))
         val asgn = Stmt.Asgn(identAsgn, rvalAsgn, semPos)
 
-        val inputAST = Program(Nil, Stmt.Block(List(decl, asgn), semPos), SemanticData.TopLevel(funcTable))
+        val inputAST = Program(Nil,
+                               Stmt.Block(List(decl, asgn), semPos),
+                               SemanticData.TopLevel(funcTable))
 
         TypeChecker.check(inputAST, errorLogger, funcTable)
 
@@ -833,8 +835,8 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
     }
 
     it should "reject char[][] assigned to string[] (array invariance)" in {
-        val input =
-        "begin char[] a = ['a']; char[] b = ['b']; char[][] arr = [a, b]; string[] s = arr; skip end"
+        val input = "begin char[] a = ['a']; char[] b = ['b'];" +
+                    " char[][] arr = [a, b]; string[] s = arr; skip end"
         val parseResult = parser.parse(input)
         parseResult.isRight shouldBe true
 

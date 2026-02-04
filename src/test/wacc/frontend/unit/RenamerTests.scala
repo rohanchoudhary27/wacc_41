@@ -328,8 +328,9 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         val callF = Call(Ident("f", pos), List(Ident("x", pos)), pos)
         val declResult = Stmt.Decl(SyntaxType.Int, Ident("res", pos), callF, pos)
 
-        val funcF = Func(SyntaxType.Int, Ident("f", pos), List(Param(SyntaxType.Int, Ident("p", pos), pos)), 
-                        Stmt.Block(List(Stmt.Return(IntLiter(0, pos), pos)), pos), pos)
+        val funcF = Func(SyntaxType.Int, Ident("f", pos),
+                         List(Param(SyntaxType.Int, Ident("p", pos), pos)), 
+                         Stmt.Block(List(Stmt.Return(IntLiter(0, pos), pos)), pos), pos)
 
         val inputAST = Program(List(funcF), Stmt.Block(List(declX, declResult), pos), pos)
         val renamedAST = Renamer.rename(inputAST, new ErrorLogger())
@@ -622,7 +623,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         
         errors should include ("Variable 'x' is not defined")
     }
-    "The Unary Expression Renamer" should "return an error when the parameter of an expression is not declared" in {
+    "The Unary Expression Renamer" should "error when the param of an expr is not declared" in {
         // x is the identifier that has not been declared
         val notExpr = UnaryExpr(UnaryOperator.Not, Ident("x", pos), pos)
 
@@ -661,7 +662,8 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
 
         val Stmt.Block(stmts, _) = renamedAST.stmt: @unchecked
         val Stmt.Decl(_, declaredX, _, _) = stmts(0): @unchecked
-        val Stmt.Decl(_, _, UnaryExpr(UnaryOperator.Neg, usedX: Ident[SemanticData], _), _) = stmts(1): @unchecked
+        val Stmt.Decl(_, _, UnaryExpr(UnaryOperator.Neg,
+                                      usedX: Ident[SemanticData], _), _) = stmts(1): @unchecked
 
         extractId(usedX) shouldBe extractId(declaredX)
     }
@@ -682,7 +684,8 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
 
         val Stmt.Block(stmts, _) = renamedAST.stmt: @unchecked
         val Stmt.Decl(_, declaredB, _, _) = stmts(0): @unchecked
-        val Stmt.Decl(_, _, UnaryExpr(UnaryOperator.Not, usedB: Ident[SemanticData], _), _) = stmts(1): @unchecked
+        val Stmt.Decl(_, _, UnaryExpr(UnaryOperator.Not,
+                                      usedB: Ident[SemanticData], _), _) = stmts(1): @unchecked
 
         extractId(usedB) shouldBe extractId(declaredB)
     }
@@ -703,7 +706,8 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
 
         val Stmt.Block(stmts, _) = renamedAST.stmt: @unchecked
         val Stmt.Decl(_, declaredC, _, _) = stmts(0): @unchecked
-        val Stmt.Decl(_, _, UnaryExpr(UnaryOperator.Ord, usedC: Ident[SemanticData], _), _) = stmts(1): @unchecked
+        val Stmt.Decl(_, _, UnaryExpr(UnaryOperator.Ord,
+                                      usedC: Ident[SemanticData], _), _) = stmts(1): @unchecked
 
         extractId(usedC) shouldBe extractId(declaredC)
     }
@@ -724,7 +728,8 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
 
         val Stmt.Block(stmts, _) = renamedAST.stmt: @unchecked
         val Stmt.Decl(_, declaredI, _, _) = stmts(0): @unchecked
-        val Stmt.Decl(_, _, UnaryExpr(UnaryOperator.Chr, usedI: Ident[SemanticData], _), _) = stmts(1): @unchecked
+        val Stmt.Decl(_, _, UnaryExpr(UnaryOperator.Chr,
+                                      usedI: Ident[SemanticData], _), _) = stmts(1): @unchecked
 
         extractId(usedI) shouldBe extractId(declaredI)
     }
@@ -745,13 +750,15 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         val Stmt.Block(stmts, _) = renamedAST.stmt: @unchecked
         val Stmt.Decl(_, declaredX, _, _) = stmts(0): @unchecked
         
-        val Stmt.Decl(_, _, UnaryExpr(UnaryOperator.Neg, UnaryExpr(UnaryOperator.Neg, usedX: Ident[SemanticData], _), _), _) 
-            = stmts(1): @unchecked
+        val Stmt.Decl(_, _, UnaryExpr(UnaryOperator.Neg,
+                                      UnaryExpr(UnaryOperator.Neg,
+                                                usedX: Ident[SemanticData],
+                                                _), _), _) = stmts(1): @unchecked
 
         extractId(usedX) shouldBe extractId(declaredX)
     }
 
-    "The Binary Expression renamer" should "correctly identify variables in arithmetic operations" in {
+    "The Binary Expression renamer" should "correctly identify vars in arithmetic operations" in {
         // int x = 10;
         // int y = 20;
         // int res = x + y;
@@ -768,8 +775,9 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         val Stmt.Decl(_, declaredX, _, _) = stmts(0): @unchecked
         val Stmt.Decl(_, declaredY, _, _) = stmts(1): @unchecked
         
-        val Stmt.Decl(_, _, BinaryExpr(BinaryOperator.Add, usedX: Ident[SemanticData], usedY: Ident[SemanticData], _), _) = 
-            stmts(2): @unchecked
+        val Stmt.Decl(_, _, BinaryExpr(BinaryOperator.Add,
+                                       usedX: Ident[SemanticData],
+                                       usedY: Ident[SemanticData], _), _) = stmts(2): @unchecked
 
         extractId(usedX) shouldBe extractId(declaredX)
         extractId(usedY) shouldBe extractId(declaredY)
@@ -792,8 +800,9 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         val Stmt.Decl(_, declaredA, _, _) = stmts(0): @unchecked
         val Stmt.Decl(_, declaredB, _, _) = stmts(1): @unchecked
         
-        val Stmt.Decl(_, _, BinaryExpr(BinaryOperator.GT, usedA: Ident[SemanticData], usedB: Ident[SemanticData], _), _) = 
-            stmts(2): @unchecked
+        val Stmt.Decl(_, _, BinaryExpr(BinaryOperator.GT,
+                                       usedA: Ident[SemanticData],
+                                       usedB: Ident[SemanticData], _), _) = stmts(2): @unchecked
 
         extractId(usedA) shouldBe extractId(declaredA)
         extractId(usedB) shouldBe extractId(declaredB)
@@ -816,8 +825,9 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         val Stmt.Decl(_, declaredP, _, _) = stmts(0): @unchecked
         val Stmt.Decl(_, declaredQ, _, _) = stmts(1): @unchecked
         
-        val Stmt.Decl(_, _, BinaryExpr(BinaryOperator.And, usedP: Ident[SemanticData], usedQ: Ident[SemanticData], _), _) = 
-            stmts(2): @unchecked
+        val Stmt.Decl(_, _, BinaryExpr(BinaryOperator.And,
+                                       usedP: Ident[SemanticData],
+                                       usedQ: Ident[SemanticData], _), _) = stmts(2): @unchecked
 
         extractId(usedP) shouldBe extractId(declaredP)
         extractId(usedQ) shouldBe extractId(declaredQ)
@@ -840,8 +850,9 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         val Stmt.Decl(_, declaredC1, _, _) = stmts(0): @unchecked
         val Stmt.Decl(_, declaredC2, _, _) = stmts(1): @unchecked
         
-        val Stmt.Decl(_, _, BinaryExpr(BinaryOperator.EQ, usedC1: Ident[SemanticData], usedC2: Ident[SemanticData], _), _) = 
-            stmts(2): @unchecked
+        val Stmt.Decl(_, _, BinaryExpr(BinaryOperator.EQ,
+                                       usedC1: Ident[SemanticData],
+                                       usedC2: Ident[SemanticData], _), _) = stmts(2): @unchecked
 
         extractId(usedC1) shouldBe extractId(declaredC1)
         extractId(usedC2) shouldBe extractId(declaredC2)
