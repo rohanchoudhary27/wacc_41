@@ -621,6 +621,40 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         errorLogger.hasErrors() shouldBe false
     }
 
+    it should "not allow pair covariance" in {
+        val funcTable: Map[String, SemanticData.Func] = Map.empty
+        val pos = semPos.pos 
+
+        val charArrPairType = KnownType.Pair(
+            KnownType.Array(KnownType.Char), 
+            KnownType.Array(KnownType.Char)
+        )
+        
+        val stringPairType = KnownType.Pair(
+            KnownType.String, 
+            KnownType.String
+        )
+
+        val decl = Stmt.Decl(SyntaxType.Pair(SyntaxType.String, SyntaxType.String),
+                             Ident("pair2", SemanticData.Var(pos, 2, stringPairType)),
+                             Ident("pair1", SemanticData.Var(pos, 1, charArrPairType)), semPos)
+
+        val errorLogger = new ErrorLogger(Vector.empty)
+        val inputAST = Program(
+            Nil,
+            Stmt.Block(List(decl), semPos),
+            SemanticData.TopLevel(funcTable)
+        )
+        
+        TypeChecker.check(inputAST, errorLogger, funcTable)
+
+        errorLogger.hasErrors() shouldBe true
+        
+        val errors = errorLogger.retrieveAllErrors()
+        errors should include ("Expected 'pair(string, string)'") 
+        errors should include ("got 'pair(char[], char[])'")
+    }
+
     "The type checker for arrays" should "accept simple array literal declaration" in {
         val input = "begin int[] arr = [1, 2, 3]; skip end"
         val parseResult = parser.parse(input)
