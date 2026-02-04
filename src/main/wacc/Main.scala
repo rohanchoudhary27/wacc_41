@@ -38,13 +38,15 @@ object WaccFrontend {
                 case Left(_) => CompilationResult(syntacticErrorCode, Some(syntacticErrors))
                 
                 case Right(syntacticAST) =>
-                    val semanticErrors = new ErrorLogger(codeLines)
 
                     SyntaxPass.syntaxCheck(syntacticAST, syntacticErrors)
                     if (syntacticErrors.hasErrors()) {
                         CompilationResult(syntacticErrorCode, Some(syntacticErrors))
 
                     } else {
+
+                        /* Object to log semantic errors */
+                        val semanticErrors = new ErrorLogger(codeLines)
                         val renamedAST = Renamer.rename(syntacticAST, semanticErrors)
 
                         val funcTable = renamedAST.info match {
