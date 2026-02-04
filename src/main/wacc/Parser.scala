@@ -133,10 +133,12 @@ object parser {
     private lazy val rvalue: Parsley[RValue[SyntacticData]] =
         (arrayLiter label "array literal") |
         (expr | call label "value expression") |
-        (NewPair("newpair" ~> "(" ~> expr <~ ",", expr <~ ")") label "newpair expression") |
+        (newPair label "newpair expression") |
         (pairElem label "pair element expression")
     private lazy val arrayLiter: Parsley[ArrayLiter[SyntacticData]] =
         ArrayLiter(brackets(sepBy(expr, ",")))
+    private lazy val newPair: Parsley[NewPair[SyntacticData]] = 
+        NewPair("newpair" ~> "(" ~> expr <~ ",", expr <~ ")")
     private lazy val call: Parsley[Call[SyntacticData]] =
         Call("call" ~> identLit, "(" ~> sepBy(expr, ",") <~ ")") label "function call"
 
