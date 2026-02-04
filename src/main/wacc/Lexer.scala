@@ -166,4 +166,5 @@ object lexer {
     def fully[A](p: Parsley[A]): Parsley[A] = lexer.fully(p)
 
     def brackets[A](p: => Parsley[A]): Parsley[A] = lexer.lexeme.brackets(p)
+    def parens[A](p: => Parsley[A]): Parsley[A] = lexer.lexeme.parens(p)
 }

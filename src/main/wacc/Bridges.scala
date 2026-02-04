@@ -52,6 +52,9 @@ object Bridges {
     val StrLiter   = bridge[StrLiter[SyntacticData]]
     val PairLiter  = bridge[PairLiter[SyntacticData]]
     val ArrayLiter = bridge[ArrayLiter[SyntacticData]]
+
+    /* Type constructors */
+    val Pair = bridge[SyntaxType.Pair]
 }
 
 /**
