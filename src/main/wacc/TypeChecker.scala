@@ -1002,8 +1002,8 @@ object TypeChecker {
       /* two pairs are compatible if their respective types are compatible */
       case (KnownType.Pair(ty11, ty12), KnownType.Pair(ty21, ty22)) =>
         for {
-          t1 <- ty11 ~ ty21
-          t2 <- ty12 ~ ty22
+          t1 <- strictCheck(ty11, ty21)
+          t2 <- strictCheck(ty12, ty22)
         } yield KnownType.Pair(t1, t2)
 
       /* exact type match */
@@ -1011,6 +1011,16 @@ object TypeChecker {
 
       case _ => None
     }
+
+    private def strictCheck(t1: SemanticType, t2: SemanticType): Option[SemanticType] = 
+      (t1, t2) match {
+        case (?, t) => Some(t)
+        case (t, ?) => Some(t)
+        case (PairAny, _) => Some(t2)
+        case (_, PairAny) => Some(t1)
+        case (a, b) if a == b => Some(a)
+        case _ => None 
+      }
 
     /** Checks whether type `ty` matches constraint `c`. This method performs no
       * error logging.
