@@ -10,6 +10,11 @@ case class CompilationResult(
 
 object WaccFrontend {
 
+    val successCode = 0
+    val syntacticErrorCode = 100
+    val semanticErrorCode = 200 
+    val compilerFailure = -1
+
     def compile(path: Path): CompilationResult = {
 
         /* Load file as String */
@@ -24,20 +29,20 @@ object WaccFrontend {
         Sanitiser.sanitise(sourceCode, syntacticErrors)
 
         if (syntacticErrors.hasErrors()) {
-            CompilationResult(100, Some(syntacticErrors))
+            CompilationResult(syntacticErrorCode, Some(syntacticErrors))
         } else {
 
             val result = parser.parse(sourceCode)
 
             result match {
-                case Left(_) => CompilationResult(100, Some(syntacticErrors))
+                case Left(_) => CompilationResult(syntacticErrorCode, Some(syntacticErrors))
                 
                 case Right(syntacticAST) =>
                     val semanticErrors = new ErrorLogger(codeLines)
 
                     SyntaxPass.syntaxCheck(syntacticAST, syntacticErrors)
                     if (syntacticErrors.hasErrors()) {
-                        CompilationResult(100, Some(syntacticErrors))
+                        CompilationResult(syntacticErrorCode, Some(syntacticErrors))
 
                     } else {
                         val renamedAST = Renamer.rename(syntacticAST, semanticErrors)
@@ -49,8 +54,9 @@ object WaccFrontend {
 
                         TypeChecker.check(renamedAST, semanticErrors, funcTable)
 
-                        if (semanticErrors.hasErrors()) CompilationResult(200, Some(semanticErrors))
-                        else CompilationResult(0, None)
+                        if (semanticErrors.hasErrors()) CompilationResult(semanticErrorCode,
+                                                                          Some(semanticErrors))
+                        else CompilationResult(successCode, None)
                     }
             }
         }
@@ -96,8 +102,8 @@ object WaccFrontend {
             case Some(errorLogger) =>
 
                 val errorHeader = compilationResult.exitCode match {
-                    case 100 => "Failure: 100 - Syntax error:"
-                    case 200 => "Failure: 200 - Semantic error:"
+                    case `syntacticErrorCode` => "Failure: 100 - Syntax error:"
+                    case `semanticErrorCode` => "Failure: 200 - Semantic error:"
                 }
 
                 Console.err.println(errorHeader)
@@ -111,4 +117,3 @@ object WaccFrontend {
     }
 
 }
-

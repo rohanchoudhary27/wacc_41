@@ -24,11 +24,11 @@ final class FrontendIntegrationSpec extends AnyFlatSpec with Matchers {
         /* make the file relative to examples root to get the scope */
         val rel = examplesRoot.relativize(file).toString 
 
-        if (rel.startsWith("valid/")) 0
-        else if (rel.startsWith("invalid/syntaxErr/")) 100
-        else if (rel.startsWith("invalid/semanticErr/")) 200
-        else if (rel.startsWith("invalid/whack/")) 100
-        else 1
+        if (rel.startsWith("valid/")) WaccFrontend.successCode 
+        else if (rel.startsWith("invalid/syntaxErr/") ||
+                 rel.startsWith("invalid/whack/")) WaccFrontend.syntacticErrorCode
+        else if (rel.startsWith("invalid/semanticErr/")) WaccFrontend.semanticErrorCode
+        else WaccFrontend.compilerFailure
     }
 
     private val validDir = examplesRoot.resolve("valid")
