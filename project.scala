@@ -3,7 +3,7 @@
 
 // dependencies
 //> using dep com.github.j-mie6::parsley::5.0.0-M17
-//> using dep com.lihaoyi::os-lib::0.11.6
+//> using dep com.lihaoyi::os-lib::0.11.8
 //> using dep org.scalatestplus::scalacheck-1-18::3.2.19.0
 //> using testFramework org.scalatest.tools.Framework
 //> using test.dep org.scalatest::scalatest::3.2.19
