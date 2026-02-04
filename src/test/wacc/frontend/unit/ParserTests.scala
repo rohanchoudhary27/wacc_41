@@ -453,7 +453,8 @@ class ParserTests extends AnyFlatSpec with Matchers {
         rval match {
             case BinaryExpr(BinaryOperator.Mul, left, IntLiter(2, _), _) =>
                 left match {
-                    case BinaryExpr(BinaryOperator.Add, IntLiter(5, _), IntLiter(3, _), _) => succeed
+                    case BinaryExpr(BinaryOperator.Add, IntLiter(5, _), IntLiter(3, _), _) =>
+                        succeed
                     case other => fail(s"Expected (5+3) on LHS, got: $other")
                 }
             case other => fail(s"Expected Mul((5+3), 2), got: $other")
@@ -467,7 +468,8 @@ class ParserTests extends AnyFlatSpec with Matchers {
         rval match {
             case BinaryExpr(BinaryOperator.GT, left, IntLiter(6, _), _) =>
                 left match {
-                    case BinaryExpr(BinaryOperator.Add, IntLiter(5, _), IntLiter(2, _), _) => succeed
+                    case BinaryExpr(BinaryOperator.Add, IntLiter(5, _), IntLiter(2, _), _) =>
+                        succeed
                     case other => fail(s"Expected (5+2) on LHS, got: $other")
                 }
             case other => fail(s"Expected GT((5+2), 6), got: $other")
@@ -481,7 +483,8 @@ class ParserTests extends AnyFlatSpec with Matchers {
         rval match {
             case BinaryExpr(BinaryOperator.Or, BoolLiter(true, _), rhs, _) =>
                 rhs match {
-                    case BinaryExpr(BinaryOperator.And, BoolLiter(false, _), BoolLiter(true, _), _) => succeed
+                    case BinaryExpr(BinaryOperator.And, BoolLiter(false, _), BoolLiter(true, _), _)
+                        => succeed
                     case other => fail(s"Expected (false && true) on RHS, got: $other")
                 }
             case other => fail(s"Expected Or(true, ...), got: $other")
@@ -495,7 +498,8 @@ class ParserTests extends AnyFlatSpec with Matchers {
         rval match {
             case BinaryExpr(BinaryOperator.Mod, left, IntLiter(3, _), _) =>
                 left match {
-                    case BinaryExpr(BinaryOperator.Div, IntLiter(10, _), IntLiter(2, _), _) => succeed
+                    case BinaryExpr(BinaryOperator.Div, IntLiter(10, _), IntLiter(2, _), _) =>
+                        succeed
                     case other => fail(s"Expected (10 / 2) on LHS, got: $other")
                 }
             case other => fail(s"Expected Mod(..., 3), got: $other")
