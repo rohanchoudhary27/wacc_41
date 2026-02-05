@@ -955,12 +955,12 @@ object TypeChecker {
   /** Type-check a binary expression
     *
     * The type table for binary expressions is given as
-    * | Operators     | Left-Hand Type | Right-Hand Type | Return Type |      |      |
-    * |:--------------|:---------------|:----------------|:------------|:-----|:-----|
-    * | *  /  %  +  - | int            | int             | int         |      |      |
-    * | >  >=  <  <=  | int / char     | int / char      | bool        |      |      |
-    * | ==  !=        | τ              | τ               | bool        |      |      |
-    * | &&            |                |                 | bool        | bool | bool |
+    * | Operators     | Left-Hand Type | Right-Hand Type | Return Type |
+    * |:--------------|:---------------|:----------------|:------------|
+    * | *  /  %  +  - | int            | int             | int         |
+    * | >  >=  <  <=  | int / char     | int / char      | bool        |
+    * | ==  !=        | τ              | τ               | bool        |
+    * | &&  ||        | bool           | bool            | bool        |
     *
     * Based on the operator type, it emposes input constraints on the input
     * expressions and checks that the constraint matches the result type.
@@ -1067,8 +1067,8 @@ object TypeChecker {
       /* two pairs are compatible if their respective types are compatible */
       case (KnownType.Pair(ty11, ty12), KnownType.Pair(ty21, ty22)) =>
         for {
-          t1 <- strictCheck(ty11, ty21)
-          t2 <- strictCheck(ty12, ty22)
+          t1 <- ty11 ~! ty21  /* strict check */
+          t2 <- ty12 ~! ty22  /* strict check */
         } yield KnownType.Pair(t1, t2)
 
       /* exact type match */
@@ -1077,12 +1077,21 @@ object TypeChecker {
       case _ => None
     }
 
-    private def strictCheck(t1: SemanticType, t2: SemanticType): Option[SemanticType] = 
-      (t1, t2) match {
+    /** Performs a strict check between types `ty1` and `ty2`.
+      * A strict check doesn't allow type weakining.
+      * 
+      * @param ty2:
+      *   The type to strict check `ty1` against with
+      * 
+      * @return
+      *   `Some(SemanticType)` if `ty1` and `ty2` are strictly matching, or `None` on failure.
+      */
+    private def ~!(ty2: SemanticType): Option[SemanticType] = 
+      (ty1, ty2) match {
         case (?, t) => Some(t)
         case (t, ?) => Some(t)
-        case (PairAny, _) => Some(t2)
-        case (_, PairAny) => Some(t1)
+        case (PairAny, _) => Some(ty2)
+        case (_, PairAny) => Some(ty1)
         case (a, b) if a == b => Some(a)
         case _ => None 
       }
