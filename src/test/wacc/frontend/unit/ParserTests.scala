@@ -651,6 +651,12 @@ class ParserTests extends AnyFlatSpec with Matchers {
                                s" but got ${other}")
         }
     }
+
+    it should "not allow un-escaped escape characters" in {
+        val input = "begin skip 'end"
+        parseFail(input)
+    }
+
     /* ==================== {/STRINGS} ==================== */
 
     /* ==================== {ARRAYS} ==================== */
