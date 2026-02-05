@@ -41,7 +41,7 @@ object parser {
 
     private lazy val func =
         Func(waccType, identLit, 
-            parens(paramList), "is" ~> stmt <~ "end"
+            parens(paramList), "is" ~> (stmt label "function body") <~ "end"
         ) label "function definition"
 
     private lazy val paramList = sepBy(param, ",") label "parameter list"
@@ -67,7 +67,8 @@ object parser {
 
     private lazy val pairElemType = chain.postfix(baseType | "pair" #> SyntaxType.ErasedPair)(
         brackets(unit) #> ((t: SyntaxType) => SyntaxType.Array(t))
-    )
+    ) label "pair element type" explain 
+        "pair elements can have base types (int, bool, char, string), nested pairs, or arrays"
 
     /* Statement grammar */
     private lazy val stmt: Parsley[Stmt[SyntacticData]] = 
@@ -90,9 +91,9 @@ object parser {
     private lazy val asgn = Asgn(lvalue, "=" ~> 
         (rvalue label "value" explain "assignment requires a value"))
 
-    private lazy val read = Read("read" ~> lvalue)
-    private lazy val free = Free("free" ~> expr)
-    private lazy val returnStmt = Return("return" ~> expr)
+    private lazy val read = Read("read" ~> (lvalue label "variable to read into"))
+    private lazy val free = Free("free" ~> (expr label "pair or array to free"))
+    private lazy val returnStmt = Return("return" ~> (expr label "return value"))
     private lazy val exit = Exit("exit" ~> expr label "exit code")
 
     private lazy val print = Print("print" ~> expr label "value to print")
@@ -142,7 +143,9 @@ object parser {
         (pairElem label "pair element") | 
         (identLit label "assignable variable")
 
-    private lazy val arrayElem = ArrayElem(identLit, some(brackets(expr label "array index")))
+    private lazy val arrayElem = ArrayElem(identLit, some(brackets(
+        expr label "array index" explain "array indices must be integer expressions"
+    )))
     private lazy val pairElem = 
         PairElem("fst" #> true | "snd" #> false, lvalue) label "pair element"
 
@@ -153,7 +156,10 @@ object parser {
         (pairElem label "pair element expression")
 
     private lazy val arrayLiter = ArrayLiter(brackets(sepBy(expr, ",")))
-    private lazy val newPair = NewPair("newpair" ~> "(" ~> expr <~ ",", expr <~ ")")
+    private lazy val newPair = NewPair(
+        "newpair" ~> "(" ~> (expr label "first element") <~ ",", 
+        (expr label "second element") <~ ")"
+    )
     private lazy val call = 
         Call("call" ~> identLit, parens(sepBy(expr, ","))) label "function call"
 
