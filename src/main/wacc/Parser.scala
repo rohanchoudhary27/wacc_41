@@ -193,13 +193,13 @@ object parser {
 
     /* Parses a prefix operator string and wraps the operand in a UnaryExpr node */
     private def prefix(str: String, op: UnaryOperator) = {
-        (str *> pos).map{p => (e: Expr[SyntacticData]) => 
-            (new UnaryExpr(op, e, SyntacticData.Pos(p)))}
+        ((str *> pos).map{p => (e: Expr[SyntacticData]) => 
+            (new UnaryExpr(op, e, SyntacticData.Pos(p)))}) label "unary operator"
     }
 
     /* Parses an infix operator string and combines operands to a BinaryExpr node */
     private def infix(str: String, op: BinaryOperator) = {
-        (str *> pos).map{p => (left: Expr[SyntacticData], right: Expr[SyntacticData]) =>
-            (new BinaryExpr(op, left, right, SyntacticData.Pos(p)))}
+        ((str *> pos).map{p => (left: Expr[SyntacticData], right: Expr[SyntacticData]) =>
+            (new BinaryExpr(op, left, right, SyntacticData.Pos(p)))}) label "binary operator"
     }
 }
