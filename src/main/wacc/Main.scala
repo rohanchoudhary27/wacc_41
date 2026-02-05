@@ -124,7 +124,7 @@ object WaccFrontend {
         /* Expect a singular argument */
         if(args.length != 1) {
             println("Requires file.")
-            sys.exit(-1)
+            sys.exit(compilerFailure)
         }
 
         val path = Paths.get(args(0))
@@ -132,7 +132,7 @@ object WaccFrontend {
         /* Validate file exists */
         if (!Files.exists(path)) {
             println(s"Error: Path '$path' does not exist.")
-            sys.exit(-1)
+            sys.exit(compilerFailure)
         }
 
         /* Compile the file */
