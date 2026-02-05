@@ -71,9 +71,17 @@ object parser {
 
     /* Statement grammar */
     private lazy val stmt: Parsley[Stmt[SyntacticData]] = 
-        Block(sepBy1(singleStmt, ";")) label "statement"
-    private lazy val singleStmt = skip | exit | print | println_stmt | decl | asgn | read | scope | 
-                                  ifStmt | whileStmt | returnStmt | free
+        Block(sepBy1(singleStmt, ";"))
+
+    private lazy val singleStmt = 
+        skip | 
+        read | 
+        returnStmt |
+        (asgn label "assignment") |
+        (decl label "type") |
+        ((print | println_stmt | exit | free) label "builtin call") |
+        (scope label "new scope") |
+        ((ifStmt | whileStmt) label "control flow")
 
     private lazy val skip = Skip from "skip"
     private lazy val decl = Decl(waccType, identLit, "=" ~> (
