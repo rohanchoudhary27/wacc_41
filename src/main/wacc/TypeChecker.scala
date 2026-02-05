@@ -18,9 +18,9 @@ enum Constraint {
   /* The expression must have a type that is one of the given set */
   case OneOf(ts: Set[SemanticType])
 
-  override def toString(): String = this match
-    case Is(t)     => t.toString()
-    case OneOf(ts) => ts.mkString(" | ")
+  def outputFormat: String = this match
+    case Is(t)     => t.outputFormat
+    case OneOf(ts) => ts.map(_.outputFormat).mkString(" | ")
 
 }
 
@@ -564,7 +564,7 @@ object TypeChecker {
       case other => {
         tcState.emit(
           info.pos,
-          s"Type error: Expected '${other.toString()}' but got '${PairAny.toString()}'"
+          s"Type error: Expected '${other.outputFormat}' but got '${PairAny.outputFormat}'"
         )
 
         /* error indicated by SemanticData.Error */
@@ -589,12 +589,12 @@ object TypeChecker {
         
         if (incompatibleTypes.nonEmpty) {
           /* report single comprehensive error showing all types found */
-          val typesList = elemTypes.distinct.mkString(", ")
-          tcState.emit(
-            info.pos,
-            "Type error: array literal mismatch",
-            s"\nliteral contains mix of $typesList\nexpected $arrType"
-          )
+          val typesList = elemTypes.distinct.map(_.outputFormat).mkString(", ") 
+            tcState.emit(
+              info.pos,
+              "Type error: array literal mismatch",
+              s"\nliteral contains mix of $typesList\nexpected ${arrType.outputFormat}"
+            )
           ArrayLiter(typedElems, SemanticData.Error(info.pos))
         } else {
           /* all elements compatible - recheck with constraint to apply weakening */
@@ -633,7 +633,7 @@ object TypeChecker {
               ArrayLiter(retypedElems, SemanticData.Typed(info.pos, KnownType.Array(lcaType)))
               
             case None =>
-              val typesList = elemTypes.mkString(", ")
+              val typesList = elemTypes.map(_.outputFormat).mkString(", ")
               tcState.emit(
                 info.pos,
                 "Type error: array literal has incompatible element types",
@@ -645,7 +645,7 @@ object TypeChecker {
       }
 
       case other => {
-        tcState.emit(info.pos, s"Type error: Expected Array but got ${other.toString()}")
+        tcState.emit(info.pos, s"Type error: Expected Array but got ${other.outputFormat}")
         ArrayLiter(elems, SemanticData.Error(info.pos))
       }
     }
@@ -793,7 +793,7 @@ object TypeChecker {
       tcState.emit(
         info.pos,
         "Type error: array accessed with too many indices",
-        s"\nExpression '${ident.name}' has type $identType but accessed" +
+        s"\nExpression '${ident.name}' has type ${identType.outputFormat} but accessed" +
           s" with ${indices.length} indices"
       )
       ArrayElem(typedIdent, typedIndices, SemanticData.Error(info.pos))
@@ -1136,7 +1136,7 @@ object TypeChecker {
       ty1.matches(c).orElse {
         logger.logError(
           pos,
-          s"Type error: Expected '$c' but got '$ty1'"
+          s"Type error: Expected '${c.outputFormat}' but got '${ty1.outputFormat}'"
         )
         None
       }

@@ -6,18 +6,18 @@ import scala.collection.mutable.ListBuffer
 /** The semantic type system
   */
 sealed trait SemanticType {
-  override def toString: String = this match
+  def outputFormat: String = this match
     case KnownType.Int        => "int"
     case KnownType.Bool       => "bool"
     case KnownType.Char       => "char"
     case KnownType.String     => "string"
     case KnownType.Array(t)   => t match
       case ? => "array"
-      case _ => s"$t[]"
+      case _ => s"${t.outputFormat}[]"
     case KnownType.Pair(a, b) =>
       (a, b) match
         case (?, ?) => "pair"
-        case _      => s"pair($a, $b)"
+        case _      => s"pair(${a.outputFormat}, ${b.outputFormat})"
     case PairAny => "pair"
     case Null => "null"
     case EmptyArray => "[]"
