@@ -67,5 +67,5 @@ object Bridges {
 * the position information.
 */
 given ParsableMetadata[SyntacticData] with {
-  def meta: Parsley[SyntacticData] = pos.map(SyntacticData.Pos.apply)
+    def meta: Parsley[SyntacticData] = pos.map(SyntacticData.Pos.apply)
 }
