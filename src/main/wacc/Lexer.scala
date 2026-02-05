@@ -6,6 +6,7 @@ import parsley.token.descriptions.*
 import parsley.token.Basic
 import parsley.token.descriptions.ExponentDesc.NoExponents
 import parsley.token.errors.{ErrorConfig, Label, LabelConfig, LabelWithExplainConfig}
+import parsley.token.Unicode
 
 /**
 * The Parsley lexer, describing language structure and creating the base case
@@ -61,6 +62,10 @@ object lexer {
                 )
             ),
             characterLiteralEnd = '\'',
+            graphicCharacter = Unicode(c =>
+                /* All printable ASCII except \, ', and ", which must be escaped */
+                c >= ' '.toInt && c != '\''.toInt && c != '\"'.toInt && c != '\\'.toInt
+            ),
         ),
 
         /* Description of WACC comments and whitespace */
