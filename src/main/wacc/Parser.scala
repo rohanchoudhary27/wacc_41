@@ -59,7 +59,7 @@ object parser {
     ) label "type"
 
     private lazy val arrayType = chain.postfix(baseType | atomic(pairType))(
-        brackets(unit) #> ((t: SyntaxType) => SyntaxType.Array(t))
+        (brackets(unit) label "array type") #> ((t: SyntaxType) => SyntaxType.Array(t))
     )
 
     private lazy val pairType =
@@ -142,7 +142,7 @@ object parser {
         (pairElem label "pair element") | 
         (identLit label "assignable variable")
 
-    private lazy val arrayElem = ArrayElem(identLit, some(brackets(expr)))
+    private lazy val arrayElem = ArrayElem(identLit, some(brackets(expr label "array index")))
     private lazy val pairElem = 
         PairElem("fst" #> true | "snd" #> false, lvalue) label "pair element"
 
