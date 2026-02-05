@@ -7,6 +7,7 @@ import parsley.position.pos
 
 import parsley.expr.{precedence, Ops, InfixL, InfixN, InfixR, Prefix, chain}
 import parsley.errors.combinator.ErrorMethods
+import parsley.errors.patterns.VerifiedErrors
 
 import lexer.{fully, ident, string, boolLiter, nullLiter, brackets, parens}
 import lexer.implicits.given
@@ -17,6 +18,11 @@ import Bridges.*
 * ultimately be able to parse an entire WACC program. 
 */
 object parser {
+
+    /* Verified error widgets - detect unclosed blocks (wrong keyword or EOF) */
+    private val _unclosedIf = (choice("end", "done") | eof).verifiedExplain("unclosed if statement")
+    private val _unclosedWhile = (choice("end", "fi") | eof).verifiedExplain("unclosed while loop")
+    private val _unclosedBegin = (choice("fi", "done") | eof).verifiedExplain("unclosed begin block")
 
     /**
     * Parse a WACC program inputted as a string.
@@ -36,12 +42,13 @@ object parser {
     private lazy val programParser = fully(program)
     private lazy val program = Program(
         "begin" ~> many(atomic(func)) label "function definitions",
-        (stmt label "program body" explain "program must contain at least one statement") <~ "end"
+        (stmt label "program body" explain "program must contain at least one statement") <~ 
+            ("end" | _unclosedBegin)
     )
 
     private lazy val func =
         Func(waccType, identLit, 
-            parens(paramList), "is" ~> (stmt label "function body") <~ "end"
+            parens(paramList), "is" ~> (stmt label "function body") <~ ("end" | _unclosedBegin)
         ) label "function definition"
 
     private lazy val paramList = sepBy(param, ",") label "parameter list"
@@ -106,7 +113,7 @@ object parser {
             (stmt label "then branch"),
         "else" ~> 
             (stmt label "else branch") 
-        <~ "fi"
+        <~ ("fi" | _unclosedIf)
     )
 
     private lazy val whileStmt = While(
@@ -114,10 +121,11 @@ object parser {
             (expr label "condition" explain "while conditions must be boolean expressions") 
         <~ "do",
             (stmt label "loop body") 
-        <~ "done"
+        <~ ("done" | _unclosedWhile)
     )
 
-    private lazy val scope = "begin" ~> (stmt label "scoped statement") <~ "end"
+    private lazy val scope = "begin" ~> (stmt label "scoped statement") <~ 
+        ("end" | _unclosedBegin)
 
     /* Expression grammar */
     private lazy val expr: Parsley[Expr[SyntacticData]] = precedence(atom)(
