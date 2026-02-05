@@ -38,7 +38,7 @@ object Sanitiser {
             if (!isAscii(c)) {
                 val errorMsg =
                     "Syntax error: Cannot have non-ASCII characters in WACC programs"
-                errorLogger.logError((currLine, currCol), errorMsg)
+                errorLogger.logSemanticError((currLine, currCol), errorMsg)
             }
 
             /* Current line and column updates */

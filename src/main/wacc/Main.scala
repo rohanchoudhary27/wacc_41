@@ -62,7 +62,9 @@ object WaccFrontend {
             result match {
 
                 /* Parser syntax error */
-                case Left(_) => CompilationResult(syntacticErrorCode, Some(syntacticErrors))
+                case Left(parseError) =>
+                    syntacticErrors.logSyntaxError(parseError)
+                    CompilationResult(syntacticErrorCode, Some(syntacticErrors))
                 
                 case Right(syntacticAST) =>
 

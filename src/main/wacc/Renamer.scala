@@ -22,7 +22,7 @@ class RenamerState(
 
   /** Emit an error message */
   def emit(pos: SourcePos, msg: String, extraInfo: String = "") =
-    errorLogger.logError(pos, msg, extraInfo)
+    errorLogger.logSemanticError(pos, msg, extraInfo)
 
   /** Get the function signature table as an immutable map */
   def allFuncs: Map[String, SemanticData.Func] = funcSignatureTable.toMap
