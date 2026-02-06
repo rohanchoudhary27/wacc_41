@@ -82,6 +82,9 @@ object lexer {
 
     private val errorConfig = new ErrorConfig {
 
+        /* Hide whitespace and comments from error messages to reduce noise */
+        override def labelSpaceEndOfLineComment: LabelConfig = Hidden
+        
         /* Label operators, delimiters, and keywords with meaningful names */
         override def labelSymbol = {
             val operators = Map(
