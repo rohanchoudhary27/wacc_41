@@ -365,7 +365,7 @@ object Renamer {
     val semData =
       if (!inFunc) {
         val errorMsg =
-          "Syntax error: Return statements can only be used inside functions"
+          "Semantic error: Return statements can only be used inside functions"
         state.emit(synPos.pos, errorMsg)
         SemanticData.Error(synPos.pos)
       } else {

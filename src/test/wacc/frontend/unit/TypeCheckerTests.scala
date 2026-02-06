@@ -1387,7 +1387,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         errorLogger.hasErrors() shouldBe true
         val errors = errorLogger.retrieveAllErrors()
         errors should include ("Type error")
-        errors should include ("| pair")
+        errors should include ("or pair")
         errors should include ("but got 'int'")
     }
 
@@ -1418,7 +1418,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         errorLogger.hasErrors() shouldBe true
         val errors = errorLogger.retrieveAllErrors()
         errors should include ("Type error")
-        errors should include ("| pair")
+        errors should include ("or pair")
         errors should include ("but got 'int'")
     }
 }

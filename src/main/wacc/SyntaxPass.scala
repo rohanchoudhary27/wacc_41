@@ -30,7 +30,7 @@ object SyntaxPass {
             case Some(func) =>
                 val errorMsg =
                     s"Function error: Function '${func.ident.name}' is not guaranteed to return"
-                errorLogger.logError(func.info.pos, errorMsg)
+                errorLogger.logError(func.ident.info.pos, errorMsg)
                 prog
             case None => prog
         }
