@@ -20,14 +20,14 @@ class ErrorLoggerTests extends AnyFlatSpec with Matchers {
         logger.logSemanticError(posTwo, msgTwo)
 
         logger.hasErrors() shouldBe true
-        val retrievedErrors = logger.retrieveAllErrors()
+        
+        /* First error position should be accessible */
+        logger.firstErrorPos() shouldBe (2, 4)
 
-        retrievedErrors should include (msgOne)
-        retrievedErrors should include (msgTwo)
-
-        retrievedErrors should include ("2") 
-        retrievedErrors should include ("4")
-        retrievedErrors should include ("5")
+        /* Message content should include error messages */
+        val allErrors = logger.retrieveAllErrors()
+        allErrors should include (msgOne)
+        allErrors should include (msgTwo)
     }
 
     it should "store and format syntax errors passed to it" in {

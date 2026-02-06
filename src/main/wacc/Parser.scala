@@ -49,9 +49,9 @@ object parser {
     * AST tagged with SyntacticData on success, or an error string on failure
     */
     def parse(input: String): Either[String, Program[SyntacticData]] = 
-        programParser.parse(input) match {
+        programParser.parse(input)(using ErrorBuilder) match {
             case Success(ast) => Right(ast)
-            case Failure(err) => Left(err.toString)
+            case Failure(err) => Left(err)
         }
 
     /* Top-level grammar */

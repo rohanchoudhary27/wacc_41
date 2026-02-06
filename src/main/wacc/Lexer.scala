@@ -5,7 +5,7 @@ import parsley.token.Lexer
 import parsley.token.descriptions.*
 import parsley.token.Basic
 import parsley.token.descriptions.ExponentDesc.NoExponents
-import parsley.token.errors.{ErrorConfig, Label, LabelConfig, LabelWithExplainConfig}
+import parsley.token.errors.{ErrorConfig, Label, LabelConfig, LabelWithExplainConfig, Hidden}
 import parsley.token.Unicode
 
 /**
