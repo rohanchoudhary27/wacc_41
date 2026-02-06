@@ -167,8 +167,7 @@ object WaccFrontend {
                             (s"$errorType in $filename:", allErrors)
                         }
                     case `semanticErrorCode` =>
-                        val pos = errorLogger.firstErrorPos()
-                        (s"$errorType in $filename (line ${pos(0)}, column ${pos(1)}):", allErrors)
+                        (s"$errorType in $filename:", allErrors)
                 }
 
                 Console.err.println(header)

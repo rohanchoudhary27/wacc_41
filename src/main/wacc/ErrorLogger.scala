@@ -118,7 +118,9 @@ case class ErrorLogger(val codeLines: Vector[String] = Vector.empty) {
                     errorBuilder.append("\n")
 
                 case sem: SemanticError =>
-                    errorBuilder.append(s"${sem.msg}\n\n")
+                    errorBuilder.append(
+                        s"(Line ${err.pos(0)}, column ${err.pos(1)}) ${err.msg}\n\n"
+                    )
 
                     /* Code where the error occurred and a pointer to the position in the line */
                     if (indentTrackedLines.nonEmpty && 
