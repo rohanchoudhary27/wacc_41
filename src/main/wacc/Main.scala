@@ -123,7 +123,7 @@ object WaccFrontend {
 
         /* Expect a singular argument */
         if(args.length != 1) {
-            println("Requires file.")
+            Console.err.println("Requires file.")
             sys.exit(compilerFailure)
         }
 
@@ -131,7 +131,7 @@ object WaccFrontend {
 
         /* Validate file exists */
         if (!Files.exists(path)) {
-            println(s"Error: Path '$path' does not exist.")
+            Console.err.println(s"Error: Path '$path' does not exist.")
             sys.exit(compilerFailure)
         }
 
