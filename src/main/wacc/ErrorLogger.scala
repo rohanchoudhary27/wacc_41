@@ -107,7 +107,11 @@ case class ErrorLogger(val codeLines: Vector[String] = Vector.empty) {
     def retrieveAllErrors(): String = {
         val errorBuilder = new StringBuilder
 
-        for (err <- errors) {
+        /* Sorted errors by position (Line, column). Renamer does a full 
+        parse so this prevents out of order errors. */
+        val sortedErrors = errors.sortBy(err => (err.pos(0), err.pos(1)))
+
+        for (err <- sortedErrors) {
             err match {
                 case SyntaxError(msg) =>
                     errorBuilder.append(msg)
