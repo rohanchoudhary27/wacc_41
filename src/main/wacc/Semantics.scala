@@ -153,6 +153,7 @@ case class SemanticError(pos: SourcePos, msg: String, codeLine: String)
 case class ErrorLogger(val codeLines: Vector[String] = Vector.empty) {
 
   val errors = ListBuffer[SemanticError]()
+  val tabSize = 4
   val indentTrackedLines = codeLines.map { line => indentAlign(line) }
 
   /** Strip leading and trailing whitespace from a string and provide the number
@@ -165,9 +166,22 @@ case class ErrorLogger(val codeLines: Vector[String] = Vector.empty) {
     *   (String, Int): A tuple with the stripped string and number of indent
     *   characters
     */
-  private def indentAlign(str: String): (String, Int) = {
-    val leftStrippedStr = str.stripLeading()
-    (leftStrippedStr.stripTrailing(), str.length - leftStrippedStr.length)
+    private def indentAlign(str: String): (String, Int) = {
+    val leadingChars = str.takeWhile(_.isWhitespace)
+    val strippedStr = str.drop(leadingChars.length).stripTrailing()
+    
+    /* Tab characters count for 4 spaces and jump to the next
+       tab column (which is how tabs work) */
+    var visualIndent = 0
+    for (c <- leadingChars) {
+      if (c == '\t') {
+        visualIndent += tabSize - (visualIndent % tabSize)
+      } else {
+        visualIndent += 1
+      }
+    }
+
+    (strippedStr, visualIndent)
   }
 
   /** Log a new semantic error.
