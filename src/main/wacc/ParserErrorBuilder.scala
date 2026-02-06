@@ -71,7 +71,7 @@ object ParserErrorBuilder extends ErrorBuilder[String] with MatchParserDemand {
     val numLinesBefore: Int = 1
     val numLinesAfter: Int = 1
     
-    def raw(item: String): Raw = s""""$item""""
+    def raw(item: String): Raw = s""""${item.trim}""""
     def named(item: String): Named = item
     val endOfInput: EndOfInput = "end of input"
 }

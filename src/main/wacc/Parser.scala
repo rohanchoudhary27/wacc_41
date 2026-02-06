@@ -40,6 +40,16 @@ object parser {
         labels = "else"
     )
 
+    /* Detect extra semicolons between statements */
+    private val _doubleSemicolon = ";".verifiedExplain(
+        "extra semi-colons are not valid, there must be exactly one between each statement"
+    )
+
+    /* Detect incorrect function calls in expressions */
+    private val _missingCall = atomic(ident *> "(").verifiedExplain(
+        "function calls must start with `call` and may not appear in expressions"
+    )
+
     /**
     * Parse a WACC program inputted as a string.
     * 
@@ -98,6 +108,7 @@ object parser {
         Block(sepBy1(singleStmt, ";"))
 
     private lazy val singleStmt = 
+        _doubleSemicolon |
         skip | 
         read | 
         returnStmt |
@@ -156,6 +167,7 @@ object parser {
 
     /* atomic(arrayElem) is tried before identLit since both start with ident */
     private lazy val atom = intLit | boolLit | charLit | strLit | pairLit |
+        _missingCall |
         atomic(arrayElem) | identLit |
         parens(
             expr label "expression" explain "expression required inside parentheses"
