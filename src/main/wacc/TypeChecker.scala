@@ -20,7 +20,7 @@ enum Constraint {
 
   def outputFormat: String = this match
     case Is(t)     => t.outputFormat
-    case OneOf(ts) => ts.map(_.outputFormat).mkString(" | ")
+    case OneOf(ts) => ts.map(_.outputFormat).mkString(" or ")
 
 }
 
@@ -789,22 +789,22 @@ object TypeChecker {
         /* Make sure the indexing is of an array */
         case KnownType.Array(_) =>
 
-    /* extract element type and check constraint */
+          /* extract element type and check constraint */
           val elemType = extractLValueType(ArrayElem(typedIdent, typedIndices, info))
-    
-    /* if elemType is ?, we tried to index too deeply */
-    if (elemType == ?) then
-      val identType = extractLValueType(ident)
-      tcState.emit(
-        info.pos,
-        "Type error: array accessed with too many indices",
-        s"\nExpression '${ident.name}' has type ${identType.outputFormat} but accessed" +
-          s" with ${indices.length} indices"
-      )
-      ArrayElem(typedIdent, typedIndices, SemanticData.Error(info.pos))
-    else
-      val finalType = elemType.satisfies(c, info.pos, tcState.errorLogger).getOrElse(?)
-      ArrayElem(typedIdent, typedIndices, SemanticData.Typed(info.pos, finalType))
+
+          /* if elemType is ?, we tried to index too deeply */
+          if (elemType == ?) then
+            val identType = extractLValueType(ident)
+            tcState.emit(
+              info.pos,
+              "Type error: array accessed with too many indices",
+              s"\nExpression '${ident.name}' has type ${identType.outputFormat} but accessed" +
+                s" with ${indices.length} indices"
+            )
+            ArrayElem(typedIdent, typedIndices, SemanticData.Error(info.pos))
+          else
+            val finalType = elemType.satisfies(c, info.pos, tcState.errorLogger).getOrElse(?)
+            ArrayElem(typedIdent, typedIndices, SemanticData.Typed(info.pos, finalType))
           
         /* Supress the too many indices error on an unindexable type
            since the compiler will already issue a type mismatch (expected array) */
