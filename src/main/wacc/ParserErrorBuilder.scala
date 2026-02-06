@@ -1,12 +1,13 @@
 package wacc
 
+import parsley.errors.ErrorBuilder
 import parsley.errors.tokenextractors.MatchParserDemand
 
 /**
 * Custom ErrorBuilder to format syntax errors consistently.
 * Formats position as "(line X, column Y):" and provides clean error content.
 */
-object ErrorBuilder extends parsley.errors.ErrorBuilder[String] with MatchParserDemand {
+object ParserErrorBuilder extends ErrorBuilder[String] with MatchParserDemand {
     type Position = (Int, Int)
     type Source = Option[String]
     type ErrorInfoLines = Seq[String]
