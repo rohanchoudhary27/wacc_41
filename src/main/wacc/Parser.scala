@@ -7,6 +7,7 @@ import parsley.position.pos
 
 import parsley.expr.{precedence, Ops, InfixL, InfixN, InfixR, Prefix, chain}
 import parsley.errors.combinator.ErrorMethods
+import parsley.errors.patterns.{VerifiedErrors, PreventativeErrors}
 
 import lexer.{fully, ident, string, boolLiter, nullLiter, brackets, parens}
 import lexer.implicits.given
@@ -18,6 +19,27 @@ import Bridges.*
 */
 object parser {
 
+    /* Verified error widgets - detect unclosed blocks (wrong keyword or EOF) */
+    private val _unclosedIf = (choice("end", "done") | eof).verifiedExplain("unclosed if statement")
+    private val _unclosedWhile = (choice("end", "fi") | eof).verifiedExplain("unclosed while loop")
+    private val _unclosedBegin = (choice("fi", "done") | eof).verifiedExplain("unclosed begin block")
+    
+    /* Preventative error widgets - detect common mistakes */
+    private val _missingThen = notFollowedBy("then").preventativeExplain(
+        reason = "if statement expects 'then' after condition",
+        labels = "then"
+    )
+    
+    private val _missingDo = notFollowedBy("do").preventativeExplain(
+        reason = "while loop expects 'do' after condition",
+        labels = "do"
+    )
+    
+    private val _missingElse = "fi".preventativeExplain(
+        reason = "if statements require an 'else' branch",
+        labels = "else"
+    )
+
     /**
     * Parse a WACC program inputted as a string.
     * 
@@ -27,21 +49,22 @@ object parser {
     * AST tagged with SyntacticData on success, or an error string on failure
     */
     def parse(input: String): Either[String, Program[SyntacticData]] = 
-        programParser.parse(input) match {
+        programParser.parse(input)(using ParserErrorBuilder) match {
             case Success(ast) => Right(ast)
-            case Failure(err) => Left(err.toString)
+            case Failure(err) => Left(err)
         }
 
     /* Top-level grammar */
     private lazy val programParser = fully(program)
     private lazy val program = Program(
         "begin" ~> many(atomic(func)) label "function definitions",
-        (stmt label "program body" explain "program must contain at least one statement") <~ "end"
+        (stmt label "program body" explain "program must contain at least one statement") <~ 
+            ("end" | _unclosedBegin)
     )
 
     private lazy val func =
         Func(waccType, identLit, 
-            parens(paramList), "is" ~> stmt <~ "end"
+            parens(paramList), "is" ~> (stmt label "function body") <~ ("end" | _unclosedBegin)
         ) label "function definition"
 
     private lazy val paramList = sepBy(param, ",") label "parameter list"
@@ -59,7 +82,7 @@ object parser {
     ) label "type"
 
     private lazy val arrayType = chain.postfix(baseType | atomic(pairType))(
-        brackets(unit) #> ((t: SyntaxType) => SyntaxType.Array(t))
+        (brackets(unit) label "array type") #> ((t: SyntaxType) => SyntaxType.Array(t))
     )
 
     private lazy val pairType =
@@ -67,13 +90,22 @@ object parser {
 
     private lazy val pairElemType = chain.postfix(baseType | "pair" #> SyntaxType.ErasedPair)(
         brackets(unit) #> ((t: SyntaxType) => SyntaxType.Array(t))
-    )
+    ) label "pair element type" explain 
+        "pair elements can have base types (int, bool, char, string), nested pairs, or arrays"
 
     /* Statement grammar */
     private lazy val stmt: Parsley[Stmt[SyntacticData]] = 
-        Block(sepBy1(singleStmt, ";")) label "statement"
-    private lazy val singleStmt = skip | exit | print | println_stmt | decl | asgn | read | scope | 
-                                  ifStmt | whileStmt | returnStmt | free
+        Block(sepBy1(singleStmt, ";"))
+
+    private lazy val singleStmt = 
+        skip | 
+        read | 
+        returnStmt |
+        (asgn label "assignment") |
+        (decl label "type") |
+        ((print | println_stmt | exit | free) label "builtin call") |
+        (scope label "new scope") |
+        ((ifStmt | whileStmt) label "control flow")
 
     private lazy val skip = Skip from "skip"
     private lazy val decl = Decl(waccType, identLit, "=" ~> (
@@ -82,9 +114,9 @@ object parser {
     private lazy val asgn = Asgn(lvalue, "=" ~> 
         (rvalue label "value" explain "assignment requires a value"))
 
-    private lazy val read = Read("read" ~> lvalue)
-    private lazy val free = Free("free" ~> expr)
-    private lazy val returnStmt = Return("return" ~> expr)
+    private lazy val read = Read("read" ~> (lvalue label "variable to read into"))
+    private lazy val free = Free("free" ~> (expr label "pair or array to free"))
+    private lazy val returnStmt = Return("return" ~> (expr label "return value"))
     private lazy val exit = Exit("exit" ~> expr label "exit code")
 
     private lazy val print = Print("print" ~> expr label "value to print")
@@ -93,22 +125,23 @@ object parser {
     private lazy val ifStmt = If(
         "if" ~> 
             (expr label "condition" explain "if conditions must be boolean expressions") 
-        <~ "then",
+        <~ (_missingThen ~> "then"),
             (stmt label "then branch"),
-        "else" ~> 
+        _missingElse ~> "else" ~> 
             (stmt label "else branch") 
-        <~ "fi"
+        <~ ("fi" | _unclosedIf)
     )
 
     private lazy val whileStmt = While(
         "while" ~> 
             (expr label "condition" explain "while conditions must be boolean expressions") 
-        <~ "do",
+        <~ (_missingDo ~> "do"),
             (stmt label "loop body") 
-        <~ "done"
+        <~ ("done" | _unclosedWhile)
     )
 
-    private lazy val scope = "begin" ~> (stmt label "scoped statement") <~ "end"
+    private lazy val scope = "begin" ~> (stmt label "scoped statement") <~ 
+        ("end" | _unclosedBegin)
 
     /* Expression grammar */
     private lazy val expr: Parsley[Expr[SyntacticData]] = precedence(atom)(
@@ -134,7 +167,9 @@ object parser {
         (pairElem label "pair element") | 
         (identLit label "assignable variable")
 
-    private lazy val arrayElem = ArrayElem(identLit, some(brackets(expr)))
+    private lazy val arrayElem = ArrayElem(identLit, some(brackets(
+        expr label "array index" explain "array indices must be integer expressions"
+    )))
     private lazy val pairElem = 
         PairElem("fst" #> true | "snd" #> false, lvalue) label "pair element"
 
@@ -145,7 +180,10 @@ object parser {
         (pairElem label "pair element expression")
 
     private lazy val arrayLiter = ArrayLiter(brackets(sepBy(expr, ",")))
-    private lazy val newPair = NewPair("newpair" ~> "(" ~> expr <~ ",", expr <~ ")")
+    private lazy val newPair = NewPair(
+        "newpair" ~> "(" ~> (expr label "first element") <~ ",", 
+        (expr label "second element") <~ ")"
+    )
     private lazy val call = 
         Call("call" ~> identLit, parens(sepBy(expr, ","))) label "function call"
 
@@ -193,13 +231,13 @@ object parser {
 
     /* Parses a prefix operator string and wraps the operand in a UnaryExpr node */
     private def prefix(str: String, op: UnaryOperator) = {
-        (str *> pos).map{p => (e: Expr[SyntacticData]) => 
-            (new UnaryExpr(op, e, SyntacticData.Pos(p)))}
+        ((str *> pos).map{p => (e: Expr[SyntacticData]) => 
+            (new UnaryExpr(op, e, SyntacticData.Pos(p)))}) label "unary operator"
     }
 
     /* Parses an infix operator string and combines operands to a BinaryExpr node */
     private def infix(str: String, op: BinaryOperator) = {
-        (str *> pos).map{p => (left: Expr[SyntacticData], right: Expr[SyntacticData]) =>
-            (new BinaryExpr(op, left, right, SyntacticData.Pos(p)))}
+        ((str *> pos).map{p => (left: Expr[SyntacticData], right: Expr[SyntacticData]) =>
+            (new BinaryExpr(op, left, right, SyntacticData.Pos(p)))}) label "binary operator"
     }
 }

@@ -62,7 +62,7 @@ class TCState(
 
   /** Emit an error message */
   def emit(pos: SourcePos, msg: String, extraInfo: String = ""): Unit = {
-    errorLogger.logError(pos, msg, extraInfo)
+    errorLogger.logSemanticError(pos, msg, extraInfo)
   }
 }
 
@@ -1145,7 +1145,7 @@ object TypeChecker {
         logger: ErrorLogger
     ): Option[SemanticType] = {
       ty1.matches(c).orElse {
-        logger.logError(
+        logger.logSemanticError(
           pos,
           s"Type error: Expected '${c.outputFormat}' but got '${ty1.outputFormat}'"
         )

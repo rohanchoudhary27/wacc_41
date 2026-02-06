@@ -5,7 +5,7 @@ import parsley.token.Lexer
 import parsley.token.descriptions.*
 import parsley.token.Basic
 import parsley.token.descriptions.ExponentDesc.NoExponents
-import parsley.token.errors.{ErrorConfig, Label, LabelConfig, LabelWithExplainConfig}
+import parsley.token.errors.{ErrorConfig, Label, LabelConfig, LabelWithExplainConfig, Hidden}
 import parsley.token.Unicode
 
 /**
@@ -13,6 +13,18 @@ import parsley.token.Unicode
 * primitive parsers.
 */
 object lexer {
+
+    /* Reserved keywords */
+    private val keywords = Set(
+        "begin", "end", "is", "skip", "read", "free", "return",
+        "exit", "print", "println", "if", "then", "else",
+        "fi", "while", "do", "done", "newpair", "call",
+        "fst", "snd", "int", "bool", "char", "string",
+        "pair", "len", "ord", "chr", "true", "false", "null"
+    )
+
+    /* Delimiters */
+    private val delimiters = Set("[", "]", "(", ")", ",", ";")
 
     private val desc = LexicalDesc.plain.copy(
 
@@ -24,13 +36,7 @@ object lexer {
 
         /* Reserved keywords and operators */
         symbolDesc = SymbolDesc.plain.copy(
-            hardKeywords = Set(
-                "begin", "end", "is", "skip", "read", "free", "return",
-                "exit", "print", "println", "if", "then", "else",
-                "fi", "while", "do", "done", "newpair", "call",
-                "fst", "snd", "int", "bool", "char", "string",
-                "pair", "len", "ord", "chr", "true", "false", "null"
-            ),
+            hardKeywords = keywords,
             hardOperators = Set(
               "!", "-", "*", "/", "%", "+",
               "-", ">", ">=", "<", "<=", "==", "!=", "&&", "||",
@@ -76,71 +82,41 @@ object lexer {
 
     private val errorConfig = new ErrorConfig {
 
+        /* Hide whitespace and comments from error messages to reduce noise */
+        override def labelSpaceEndOfLineComment: LabelConfig = Hidden
+        
         /* Label operators, delimiters, and keywords with meaningful names */
-        override def labelSymbol = Map(
-
-            /* Arithmetic operators */
-            "+" -> Label("addition operator"),
-            "-" -> Label("subtraction operator"),
-            "*" -> Label("multiplication operator"),
-            "/" -> Label("division operator"),
-            "%" -> Label("modulo operator"),
+        override def labelSymbol = {
+            val operators = Map(
+                /* Arithmetic operators */
+                "+" -> Label("addition"),
+                "-" -> Label("subtraction"),
+                "*" -> Label("multiplication"),
+                "/" -> Label("division"),
+                "%" -> Label("modulo"),
+                
+                /* Comparison operators */
+                ">"  -> Label("greater than"),
+                ">=" -> Label("greater than or equal"),
+                "<"  -> Label("less than"),
+                "<=" -> Label("less than or equal"),
+                "==" -> Label("equality"),
+                "!=" -> Label("inequality"),
+                
+                /* Logical operators */
+                "&&" -> Label("logical AND"),
+                "||" -> Label("logical OR"),
+                "!"  -> Label("logical NOT"),
+                
+                /* Assignment */
+                "=" -> Label("assignment")
+            )
             
-            /* Comparison operators */
-            ">"  -> Label("greater than operator"),
-            ">=" -> Label("greater than or equal operator"),
-            "<"  -> Label("less than operator"),
-            "<=" -> Label("less than or equal operator"),
-            "==" -> Label("equality operator"),
-            "!=" -> Label("inequality operator"),
+            /* Generate labels for delimiters and keywords, which are shown as-is */
+            val delimAndKeywordLabels = (delimiters ++ keywords).map(s => s -> Label(s)).toMap
             
-            /* Logical operators */
-            "&&" -> Label("logical AND operator"),
-            "||" -> Label("logical OR operator"),
-            "!"  -> Label("logical NOT operator"),
-            
-            /* Assignment and delimiters */
-            "=" -> Label("assignment operator"),
-            "[" -> Label("opening bracket"),
-            "]" -> Label("closing bracket"),
-            "(" -> Label("opening parenthesis"),
-            ")" -> Label("closing parenthesis"),
-            "," -> Label("comma"),
-            ";" -> Label("semicolon"),
-            
-            /* Keywords */
-            "begin"   -> Label("'begin' keyword"),
-            "end"     -> Label("'end' keyword"),
-            "skip"    -> Label("'skip' statement"),
-            "read"    -> Label("'read' statement"),
-            "free"    -> Label("'free' statement"),
-            "return"  -> Label("'return' statement"),
-            "exit"    -> Label("'exit' statement"),
-            "print"   -> Label("'print' statement"),
-            "println" -> Label("'println' statement"),
-            "if"      -> Label("'if' keyword"),
-            "then"    -> Label("'then' keyword"),
-            "else"    -> Label("'else' keyword"),
-            "fi"      -> Label("'fi' keyword"),
-            "while"   -> Label("'while' keyword"),
-            "do"      -> Label("'do' keyword"),
-            "done"    -> Label("'done' keyword"),
-            "newpair" -> Label("'newpair' keyword"),
-            "call"    -> Label("'call' keyword"),
-            "fst"     -> Label("'fst' keyword"),
-            "snd"     -> Label("'snd' keyword"),
-            "int"     -> Label("'int' type"),
-            "bool"    -> Label("'bool' type"),
-            "char"    -> Label("'char' type"),
-            "string"  -> Label("'string' type"),
-            "pair"    -> Label("'pair' type"),
-            "len"     -> Label("'len' operator"),
-            "ord"     -> Label("'ord' operator"),
-            "chr"     -> Label("'chr' operator"),
-            "true"    -> Label("boolean literal 'true'"),
-            "false"   -> Label("boolean literal 'false'"),
-            "null"    -> Label("null literal")
-        )
+            operators ++ delimAndKeywordLabels
+        }
         
         /* Label numeric literals */
         override def labelIntegerUnsignedDecimal: LabelConfig = Label("integer literal")

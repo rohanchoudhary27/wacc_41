@@ -745,4 +745,174 @@ class ParserTests extends AnyFlatSpec with Matchers {
     }
 
     /* ==================== {/ARRAYS} ==================== */
+
+    /* ==================== {VERIFIED ERRORS} ==================== */
+    "Verified error messages for unclosed blocks" should "detect unclosed if at EOF" in {
+        val input = "begin if true then skip else skip"
+        val result = parser.parse(input)
+        result match {
+            case Left(err) => err should include("unclosed if statement")
+            case Right(_) => fail("Expected parse failure for unclosed if")
+        }
+    }
+
+    it should "detect unclosed if with wrong closing keyword (end)" in {
+        val input = "begin if true then skip else skip end"
+        val result = parser.parse(input)
+        result match {
+            case Left(err) => err should include("unclosed if statement")
+            case Right(_) => fail("Expected parse failure for unclosed if")
+        }
+    }
+
+    it should "detect unclosed if with wrong closing keyword (done)" in {
+        val input = "begin if true then skip else skip done end"
+        val result = parser.parse(input)
+        result match {
+            case Left(err) => err should include("unclosed if statement")
+            case Right(_) => fail("Expected parse failure for unclosed if")
+        }
+    }
+
+    it should "detect unclosed while at EOF" in {
+        val input = "begin while true do skip"
+        val result = parser.parse(input)
+        result match {
+            case Left(err) => err should include("unclosed while loop")
+            case Right(_) => fail("Expected parse failure for unclosed while")
+        }
+    }
+
+    it should "detect unclosed while with wrong closing keyword (end)" in {
+        val input = "begin while true do skip end"
+        val result = parser.parse(input)
+        result match {
+            case Left(err) => err should include("unclosed while loop")
+            case Right(_) => fail("Expected parse failure for unclosed while")
+        }
+    }
+
+    it should "detect unclosed while with wrong closing keyword (fi)" in {
+        val input = "begin while true do skip fi end"
+        val result = parser.parse(input)
+        result match {
+            case Left(err) => err should include("unclosed while loop")
+            case Right(_) => fail("Expected parse failure for unclosed while")
+        }
+    }
+
+    it should "detect unclosed begin block at EOF" in {
+        val input = "begin skip"
+        val result = parser.parse(input)
+        result match {
+            case Left(err) => err should include("unclosed begin block")
+            case Right(_) => fail("Expected parse failure for unclosed begin")
+        }
+    }
+
+    it should "detect unclosed begin block with wrong closing keyword (fi)" in {
+        val input = "begin skip fi"
+        val result = parser.parse(input)
+        result match {
+            case Left(err) => err should include("unclosed begin block")
+            case Right(_) => fail("Expected parse failure for unclosed begin")
+        }
+    }
+
+    it should "detect unclosed begin block with wrong closing keyword (done)" in {
+        val input = "begin skip done"
+        val result = parser.parse(input)
+        result match {
+            case Left(err) => err should include("unclosed begin block")
+            case Right(_) => fail("Expected parse failure for unclosed begin")
+        }
+    }
+
+    it should "detect unclosed nested scope at EOF" in {
+        val input = "begin begin skip end"
+        val result = parser.parse(input)
+        result match {
+            case Left(err) => err should include("unclosed begin block")
+            case Right(_) => fail("Expected parse failure for unclosed nested scope")
+        }
+    }
+
+
+    it should "successfully parse correctly closed if statement" in {
+        val input = "begin if true then skip else skip fi end"
+        parseOk(input)
+    }
+
+    it should "successfully parse correctly closed while loop" in {
+        val input = "begin while true do skip done end"
+        parseOk(input)
+    }
+
+    it should "successfully parse correctly closed nested scopes" in {
+        val input = "begin begin skip end end"
+        parseOk(input)
+    }
+    /* ==================== {/VERIFIED ERRORS} ==================== */
+
+    /* ==================== {PREVENTATIVE ERRORS} ==================== */
+    "Preventative error messages" should "detect missing else branch in if statement" in {
+        val input = "begin if true then skip fi end"
+        val result = parser.parse(input)
+        result match {
+            case Left(err) => err should include("if statements require an 'else' branch")
+            case Right(_) => fail("Expected parse failure for missing else")
+        }
+    }
+
+    it should "detect missing else branch with nested if" in {
+        val input = "begin if x > 0 then int y = 5 fi end"
+        val result = parser.parse(input)
+        result match {
+            case Left(err) => err should include("if statements require an 'else' branch")
+            case Right(_) => fail("Expected parse failure for missing else")
+        }
+    }
+
+    it should "detect missing 'then' keyword in if statement" in {
+        val input = "begin if true skip else skip fi end"
+        val result = parser.parse(input)
+        result match {
+            case Left(err) => err should include("if statement expects 'then' after condition")
+            case Right(_) => fail("Expected parse failure for missing then")
+        }
+    }
+
+    it should "detect missing 'then' with complex condition" in {
+        val input = "begin if x > 5 && y < 10 skip else skip fi end"
+        val result = parser.parse(input)
+        result match {
+            case Left(err) => err should include("if statement expects 'then' after condition")
+            case Right(_) => fail("Expected parse failure for missing then")
+        }
+    }
+
+    it should "detect missing 'do' keyword in while loop" in {
+        val input = "begin while true skip done end"
+        val result = parser.parse(input)
+        result match {
+            case Left(err) => err should include("while loop expects 'do' after condition")
+            case Right(_) => fail("Expected parse failure for missing do")
+        }
+    }
+
+    it should "detect missing 'do' with complex condition" in {
+        val input = "begin while x < 100 skip done end"
+        val result = parser.parse(input)
+        result match {
+            case Left(err) => err should include("while loop expects 'do' after condition")
+            case Right(_) => fail("Expected parse failure for missing do")
+        }
+    }
+
+    it should "allow valid semicolons between statements" in {
+        val input = "begin int x = 1; int y = 2; skip end"
+        parseOk(input)
+    }
+
+    /* ==================== {/PREVENTATIVE ERRORS} ==================== */
 }

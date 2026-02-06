@@ -62,7 +62,9 @@ object WaccFrontend {
             result match {
 
                 /* Parser syntax error */
-                case Left(_) => CompilationResult(syntacticErrorCode, Some(syntacticErrors))
+                case Left(parseError) =>
+                    syntacticErrors.logSyntaxError(parseError)
+                    CompilationResult(syntacticErrorCode, Some(syntacticErrors))
                 
                 case Right(syntacticAST) =>
 
@@ -143,18 +145,42 @@ object WaccFrontend {
             /* Failure exit */
             case Some(errorLogger) =>
 
-                val errorHeader = compilationResult.exitCode match {
-                    case `syntacticErrorCode` => "Failure: 100 - Syntax error:"
-                    case `semanticErrorCode` => "Failure: 200 - Semantic error:"
+                val filename = path.getFileName.toString
+                val errorType = compilationResult.exitCode match {
+                    case `syntacticErrorCode` => "Syntax error"
+                    case `semanticErrorCode` => "Semantic error"
+                }
+                val allErrors = errorLogger.retrieveAllErrors()
+                
+                /* For syntax errors, position is already on the first line from ErrorBuilder.
+                   For semantic errors, get the position from the first error. */
+                val (header, body) = compilationResult.exitCode match {
+                    case `syntacticErrorCode` =>
+                        /* ErrorBuilder outputs "(line X, column Y):\n..." 
+                           Split to extract position for the header */
+                        val newlineIdx = allErrors.indexOf('\n')
+                        if (newlineIdx >= 0) {
+                            val posLine = allErrors.substring(0, newlineIdx)
+                            val rest = allErrors.substring(newlineIdx + 1)
+                            (s"$errorType in $filename $posLine", rest)
+                        } else {
+                            (s"$errorType in $filename:", allErrors)
+                        }
+                    case `semanticErrorCode` =>
+                        val pos = errorLogger.firstErrorPos()
+                        (s"$errorType in $filename (line ${pos(0)}, column ${pos(1)}):", allErrors)
                 }
 
-                Console.err.println(errorHeader)
-                Console.err.println(errorLogger.retrieveAllErrors())
+                Console.err.println(header)
+                Console.err.println(body)
+                Console.err.println()
+                Console.err.println(s"Finished with exit code ${compilationResult.exitCode}")
 
                 sys.exit(compilationResult.exitCode)
 
             /* Successful exit */
-            case None => 
+            case None =>
+                println(s"Success - finished with exit code ${compilationResult.exitCode}")
                 sys.exit(compilationResult.exitCode)
     }
 }
