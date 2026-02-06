@@ -853,4 +853,66 @@ class ParserTests extends AnyFlatSpec with Matchers {
         parseOk(input)
     }
     /* ==================== {/VERIFIED ERRORS} ==================== */
+
+    /* ==================== {PREVENTATIVE ERRORS} ==================== */
+    "Preventative error messages" should "detect missing else branch in if statement" in {
+        val input = "begin if true then skip fi end"
+        val result = parser.parse(input)
+        result match {
+            case Left(err) => err should include("if statements require an 'else' branch")
+            case Right(_) => fail("Expected parse failure for missing else")
+        }
+    }
+
+    it should "detect missing else branch with nested if" in {
+        val input = "begin if x > 0 then int y = 5 fi end"
+        val result = parser.parse(input)
+        result match {
+            case Left(err) => err should include("if statements require an 'else' branch")
+            case Right(_) => fail("Expected parse failure for missing else")
+        }
+    }
+
+    it should "detect missing 'then' keyword in if statement" in {
+        val input = "begin if true skip else skip fi end"
+        val result = parser.parse(input)
+        result match {
+            case Left(err) => err should include("if statement expects 'then' after condition")
+            case Right(_) => fail("Expected parse failure for missing then")
+        }
+    }
+
+    it should "detect missing 'then' with complex condition" in {
+        val input = "begin if x > 5 && y < 10 skip else skip fi end"
+        val result = parser.parse(input)
+        result match {
+            case Left(err) => err should include("if statement expects 'then' after condition")
+            case Right(_) => fail("Expected parse failure for missing then")
+        }
+    }
+
+    it should "detect missing 'do' keyword in while loop" in {
+        val input = "begin while true skip done end"
+        val result = parser.parse(input)
+        result match {
+            case Left(err) => err should include("while loop expects 'do' after condition")
+            case Right(_) => fail("Expected parse failure for missing do")
+        }
+    }
+
+    it should "detect missing 'do' with complex condition" in {
+        val input = "begin while x < 100 skip done end"
+        val result = parser.parse(input)
+        result match {
+            case Left(err) => err should include("while loop expects 'do' after condition")
+            case Right(_) => fail("Expected parse failure for missing do")
+        }
+    }
+
+    it should "allow valid semicolons between statements" in {
+        val input = "begin int x = 1; int y = 2; skip end"
+        parseOk(input)
+    }
+
+    /* ==================== {/PREVENTATIVE ERRORS} ==================== */
 }

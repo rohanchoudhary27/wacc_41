@@ -7,7 +7,7 @@ import parsley.position.pos
 
 import parsley.expr.{precedence, Ops, InfixL, InfixN, InfixR, Prefix, chain}
 import parsley.errors.combinator.ErrorMethods
-import parsley.errors.patterns.VerifiedErrors
+import parsley.errors.patterns.{VerifiedErrors, PreventativeErrors}
 
 import lexer.{fully, ident, string, boolLiter, nullLiter, brackets, parens}
 import lexer.implicits.given
@@ -23,6 +23,22 @@ object parser {
     private val _unclosedIf = (choice("end", "done") | eof).verifiedExplain("unclosed if statement")
     private val _unclosedWhile = (choice("end", "fi") | eof).verifiedExplain("unclosed while loop")
     private val _unclosedBegin = (choice("fi", "done") | eof).verifiedExplain("unclosed begin block")
+    
+    /* Preventative error widgets - detect common mistakes */
+    private val _missingThen = notFollowedBy("then").preventativeExplain(
+        reason = "if statement expects 'then' after condition",
+        labels = "then"
+    )
+    
+    private val _missingDo = notFollowedBy("do").preventativeExplain(
+        reason = "while loop expects 'do' after condition",
+        labels = "do"
+    )
+    
+    private val _missingElse = "fi".preventativeExplain(
+        reason = "if statements require an 'else' branch",
+        labels = "else"
+    )
 
     /**
     * Parse a WACC program inputted as a string.
@@ -109,9 +125,9 @@ object parser {
     private lazy val ifStmt = If(
         "if" ~> 
             (expr label "condition" explain "if conditions must be boolean expressions") 
-        <~ "then",
+        <~ (_missingThen ~> "then"),
             (stmt label "then branch"),
-        "else" ~> 
+        _missingElse ~> "else" ~> 
             (stmt label "else branch") 
         <~ ("fi" | _unclosedIf)
     )
@@ -119,7 +135,7 @@ object parser {
     private lazy val whileStmt = While(
         "while" ~> 
             (expr label "condition" explain "while conditions must be boolean expressions") 
-        <~ "do",
+        <~ (_missingDo ~> "do"),
             (stmt label "loop body") 
         <~ ("done" | _unclosedWhile)
     )
