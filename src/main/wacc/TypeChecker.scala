@@ -784,8 +784,13 @@ object TypeChecker {
     /* check all indices are Int */
     val typedIndices = indices.map(i => checkExpr(i, Is(KnownType.Int)))
 
+    extractLValueType(typedIdent) match {
+
+        /* Make sure the indexing is of an array */
+        case KnownType.Array(_) =>
+
     /* extract element type and check constraint */
-    val elemType = extractLValueType(arrayElem)
+          val elemType = extractLValueType(ArrayElem(typedIdent, typedIndices, info))
     
     /* if elemType is ?, we tried to index too deeply */
     if (elemType == ?) then
@@ -800,6 +805,12 @@ object TypeChecker {
     else
       val finalType = elemType.satisfies(c, info.pos, tcState.errorLogger).getOrElse(?)
       ArrayElem(typedIdent, typedIndices, SemanticData.Typed(info.pos, finalType))
+          
+        /* Supress the too many indices error on an unindexable type
+           since the compiler will already issue a type mismatch (expected array) */
+        case _ => 
+          ArrayElem(typedIdent, typedIndices, SemanticData.Error(info.pos))
+      }
 
   /** Type-check an Ident
     *
