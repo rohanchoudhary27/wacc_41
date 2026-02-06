@@ -29,7 +29,7 @@ object SyntaxPass {
         prog.funcs.collectFirst { case func if !checkReturn(func.stmt) => func } match {
             case Some(func) =>
                 val errorMsg =
-                    s"Function error: Function '${func.ident.name}' is not guaranteed to return"
+                    s"\nFunction error: Function '${func.ident.name}' is not guaranteed to return"
                 errorLogger.logSemanticError(func.ident.info.pos, errorMsg)
                 prog
             case None => prog
