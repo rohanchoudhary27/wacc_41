@@ -5,13 +5,13 @@ sealed trait Operand
 case class Immediate(value: Int) extends Operand
 case class VirtualReg(regNo: Int) extends Operand
 case class Label(name: String) extends Operand
-case class StackOffset(byteOffset: Int) extends Operand
 
 /* Addresses */
 sealed trait Address
 case class AddrRegOffset(baseAddr: VirtualReg, offset: VirtualReg) extends  Address
 case class AddrImmOffset(baseAddr: VirtualReg, offset: Immediate) extends Address
 case class AddrLabel(name: String) extends Address
+case class AddrStack(offset: Int) extends Address
 
 /* Conditions */
 enum Condition {
