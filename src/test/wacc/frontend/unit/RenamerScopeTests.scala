@@ -2,8 +2,8 @@ package wacc.frontend.unit
 
 import org.scalatest.matchers.should.Matchers.*
 import org.scalatest.flatspec.AnyFlatSpec
-import wacc.{RenamerScope, KnownType}
-import wacc.{SemanticData}
+import wacc.frontend.{RenamerScope, KnownType}
+import wacc.frontend.{SemanticData}
 
 /**
 * Unit tests for RenamerScope

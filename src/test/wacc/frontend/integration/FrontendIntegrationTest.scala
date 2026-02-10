@@ -6,7 +6,7 @@ import org.scalatest.matchers.should.Matchers
 import java.nio.file.{Files, Path, Paths}
 import scala.jdk.StreamConverters.*
 import scala.jdk.CollectionConverters.*
-import wacc.WaccFrontend
+import wacc.frontend.WaccFrontend
 
 final class FrontendIntegrationSpec extends AnyFlatSpec with Matchers {
 

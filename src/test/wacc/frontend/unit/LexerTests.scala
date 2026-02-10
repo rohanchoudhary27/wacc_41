@@ -4,7 +4,7 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers.*
 import parsley.{Success}
 
-import wacc.lexer
+import wacc.frontend.lexer
 
 class Lexer extends AnyFlatSpec {
 

@@ -1,6 +1,6 @@
 package wacc.frontend.generator
 
-import wacc.*
+import wacc.frontend.*
 
 /** Configuration for the WACC pretty printer
   *

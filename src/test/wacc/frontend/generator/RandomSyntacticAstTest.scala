@@ -8,7 +8,7 @@ import org.scalacheck.Arbitrary
 import wacc.frontend.generator.AstGenerator.*
 import wacc.frontend.generator.SyntacticASTMatchers._
 import wacc.frontend.generator._
-import wacc._
+import wacc.frontend._
 
 class RandomSyntacticAstTest extends AnyFlatSpec with Matchers with ScalaCheckDrivenPropertyChecks {
 

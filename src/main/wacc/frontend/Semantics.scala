@@ -1,4 +1,4 @@
-package wacc
+package wacc.frontend
 
 import scala.collection.immutable.Map
 
@@ -6,21 +6,22 @@ import scala.collection.immutable.Map
   */
 sealed trait SemanticType {
   def outputFormat: String = this match
-    case KnownType.Int        => "int"
-    case KnownType.Bool       => "bool"
-    case KnownType.Char       => "char"
-    case KnownType.String     => "string"
-    case KnownType.Array(t)   => t match
-      case ? => "array"
-      case _ => s"${t.outputFormat}[]"
+    case KnownType.Int      => "int"
+    case KnownType.Bool     => "bool"
+    case KnownType.Char     => "char"
+    case KnownType.String   => "string"
+    case KnownType.Array(t) =>
+      t match
+        case ? => "array"
+        case _ => s"${t.outputFormat}[]"
     case KnownType.Pair(a, b) =>
       (a, b) match
         case (?, ?) => "pair"
         case _      => s"pair(${a.outputFormat}, ${b.outputFormat})"
-    case PairAny => "pair"
-    case Null => "null"
+    case PairAny    => "pair"
+    case Null       => "null"
     case EmptyArray => "[]"
-    case ? => "unknown"
+    case ?          => "unknown"
 }
 
 /** Semantic types that map 1-to-1 with syntactic types

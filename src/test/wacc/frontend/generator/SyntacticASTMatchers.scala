@@ -3,7 +3,7 @@ package wacc.frontend.generator
 import org.scalatest._
 import matchers._
 import wacc.frontend.generator._
-import wacc._
+import wacc.frontend._
 
 
 trait SyntacticASTMatchers {
