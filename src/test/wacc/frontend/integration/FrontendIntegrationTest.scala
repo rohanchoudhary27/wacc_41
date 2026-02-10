@@ -79,7 +79,7 @@ final class FrontendIntegrationSpec extends AnyFlatSpec with Matchers {
                 testDecl ignore { }
             } else {
                 testDecl in {
-                    val actual = WaccFrontend.compile(file).exitCode
+                    val actual = WaccFrontend.run(file).exitCode
                     actual shouldBe expected
                 }
             }

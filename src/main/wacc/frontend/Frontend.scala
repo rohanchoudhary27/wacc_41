@@ -7,9 +7,10 @@ import scala.io.Source
   * the program compilation and `errors` is None if there were no errors and
   * Some(ErrorLogger) if errors where encountered.
   */
-case class CompilationResult(
+case class FrontendCompilationResult(
     exitCode: Int,
-    errors: Option[ErrorLogger] = None
+    errors: Option[ErrorLogger] = None,
+    typedAST: Option[Program[SemanticData]]
 )
 
 /** The top level object of the WACC compiler frontend. Contains the `main`
@@ -31,10 +32,10 @@ object WaccFrontend {
     *   The path of the file to compile
     *
     * @return:
-    *   A `CompilationResult` object which contains the exit code and
+    *   A `FrontendCompilationResult` object which contains the exit code and
     *   Option[ErrorLogger]
     */
-  def compile(path: Path): CompilationResult = {
+  def run(path: Path): FrontendCompilationResult = {
 
     /* Load file as a list of code lines */
     val source = Source.fromFile(path.toFile)
@@ -53,7 +54,7 @@ object WaccFrontend {
     Sanitiser.sanitise(sourceCode, syntacticErrors)
 
     if (syntacticErrors.hasErrors()) {
-      CompilationResult(syntacticErrorCode, Some(syntacticErrors))
+      FrontendCompilationResult(syntacticErrorCode, Some(syntacticErrors), None)
 
     } else {
 
@@ -65,7 +66,7 @@ object WaccFrontend {
         /* Parser syntax error */
         case Left(parseError) =>
           syntacticErrors.logSyntaxError(parseError)
-          CompilationResult(syntacticErrorCode, Some(syntacticErrors))
+          FrontendCompilationResult(syntacticErrorCode, Some(syntacticErrors), None)
 
         case Right(syntacticAST) =>
 
@@ -74,7 +75,7 @@ object WaccFrontend {
           SyntaxPass.syntaxCheck(syntacticAST, syntacticErrors)
 
           if (syntacticErrors.hasErrors()) {
-            CompilationResult(syntacticErrorCode, Some(syntacticErrors))
+            FrontendCompilationResult(syntacticErrorCode, Some(syntacticErrors), None)
 
           } else {
 
@@ -91,12 +92,12 @@ object WaccFrontend {
             }
 
             /* (Phase 5 - Type Checker) */
-            TypeChecker.check(renamedAST, semanticErrors, funcTable)
+            val typedAST = TypeChecker.check(renamedAST, semanticErrors, funcTable)
 
             /* Log any semantic errors */
             if (semanticErrors.hasErrors())
-              CompilationResult(semanticErrorCode, Some(semanticErrors))
-            else CompilationResult(successCode, None)
+              FrontendCompilationResult(semanticErrorCode, Some(semanticErrors), None)
+            else FrontendCompilationResult(successCode, None, typedAST)
           }
       }
     }
@@ -135,15 +136,15 @@ object WaccFrontend {
     }
 
     /* Compile the file */
-    val compilationResult: CompilationResult = compile(path)
+    val FrontendCompilationResult: FrontendCompilationResult = run(path)
 
-    compilationResult.errors match
+    FrontendCompilationResult.errors match
 
       /* Failure exit */
       case Some(errorLogger) =>
 
         val filename = path.getFileName.toString
-        val errorType = compilationResult.exitCode match {
+        val errorType = FrontendCompilationResult.exitCode match {
           case `syntacticErrorCode` => "Syntax error"
           case `semanticErrorCode`  => "Semantic error"
         }
@@ -151,7 +152,7 @@ object WaccFrontend {
 
         /* For syntax errors, position is already on the first line from ErrorBuilder.
                    For semantic errors, get the position from the first error. */
-        val (header, body) = compilationResult.exitCode match {
+        val (header, body) = FrontendCompilationResult.exitCode match {
           case `syntacticErrorCode` =>
             /* ErrorBuilder outputs "(line X, column Y):\n..."
                            Split to extract position for the header */
@@ -171,16 +172,16 @@ object WaccFrontend {
         Console.err.println(body)
         Console.err.println()
         Console.err.println(
-          s"Finished with exit code ${compilationResult.exitCode}"
+          s"Finished with exit code ${FrontendCompilationResult.exitCode}"
         )
 
-        sys.exit(compilationResult.exitCode)
+        sys.exit(FrontendCompilationResult.exitCode)
 
       /* Successful exit */
       case None =>
         println(
-          s"Success - finished with exit code ${compilationResult.exitCode}"
+          s"Success - finished with exit code ${FrontendCompilationResult.exitCode}"
         )
-        sys.exit(compilationResult.exitCode)
+        sys.exit(FrontendCompilationResult.exitCode)
   }
 }
