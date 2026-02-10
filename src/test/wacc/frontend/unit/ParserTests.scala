@@ -3,8 +3,8 @@ package wacc.frontend.unit
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-import wacc.parser
-import wacc._
+import wacc.frontend.parser
+import wacc.frontend._
 
 class ParserTests extends AnyFlatSpec with Matchers {
 

@@ -1,132 +1,77 @@
 package wacc
 
-import java.nio.file.{Files, Path, Paths}
-import scala.io.Source
+import java.nio.file.{Files, Paths}
+import wacc.frontend.*
+import wacc.backend.*
+import wacc.ExitCodes._
 
-/**
-* A class holding the result of compilation. `exitCode` is the exit code of the program
-* compilation and `errors` is None if there were no errors and Some(ErrorLogger) if errors
-* where encountered.
+/** 
+* Main entry point for the WACC compiler which runs the frontend and backend.
 */
-case class CompilationResult(
-    exitCode: Int,
-    errors: Option[ErrorLogger] = None
-)
-
-/**
-* The top level object of the WACC compiler frontend. Contains the `main` function as well as
-* a `compile` function which doesn't do printing (to be re-used by the integration test runner)
-*/
-object WaccFrontend {
-
-    /* Compiler exit codes */
-    val successCode = 0
-    val syntacticErrorCode = 100
-    val semanticErrorCode = 200 
-    val compilerFailure = -1
+object WaccCompiler {
 
     /**
-    * Compiles a WACC program, returning a Compilation with its exit code and any errors logged
-    * in an ErrorLogger object.
-    * 
-    * @param path: The path of the file to compile
-    * 
-    * @return: A `CompilationResult` object which contains the exit code and Option[ErrorLogger]
+    * Exit the compiler and display error messages due to a malformed program.
+    *
+    * @param filename: the name of the error-containing .wacc file
+    * @param errorLogger: the `ErrorLogger` object with the errors
+    * @param exitCode: the exit code of the program (100/200 in this case)
     */
-    def compile(path: Path): CompilationResult = {
+    private def failureExit(filename: String,
+                            errorLogger: ErrorLogger,
+                            exitCode: ExitCode): Unit = {
 
-        /* Load file as a list of code lines */
-        val source = Source.fromFile(path.toFile)
-        val codeLines: Vector[String] =
-            try source.getLines().toVector
-            finally source.close()
-
-        /* Get the code as a single string */
-        val sourceCode: String = codeLines.mkString("\n")
-
-        /* Object to log syntax errors to */
-        val syntacticErrors = new ErrorLogger(codeLines)
-
-        /* (Phase 1 - Sanitise): Initial sanitise check of the string
-           (no-non ASCII chars allowed) */
-        Sanitiser.sanitise(sourceCode, syntacticErrors)
-
-        if (syntacticErrors.hasErrors()) {
-            CompilationResult(syntacticErrorCode, Some(syntacticErrors))
-
-        } else {
-
-            /* (Phase 2 - Parse) */
-            val result = parser.parse(sourceCode)
-
-            result match {
-
-                /* Parser syntax error */
-                case Left(parseError) =>
-                    syntacticErrors.logSyntaxError(parseError)
-                    CompilationResult(syntacticErrorCode, Some(syntacticErrors))
-                
-                case Right(syntacticAST) =>
-
-                    /* (Phase 3 - Additional Syntax Check): Check more complex syntax
-                       rules (functions must have no non-returning paths) */
-                    SyntaxPass.syntaxCheck(syntacticAST, syntacticErrors)
-
-                    if (syntacticErrors.hasErrors()) {
-                        CompilationResult(syntacticErrorCode, Some(syntacticErrors))
-
-                    } else {
-
-                        /* Object to log semantic errors */
-                        val semanticErrors = new ErrorLogger(codeLines)
-
-                        /* (Phase 4 - Renamer) */
-                        val renamedAST = Renamer.rename(syntacticAST, semanticErrors)
-
-                        /* Retrieve table of function signatures */
-                        val funcTable = renamedAST.info match {
-                            case wacc.SemanticData.TopLevel(ft) => ft
-                            case _ => Map.empty[String, wacc.SemanticData.Func]
-                        }
-
-                        /* (Phase 5 - Type Checker) */
-                        TypeChecker.check(renamedAST, semanticErrors, funcTable)
-
-                        /* Log any semantic errors */
-                        if (semanticErrors.hasErrors()) CompilationResult(semanticErrorCode,
-                                                                          Some(semanticErrors))
-                        else CompilationResult(successCode, None)
-                    }
-            }
+        val errorType = exitCode match {
+            case ExitCodes.SyntaxError => "Syntax error"
+            case ExitCodes.SemanticError  => "Semantic error"
         }
+
+        val allErrors = errorLogger.retrieveAllErrors()
+
+        /* For syntax errors, position is already on the first line from ErrorBuilder.
+                    For semantic errors, get the position from the first error. */
+        val (header, body) = exitCode match {
+            case ExitCodes.SyntaxError =>
+
+                /* ErrorBuilder outputs "(line X, column Y):\n..."
+                                Split to extract position for the header */
+                val newlineIdx = allErrors.indexOf('\n')
+                if (newlineIdx >= 0) {
+                    val posLine = allErrors.substring(0, newlineIdx)
+                    val rest = allErrors.substring(newlineIdx + 1)
+                    (s"$errorType in $filename $posLine", rest)
+                } else {
+                    (s"$errorType in $filename:", allErrors)
+                }
+
+            case ExitCodes.SemanticError => (s"$errorType in $filename:", allErrors)
+        }
+
+        /* Print the errors */
+        Console.err.println(header)
+        Console.err.println(body)
+        Console.err.println()
+        Console.err.println(
+            s"Finished with exit code ${exitCode}"
+        )
+
+        sys.exit(code(exitCode))
     }
 
-    /**
-    * Main function for WACC compiler.
+    /** Main function for the WACC compiler.
     *
-    * Stages:
-    * Sanitising: Source text checked for non-ASCII chars, Exit code 100 on failure
-    * Parsing: Source text to a SyntacticAST, Exit code 100 on failure
-    * Additional Syntax Check: Check SyntacticAST for non-returning paths in
-    *   functions, returning exit code 100 on failure
-    * Renaming: Transforms SyntacticAST to use SemanticData, Log errors on failure
-    * Type Checker: Verifies Type correctness and, Log errors on failure
+    * Runs the frontend and then the backend on the read .wacc file. 
     *
-    * Exit Codes:
-    *   0 - Success
-    *   100 - Syntactic Errors
-    *   200 - Semantic Errors
-    *   -1 - System Error
-    *
-    * @param args: Command Line arguments. Only 1 is expected (the path of the
-    * file to compile).
+    * @param args:
+    *   Command Line arguments. Only 1 is expected (the path of the file to
+    *   compile).
     */
     def main(args: Array[String]): Unit = {
 
         /* Expect a singular argument */
-        if(args.length != 1) {
+        if (args.length != 1) {
             Console.err.println("Requires file.")
-            sys.exit(compilerFailure)
+            sys.exit(code(ExitCodes.CompilerFailure))
         }
 
         val path = Paths.get(args(0))
@@ -134,52 +79,28 @@ object WaccFrontend {
         /* Validate file exists */
         if (!Files.exists(path)) {
             Console.err.println(s"Error: Path '$path' does not exist.")
-            sys.exit(compilerFailure)
+            sys.exit(code(CompilerFailure))
         }
 
-        /* Compile the file */
-        val compilationResult: CompilationResult = compile(path)
+        /* Run the frontend of the compiler */
+        val frontendCompilationResult: FrontendCompilationResult = WaccFrontend.run(path)
 
-        compilationResult.errors match
+        frontendCompilationResult.errors match {
 
             /* Failure exit */
-            case Some(errorLogger) =>
+            case Some(errorLogger) => failureExit(path.getFileName.toString,
+                                                  errorLogger,
+                                                  frontendCompilationResult.exitCode)
 
-                val filename = path.getFileName.toString
-                val errorType = compilationResult.exitCode match {
-                    case `syntacticErrorCode` => "Syntax error"
-                    case `semanticErrorCode` => "Semantic error"
-                }
-                val allErrors = errorLogger.retrieveAllErrors()
-                
-                /* For syntax errors, position is already on the first line from ErrorBuilder.
-                   For semantic errors, get the position from the first error. */
-                val (header, body) = compilationResult.exitCode match {
-                    case `syntacticErrorCode` =>
-                        /* ErrorBuilder outputs "(line X, column Y):\n..." 
-                           Split to extract position for the header */
-                        val newlineIdx = allErrors.indexOf('\n')
-                        if (newlineIdx >= 0) {
-                            val posLine = allErrors.substring(0, newlineIdx)
-                            val rest = allErrors.substring(newlineIdx + 1)
-                            (s"$errorType in $filename $posLine", rest)
-                        } else {
-                            (s"$errorType in $filename:", allErrors)
-                        }
-                    case `semanticErrorCode` =>
-                        (s"$errorType in $filename:", allErrors)
-                }
-
-                Console.err.println(header)
-                Console.err.println(body)
-                Console.err.println()
-                Console.err.println(s"Finished with exit code ${compilationResult.exitCode}")
-
-                sys.exit(compilationResult.exitCode)
-
-            /* Successful exit */
+            /* No errors in file - send to backend */
             case None =>
-                println(s"Success - finished with exit code ${compilationResult.exitCode}")
-                sys.exit(compilationResult.exitCode)
+                println(
+                    s"Success - finished with exit code ${frontendCompilationResult.exitCode}"
+                )
+                sys.exit(code(frontendCompilationResult.exitCode))
+                /* Put a helper function in main, called here to call the backend (WaccBackend.run)
+                   and handle any errors to avoid spaghetti code */
+        }
     }
+
 }

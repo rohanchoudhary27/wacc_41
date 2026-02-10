@@ -2,7 +2,7 @@ package wacc.frontend.generator
 
 import org.scalacheck.Shrink, Shrink.shrink
 import scala.annotation.nowarn
-import wacc._
+import wacc.frontend._
 
 /** Shrinks a list but never produces the empty list (otherwise its a syntax error) */
 @nowarn def shrinkNonEmptyList[A](xs: List[A])(using s: Shrink[A]): Stream[List[A]] =

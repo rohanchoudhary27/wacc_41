@@ -1,7 +1,7 @@
 package wacc.frontend.generator
 
 import org.scalacheck.Gen
-import wacc.*
+import wacc.frontend.*
 
 /**
  * AST Generator for randomised testing

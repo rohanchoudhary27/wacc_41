@@ -6,7 +6,8 @@ import org.scalatest.matchers.should.Matchers
 import java.nio.file.{Files, Path, Paths}
 import scala.jdk.StreamConverters.*
 import scala.jdk.CollectionConverters.*
-import wacc.WaccFrontend
+import wacc.frontend.WaccFrontend
+import wacc.ExitCodes._
 
 final class FrontendIntegrationSpec extends AnyFlatSpec with Matchers {
 
@@ -33,11 +34,11 @@ final class FrontendIntegrationSpec extends AnyFlatSpec with Matchers {
         /* Make the file relative to examples root to get the scope */
         val rel = examplesRoot.relativize(file).toString 
 
-        if (rel.startsWith("valid/")) WaccFrontend.successCode 
+        if (rel.startsWith("valid/")) code(Success)
         else if (rel.startsWith("invalid/syntaxErr/") ||
-                 rel.startsWith("invalid/whack/")) WaccFrontend.syntacticErrorCode
-        else if (rel.startsWith("invalid/semanticErr/")) WaccFrontend.semanticErrorCode
-        else WaccFrontend.compilerFailure
+                 rel.startsWith("invalid/whack/")) code(SyntaxError)
+        else if (rel.startsWith("invalid/semanticErr/")) code(SemanticError)
+        else code(CompilerFailure)
     }
 
     private val validDir = examplesRoot.resolve("valid")
@@ -79,7 +80,7 @@ final class FrontendIntegrationSpec extends AnyFlatSpec with Matchers {
                 testDecl ignore { }
             } else {
                 testDecl in {
-                    val actual = WaccFrontend.compile(file).exitCode
+                    val actual = code(WaccFrontend.run(file).exitCode)
                     actual shouldBe expected
                 }
             }
