@@ -2,14 +2,14 @@ package wacc.frontend
 
 import java.nio.file.Path
 import scala.io.Source
-import wacc.ExitCodes
+import wacc.ExitCodes._
 
 /** A class holding the result of compilation. `exitCode` is the exit code of
   * the program compilation and `errors` is None if there were no errors and
   * Some(ErrorLogger) if errors where encountered.
   */
 case class FrontendCompilationResult(
-    exitCode: Int,
+    exitCode: ExitCode,
     errors: Option[ErrorLogger] = None,
     typedAST: Option[Program[SemanticData]]
 )
@@ -60,7 +60,7 @@ object WaccFrontend {
     Sanitiser.sanitise(sourceCode, syntacticErrors)
 
     if (syntacticErrors.hasErrors()) {
-      FrontendCompilationResult(ExitCodes.syntaxErr, Some(syntacticErrors), None)
+      FrontendCompilationResult(SyntaxError, Some(syntacticErrors), None)
 
     } else {
 
@@ -72,7 +72,7 @@ object WaccFrontend {
         /* Parser syntax error */
         case Left(parseError) =>
           syntacticErrors.logSyntaxError(parseError)
-          FrontendCompilationResult(ExitCodes.syntaxErr, Some(syntacticErrors), None)
+          FrontendCompilationResult(SyntaxError, Some(syntacticErrors), None)
 
         case Right(syntacticAST) =>
 
@@ -81,7 +81,7 @@ object WaccFrontend {
           SyntaxPass.syntaxCheck(syntacticAST, syntacticErrors)
 
           if (syntacticErrors.hasErrors()) {
-            FrontendCompilationResult(ExitCodes.syntaxErr, Some(syntacticErrors), None)
+            FrontendCompilationResult(SyntaxError, Some(syntacticErrors), None)
 
           } else {
 
@@ -102,8 +102,8 @@ object WaccFrontend {
 
             /* Log any semantic errors */
             if (semanticErrors.hasErrors())
-              FrontendCompilationResult(ExitCodes.semanticErr, Some(semanticErrors), None)
-            else FrontendCompilationResult(ExitCodes.success, None, typedAST)
+              FrontendCompilationResult(SemanticError, Some(semanticErrors), None)
+            else FrontendCompilationResult(Success, None, typedAST)
           }
       }
     }

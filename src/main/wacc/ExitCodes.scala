@@ -4,8 +4,11 @@ package wacc
 * Compiler exit codes
 */
 object ExitCodes {
-    val success = 0
-    val syntaxErr = 100
-    val semanticErr = 200
-    val compilerFailure = -1
+  opaque type ExitCode = Int
+  val Success: ExitCode = 0
+  val SyntaxError: ExitCode = 100
+  val SemanticError: ExitCode = 200
+  val CompilerFailure: ExitCode = -1
+
+  def code(e: ExitCode): Int = e
 }

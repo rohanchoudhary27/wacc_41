@@ -3,6 +3,7 @@ package wacc
 import java.nio.file.{Files, Paths}
 import wacc.frontend.*
 import wacc.backend.*
+import wacc.ExitCodes._
 
 /** 
 * Main entry point for the WACC compiler which runs the frontend and backend.
@@ -16,11 +17,13 @@ object WaccCompiler {
     * @param errorLogger: the `ErrorLogger` object with the errors
     * @param exitCode: the exit code of the program (100/200 in this case)
     */
-    private def failureExit(filename: String, errorLogger: ErrorLogger, exitCode: Int): Unit = {
+    private def failureExit(filename: String,
+                            errorLogger: ErrorLogger,
+                            exitCode: ExitCode): Unit = {
 
         val errorType = exitCode match {
-            case ExitCodes.syntaxErr => "Syntax error"
-            case ExitCodes.semanticErr  => "Semantic error"
+            case ExitCodes.SyntaxError => "Syntax error"
+            case ExitCodes.SemanticError  => "Semantic error"
         }
 
         val allErrors = errorLogger.retrieveAllErrors()
@@ -28,7 +31,7 @@ object WaccCompiler {
         /* For syntax errors, position is already on the first line from ErrorBuilder.
                     For semantic errors, get the position from the first error. */
         val (header, body) = exitCode match {
-            case ExitCodes.syntaxErr =>
+            case ExitCodes.SyntaxError =>
 
                 /* ErrorBuilder outputs "(line X, column Y):\n..."
                                 Split to extract position for the header */
@@ -41,7 +44,7 @@ object WaccCompiler {
                     (s"$errorType in $filename:", allErrors)
                 }
 
-            case ExitCodes.semanticErr => (s"$errorType in $filename:", allErrors)
+            case ExitCodes.SemanticError => (s"$errorType in $filename:", allErrors)
         }
 
         /* Print the errors */
@@ -52,7 +55,7 @@ object WaccCompiler {
             s"Finished with exit code ${exitCode}"
         )
 
-        sys.exit(exitCode)
+        sys.exit(code(exitCode))
     }
 
     /** Main function for the WACC compiler.
@@ -68,7 +71,7 @@ object WaccCompiler {
         /* Expect a singular argument */
         if (args.length != 1) {
             Console.err.println("Requires file.")
-            sys.exit(ExitCodes.compilerFailure)
+            sys.exit(code(ExitCodes.CompilerFailure))
         }
 
         val path = Paths.get(args(0))
@@ -76,7 +79,7 @@ object WaccCompiler {
         /* Validate file exists */
         if (!Files.exists(path)) {
             Console.err.println(s"Error: Path '$path' does not exist.")
-            sys.exit(ExitCodes.compilerFailure)
+            sys.exit(code(CompilerFailure))
         }
 
         /* Run the frontend of the compiler */
@@ -94,7 +97,7 @@ object WaccCompiler {
                 println(
                     s"Success - finished with exit code ${frontendCompilationResult.exitCode}"
                 )
-                sys.exit(frontendCompilationResult.exitCode)
+                sys.exit(code(frontendCompilationResult.exitCode))
                 /* Put a helper function in main, called here to call the backend (WaccBackend.run)
                    and handle any errors to avoid spaghetti code */
         }
