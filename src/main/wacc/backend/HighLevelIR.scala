@@ -18,6 +18,12 @@ enum Condition {
     case EQ, NE, LT, LE, GT, GE
 }
 
+/* Positions in a pair */
+enum PairPos {
+  case Fst
+  case Snd
+}
+
 /* -----------------------------------------------------------------------------------------------*/
 
 sealed trait Instruction
@@ -57,3 +63,11 @@ case object Ret extends Instruction
 /* Stack instructions */
 case class Push(sourceReg: VirtualReg) extends Instruction
 case class Pop(destReg: VirtualReg) extends Instruction
+
+/* Array put/get instructions */
+case class ArrayLoad(dest: VirtualReg, array: VirtualReg, index: Operand) extends Instruction
+case class ArrayStore(array: VirtualReg, index: Operand, src: Operand) extends Instruction
+
+/* Pair put/get instructions */
+case class PairLoad(dest: VirtualReg, pair: VirtualReg, index: PairPos) extends Instruction
+case class PairStore(pair: VirtualReg, index: PairPos, src: Operand) extends Instruction
