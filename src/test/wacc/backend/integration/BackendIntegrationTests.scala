@@ -145,7 +145,7 @@ final class BackendIntegrationSpec extends AnyFlatSpec with Matchers {
       *         or `BackendTestMode.Run`
       */
     private def readBackendConfig(path: Path): Map[String, BackendTestMode] = {
-        if (!Files.exists(path)) return Map.empty
+        if (!Files.exists(path)) Map.empty
         Files.readAllLines(path).asScala
             .map(_.takeWhile(_ != '#').trim) /* Treat '#' as a comment */
             .filter(_.nonEmpty)
