@@ -192,13 +192,17 @@ final class BackendIntegrationSpec extends AnyFlatSpec with Matchers {
         ).filter(l => l.startsWith("#") && !l.contains("Output:"))
          .map(_.stripPrefix("#").trim).mkString("\n")
 
-        // saim in here we need to get the execution mode but the thing is enabledScopes
-        // contain the scopes so it may have valid/array/ and the file param for this function
-        // is a full file, so we need to resolve it and check that its scope matches this,
-        // i am leaving labs now so if you can do this it would be great, just replace the 
-        // else branch
-        val executionMode 
-            = if (!isEnabled(file)) {BackendTestMode.Skip} else { BackendTestMode.Run }
+        val executionMode = if (!isEnabled(file)) {
+            BackendTestMode.Skip
+        } else {
+            val fileRel = examplesRoot.relativize(file).toString
+            val scopeKey = scopeFor(file)
+            enabledScopes.find { (scope, _) =>
+                val normalisedScope = scope.stripSuffix("/")
+                fileRel == normalisedScope || scopeKey == normalisedScope || 
+                    scopeKey.startsWith(normalisedScope + "/")
+            }.map(_._2).getOrElse(BackendTestMode.Skip)
+        }
         WaccTestMetadata(file, description, input, output, lines.mkString("\n"), executionMode)
     }
 
