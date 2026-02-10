@@ -71,3 +71,6 @@ case class ArrayStore(array: VirtualReg, index: Operand, src: Operand) extends I
 /* Pair put/get instructions */
 case class PairLoad(dest: VirtualReg, pair: VirtualReg, index: PairPos) extends Instruction
 case class PairStore(pair: VirtualReg, index: PairPos, src: Operand) extends Instruction
+
+/* Heap allocation instruction for arrays/pairs */
+case class HeapAlloc(dest: VirtualReg, size: Operand) extends Instruction
