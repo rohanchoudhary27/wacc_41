@@ -74,3 +74,6 @@ case class PairStore(pair: VirtualReg, index: PairPos, src: Operand) extends Ins
 
 /* Heap allocation instruction for arrays/pairs */
 case class HeapAlloc(dest: VirtualReg, size: Operand) extends Instruction
+
+/* Load the address of a label into a register (no memory access) */
+case class Lea(destReg: VirtualReg, label: Label) extends Instruction
