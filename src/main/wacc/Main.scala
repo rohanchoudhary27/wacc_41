@@ -9,12 +9,6 @@ import wacc.backend.*
 */
 object WaccCompiler {
 
-    /* Compiler exit codes */
-    val successCode = 0
-    val syntacticErrorCode = 100
-    val semanticErrorCode = 200
-    val compilerFailure = -1
-
     /**
     * Exit the compiler and display error messages due to a malformed program.
     *
@@ -25,8 +19,8 @@ object WaccCompiler {
     private def failureExit(filename: String, errorLogger: ErrorLogger, exitCode: Int): Unit = {
 
         val errorType = exitCode match {
-            case `syntacticErrorCode` => "Syntax error"
-            case `semanticErrorCode`  => "Semantic error"
+            case ExitCodes.syntaxErr => "Syntax error"
+            case ExitCodes.semanticErr  => "Semantic error"
         }
 
         val allErrors = errorLogger.retrieveAllErrors()
@@ -34,7 +28,7 @@ object WaccCompiler {
         /* For syntax errors, position is already on the first line from ErrorBuilder.
                     For semantic errors, get the position from the first error. */
         val (header, body) = exitCode match {
-            case `syntacticErrorCode` =>
+            case ExitCodes.syntaxErr =>
 
                 /* ErrorBuilder outputs "(line X, column Y):\n..."
                                 Split to extract position for the header */
@@ -47,7 +41,7 @@ object WaccCompiler {
                     (s"$errorType in $filename:", allErrors)
                 }
 
-            case `semanticErrorCode` => (s"$errorType in $filename:", allErrors)
+            case ExitCodes.semanticErr => (s"$errorType in $filename:", allErrors)
         }
 
         /* Print the errors */
@@ -74,7 +68,7 @@ object WaccCompiler {
         /* Expect a singular argument */
         if (args.length != 1) {
             Console.err.println("Requires file.")
-            sys.exit(compilerFailure)
+            sys.exit(ExitCodes.compilerFailure)
         }
 
         val path = Paths.get(args(0))
@@ -82,7 +76,7 @@ object WaccCompiler {
         /* Validate file exists */
         if (!Files.exists(path)) {
             Console.err.println(s"Error: Path '$path' does not exist.")
-            sys.exit(compilerFailure)
+            sys.exit(ExitCodes.compilerFailure)
         }
 
         /* Run the frontend of the compiler */

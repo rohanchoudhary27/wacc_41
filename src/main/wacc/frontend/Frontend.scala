@@ -2,6 +2,7 @@ package wacc.frontend
 
 import java.nio.file.Path
 import scala.io.Source
+import wacc.ExitCodes
 
 /** A class holding the result of compilation. `exitCode` is the exit code of
   * the program compilation and `errors` is None if there were no errors and
@@ -18,12 +19,6 @@ case class FrontendCompilationResult(
   * re-used by the integration test runner)
   */
 object WaccFrontend {
-
-  /* Compiler exit codes */
-  val successCode = 0
-  val syntacticErrorCode = 100
-  val semanticErrorCode = 200
-  val compilerFailure = -1
 
   /** Compiles a WACC program, returning a Compilation with its exit code and
     * any errors logged in an ErrorLogger object.
@@ -65,7 +60,7 @@ object WaccFrontend {
     Sanitiser.sanitise(sourceCode, syntacticErrors)
 
     if (syntacticErrors.hasErrors()) {
-      FrontendCompilationResult(syntacticErrorCode, Some(syntacticErrors), None)
+      FrontendCompilationResult(ExitCodes.syntaxErr, Some(syntacticErrors), None)
 
     } else {
 
@@ -77,7 +72,7 @@ object WaccFrontend {
         /* Parser syntax error */
         case Left(parseError) =>
           syntacticErrors.logSyntaxError(parseError)
-          FrontendCompilationResult(syntacticErrorCode, Some(syntacticErrors), None)
+          FrontendCompilationResult(ExitCodes.syntaxErr, Some(syntacticErrors), None)
 
         case Right(syntacticAST) =>
 
@@ -86,7 +81,7 @@ object WaccFrontend {
           SyntaxPass.syntaxCheck(syntacticAST, syntacticErrors)
 
           if (syntacticErrors.hasErrors()) {
-            FrontendCompilationResult(syntacticErrorCode, Some(syntacticErrors), None)
+            FrontendCompilationResult(ExitCodes.syntaxErr, Some(syntacticErrors), None)
 
           } else {
 
@@ -107,11 +102,10 @@ object WaccFrontend {
 
             /* Log any semantic errors */
             if (semanticErrors.hasErrors())
-              FrontendCompilationResult(semanticErrorCode, Some(semanticErrors), None)
-            else FrontendCompilationResult(successCode, None, typedAST)
+              FrontendCompilationResult(ExitCodes.semanticErr, Some(semanticErrors), None)
+            else FrontendCompilationResult(ExitCodes.success, None, typedAST)
           }
       }
     }
   }
-
 }

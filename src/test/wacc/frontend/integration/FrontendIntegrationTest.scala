@@ -7,6 +7,7 @@ import java.nio.file.{Files, Path, Paths}
 import scala.jdk.StreamConverters.*
 import scala.jdk.CollectionConverters.*
 import wacc.frontend.WaccFrontend
+import wacc.ExitCodes
 
 final class FrontendIntegrationSpec extends AnyFlatSpec with Matchers {
 
@@ -33,11 +34,11 @@ final class FrontendIntegrationSpec extends AnyFlatSpec with Matchers {
         /* Make the file relative to examples root to get the scope */
         val rel = examplesRoot.relativize(file).toString 
 
-        if (rel.startsWith("valid/")) WaccFrontend.successCode 
+        if (rel.startsWith("valid/")) ExitCodes.success
         else if (rel.startsWith("invalid/syntaxErr/") ||
-                 rel.startsWith("invalid/whack/")) WaccFrontend.syntacticErrorCode
-        else if (rel.startsWith("invalid/semanticErr/")) WaccFrontend.semanticErrorCode
-        else WaccFrontend.compilerFailure
+                 rel.startsWith("invalid/whack/")) ExitCodes.syntaxErr
+        else if (rel.startsWith("invalid/semanticErr/")) ExitCodes.semanticErr
+        else ExitCodes.compilerFailure
     }
 
     private val validDir = examplesRoot.resolve("valid")
