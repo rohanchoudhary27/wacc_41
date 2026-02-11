@@ -101,4 +101,4 @@ case class Lea(destReg: VirtualReg, label: Label) extends Instruction
    label. */
 case class DataDirective(label: Label, storedValue: String)
 case class FunctionDef(name: String, body: List[Instruction])
-case class Program(funcs: List[FunctionDef], data: List[DataDirective], body: List[Instruction])
+case class RegProgram(funcs: List[FunctionDef], data: List[DataDirective], body: List[Instruction])
