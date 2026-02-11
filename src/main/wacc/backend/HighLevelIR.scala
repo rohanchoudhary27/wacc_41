@@ -24,7 +24,7 @@ enum PairPos {
   case Snd
 }
 
-/* -----------------------------------------------------------------------------------------------*/
+/* ---------------------------------------------------------------------------------------------- */
 
 sealed trait Instruction
 
@@ -77,3 +77,14 @@ case class HeapAlloc(dest: VirtualReg, size: Operand) extends Instruction
 
 /* Load the address of a label into a register (no memory access) */
 case class Lea(destReg: VirtualReg, label: Label) extends Instruction
+
+/* ---------------------------------------------------------------------------------------------- */
+
+/* Top-level of the IR. Data directives and function definitions come first before the list of
+   instructions because directives come first in the assembly file and functions come first in the
+   AST (and wacc structure) + they have separate register allocations. Also functions have their
+   own stack management so we need to know when it's a func definition and when it's just a normal
+   label. */
+case class DataDirective(label: Label, storedValue: String)
+case class FunctionDef(name: String, body: List[Instruction])
+case class Program(funcs: List[FunctionDef], data: List[DataDirective], body: List[Instruction])
