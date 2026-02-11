@@ -1,4 +1,4 @@
-package wacc
+package wacc.frontend
 
 import scala.math.{max}
 import scala.collection.mutable
@@ -499,7 +499,11 @@ object Renamer {
       case PairElem(isFst, lval, info) =>
         PairElem(isFst, renameLValue(lval), info.toSemanticPos)
       case ArrayElem(ident, indices, info) =>
-        ArrayElem(renameIdent(ident), indices.map(renameExpr), info.toSemanticPos)
+        ArrayElem(
+          renameIdent(ident),
+          indices.map(renameExpr),
+          info.toSemanticPos
+        )
     }
 
   /** Computes the variable in scope with name most similar to `userVar`
@@ -720,6 +724,10 @@ object Renamer {
 
       /* Array element access */
       case ArrayElem(ident, indices, info) =>
-        ArrayElem(renameIdent(ident), indices.map(renameExpr), info.toSemanticPos)
+        ArrayElem(
+          renameIdent(ident),
+          indices.map(renameExpr),
+          info.toSemanticPos
+        )
     }
 }

@@ -1,7 +1,7 @@
-package wacc
+package wacc.frontend
 
-import wacc.Constraint.Is
-import wacc.Constraint.IsComparable
+import wacc.frontend.Constraint.Is
+import wacc.frontend.Constraint.IsComparable
 
 /** Constraints represent expectations imposed by the context in which an
   * expression is type checked.
@@ -268,8 +268,8 @@ object TypeChecker {
 
     /* Fetch the current function's return type */
     val funcRetType = tcState.funcSignatureTable.get(tcState.currFuncName) match
-        case Some(SemanticData.Func(_, _, retType, _)) => retType
-        case None => ?
+      case Some(SemanticData.Func(_, _, retType, _)) => retType
+      case None                                      => ?
 
     /* Return expression must match the function return type (unless
            we're allowing a mismatch because of a Renamer found error) */
@@ -337,11 +337,11 @@ object TypeChecker {
     Stmt.Decl(typ, typedIdent, typedRValue, semInfo)
   }
 
-
   /** Type-check a pair element
     *
     * @param isFst:
-    *   True if the pair element is the first element of the pair, false otherwise
+    *   True if the pair element is the first element of the pair, false
+    *   otherwise
     * @param lval:
     *   The lvalue part of the pair element in e.g. `fst <lvalue>`
     * @param info:
@@ -357,12 +357,13 @@ object TypeChecker {
     * @return:
     *   `Stmt.PairElem[SemanticData]` type-checked PairElem node
     */
-  private def checkPairElem(isFst: Boolean,
-                            lval: LValue[SemanticData],
-                            info: SemanticData,
-                            pairElemType: SemanticType,
-                            c: Constraint)
-                            (using tcState: TCState): PairElem[SemanticData] = {
+  private def checkPairElem(
+      isFst: Boolean,
+      lval: LValue[SemanticData],
+      info: SemanticData,
+      pairElemType: SemanticType,
+      c: Constraint
+  )(using tcState: TCState): PairElem[SemanticData] = {
 
     /* make sure that the thing we are referencing has a pair type */
     val typedLValue = checkLvalue(lval, Constraint.IsPair)
@@ -431,7 +432,7 @@ object TypeChecker {
         for (_ <- indices) {
           arrType = arrType match {
             case KnownType.Array(elemType) => elemType
-            case _ => ?
+            case _                         => ?
           }
         }
         arrType
@@ -504,13 +505,11 @@ object TypeChecker {
   private def getExpressionType(expr: Expr[SemanticData]): SemanticType =
     expr.info match {
       case SemanticData.Var(_, _, t) => t
-      case SemanticData.Typed(_, t) => t
-      case _                        => ?
+      case SemanticData.Typed(_, t)  => t
+      case _                         => ?
     }
 
-
-  /** 
-    *  Type check a NewPair node
+  /** Type check a NewPair node
     *
     * @param e1:
     *   The expression for the first member in the pair
@@ -524,10 +523,12 @@ object TypeChecker {
     * @return:
     *   The semantic type of the expression
     */
-  private def checkNewPair(e1: Expr[SemanticData],
-                          e2: Expr[SemanticData],
-                          info: SemanticData,
-                          c: Constraint)(using tcState: TCState): NewPair[SemanticData] = {
+  private def checkNewPair(
+      e1: Expr[SemanticData],
+      e2: Expr[SemanticData],
+      info: SemanticData,
+      c: Constraint
+  )(using tcState: TCState): NewPair[SemanticData] = {
 
     c match {
 
@@ -573,28 +574,30 @@ object TypeChecker {
     }
   }
 
-
-  private def checkArrayLiter(elems: List[Expr[SemanticData]],
-                         info: SemanticData,
-                         c: Constraint)(using tcState: TCState) = {
+  private def checkArrayLiter(
+      elems: List[Expr[SemanticData]],
+      info: SemanticData,
+      c: Constraint
+  )(using tcState: TCState) = {
 
     c match {
       case Constraint.Is(arrType @ KnownType.Array(elemType)) => {
         /* first pass: infer types of all elements to check compatibility */
         val typedElems = elems.map(e => checkExpr(e, Constraint.Infer))
         val elemTypes = typedElems.map(getExpressionType)
-        
+
         /* check if any elements are incompatible with expected type */
-        val incompatibleTypes = elemTypes.filterNot(t => (t ~ elemType).isDefined)
-        
+        val incompatibleTypes =
+          elemTypes.filterNot(t => (t ~ elemType).isDefined)
+
         if (incompatibleTypes.nonEmpty) {
           /* report single comprehensive error showing all types found */
-          val typesList = elemTypes.distinct.map(_.outputFormat).mkString(", ") 
-            tcState.emit(
-              info.pos,
-              "Type error: array literal mismatch",
-              s"\nliteral contains mix of $typesList\nexpected ${arrType.outputFormat}"
-            )
+          val typesList = elemTypes.distinct.map(_.outputFormat).mkString(", ")
+          tcState.emit(
+            info.pos,
+            "Type error: array literal mismatch",
+            s"\nliteral contains mix of $typesList\nexpected ${arrType.outputFormat}"
+          )
           ArrayLiter(typedElems, SemanticData.Error(info.pos))
         } else {
           /* all elements compatible - recheck with constraint to apply weakening */
@@ -618,20 +621,23 @@ object TypeChecker {
           /* first pass: infer types of all elements */
           val typedElems = elems.map(e => checkExpr(e, Constraint.Infer))
           val elemTypes = typedElems.map(getExpressionType)
-          
+
           /* find LCA by folding types with ~ operator */
           val lcaOpt: Option[SemanticType] = elemTypes.tail.foldLeft(
             Option(elemTypes.head)
           ) { (acc, elemType) =>
             acc.flatMap(_ ~ elemType)
           }
-          
+
           (lcaOpt: @unchecked) match {
             case Some(lcaType) =>
               /* second pass: re-check all elements against LCA to apply weakening */
               val retypedElems = elems.map(e => checkExpr(e, Is(lcaType)))
-              ArrayLiter(retypedElems, SemanticData.Typed(info.pos, KnownType.Array(lcaType)))
-              
+              ArrayLiter(
+                retypedElems,
+                SemanticData.Typed(info.pos, KnownType.Array(lcaType))
+              )
+
             case None =>
               val typesList = elemTypes.map(_.outputFormat).mkString(", ")
               tcState.emit(
@@ -645,7 +651,10 @@ object TypeChecker {
       }
 
       case other => {
-        tcState.emit(info.pos, s"Type error: Expected Array but got ${other.outputFormat}")
+        tcState.emit(
+          info.pos,
+          s"Type error: Expected Array but got ${other.outputFormat}"
+        )
         ArrayLiter(elems, SemanticData.Error(info.pos))
       }
     }
@@ -759,8 +768,8 @@ object TypeChecker {
 
   /** Type-check array element access.
     *
-    * Checks that all indices are Int and that the element type satisfies
-    * the constraint.
+    * Checks that all indices are Int and that the element type satisfies the
+    * constraint.
     *
     * @param arrayElem
     *   Array element access (e.g `arr[0]`)
@@ -786,31 +795,38 @@ object TypeChecker {
 
     extractLValueType(typedIdent) match {
 
-        /* Make sure the indexing is of an array */
-        case KnownType.Array(_) =>
+      /* Make sure the indexing is of an array */
+      case KnownType.Array(_) =>
 
-          /* extract element type and check constraint */
-          val elemType = extractLValueType(ArrayElem(typedIdent, typedIndices, info))
+        /* extract element type and check constraint */
+        val elemType = extractLValueType(
+          ArrayElem(typedIdent, typedIndices, info)
+        )
 
-          /* if elemType is ?, we tried to index too deeply */
-          if (elemType == ?) then
-            val identType = extractLValueType(ident)
-            tcState.emit(
-              info.pos,
-              "Type error: array accessed with too many indices",
-              s"\nExpression '${ident.name}' has type ${identType.outputFormat} but accessed" +
-                s" with ${indices.length} indices"
-            )
-            ArrayElem(typedIdent, typedIndices, SemanticData.Error(info.pos))
-          else
-            val finalType = elemType.satisfies(c, info.pos, tcState.errorLogger).getOrElse(?)
-            ArrayElem(typedIdent, typedIndices, SemanticData.Typed(info.pos, finalType))
-          
-        /* Supress the too many indices error on an unindexable type
-           since the compiler will already issue a type mismatch (expected array) */
-        case _ => 
+        /* if elemType is ?, we tried to index too deeply */
+        if (elemType == ?) then
+          val identType = extractLValueType(ident)
+          tcState.emit(
+            info.pos,
+            "Type error: array accessed with too many indices",
+            s"\nExpression '${ident.name}' has type ${identType.outputFormat} but accessed" +
+              s" with ${indices.length} indices"
+          )
           ArrayElem(typedIdent, typedIndices, SemanticData.Error(info.pos))
-      }
+        else
+          val finalType =
+            elemType.satisfies(c, info.pos, tcState.errorLogger).getOrElse(?)
+          ArrayElem(
+            typedIdent,
+            typedIndices,
+            SemanticData.Typed(info.pos, finalType)
+          )
+
+      /* Supress the too many indices error on an unindexable type
+           since the compiler will already issue a type mismatch (expected array) */
+      case _ =>
+        ArrayElem(typedIdent, typedIndices, SemanticData.Error(info.pos))
+    }
 
   /** Type-check an Ident
     *
@@ -952,7 +968,8 @@ object TypeChecker {
     val (inputConstraint, resultType) = op match {
       case UnaryOperator.Not => (Constraint.Is(KnownType.Bool), KnownType.Bool)
       case UnaryOperator.Neg => (Constraint.Is(KnownType.Int), KnownType.Int)
-      case UnaryOperator.Len => (Constraint.Is(KnownType.Array(?)), KnownType.Int)
+      case UnaryOperator.Len =>
+        (Constraint.Is(KnownType.Array(?)), KnownType.Int)
       case UnaryOperator.Ord => (Constraint.Is(KnownType.Char), KnownType.Int)
       case UnaryOperator.Chr => (Constraint.Is(KnownType.Int), KnownType.Char)
     }
@@ -966,12 +983,12 @@ object TypeChecker {
   /** Type-check a binary expression
     *
     * The type table for binary expressions is given as
-    * | Operators     | Left-Hand Type | Right-Hand Type | Return Type |
-    * |:--------------|:---------------|:----------------|:------------|
-    * | *  /  %  +  - | int            | int             | int         |
-    * | >  >=  <  <=  | int / char     | int / char      | bool        |
-    * | ==  !=        | τ              | τ               | bool        |
-    * | &&  ||        | bool           | bool            | bool        |
+    * | Operators     | Left-Hand Type | Right-Hand Type | Return Type |      |      |
+    * |:--------------|:---------------|:----------------|:------------|:-----|:-----|
+    * | *  /  %  +  - | int            | int             | int         |      |      |
+    * | >  >=  <  <=  | int / char     | int / char      | bool        |      |      |
+    * | ==  !=        | τ              | τ               | bool        |      |      |
+    * | &&            |                |                 | bool        | bool | bool |
     *
     * Based on the operator type, it emposes input constraints on the input
     * expressions and checks that the constraint matches the result type.
@@ -1051,7 +1068,8 @@ object TypeChecker {
       case (?, ty) => Some(ty)
       case (ty, ?) => Some(ty)
 
-      case (KnownType.Array(KnownType.Char), KnownType.String) => Some(KnownType.String)
+      case (KnownType.Array(KnownType.Char), KnownType.String) =>
+        Some(KnownType.String)
 
       case (KnownType.Array(ety1), KnownType.Array(ety2)) =>
         (ety1 ~ ety2) match {
@@ -1078,8 +1096,8 @@ object TypeChecker {
       /* two pairs are compatible if their respective types are compatible */
       case (KnownType.Pair(ty11, ty12), KnownType.Pair(ty21, ty22)) =>
         for {
-          t1 <- ty11 ~! ty21  /* strict check */
-          t2 <- ty12 ~! ty22  /* strict check */
+          t1 <- ty11 ~! ty21 /* strict check */
+          t2 <- ty12 ~! ty22 /* strict check */
         } yield KnownType.Pair(t1, t2)
 
       /* exact type match */
@@ -1088,23 +1106,24 @@ object TypeChecker {
       case _ => None
     }
 
-    /** Performs a strict check between types `ty1` and `ty2`.
-      * A strict check doesn't allow type weakining.
-      * 
+    /** Performs a strict check between types `ty1` and `ty2`. A strict check
+      * doesn't allow type weakining.
+      *
       * @param ty2:
       *   The type to strict check `ty1` against with
-      * 
+      *
       * @return
-      *   `Some(SemanticType)` if `ty1` and `ty2` are strictly matching, or `None` on failure.
+      *   `Some(SemanticType)` if `ty1` and `ty2` are strictly matching, or
+      *   `None` on failure.
       */
-    private def ~!(ty2: SemanticType): Option[SemanticType] = 
+    private def ~!(ty2: SemanticType): Option[SemanticType] =
       (ty1, ty2) match {
-        case (?, t) => Some(t)
-        case (t, ?) => Some(t)
-        case (PairAny, _) => Some(ty2)
-        case (_, PairAny) => Some(ty1)
+        case (?, t)           => Some(t)
+        case (t, ?)           => Some(t)
+        case (PairAny, _)     => Some(ty2)
+        case (_, PairAny)     => Some(ty1)
         case (a, b) if a == b => Some(a)
-        case _ => None 
+        case _                => None
       }
 
     /** Checks whether type `ty` matches constraint `c`. This method performs no

@@ -1,6 +1,6 @@
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import wacc._
+import wacc.frontend._
 
 class SanitiserTests extends AnyFlatSpec with Matchers {
 

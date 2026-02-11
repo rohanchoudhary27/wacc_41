@@ -2,7 +2,7 @@ package wacc.frontend.unit
 
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import wacc.ErrorLogger
+import wacc.frontend.ErrorLogger
 
 class ErrorLoggerTests extends AnyFlatSpec with Matchers {
 

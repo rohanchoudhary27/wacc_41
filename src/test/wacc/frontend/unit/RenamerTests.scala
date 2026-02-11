@@ -2,7 +2,7 @@ package wacc.frontend.unit
 
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import wacc._
+import wacc.frontend._
 
 /* Get the renamedID of a renamed variable */
 def extractId(ident: Ident[SemanticData]): Option[Int] = ident.info match {
