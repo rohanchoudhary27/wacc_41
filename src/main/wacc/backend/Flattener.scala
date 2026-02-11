@@ -3,19 +3,28 @@ package wacc.backend
 import wacc.frontend.*
 import scala.collection.mutable.ListBuffer
 
+/** State used throughout the flattening process. 
+  */
+class FlattenerState(
+) {
+    private val directives = ListBuffer[DataDirective]()
+
+    def getAllDirectives = directives.toList
+}
+
 /**
   * The backend flattener which inputs a typed AST from the frontend and outputs the high
   * level 3-register IR which is to then be input to the register allocator and code generator 
   */
 object Flattener {
 
-    private val directives = ListBuffer[DataDirective]()
-
     def flatten(typedAST: Program[SemanticData]): RegProgram = {
         val Program(funcs, stmt, _) = typedAST
 
+        given state: FlattenerState = FlattenerState()
+
         RegProgram(funcs.map(flattenFunc),
-                   directives.toList,
+                   state.getAllDirectives,
                    flattenStmt(stmt, ListBuffer[Instruction]()))
     }
 
