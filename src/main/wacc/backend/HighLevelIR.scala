@@ -1,9 +1,23 @@
 package wacc.backend
 
+/* Size in bytes for registers/memory operations */
+enum Size {
+  case _1, _4, _8
+}
+
+object Size {
+  /* Get the numerical value of the `Size` class */
+  def bytes(s: Size): Int = s match {
+    case `_1` => 1
+    case `_4` => 4
+    case `_8` => 8
+  }
+}
+
 /* Operands */
 sealed trait Operand
 case class Immediate(value: Int) extends Operand
-case class VirtualReg(regNo: Int) extends Operand
+case class VirtualReg(regNo: Int, size: Size) extends Operand
 case class Label(name: String) extends Operand
 
 /* Addresses */
