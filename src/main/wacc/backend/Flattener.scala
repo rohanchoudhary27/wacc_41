@@ -5,20 +5,32 @@ import scala.collection.mutable.ListBuffer
 import scala.collection.mutable.Map
 import wacc.ExitCodes.*
 
-
-
-/** State used throughout the flattening process. 
+/**
+  * A state class managing the virtual register allocation and instructions that make up
+  * a function. The main body of a WACC program is treated as a 'main' function.
   */
-class FlattenerState(
+class FunctionContext(
 ) {
-    private val directives = ListBuffer[DataDirective]()
+
+    /* A renamed variable from the AST. While the AST has this information already in
+       SemanticData.Var, it's clearer to repackage it like this without the extra info */
+    case class QualifiedName(varName: String, varId: Int)
+
+    /* Map of variables to their virtual registers */
     private val virtualRegMap = Map[QualifiedName, VirtualReg]()
     private var nextVirtualId = 0
 
-    case class QualifiedName(varName: String, varId: Int)
+    /* The list of instructions for the function */
+    private val instructions = ListBuffer[Instruction]()
 
-    def getAllDirectives = directives.toList
-
+    /**
+      * Look up the virtual register of a given variable. A precondition is that the variable
+      * must already have an allocated VirtualReg.
+      *
+      * @param varName the string name of the variable
+      * @param renameId the renamed ID from the frontend of the variable
+      * @return the VirtualReg assigned to the variable from a prevoius `defineReg` call
+      */
     def lookupReg(varName: String, renameId: Int): VirtualReg = {
         virtualRegMap.get(QualifiedName(varName, renameId)) match
             case None => {
@@ -29,13 +41,45 @@ class FlattenerState(
             case Some(virtualReg) => virtualReg
     }
 
-    def defineReg(varName: String, renameId: Int, typ: KnownType) = {
+    /**
+      * Define a new virtual register mapping.
+      *
+      * @param varName the string name of the variable
+      * @param renameId the renamed ID from the frontend of the variable
+      * @param typ the `KnownType` of the variable
+      * @return a new virtual register
+      */
+    def defineReg(varName: String, renameId: Int, typ: KnownType): VirtualReg = {
         val nextReg = VirtualReg(nextVirtualId, Size.fromType(typ))
         virtualRegMap +=
             QualifiedName(varName, renameId) -> nextReg
         nextVirtualId += 1
         nextReg
     }
+
+    /**
+      * Emits an instruction to the instruction buffer
+      *
+      * @param instr
+      */
+    def emitInstruction(instr: Instruction): Unit = instructions += instr
+
+    /**
+      * Returns an immutable list of the function's instructions
+      *
+      * @return
+      */
+    def getAllInstructions = instructions.toList
+}
+
+/**
+  * State used throughout the flattening process. 
+  */
+class DirectiveState(
+) {
+    private val directives = ListBuffer[DataDirective]()
+
+    def getAllDirectives = directives.toList
 }
 
 /**
@@ -47,11 +91,12 @@ object Flattener {
     def flatten(typedAST: Program[SemanticData]): RegProgram = {
         val Program(funcs, stmt, _) = typedAST
 
-        given state: FlattenerState = FlattenerState()
+        given funcState: FunctionContext = FunctionContext()
+        given directiveState: DirectiveState = DirectiveState()
 
         RegProgram(funcs.map(flattenFunc),
-                   state.getAllDirectives,
-                   flattenStmt(stmt, ListBuffer[Instruction]()))
+                   directiveState.getAllDirectives,
+                   flattenStmt(stmt))
     }
 
     /**
@@ -63,9 +108,9 @@ object Flattener {
       * @param instrBuffer a buffer to emit `Instruction` objects to
       * @return the list of high level IR instructions
       */
-    private def flattenStmt(typedStmt: Stmt[SemanticData],
-                            instrBuffer: ListBuffer[Instruction])
-                            (using state: FlattenerState): List[Instruction] = ???
+    private def flattenStmt(typedStmt: Stmt[SemanticData])
+                            (using funcState: FunctionContext,
+                                   directiveState: DirectiveState): List[Instruction] = ???
 
     /**
       * Flattens a function AST node. Internally, it creates its own `ListBuffer[Instruction]`
@@ -75,6 +120,12 @@ object Flattener {
       * @return a `FunctionDef` high level IR object
       */
     private def flattenFunc(typedFunc: Func[SemanticData])
-                           (using state: FlattenerState): FunctionDef = ???
+                           (using directiveState: DirectiveState): FunctionDef = {
+
+        /* Create a fresh function context */
+        given funcContext: FunctionContext = FunctionContext()
+
+        ???
+    }
 
 }
