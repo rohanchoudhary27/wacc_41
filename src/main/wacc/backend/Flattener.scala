@@ -58,6 +58,18 @@ class FunctionContext(
     }
 
     /**
+      * Allocate a register as part of computing an expression (not to a variable)
+      *
+      * @param typ
+      * @return
+      */
+    def anonymousReg(typ: KnownType): VirtualReg = {
+        val nextReg = VirtualReg(nextVirtualId, Size.fromType(typ))
+        nextVirtualId += 1
+        nextReg
+    }
+
+    /**
       * Emits an instruction to the instruction buffer
       *
       * @param instr
