@@ -20,6 +20,9 @@ class FunctionContext(
     private val virtualRegMap = Map[QualifiedName, VirtualReg]()
     private var nextVirtualId = 0
 
+    /* Next available label ID for e.g. "${prefix}_0" */
+    private var nextLabelId = 0
+
     /* The list of instructions for the function */
     private val instructions = ListBuffer[Instruction]()
 
@@ -82,6 +85,21 @@ class FunctionContext(
       * @return
       */
     def getAllInstructions = instructions.toList
+
+    /**
+      * Return a `Label` with the next label ID. Essentially reserves a label because labels for
+      * branching may not be defined when they need to be used (e.g. branching to an 'else' clause
+      * in a conditional when failing the 'if' condition). Then later, this label must be emitted
+      * as part of a `LabelDef` insruction to the list of instructions.
+      *
+      * @param prefix the label prefix string
+      * @return a `Label` object
+      */
+    def getNextLabel(prefix: String): Label = {
+        val label = Label(s"${prefix}_${nextLabelId}")
+        nextLabelId += 1
+        label
+    }
 }
 
 /**
