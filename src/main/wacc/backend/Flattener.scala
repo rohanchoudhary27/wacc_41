@@ -91,7 +91,22 @@ class DirectiveState(
 ) {
     private val directives = ListBuffer[DataDirective]()
 
+    private val strMap = Map[String, Label]()
+    private var strCount = 0
+
     def getAllDirectives = directives.toList
+
+    def addString(str: String): Label = {
+        strMap.get(str) match
+            case None => {
+                val strLabel = Label(s"string_${strCount}")
+                directives += DataDirective(strLabel, str)
+                strMap += str -> strLabel
+                strCount += 1
+                strLabel
+            }
+            case Some(label) => label
+    }
 }
 
 /**
