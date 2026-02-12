@@ -121,9 +121,11 @@ object Flattener {
         given funcState: FunctionContext = FunctionContext()
         given directiveState: DirectiveState = DirectiveState()
 
+        flattenStmt(stmt)
+
         RegProgram(funcs.map(flattenFunc),
                    directiveState.getAllDirectives,
-                   flattenStmt(stmt))
+                   funcState.getAllInstructions)
     }
 
     /**
@@ -137,7 +139,7 @@ object Flattener {
       */
     private def flattenStmt(typedStmt: Stmt[SemanticData])
                             (using funcState: FunctionContext,
-                                   directiveState: DirectiveState): List[Instruction] = ???
+                                   directiveState: DirectiveState): Unit = ???
 
     /**
       * Flattens a function AST node. Internally, it creates its own `ListBuffer[Instruction]`
