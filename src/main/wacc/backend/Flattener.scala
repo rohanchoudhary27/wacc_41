@@ -103,17 +103,30 @@ class FunctionContext(
 }
 
 /**
-  * State used throughout the flattening process. 
+  * State class for managing directives.
   */
 class DirectiveState(
 ) {
     private val directives = ListBuffer[DataDirective]()
 
+    /* Mapping strings to their memory address locations (labels) */
     private val strMap = Map[String, Label]()
     private var strCount = 0
 
+    /**
+      * Get an immutable list of all the directives.
+      *
+      * @return an immutable list of `DataDirective` objects
+      */
     def getAllDirectives = directives.toList
 
+    /**
+      * Add a string to the data directives if not already added.
+      *
+      * @param str the string to add to the data directives
+      * @return the label of the string (either from a map if already added or a
+      * newly created label)
+      */
     def addString(str: String): Label = {
         strMap.get(str) match
             case None => {
@@ -133,12 +146,23 @@ class DirectiveState(
   */
 object Flattener {
 
+    /**
+      * The main function of the Flattener. Inputs a typed AST (Program[SemanticData]) from the
+      * frontend typechecker and outputs a `RegProgram` which is a flattened version of the AST
+      * into a high level 3-register assembley IR.
+      *
+      * @param typedAST the type checker AST output from the frontend
+      * @return a `RegProgram` 3-register assembley IR
+      */
     def flatten(typedAST: Program[SemanticData]): RegProgram = {
         val Program(funcs, stmt, _) = typedAST
 
+        /* Initialise contexts */
         given funcState: FunctionContext = FunctionContext()
         given directiveState: DirectiveState = DirectiveState()
 
+        /* Flatten the main statement which populates the funcState
+           instructions buffer */
         flattenStmt(stmt)
 
         RegProgram(funcs.map(flattenFunc),
