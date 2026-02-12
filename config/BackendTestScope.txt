@@ -1,4 +1,0 @@
-valid/array/array.wacc: compile
-valid/basic: run
-valid/IO/read/echoChar.wacc: run
-invalid/syntaxErr/array: compile
