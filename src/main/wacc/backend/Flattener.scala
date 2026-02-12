@@ -2,14 +2,40 @@ package wacc.backend
 
 import wacc.frontend.*
 import scala.collection.mutable.ListBuffer
+import scala.collection.mutable.Map
+import wacc.ExitCodes.*
+
+
 
 /** State used throughout the flattening process. 
   */
 class FlattenerState(
 ) {
     private val directives = ListBuffer[DataDirective]()
+    private val virtualRegMap = Map[QualifiedName, VirtualReg]()
+    private var nextVirtualId = 0
+
+    case class QualifiedName(varName: String, varId: Int)
 
     def getAllDirectives = directives.toList
+
+    def lookupReg(varName: String, renameId: Int): VirtualReg = {
+        virtualRegMap.get(QualifiedName(varName, renameId)) match
+            case None => {
+                Console.err.println("Internal compiler failure: attempted to lookup a virtual" +
+                                    "register before defining one")
+                sys.exit(code(CompilerFailure))
+            }
+            case Some(virtualReg) => virtualReg
+    }
+
+    def defineReg(varName: String, renameId: Int, typ: KnownType) = {
+        val nextReg = VirtualReg(nextVirtualId, Size.fromType(typ))
+        virtualRegMap +=
+            QualifiedName(varName, renameId) -> nextReg
+        nextVirtualId += 1
+        nextReg
+    }
 }
 
 /**
@@ -38,7 +64,8 @@ object Flattener {
       * @return the list of high level IR instructions
       */
     private def flattenStmt(typedStmt: Stmt[SemanticData],
-                            instrBuffer: ListBuffer[Instruction]): List[Instruction] = ???
+                            instrBuffer: ListBuffer[Instruction])
+                            (using state: FlattenerState): List[Instruction] = ???
 
     /**
       * Flattens a function AST node. Internally, it creates its own `ListBuffer[Instruction]`
@@ -47,6 +74,7 @@ object Flattener {
       * @param typedFunc the function node to flatten
       * @return a `FunctionDef` high level IR object
       */
-    private def flattenFunc(typedFunc: Func[SemanticData]): FunctionDef = ???
+    private def flattenFunc(typedFunc: Func[SemanticData])
+                           (using state: FlattenerState): FunctionDef = ???
 
 }
