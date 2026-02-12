@@ -1,17 +1,27 @@
 package wacc.backend
 
+import wacc.frontend.KnownType
+
 /* Size in bytes for registers/memory operations */
 enum Size {
-  case _1, _4, _8
+    case _1, _4, _8
 }
 
 object Size {
-  /* Get the numerical value of the `Size` class */
-  def bytes(s: Size): Int = s match {
-    case `_1` => 1
-    case `_4` => 4
-    case `_8` => 8
-  }
+
+    /* Get the numerical value of the `Size` class */
+    def bytes(s: Size): Int = s match {
+        case `_1` => 1
+        case `_4` => 4
+        case `_8` => 8
+    }
+
+    /* Get the numerical value of the `Size` class */
+    def fromType(typ: KnownType): Size = typ match {
+        case KnownType.Char | KnownType.Bool => Size._1
+        case KnownType.Int => Size._4
+        case KnownType.String | _: KnownType.Array | _: KnownType.Pair => Size._8
+    }
 }
 
 /* Operands */
@@ -34,8 +44,8 @@ enum Condition {
 
 /* Positions in a pair */
 enum PairPos {
-  case Fst
-  case Snd
+    case Fst
+    case Snd
 }
 
 /* ---------------------------------------------------------------------------------------------- */
@@ -101,4 +111,4 @@ case class Lea(destReg: VirtualReg, label: Label) extends Instruction
    label. */
 case class DataDirective(label: Label, storedValue: String)
 case class FunctionDef(name: String, body: List[Instruction])
-case class Program(funcs: List[FunctionDef], data: List[DataDirective], body: List[Instruction])
+case class RegProgram(funcs: List[FunctionDef], data: List[DataDirective], body: List[Instruction])
