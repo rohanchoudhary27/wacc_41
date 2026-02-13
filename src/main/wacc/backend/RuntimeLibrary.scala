@@ -15,9 +15,7 @@ abstract class Widget {
         widget source */
     def description: String
 
-    /** Any other widgets this widget calls. 
-        e.g., _printBool might depend on _printStr for "true"/"false" 
-     */
+    /** Any other widgets this widget calls */
     def dependencies: Set[Widget] = Set.empty
 }
 
@@ -47,11 +45,66 @@ class RuntimeLibraryDispatcher {
     }
 
     /**
-     * Returns the full assembly block for all required widgets
+     * Returns the full assembly string block for all required widgets
      * 
      * @return the assembly source of all used widgets
      */
     def getCollectedAssembly: String = {
         activeWidgets.map(_.source).mkString("\n\n")
     }
+}
+
+
+/* Runtime Library implemented as Widgets */
+
+/**
+ * AArch64 Widget to print a signed 32-bit integer.
+ * Uses the C standard library 'printf'.
+ */
+object PrintIntWidget extends Widget {
+    override val label: String = "_printInt"
+
+    /* AArch64 requires 16-byte alignment before calling printf */
+    override val source: String = ""
+
+    override val description: String = "prints an integer value to stdout"
+}
+
+/**
+ * AArch64 Widget to print a signed 32-bit integer.
+ * Uses the C standard library 'printf'.
+ */
+object PrintStringWidget extends Widget {
+    override val label: String = "_printInt"
+
+    /* AArch64 requires 16-byte alignment before calling printf */
+    override val source: String = ""
+
+    override val description: String = "prints a string value to stdout"
+}
+
+/**
+ * AArch64 Widget to print a signed 32-bit integer.
+ * Uses the C standard library 'printf'.
+ */
+object PrintBoolWidget extends Widget {
+    override val label: String = "_printInt"
+
+    /* AArch64 requires 16-byte alignment before calling printf */
+    override val source: String = ""
+
+    override val description: String = "prints a boolean value to stdout"
+}
+
+/**
+ * AArch64 Widget to print a signed 32-bit integer.
+ * Uses the C standard library 'printf'.
+ */
+object PrintCharWidget extends Widget {
+    override val label: String = "_printChar"
+
+    /* AArch64 requires 16-byte alignment before calling printf */
+    override val source: String = ""
+
+    override val description: String = "prints a char value to stdout"
 }
