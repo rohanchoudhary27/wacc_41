@@ -54,12 +54,14 @@ case class MovKeep(reg: Register,
                    shift: ShiftAmounts.ShiftAmount) extends ArmInstruction
 case class ArmLoad(reg: Register, src: ArmAddress) extends ArmInstruction
 case class ArmStore(reg: Register, src: ArmAddress) extends ArmInstruction
+case class ArmLea(destReg: Register, label: ArmAddrLabel) extends ArmInstruction
 
 /* Conditionals */
 case class CmpReg(src1: Register, src2: Register) extends ArmInstruction
 case class CmpImm(src1: Register, src2: ArmImmediate) extends ArmInstruction
 case class ArmBranchUncond(label: ArmAddrLabel) extends ArmInstruction
 case class ArmBranchCond(cond: Condition, label: ArmAddrLabel) extends ArmInstruction
+case class ArmLabelDef(label: ArmAddrLabel) extends ArmInstruction
 
 /* Functions */
 case class Bl(label: ArmAddrLabel) extends ArmInstruction
