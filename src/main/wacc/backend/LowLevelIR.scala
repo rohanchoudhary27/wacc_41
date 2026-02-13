@@ -27,6 +27,7 @@ case class ArmAddReg(reg: Register, src1: Register, src2: Register) extends ArmI
 case class ArmSubReg(reg: Register, src1: Register, src2: Register) extends ArmInstruction
 case class ArmMulReg(reg: Register, src1: Register, src2: Register) extends ArmInstruction
 case class ArmDivReg(reg: Register, src1: Register, src2: Register) extends ArmInstruction
+case class ArmNeg(reg: Register) extends ArmInstruction
 case class ArmLslReg(reg: Register, src1: Register, src2: Register) extends ArmInstruction
 case class ArmLsrReg(reg: Register, src1: Register, src2: Register) extends ArmInstruction
 case class ArmAsrReg(reg: Register, src1: Register, src2: Register) extends ArmInstruction
