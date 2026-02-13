@@ -1,28 +1,6 @@
 package wacc.backend
 
-enum RegWidth {
-  case B
-  case W
-  case X
-
-  override def toString: String = this match {
-    case B => "b"
-    case W => "w"
-    case X => "x"
-  }
-}
-
-case class Register(id: Int, width: RegWidth)
-
-object ShiftAmounts {
-  opaque type ShiftAmount = Int
-  val _0: ShiftAmount = 0
-  val _16: ShiftAmount = 16
-  val _32: ShiftAmount = 32 
-  val _48: ShiftAmount = 48
-
-  def value(shift: ShiftAmount): Int = shift
-}
+case class Register(id: Int, width: Size)
 
 sealed trait ArmAddress
 case class ArmAddrRegOffset(baseAddr: Register, offset: Register) extends  ArmAddress
@@ -74,4 +52,3 @@ case class MovKeep(reg: Register,
 
 case class ArmLoad(reg: Register, src: ArmAddress) extends ArmInstruction
 case class ArmStore(reg: Register, src: ArmAddress) extends ArmInstruction
-
