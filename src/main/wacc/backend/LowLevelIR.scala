@@ -5,6 +5,9 @@ case class Register(id: Int, width: Size)
 sealed trait ArmAddress
 case class ArmAddrRegOffset(baseAddr: Register, offset: Register) extends  ArmAddress
 case class ArmAddrImmOffset(baseAddr: Register, offset: ArmImmediate) extends ArmAddress
+case class ArmAddrRegShift(base: Register,
+                           offset: Register,
+                           shift: ShiftAmounts.ShiftAmount) extends ArmAddress
 case class ArmAddrLabel(name: String) extends ArmAddress
 case class ArmAddrStack(offset: Int) extends ArmAddress
 
