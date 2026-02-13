@@ -52,3 +52,10 @@ case class MovKeep(reg: Register,
 
 case class ArmLoad(reg: Register, src: ArmAddress) extends ArmInstruction
 case class ArmStore(reg: Register, src: ArmAddress) extends ArmInstruction
+
+/* Conditionals */
+case class CmpReg(src1: Register, src2: Register) extends ArmInstruction
+case class CmpImm(src1: Register, src2: ArmImmediate) extends ArmInstruction
+case class ArmBranchUncond(label: ArmAddrLabel) extends ArmInstruction
+case class ArmBranchCond(cond: Condition, label: ArmAddrLabel) extends ArmInstruction
+
