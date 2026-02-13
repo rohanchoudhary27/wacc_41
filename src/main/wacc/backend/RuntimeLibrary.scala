@@ -280,3 +280,45 @@ object ReadCharWidget extends Widget {
 
     override val description: String = "reads a char value from stdin"
 }
+
+object DivByZeroErrorWidget extends Widget {
+    override val label: String = "_errDivZero"
+
+    override val source: String =
+        s"""// ${description}
+            |// length of .L._errDivZero_str0
+            |    .word 40
+            |.L._errDivZero_str0:
+            |    .asciz "fatal error: division or modulo by zero\\n"
+            |    .align 4
+            |_errDivZero:
+            |    adr x0, .L._errDivZero_str0
+            |    bl _prints
+            |    mov w0, #-1
+            |    bl exit""".stripMargin
+
+    override val description: String = "division or modulo by zero error handler"
+
+    override val dependencies: Set[Widget] = Set(PrintStringWidget)
+}
+
+object IntOverflowErrorWidget extends Widget {
+    override val label: String = "_errOverflow"
+
+    override val source: String =
+        s"""// ${description}
+            |// length of .L._errOverflow_str0
+            |    .word 52
+            |.L._errOverflow_str0:
+            |    .asciz "fatal error: integer overflow or underflow occurred\\n"
+            |    .align 4
+            |_errOverflow:
+            |    adr x0, .L._errOverflow_str0
+            |    bl _prints
+            |    mov w0, #-1
+            |    bl exit""".stripMargin
+
+    override val description: String = "integer overflow or underflow error handler"
+
+    override val dependencies: Set[Widget] = Set(PrintStringWidget)
+}
