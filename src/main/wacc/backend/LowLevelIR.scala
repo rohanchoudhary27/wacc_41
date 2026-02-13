@@ -1,7 +1,10 @@
 package wacc.backend
 
+/* A physical register (placeholder to be removed
+   when register allocator is merged) */
 case class Register(id: Int, width: Size)
 
+/* Addressing modes */
 sealed trait ArmAddress
 case class ArmAddrRegOffset(baseAddr: Register, offset: Register) extends  ArmAddress
 case class ArmAddrImmOffset(baseAddr: Register, offset: ArmImmediate) extends ArmAddress
@@ -10,6 +13,7 @@ case class ArmAddrRegShift(base: Register,
                            shift: ShiftAmounts.ShiftAmount) extends ArmAddress
 case class ArmAddrLabel(name: String) extends ArmAddress
 
+/* An immeidate value */
 case class ArmImmediate(value: Int)
 
 /* ---------------------------------------------------------------------------------------------- */
@@ -48,7 +52,6 @@ case class MovReg(reg: Register, src: Register) extends ArmInstruction
 case class MovKeep(reg: Register,
                    src: ArmImmediate,
                    shift: ShiftAmounts.ShiftAmount) extends ArmInstruction
-
 case class ArmLoad(reg: Register, src: ArmAddress) extends ArmInstruction
 case class ArmStore(reg: Register, src: ArmAddress) extends ArmInstruction
 

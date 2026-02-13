@@ -2,11 +2,16 @@ package wacc.backend
 
 import wacc.frontend.KnownType
 
-/* Size in bytes for registers/memory operations */
+/**
+  * Size in bytes for registers/memory operations
+  */
 enum Size {
     case B, W, X
 }
 
+/**
+  * Companion object of `Size` enum
+  */
 object Size {
 
     /* Get the numerical value of the `Size` class */
@@ -24,6 +29,10 @@ object Size {
     }
 }
 
+/**
+  * The size of a shift in an instruction like MOVK, and in
+  * shifted register addressing .
+  */
 object ShiftAmounts {
   opaque type ShiftAmount = Int
   val _0: ShiftAmount = 0
@@ -34,12 +43,16 @@ object ShiftAmounts {
   def value(shift: ShiftAmount): Int = shift
 }
 
-/* Conditions */
+/**
+  * The conditions for branching instructions
+  */
 enum Condition {
     case EQ, NE, LT, LE, GT, GE
 }
 
-/* Positions in a pair */
+/**
+  * The positions in a pair
+  */
 enum PairPos {
     case Fst
     case Snd
