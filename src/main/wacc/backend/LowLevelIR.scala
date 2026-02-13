@@ -59,3 +59,7 @@ case class CmpImm(src1: Register, src2: ArmImmediate) extends ArmInstruction
 case class ArmBranchUncond(label: ArmAddrLabel) extends ArmInstruction
 case class ArmBranchCond(cond: Condition, label: ArmAddrLabel) extends ArmInstruction
 
+/* Functions */
+case class Bl(label: ArmAddrLabel) extends ArmInstruction
+case object ArmRet extends ArmInstruction
+
