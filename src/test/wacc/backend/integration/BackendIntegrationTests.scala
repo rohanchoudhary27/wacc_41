@@ -53,12 +53,18 @@ object BackendAdapter extends AnyFlatSpec {
         // println(s"Doing ${metadata} for: ${metadata.path.getFileName}")  
         try {
             /* generate assembly using WACC pipeline */
-            generateAssembly(metadata.path, asmFile)
-            /* assemble and link */
-            val compileStatus = crossCompile(asmFile, exeFile)
-            if (compileStatus != 0) ("Cross-compilation failed", compileStatus)
-            /* emulate and capture output */
-            else emulate(exeFile, metadata.input)
+            val compileExitCode = generateAssembly(metadata.path, asmFile)
+            
+            if (compileExitCode != 0) {
+                /* Compilation failed (syntax/semantic errors) - no code emitted */
+                ("", compileExitCode)
+            } else {
+                /* assemble and link */
+                val crossCompileStatus = crossCompile(asmFile, exeFile)
+                if (crossCompileStatus != 0) ("Cross-compilation failed", crossCompileStatus)
+                /* emulate and capture output */
+                else emulate(exeFile, metadata.input)
+            }
         } finally {
             Files.deleteIfExists(asmFile)
             Files.deleteIfExists(exeFile)
@@ -110,6 +116,7 @@ object BackendAdapter extends AnyFlatSpec {
      */
     private def emulate(exePath: Path, inputs: List[String]): (String, Int) = {
         val stdout = new StringBuilder
+        val stderr = new StringBuilder
         val qemuCmd = Seq("qemu-aarch64", "-L", "/usr/aarch64-linux-gnu", exePath.toString)
 
         val io = new ProcessIO(
@@ -123,7 +130,15 @@ object BackendAdapter extends AnyFlatSpec {
                 reader.getLines().foreach(l => stdout.append(l).append("\n"))
                 reader.close()
             },
-            _ => (info("there's a stderr")) // what should we do when there's stderr...
+            stderrStream => {
+                val reader = scala.io.Source.fromInputStream(stderrStream)
+                val errors = reader.mkString
+                if (errors.nonEmpty) {
+                    stderr.append(errors)
+                    info(s"stderr output: $errors")
+                }
+                reader.close()
+            }
         )
 
         val exitCode = Process(qemuCmd).run(io).exitValue()
