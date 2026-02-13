@@ -63,3 +63,6 @@ case class ArmBranchCond(cond: Condition, label: ArmAddrLabel) extends ArmInstru
 case class Bl(label: ArmAddrLabel) extends ArmInstruction
 case object ArmRet extends ArmInstruction
 
+/* Stack operations */
+case class PushTwo(src1: Register, src2: Register) extends ArmInstruction
+case class PopTwo(dest1: Register, dest2: Register) extends ArmInstruction
