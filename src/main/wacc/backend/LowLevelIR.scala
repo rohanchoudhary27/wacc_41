@@ -13,8 +13,27 @@ enum RegWidth {
 }
 
 case class Register(id: Int, width: RegWidth)
+
+object ShiftAmounts {
+  opaque type ShiftAmount = Int
+  val _0: ShiftAmount = 0
+  val _16: ShiftAmount = 16
+  val _32: ShiftAmount = 32 
+  val _48: ShiftAmount = 48
+
+  def value(shift: ShiftAmount): Int = shift
+}
+
+sealed trait ArmAddress
+case class ArmAddrRegOffset(baseAddr: Register, offset: Register) extends  ArmAddress
+case class ArmAddrImmOffset(baseAddr: Register, offset: ArmImmediate) extends ArmAddress
+case class ArmAddrLabel(name: String) extends ArmAddress
+case class ArmAddrStack(offset: Int) extends ArmAddress
+
 case class ArmImmediate(value: Int)
+
 /* ---------------------------------------------------------------------------------------------- */
+
 sealed trait ArmInstruction
 
 /* Arithmetic and Logic */
@@ -46,4 +65,13 @@ case class NotReg(reg: Register, src: Register) extends ArmInstruction
 case class OrImm(reg: Register, src1: Register, src2: ArmImmediate) extends ArmInstruction
 case class AndImm(reg: Register, src1: Register, src2: ArmImmediate) extends ArmInstruction
 case class NotImm(reg: Register, src: ArmImmediate) extends ArmInstruction
+
+/* Data Movement*/
+case class MovReg(reg: Register, src: Register) extends ArmInstruction
+case class MovKeep(reg: Register,
+                   src: ArmImmediate,
+                   shift: ShiftAmounts.ShiftAmount) extends ArmInstruction
+
+case class ArmLoad(reg: Register, src: ArmAddress) extends ArmInstruction
+case class ArmStore(reg: Register, src: ArmAddress) extends ArmInstruction
 
