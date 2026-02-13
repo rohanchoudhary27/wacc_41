@@ -217,11 +217,11 @@ final class BackendIntegrationSpec extends WaccIntegrationTestBase(
                     OutputSpec.directive(expectedOut) match {
                         case Some((OutputDirective.SyntaxError, _)) =>
                             /* Don't compare stdout just check the right exit code */
-                            exitCode shouldBe code(SyntaxError)
+                            exitCode shouldBe code(ExitCodes.SyntaxError)
 
                         case Some((OutputDirective.SemanticError, _)) =>
                             /* Don't compare stdout just check the right exit code */
-                            exitCode shouldBe code(SemanticError)
+                            exitCode shouldBe code(ExitCodes.SemanticError)
 
                         case Some((OutputDirective.RuntimeError, _)) =>
                             /* Runtime errors are not compile time so exit should be nonzero.
