@@ -71,6 +71,30 @@ case object ArmRet extends ArmInstruction
 case class ArmPushTwo(src1: Register, src2: Register) extends ArmInstruction
 case class ArmPopTwo(dest1: Register, dest2: Register) extends ArmInstruction
 
+/* Alias instructions (real aarch64 but they're convenient wrappers
+   over multiple other aarch64 instructions */
+
+/* w1, w2, w3:  dest = w3 - (w1 * w2)
+   `MSub` makes the mod operator much easier */
+case class ArmMSub(dest: Register, mult1: Register,
+                   mult2: Register,
+                   sub: Register) extends ArmInstruction
+
+/* Sets the value of the condition flag `cond` to the destination register */
+case class ArmCSet(dest: Register, cond: Condition) extends ArmInstruction
+
+/* Easily check for overflow on multiplication as it is "multiply long" meaning
+   we can check the top 32-bits of the 64-bit result and if it's not zero, then there
+   was overflow as WACC uses 32-bit ints.
+   
+   The S stands for sign-extend so it's going to a bigger result size instead of truncating.
+*/
+case class ArmSMull(dest: Register, src1: Register, src2: Register) extends ArmInstruction
+
+/* Sign extend a word to promote a number from a 32-bit regster
+   to a 64-bit register */
+case class ArmSxtw(dest: Register, src: Register) extends ArmInstruction
+
 /* ---------------------------------------------------------------------------------------------- */
 
 case class ArmDataDirective(label: ArmAddrLabel, storedValue: String)
