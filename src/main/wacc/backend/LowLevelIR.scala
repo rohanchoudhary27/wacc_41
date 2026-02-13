@@ -70,3 +70,8 @@ case object ArmRet extends ArmInstruction
 /* Stack operations */
 case class PushTwo(src1: Register, src2: Register) extends ArmInstruction
 case class PopTwo(dest1: Register, dest2: Register) extends ArmInstruction
+
+/* ---------------------------------------------------------------------------------------------- */
+
+case class ArmDataDirective(label: ArmAddrLabel, storedValue: String)
+case class ArmProgram(data: List[ArmDataDirective], body: List[ArmInstruction])
