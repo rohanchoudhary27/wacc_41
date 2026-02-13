@@ -61,7 +61,7 @@ generator_tests:
       junit: target/random-test-reports/*.xml
     paths:
       - random-test.log
-      - target/ranodm-test-reports/
+      - target/random-test-reports/
     expire_in: 1 hour
   tags:
     - vm-runner
