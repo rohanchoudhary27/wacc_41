@@ -322,3 +322,45 @@ object IntOverflowErrorWidget extends Widget {
 
     override val dependencies: Set[Widget] = Set(PrintStringWidget)
 }
+
+object NullDerefErrorWidget extends Widget {
+    override val label: String = "_errNull"
+
+    override val source: String =
+        s"""// ${description}
+            |// length of .L._errNull_str0
+            |    .word 45
+            |.L._errNull_str0:
+            |    .asciz "fatal error: null pair dereferenced or freed\\n"
+            |    .align 4
+            |_errNull:
+            |    adr x0, .L._errNull_str0
+            |    bl _prints
+            |    mov w0, #-1
+            |    bl exit""".stripMargin
+
+    override val description: String = "null pair dereference or free error handler"
+
+    override val dependencies: Set[Widget] = Set(PrintStringWidget)
+}
+
+object OutOfMemoryErrorWidget extends Widget {
+    override val label: String = "_errOutOfMemory"
+
+    override val source: String =
+        s"""// ${description}
+            |// length of .L._errOutOfMemory_str0
+            |    .word 27
+            |.L._errOutOfMemory_str0:
+            |    .asciz "fatal error: out of memory\\n"
+            |    .align 4
+            |_errOutOfMemory:
+            |    adr x0, .L._errOutOfMemory_str0
+            |    bl _prints
+            |    mov w0, #-1
+            |    bl exit""".stripMargin
+
+    override val description: String = "heap allocation failure error handler"
+
+    override val dependencies: Set[Widget] = Set(PrintStringWidget)
+}
