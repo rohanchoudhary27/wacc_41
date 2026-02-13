@@ -23,33 +23,33 @@ sealed trait ArmInstruction
 /* Arithmetic and Logic */
 
 /* Register arithmetic instructions */
-case class AddReg(reg: Register, src1: Register, src2: Register) extends ArmInstruction
-case class SubReg(reg: Register, src1: Register, src2: Register) extends ArmInstruction
-case class MulReg(reg: Register, src1: Register, src2: Register) extends ArmInstruction
-case class DivReg(reg: Register, src1: Register, src2: Register) extends ArmInstruction
-case class LslReg(reg: Register, src1: Register, src2: Register) extends ArmInstruction
-case class LsrReg(reg: Register, src1: Register, src2: Register) extends ArmInstruction
-case class AsrReg(reg: Register, src1: Register, src2: Register) extends ArmInstruction
+case class ArmAddReg(reg: Register, src1: Register, src2: Register) extends ArmInstruction
+case class ArmSubReg(reg: Register, src1: Register, src2: Register) extends ArmInstruction
+case class ArmMulReg(reg: Register, src1: Register, src2: Register) extends ArmInstruction
+case class ArmDivReg(reg: Register, src1: Register, src2: Register) extends ArmInstruction
+case class ArmLslReg(reg: Register, src1: Register, src2: Register) extends ArmInstruction
+case class ArmLsrReg(reg: Register, src1: Register, src2: Register) extends ArmInstruction
+case class ArmAsrReg(reg: Register, src1: Register, src2: Register) extends ArmInstruction
 
 /* Immediate arithmetic instructions */
-case class AddImm(reg: Register, src1: Register, src2: ArmImmediate) extends ArmInstruction
-case class SubImm(reg: Register, src1: Register, src2: ArmImmediate) extends ArmInstruction
-case class LslImm(reg: Register, src1: Register, src2: ArmImmediate) extends ArmInstruction
-case class LsrImm(reg: Register, src1: Register, src2: ArmImmediate) extends ArmInstruction
-case class AsrImm(reg: Register, src1: Register, src2: ArmImmediate) extends ArmInstruction
+case class ArmAddImm(reg: Register, src1: Register, src2: ArmImmediate) extends ArmInstruction
+case class ArmSubImm(reg: Register, src1: Register, src2: ArmImmediate) extends ArmInstruction
+case class ArmLslImm(reg: Register, src1: Register, src2: ArmImmediate) extends ArmInstruction
+case class ArmLsrImm(reg: Register, src1: Register, src2: ArmImmediate) extends ArmInstruction
+case class ArmAsrImm(reg: Register, src1: Register, src2: ArmImmediate) extends ArmInstruction
 
 /* Register logical instructions */
-case class OrReg(reg: Register, src1: Register, src2: Register) extends ArmInstruction
-case class AndReg(reg: Register, src1: Register, src2: Register) extends ArmInstruction
-case class NotReg(reg: Register, src: Register) extends ArmInstruction
+case class ArmOrReg(reg: Register, src1: Register, src2: Register) extends ArmInstruction
+case class ArmAndReg(reg: Register, src1: Register, src2: Register) extends ArmInstruction
+case class ArmNotReg(reg: Register, src: Register) extends ArmInstruction
 
 /* Immediate logical instructions */
-case class OrImm(reg: Register, src1: Register, src2: ArmImmediate) extends ArmInstruction
-case class AndImm(reg: Register, src1: Register, src2: ArmImmediate) extends ArmInstruction
+case class ArmOrImm(reg: Register, src1: Register, src2: ArmImmediate) extends ArmInstruction
+case class ArmAndImm(reg: Register, src1: Register, src2: ArmImmediate) extends ArmInstruction
 
 /* Data Movement*/
-case class MovReg(reg: Register, src: Register) extends ArmInstruction
-case class MovKeep(reg: Register,
+case class ArmMovReg(reg: Register, src: Register) extends ArmInstruction
+case class ArmMovKeep(reg: Register,
                    src: ArmImmediate,
                    shift: ShiftAmounts.ShiftAmount) extends ArmInstruction
 case class ArmLoad(reg: Register, src: ArmAddress) extends ArmInstruction
@@ -57,19 +57,19 @@ case class ArmStore(reg: Register, src: ArmAddress) extends ArmInstruction
 case class ArmLea(destReg: Register, label: ArmAddrLabel) extends ArmInstruction
 
 /* Conditionals */
-case class CmpReg(src1: Register, src2: Register) extends ArmInstruction
-case class CmpImm(src1: Register, src2: ArmImmediate) extends ArmInstruction
+case class ArmCmpReg(src1: Register, src2: Register) extends ArmInstruction
+case class ArmCmpImm(src1: Register, src2: ArmImmediate) extends ArmInstruction
 case class ArmBranchUncond(label: ArmAddrLabel) extends ArmInstruction
 case class ArmBranchCond(cond: Condition, label: ArmAddrLabel) extends ArmInstruction
 case class ArmLabelDef(label: ArmAddrLabel) extends ArmInstruction
 
 /* Functions */
-case class Bl(label: ArmAddrLabel) extends ArmInstruction
+case class ArmBl(label: ArmAddrLabel) extends ArmInstruction
 case object ArmRet extends ArmInstruction
 
 /* Stack operations */
-case class PushTwo(src1: Register, src2: Register) extends ArmInstruction
-case class PopTwo(dest1: Register, dest2: Register) extends ArmInstruction
+case class ArmPushTwo(src1: Register, src2: Register) extends ArmInstruction
+case class ArmPopTwo(dest1: Register, dest2: Register) extends ArmInstruction
 
 /* ---------------------------------------------------------------------------------------------- */
 
