@@ -2,20 +2,32 @@ package wacc.backend
 
 import scala.collection.mutable
 
+/**
+  * The register allocator which allocates physical registers to the virtual
+  * registers used in the high level IR.
+  */
 object RegisterAllocator {
 
     sealed trait Location
     case class PhysReg(name: String) extends Location
     case class StackSlot(offset: Int) extends Location
 
+    /* */
     val usableRegisters = List(
         "x9", "x10", "x11", "x12", "x13", "x14", "x15",
         "x19", "x20", "x21", "x22", "x23", "x24", "x25", "x26", "x27", "x28"
     )
 
+    /* The return value of the `allocate` function */
     case class AllocationResult(mainAlloc: Map[VirtualReg, Location],
                                 funcAllocs: Map[String, Map[VirtualReg, Location]])
 
+    /**
+      * Perform the register allocation
+      *
+      * @param prog the high level IR `RegProgram``
+      * @return the register allocation map
+      */
     def allocate(prog: RegProgram): AllocationResult = {
         val funcMaps = prog.funcs.map { f => 
             f.name -> allocateBlock(f.body, f.args) 
@@ -35,9 +47,17 @@ object RegisterAllocator {
       * @param index the virtual register index to translate to a stack offset
       * @return the stack offset to store the argument in
       */
-    def getNextArgOffset(index: Int): Int = (index - 8) * 8 + 16
+    private def getNextArgOffset(index: Int): Int = (index - 8) * 8 + 16
 
-    def allocateBlock(instrs: List[Instruction],
+    /**
+      * Allocate registers to a block (list) of instructions
+      *
+      * @param instrs the instruction list to allocate registers for
+      * @param args arguements to the function this block belongs to. The top level scope
+      * is treated as a "main" function
+      * @return the register allocation map
+      */
+    private def allocateBlock(instrs: List[Instruction],
                       args: List[VirtualReg]): Map[VirtualReg, Location] = {
     
         val allocationMap = mutable.Map[VirtualReg, Location]()
@@ -52,8 +72,15 @@ object RegisterAllocator {
         }
 
         val freeRegs = mutable.Queue.from(usableRegisters)
+
+        /* Growing the stack downwards for local variables */
         var localVarStackOffset = -8
 
+        /**
+          * Recursively populate the register allocation map
+          *
+          * @param obj
+          */
         def scan(obj: Any): Unit = obj match {
             case v: VirtualReg =>
                 if (!allocationMap.contains(v)) {
