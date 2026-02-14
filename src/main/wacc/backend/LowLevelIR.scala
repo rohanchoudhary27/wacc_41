@@ -96,6 +96,12 @@ case class ArmSMull(dest: Register, src1: Register, src2: Register) extends ArmI
    to a 64-bit register */
 case class ArmSxtw(dest: Register, src: Register) extends ArmInstruction
 
+/* Branch if the test register is equal to 0 (prevents cmp + branch) */
+case class ArmCbz(reg: Register, label: ArmAddrLabel) extends ArmInstruction  
+
+/* Branch if the test register is not equal to 0 (prevents cmp + branch) */
+case class ArmCbnz(reg: Register, label: ArmAddrLabel) extends ArmInstruction 
+
 /* ---------------------------------------------------------------------------------------------- */
 
 case class ArmDataDirective(label: ArmAddrLabel, storedValue: String)
