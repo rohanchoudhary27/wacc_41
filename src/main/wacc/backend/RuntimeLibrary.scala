@@ -388,3 +388,41 @@ object ArrayBoundsErrorWidget extends Widget {
     // Note: This widget uses printf directly (not _prints) to print the index value
     override val dependencies: Set[Widget] = Set.empty
 }
+
+object MallocWidget extends Widget {
+    override val label: String = "_malloc"
+
+    override val source: String =
+        s"""// ${description}
+            |_malloc:
+            |    // push {lr}
+            |    stp lr, xzr, [sp, #-16]!
+            |    bl malloc
+            |    cbz x0, _errOutOfMemory
+            |    // pop {lr}
+            |    ldp lr, xzr, [sp], #16
+            |    ret""".stripMargin
+
+    override val description: String = "allocate heap memory with out-of-memory checking"
+
+    override val dependencies: Set[Widget] = Set(OutOfMemoryErrorWidget)
+}
+
+object FreePairWidget extends Widget {
+    override val label: String = "_freepair"
+
+    override val source: String =
+        s"""// ${description}
+            |_freepair:
+            |    // push {lr}
+            |    stp lr, xzr, [sp, #-16]!
+            |    cbz x0, _errNull
+            |    bl free
+            |    // pop {lr}
+            |    ldp lr, xzr, [sp], #16
+            |    ret""".stripMargin
+
+    override val description: String = "free a pair with null checking"
+
+    override val dependencies: Set[Widget] = Set(NullDerefErrorWidget)
+}
