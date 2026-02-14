@@ -13,7 +13,8 @@ object RegisterAllocator {
         "x19", "x20", "x21", "x22", "x23", "x24", "x25", "x26", "x27", "x28"
     )
 
-    case class AllocationResult(mainAlloc: Map[VirtualReg, Location], funcAllocs: Map[String, Map[VirtualReg, Location]])
+    case class AllocationResult(mainAlloc: Map[VirtualReg, Location],
+                                funcAllocs: Map[String, Map[VirtualReg, Location]])
 
     def allocate(prog: RegProgram): AllocationResult = {
         val funcMaps = prog.funcs.map { f => 
@@ -32,22 +33,22 @@ object RegisterAllocator {
         var stackOffset = 0
 
         def scan(obj: Any): Unit = obj match {
-        case v: VirtualReg =>
-            if (!allocationMap.contains(v)) {
-                if (freeRegs.nonEmpty) {
-                    allocationMap(v) = PhysReg(freeRegs.dequeue())
-                } else {
-                allocationMap(v) = StackSlot(stackOffset)
-                stackOffset += 8
+            case v: VirtualReg =>
+                if (!allocationMap.contains(v)) {
+                    if (freeRegs.nonEmpty) {
+                        allocationMap(v) = PhysReg(freeRegs.dequeue())
+                    } else {
+                        allocationMap(v) = StackSlot(stackOffset)
+                        stackOffset += 8
+                    }
             }
+        
+            case p: Product => p.productIterator.foreach(scan)
+        
+            case l: Iterable[_] => l.foreach(scan)
+        
+            case _ =>
         }
-      
-        case p: Product => p.productIterator.foreach(scan)
-      
-        case l: Iterable[_] => l.foreach(scan)
-      
-        case _ =>
-    }
 
         instrs.foreach(scan)
 
