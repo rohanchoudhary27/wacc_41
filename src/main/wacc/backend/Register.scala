@@ -1,5 +1,15 @@
 package wacc.backend
 
+/* A data location (register or stack) */
+sealed trait Location
+
+/**
+  * A stack location
+  *
+  * @param offset Offset from the frame pointer where the data is. Can be negative or positive. 
+  */
+case class StackSlot(offset: Int) extends Location
+
 /**
   * A physical register in the low level IR. The constructor is private as there are only
   * a certain number of defined registers
@@ -9,7 +19,7 @@ package wacc.backend
   * Scratch registers are used in the code generator for temporary computations and are thus
   * not allocatable.
   */
-class PhysicalReg private (val index: Int, val allocatable: Boolean)
+case class PhysicalReg private (val index: Int, val allocatable: Boolean) extends Location
 
 /**
   * Companion object containing pre-defined physical registers and utility functions
@@ -22,7 +32,7 @@ object PhysicalReg {
       * @param start The start register index (inclusive)
       * @param stop The stop register index (inclusive)
       * @param allocatable True fi the registers are allocatable and false if not
-      * @return
+      * @return A list of `PhysicalReg` objects
       */
     private def genRegList(start: Int, stop: Int, allocatable: Boolean): List[PhysicalReg] = {
         val result = for (i <- start to stop) yield {
