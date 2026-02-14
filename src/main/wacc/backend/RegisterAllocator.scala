@@ -9,22 +9,6 @@ import scala.collection.mutable
 object RegisterAllocator {
 
     /**
-      * Represents a storage location assigned to a virtual register.
-      * A location can either be a physical machine register or a stack
-      * slot location relative to the frame pointer.
-      */
-    sealed trait Location
-    case class PhysReg(name: String) extends Location
-    case class StackSlot(offset: Int) extends Location
-
-    /* List of general-purpose registers available for allocation. Reserved registers (x0-x7 
-        or arguments, x8, x16-x17, x18 PR, x29 FP, x30 LR, x31 SP) are excluded. */
-    val generalPurposeRegisters = List(
-        "x9", "x10", "x11", "x12", "x13", "x14", "x15",
-        "x19", "x20", "x21", "x22", "x23", "x24", "x25", "x26", "x27", "x28"
-    )
-
-    /**
       * Encapsulates the result of register allocation.
       *
       * @param mainAlloc allocation map for the main program body
@@ -76,13 +60,13 @@ object RegisterAllocator {
         /* Allocate the argument registers/stack positions first */
         args.zipWithIndex.foreach { case (arg, index) =>
             if (index < 8) {
-                allocationMap(arg) = PhysReg(s"x$index")
+                allocationMap(arg) = PhysicalReg.argRegisters(index)
             } else {
                 allocationMap(arg) = StackSlot(getNextArgOffset(index))
             }
         }
 
-        val freeRegs = mutable.Queue.from(generalPurposeRegisters)
+        val freeRegs = mutable.Queue.from(PhysicalReg.getAllocatable)
 
         /* Growing the stack downwards for local variables. Local stack slots are assigned
            negative offsets from the FP */
@@ -98,7 +82,7 @@ object RegisterAllocator {
                 /* allocate only if not already assigned */
                 if (!allocationMap.contains(v)) {
                     if (freeRegs.nonEmpty) {
-                        allocationMap(v) = PhysReg(freeRegs.dequeue())
+                        allocationMap(v) = freeRegs.dequeue()
                     } else {
                         allocationMap(v) = StackSlot(localVarStackOffset)
                         localVarStackOffset -= 8 /* move stack frame down */
