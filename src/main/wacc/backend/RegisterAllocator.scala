@@ -52,7 +52,7 @@ object RegisterAllocator {
         }
 
         val freeRegs = mutable.Queue.from(usableRegisters)
-        var stackOffset = 0
+        var localVarStackOffset = -8
 
         def scan(obj: Any): Unit = obj match {
             case v: VirtualReg =>
@@ -60,8 +60,8 @@ object RegisterAllocator {
                     if (freeRegs.nonEmpty) {
                         allocationMap(v) = PhysReg(freeRegs.dequeue())
                     } else {
-                        allocationMap(v) = StackSlot(stackOffset)
-                        stackOffset += 8
+                        allocationMap(v) = StackSlot(localVarStackOffset)
+                        localVarStackOffset -= 8
                     }
             }
         
