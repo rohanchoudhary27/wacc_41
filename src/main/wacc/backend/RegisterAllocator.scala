@@ -8,17 +8,28 @@ import scala.collection.mutable
   */
 object RegisterAllocator {
 
+    /**
+      * Represents a storage location assigned to a virtual register.
+      * A location can either be a physical machine register or a stack
+      * slot location relative to the frame pointer.
+      */
     sealed trait Location
     case class PhysReg(name: String) extends Location
     case class StackSlot(offset: Int) extends Location
 
-    /* */
-    val usableRegisters = List(
+    /* List of general-purpose registers available for allocation. Reserved registers (x0-x7 
+        or arguments, x8, x16-x17, x18 PR, x29 FP, x30 LR, x31 SP) are excluded. */
+    val generalPurposeRegisters = List(
         "x9", "x10", "x11", "x12", "x13", "x14", "x15",
         "x19", "x20", "x21", "x22", "x23", "x24", "x25", "x26", "x27", "x28"
     )
 
-    /* The return value of the `allocate` function */
+    /**
+      * Encapsulates the result of register allocation.
+      *
+      * @param mainAlloc allocation map for the main program body
+      * @param funcAllocs allocation maps for each function, by function name
+      */
     case class AllocationResult(mainAlloc: Map[VirtualReg, Location],
                                 funcAllocs: Map[String, Map[VirtualReg, Location]])
 
@@ -42,7 +53,7 @@ object RegisterAllocator {
       * Gets the offset in the stack of the next spilled argument (after)
       * using args in register 0-7. Offset is positive because we go into
       * the previous frame. We skip the first two bytes above the current frame
-      * because they belong to the FP and LR.
+      * because they belong to the FP and LR (16 bytes).
       *
       * @param index the virtual register index to translate to a stack offset
       * @return the stack offset to store the argument in
@@ -71,24 +82,26 @@ object RegisterAllocator {
             }
         }
 
-        val freeRegs = mutable.Queue.from(usableRegisters)
+        val freeRegs = mutable.Queue.from(generalPurposeRegisters)
 
-        /* Growing the stack downwards for local variables */
+        /* Growing the stack downwards for local variables. Local stack slots are assigned
+           negative offsets from the FP */
         var localVarStackOffset = -8
 
         /**
           * Recursively populate the register allocation map
           *
-          * @param obj
+          * @param obj IR structure to scan for VirtualRegs
           */
         def scan(obj: Any): Unit = obj match {
             case v: VirtualReg =>
+                /* allocate only if not already assigned */
                 if (!allocationMap.contains(v)) {
                     if (freeRegs.nonEmpty) {
                         allocationMap(v) = PhysReg(freeRegs.dequeue())
                     } else {
                         allocationMap(v) = StackSlot(localVarStackOffset)
-                        localVarStackOffset -= 8
+                        localVarStackOffset -= 8 /* move stack frame down */
                     }
             }
         
