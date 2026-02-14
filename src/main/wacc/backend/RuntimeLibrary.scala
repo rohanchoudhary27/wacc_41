@@ -364,3 +364,27 @@ object OutOfMemoryErrorWidget extends Widget {
 
     override val dependencies: Set[Widget] = Set(PrintStringWidget)
 }
+
+object ArrayBoundsErrorWidget extends Widget {
+    override val label: String = "_errOutOfBounds"
+
+    override val source: String =
+        s"""// ${description}
+            |// length of .L._errOutOfBounds_str0
+            |    .word 42
+            |.L._errOutOfBounds_str0:
+            |    .asciz "fatal error: array index %d out of bounds\\n"
+            |    .align 4
+            |_errOutOfBounds:
+            |    adr x0, .L._errOutOfBounds_str0
+            |    bl printf
+            |    mov x0, #0
+            |    bl fflush
+            |    mov w0, #-1
+            |    bl exit""".stripMargin
+
+    override val description: String = "array index out of bounds error handler"
+
+    // Note: This widget uses printf directly (not _prints) to print the index value
+    override val dependencies: Set[Widget] = Set.empty
+}
