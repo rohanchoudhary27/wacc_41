@@ -110,5 +110,5 @@ case class Lea(destReg: VirtualReg, label: Label) extends Instruction
    own stack management so we need to know when it's a func definition and when it's just a normal
    label. */
 case class DataDirective(label: Label, storedValue: String)
-case class FunctionDef(name: String, body: List[Instruction])
+case class FunctionDef(name: String, args: List[VirtualReg], body: List[Instruction])
 case class RegProgram(funcs: List[FunctionDef], data: List[DataDirective], body: List[Instruction])

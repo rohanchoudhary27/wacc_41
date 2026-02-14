@@ -18,17 +18,39 @@ object RegisterAllocator {
 
     def allocate(prog: RegProgram): AllocationResult = {
         val funcMaps = prog.funcs.map { f => 
-            f.name -> allocateBlock(f.body) 
+            f.name -> allocateBlock(f.body, f.args) 
         }.toMap
     
-        val mainMap = allocateBlock(prog.body)
+        val mainMap = allocateBlock(prog.body, List.empty)
     
         AllocationResult(mainMap, funcMaps)
     }
 
-    def allocateBlock(instrs: List[Instruction]): Map[VirtualReg, Location] = {
+    /**
+      * Gets the offset in the stack of the next spilled argument (after)
+      * using args in register 0-7. Offset is positive because we go into
+      * the previous frame. We skip the first two bytes above the current frame
+      * because they belong to the FP and LR.
+      *
+      * @param index the virtual register index to translate to a stack offset
+      * @return the stack offset to store the argument in
+      */
+    def getNextArgOffset(index: Int): Int = (index - 8) * 8 + 16
+
+    def allocateBlock(instrs: List[Instruction],
+                      args: List[VirtualReg]): Map[VirtualReg, Location] = {
     
         val allocationMap = mutable.Map[VirtualReg, Location]()
+        
+        /* Allocate the argument registers/stack positions first */
+        args.zipWithIndex.foreach { case (arg, index) =>
+            if (index < 8) {
+                allocationMap(arg) = PhysReg(s"x$index")
+            } else {
+                allocationMap(arg) = StackSlot(getNextArgOffset(index))
+            }
+        }
+
         val freeRegs = mutable.Queue.from(usableRegisters)
         var stackOffset = 0
 
