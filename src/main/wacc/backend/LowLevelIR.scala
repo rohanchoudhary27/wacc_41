@@ -13,7 +13,7 @@ case class ArmAddrRegShift(base: Register,
                            shift: ShiftAmounts.ShiftAmount) extends ArmAddress
 case class ArmAddrLabel(name: String) extends ArmAddress
 
-/* An immeidate value */
+/* An immediate value */
 case class ArmImmediate(value: Int)
 
 /* ---------------------------------------------------------------------------------------------- */
@@ -50,6 +50,7 @@ case class ArmAndImm(reg: Register, src1: Register, src2: ArmImmediate) extends 
 
 /* Data Movement*/
 case class ArmMovReg(reg: Register, src: Register) extends ArmInstruction
+case class ArmMovImm(reg: Register, src: ArmImmediate) extends ArmInstruction
 case class ArmMovKeep(reg: Register,
                    src: ArmImmediate,
                    shift: ShiftAmounts.ShiftAmount) extends ArmInstruction
