@@ -426,3 +426,159 @@ object FreePairWidget extends Widget {
 
     override val dependencies: Set[Widget] = Set(NullDerefErrorWidget)
 }
+
+object ArrayLoad1Widget extends Widget {
+    override val label: String = "_arrLoad1"
+
+    override val source: String =
+        s"""// ${description}
+            |// Special calling convention: array ptr passed in X7, index in X17, LR (W30) is used as general register, and return into X7
+            |_arrLoad1:
+            |    // push {lr}
+            |    stp lr, xzr, [sp, #-16]!
+            |    cmp w17, #0
+            |    csel x1, x17, x1, lt // this must be a 64-bit move so that it doesn't truncate if the move fails
+            |    b.lt _errOutOfBounds
+            |    ldur w30, [x7, #-4]
+            |    cmp w17, w30
+            |    csel x1, x17, x1, ge // this must be a 64-bit move so that it doesn't truncate if the move fails
+            |    b.ge _errOutOfBounds
+            |    ldrb w7, [x7, x17]
+            |    // pop {lr}
+            |    ldp lr, xzr, [sp], #16
+            |    ret""".stripMargin
+
+    override val description: String = "bounds-checked array load for 1-byte elements (char/bool)"
+
+    override val dependencies: Set[Widget] = Set(ArrayBoundsErrorWidget)
+}
+
+object ArrayStore1Widget extends Widget {
+    override val label: String = "_arrStore1"
+
+    override val source: String =
+        s"""// ${description}
+            |// Special calling convention: array ptr passed in X7, index in X17, value to store in X8, LR (W30) is used as general register
+            |_arrStore1:
+            |    // push {lr}
+            |    stp lr, xzr, [sp, #-16]!
+            |    cmp w17, #0
+            |    csel x1, x17, x1, lt // this must be a 64-bit move so that it doesn't truncate if the move fails
+            |    b.lt _errOutOfBounds
+            |    ldur w30, [x7, #-4]
+            |    cmp w17, w30
+            |    csel x1, x17, x1, ge // this must be a 64-bit move so that it doesn't truncate if the move fails
+            |    b.ge _errOutOfBounds
+            |    strb w8, [x7, x17]
+            |    // pop {lr}
+            |    ldp lr, xzr, [sp], #16
+            |    ret""".stripMargin
+
+    override val description: String = "bounds-checked array store for 1-byte elements (char/bool)"
+
+    override val dependencies: Set[Widget] = Set(ArrayBoundsErrorWidget)
+}
+
+object ArrayLoad4Widget extends Widget {
+    override val label: String = "_arrLoad4"
+
+    override val source: String =
+        s"""// ${description}
+            |// Special calling convention: array ptr passed in X7, index in X17, LR (W30) is used as general register, and return into X7
+            |_arrLoad4:
+            |    // push {lr}
+            |    stp lr, xzr, [sp, #-16]!
+            |    cmp w17, #0
+            |    csel x1, x17, x1, lt // this must be a 64-bit move so that it doesn't truncate if the move fails
+            |    b.lt _errOutOfBounds
+            |    ldur w30, [x7, #-4]
+            |    cmp w17, w30
+            |    csel x1, x17, x1, ge // this must be a 64-bit move so that it doesn't truncate if the move fails
+            |    b.ge _errOutOfBounds
+            |    ldr w7, [x7, x17, lsl #2]
+            |    // pop {lr}
+            |    ldp lr, xzr, [sp], #16
+            |    ret""".stripMargin
+
+    override val description: String = "bounds-checked array load for 4-byte elements (int)"
+
+    override val dependencies: Set[Widget] = Set(ArrayBoundsErrorWidget)
+}
+
+object ArrayStore4Widget extends Widget {
+    override val label: String = "_arrStore4"
+
+    override val source: String =
+        s"""// ${description}
+            |// Special calling convention: array ptr passed in X7, index in X17, value to store in X8, LR (W30) is used as general register
+            |_arrStore4:
+            |    // push {lr}
+            |    stp lr, xzr, [sp, #-16]!
+            |    cmp w17, #0
+            |    csel x1, x17, x1, lt // this must be a 64-bit move so that it doesn't truncate if the move fails
+            |    b.lt _errOutOfBounds
+            |    ldur w30, [x7, #-4]
+            |    cmp w17, w30
+            |    csel x1, x17, x1, ge // this must be a 64-bit move so that it doesn't truncate if the move fails
+            |    b.ge _errOutOfBounds
+            |    str w8, [x7, x17, lsl #2]
+            |    // pop {lr}
+            |    ldp lr, xzr, [sp], #16
+            |    ret""".stripMargin
+
+    override val description: String = "bounds-checked array store for 4-byte elements (int)"
+
+    override val dependencies: Set[Widget] = Set(ArrayBoundsErrorWidget)
+}
+
+object ArrayLoad8Widget extends Widget {
+    override val label: String = "_arrLoad8"
+
+    override val source: String =
+        s"""// ${description}
+            |// Special calling convention: array ptr passed in X7, index in X17, LR (W30) is used as general register, and return into X7
+            |_arrLoad8:
+            |    // push {lr}
+            |    stp lr, xzr, [sp, #-16]!
+            |    cmp w17, #0
+            |    csel x1, x17, x1, lt // this must be a 64-bit move so that it doesn't truncate if the move fails
+            |    b.lt _errOutOfBounds
+            |    ldur w30, [x7, #-4]
+            |    cmp w17, w30
+            |    csel x1, x17, x1, ge // this must be a 64-bit move so that it doesn't truncate if the move fails
+            |    b.ge _errOutOfBounds
+            |    ldr x7, [x7, x17, lsl #3]
+            |    // pop {lr}
+            |    ldp lr, xzr, [sp], #16
+            |    ret""".stripMargin
+
+    override val description: String = "bounds-checked array load for 8-byte elements (pointers)"
+
+    override val dependencies: Set[Widget] = Set(ArrayBoundsErrorWidget)
+}
+
+object ArrayStore8Widget extends Widget {
+    override val label: String = "_arrStore8"
+
+    override val source: String =
+        s"""// ${description}
+            |// Special calling convention: array ptr passed in X7, index in X17, value to store in X8, LR (W30) is used as general register
+            |_arrStore8:
+            |    // push {lr}
+            |    stp lr, xzr, [sp, #-16]!
+            |    cmp w17, #0
+            |    csel x1, x17, x1, lt // this must be a 64-bit move so that it doesn't truncate if the move fails
+            |    b.lt _errOutOfBounds
+            |    ldur w30, [x7, #-4]
+            |    cmp w17, w30
+            |    csel x1, x17, x1, ge // this must be a 64-bit move so that it doesn't truncate if the move fails
+            |    b.ge _errOutOfBounds
+            |    str x8, [x7, x17, lsl #3]
+            |    // pop {lr}
+            |    ldp lr, xzr, [sp], #16
+            |    ret""".stripMargin
+
+    override val description: String = "bounds-checked array store for 8-byte elements (pointers)"
+
+    override val dependencies: Set[Widget] = Set(ArrayBoundsErrorWidget)
+}
