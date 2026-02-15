@@ -38,6 +38,14 @@ abstract class UnOp(dest: VirtualReg, src: Operand) extends Instruction {
     }
 }
 
+abstract class CmpOp(src1: VirtualReg, src2: Operand) extends Instruction {
+    src2 match {
+        case v: VirtualReg => require(src1.size == v.size, 
+            s"Cmp Size Mismatch: Src1 ${src1.size} != Src2 ${v.size}")
+        case _ =>
+    }
+}
+
 abstract class PtrInstr(ptr: VirtualReg) extends Instruction {
     require(ptr.size == Size.X, s"Pointer Source must be 64-bit, got ${ptr.size}")
 }
@@ -64,7 +72,7 @@ case class Not(reg: VirtualReg, src: VirtualReg) extends UnOp(reg, src)
 case class Mov(reg: VirtualReg, src: Operand) extends UnOp(reg, src)
 
 /* Branching instructions */
-case class Cmp(src1: VirtualReg, src2: Operand) extends UnOp(src1, src2)
+case class Cmp(src1: VirtualReg, src2: Operand) extends CmpOp(src1, src2)
 
 case class BranchUncond(label: Label) extends Instruction
 case class BranchCond(cond: Condition, label: Label) extends Instruction

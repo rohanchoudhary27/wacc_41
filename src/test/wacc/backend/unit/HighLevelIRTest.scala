@@ -57,4 +57,17 @@ class HighLevelIRTest extends AnyFlatSpec with Matchers {
             ArrayStore(reg64, reg32, reg64)
         }
     }
+
+    it should "validate register size on comparison operations" in {
+        val reg32 = VirtualReg(1, Size.W)
+        val reg64 = VirtualReg(2, Size.X)
+
+        an [IllegalArgumentException] should be thrownBy {
+            Cmp(reg32, reg64)
+        }
+
+        noException should be thrownBy {
+            Cmp(reg32, reg32)
+        }
+    }
 }
