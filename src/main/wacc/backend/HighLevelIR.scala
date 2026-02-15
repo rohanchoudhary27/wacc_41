@@ -54,11 +54,11 @@ case class Push(sourceReg: VirtualReg) extends Instruction
 case class Pop(destReg: VirtualReg) extends Instruction
 
 /* Array put/get instructions */
-case class ArrayLoad(dest: VirtualReg, array: VirtualReg, index: Operand) extends Instruction
+case class ArrayLoad(array: VirtualReg, index: Operand, dest: VirtualReg) extends Instruction
 case class ArrayStore(array: VirtualReg, index: Operand, src: Operand) extends Instruction
 
 /* Pair put/get instructions */
-case class PairLoad(dest: VirtualReg, pair: VirtualReg, index: PairPos) extends Instruction
+case class PairLoad(pair: VirtualReg, index: PairPos, dest: VirtualReg) extends Instruction
 case class PairStore(pair: VirtualReg, index: PairPos, src: Operand) extends Instruction
 
 /* Heap allocation instruction for arrays/pairs */
