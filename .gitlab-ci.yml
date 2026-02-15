@@ -38,14 +38,14 @@ frontend_unit_tests:
   stage: test_frontend
   script:
     - echo "Running Frontend Unit Tests..."
-    - scala test .  --test-only "wacc.frontend.unit.*" --server=false -- -u target/unit-test-reports -oD | tee unit-test.log
+    - scala test .  --test-only "wacc.frontend.unit.*" --server=false -- -u target/unit-frontend-test-reports -oD | tee unit-frontend-test.log
   artifacts:
     when: always
     reports:
-      junit: target/unit-test-reports/*.xml
+      junit: target/unit-frontend-test-reports/*.xml
     paths:
-      - unit-test.log
-      - target/unit-test-reports/
+      - unit-frontend-test.log
+      - target/unit-frontend-test-reports/
     expire_in: 1 hour
   tags:
     - vm-runner
@@ -70,14 +70,14 @@ frontend_integration_tests:
   stage: test_frontend
   script:
     - echo "Running Frontend Integration Tests..."
-    - scala test . --test-only "wacc.frontend.integration.*"  --server=false -- -u target/integration-test-reports -oD | tee integration-test.log
+    - scala test . --test-only "wacc.frontend.integration.*"  --server=false -- -u target/integration-frontend-test-reports -oD | tee integration-frontend-test.log
   artifacts:
     when: always
     reports:
-      junit: target/integration-test-reports/*.xml
+      junit: target/integration-frontend-test-reports/*.xml
     paths:
-      - integration-test.log
-      - target/integration-test-reports/
+      - integration-frontend-test.log
+      - target/integration-frontend-test-reports/
     expire_in: 1 hour
   tags:
     - vm-runner
@@ -86,14 +86,14 @@ backend_integration_tests:
   stage: test_backend
   script:
     - echo "Running Backend Integration Tests..."
-    - scala test . --test-only "wacc.backend.integration.*"  --server=false -- -u target/integration-test-reports -oD | tee integration-test.log
+    - scala test . --test-only "wacc.backend.integration.*"  --server=false -- -u target/integration-backend-test-reports -oD | tee integration-backend-test.log
   artifacts:
     when: always
     reports:
-      junit: target/integration-test-reports/*.xml
+      junit: target/integration-backend-test-reports/*.xml
     paths:
-      - integration-test.log
-      - target/integration-test-reports/
+      - integration-backend-test.log
+      - target/integration-backend-test-reports/
     expire_in: 1 hour
   tags:
     - vm-runner
@@ -102,14 +102,14 @@ backend_unit_tests:
   stage: test_backend
   script:
     - echo "Running Backend Unit Tests..."
-    - scala test .  --test-only "wacc.backend.unit.*" --server=false -- -u target/unit-test-reports -oD | tee unit-test.log
+    - scala test .  --test-only "wacc.backend.unit.*" --server=false -- -u target/unit-backend-test-reports -oD | tee unit-backend-test.log
   artifacts:
     when: always
     reports:
-      junit: target/unit-test-reports/*.xml
+      junit: target/unit-backend-test-reports/*.xml
     paths:
-      - unit-test.log
-      - target/unit-test-reports/
+      - unit-backend-test.log
+      - target/unit-backend-test-reports/
     expire_in: 1 hour
   tags:
     - vm-runner
