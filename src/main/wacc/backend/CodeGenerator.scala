@@ -128,13 +128,13 @@ object CodeGenerator {
         case SetCond(dest, cond) => ??? // TODO
         
         /* Control flow */
-        case BranchUncond(label) => ??? // TODO
-        case BranchCond(cond, label) => ??? // TODO
-        case LabelDef(label) => ??? // TODO
+        case BranchUncond(label) => emit(ArmBranchUncond(ArmAddrLabel(label.name)))
+        case BranchCond(cond, label) => emit(ArmBranchCond(cond, ArmAddrLabel(label.name)))
+        case LabelDef(label) => emit(ArmLabelDef(ArmAddrLabel(label.name)))
         
         /* Function calls */
         case Call(label, args, destOpt) => ??? // TODO
-        case Ret => ??? // TODO
+        case Ret => emit(ArmRet)
         
         /* Stack operations */
         case Push(src) => ??? // TODO
