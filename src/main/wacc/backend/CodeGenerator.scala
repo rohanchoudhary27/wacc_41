@@ -32,7 +32,20 @@ class GenState(val alloc: Map[VirtualReg, Location]) {
   * Register allocation happens externally and is passed in via the alloc parameter.
   */
 object CodeGenerator {
+
+    /** Generate a fresh compiler-generated label with given prefix */
+    private def label(prefix: String = ".L")(using st: GenState): ArmAddrLabel = 
+        ArmAddrLabel(s"${prefix}_${st.fresh()}")
     
+    /** Emit a single instruction to the output */
+    private def emit(instr: ArmInstruction)(using st: GenState): Unit = 
+        st += instr
+    
+    /** Look up the location of a virtual register */
+    private def locOf(vReg: VirtualReg)(using st: GenState): Location = 
+        st.alloc(vReg)
+
+
     /** Widget management */
     private val dispatcher = RuntimeLibraryDispatcher()
     
@@ -41,6 +54,7 @@ object CodeGenerator {
     
     /** Get all collected widget assembly */
     def getWidgetAssembly: String = dispatcher.getCollectedAssembly
+
     
     /**
       * Generate Low-Level IR for the main program body.
@@ -51,7 +65,7 @@ object CodeGenerator {
       */
     def generate(instrs: List[Instruction], alloc: Map[VirtualReg, Location]): List[ArmInstruction] = {
         given st: GenState = GenState(alloc)
-        // TODO: implementation
+        generateInstrs(instrs)
         st.finalInstrs
     }
     
@@ -64,27 +78,81 @@ object CodeGenerator {
       */
     def generateFunc(func: FunctionDef, alloc: Map[VirtualReg, Location]): List[ArmInstruction] = {
         given st: GenState = GenState(alloc)
-        // TODO: implementation
+        
+        // Function label
+        emit(ArmLabelDef(ArmAddrLabel(func.name)))
+        
+        // TODO: Prologue
+        // TODO: Body
+        generateInstrs(func.body)
+        // TODO: Epilogue
+        
         st.finalInstrs
     }
     
     /**
-      * Generate a fresh compiler-generated label with given prefix.
-      * 
-      * This helper is only for generating unique labels during code generation - for fixed 
-      * labels (e.g., widget labels, function names), use `ArmAddrLabel` directly.
-      *
-      * @param prefix the label prefix (default ".L")
-      * @return a fresh label
+      * Generate ARM instructions for a list of high-level instructions.
+      * Wrapper that dispatches each instruction to generateInstr.
       */
-    private def label(prefix: String = ".L")(using st: GenState): ArmAddrLabel = 
-        ArmAddrLabel(s"${prefix}_${st.fresh()}")
+    private def generateInstrs(instrs: List[Instruction])(using st: GenState): Unit =
+        instrs.foreach(generateInstr)
     
-    /** Emit a single instruction to the output */
-    private def emit(instr: ArmInstruction)(using st: GenState): Unit = 
-        st += instr
-    
-    /** Look up the location of a virtual register */
-    private def locOf(vReg: VirtualReg)(using st: GenState): Location = 
-        st.alloc(vReg)
+    /**
+      * Generate ARM instructions for a single high-level instruction.
+      * Pattern matches on all instruction types and delegates to specific handlers.
+      */
+    private def generateInstr(instr: Instruction)(using GenState): Unit = instr match {
+        /* Data movement */
+        case Mov(dest, src) => ??? // TODO
+        case Load(dest, addr) => ??? // TODO
+        case Store(src, addr) => ??? // TODO
+        
+        /* Arithmetic operations */
+        case Add(dest, src1, src2) => ??? // TODO
+        case Sub(dest, src1, src2) => ??? // TODO
+        case Mul(dest, src1, src2) => ??? // TODO
+        case Div(dest, src1, src2) => ??? // TODO
+        case Mod(dest, src1, src2) => ??? // TODO
+        case Neg(dest, src) => ??? // TODO
+        
+        /* Bitwise operations */
+        case And(dest, src1, src2) => ??? // TODO
+        case Or(dest, src1, src2) => ??? // TODO
+        case Not(dest, src) => ??? // TODO
+        case Lsl(dest, src1, src2) => ??? // TODO
+        case Lsr(dest, src1, src2) => ??? // TODO
+        case Asr(dest, src1, src2) => ??? // TODO
+        
+        /* Comparison and conditional */
+        case Cmp(src1, src2) => ??? // TODO
+        case SetCond(dest, cond) => ??? // TODO
+        
+        /* Control flow */
+        case BranchUncond(label) => ??? // TODO
+        case BranchCond(cond, label) => ??? // TODO
+        case LabelDef(label) => ??? // TODO
+        
+        /* Function calls */
+        case Call(label, args, destOpt) => ??? // TODO
+        case Ret => ??? // TODO
+        
+        /* Stack operations */
+        case Push(src) => ??? // TODO
+        case Pop(dest) => ??? // TODO
+        
+        /* Array operations */
+        case ArrayLoad(array, index, dest) => ??? // TODO
+        case ArrayStore(array, index, src) => ??? // TODO
+        
+        /* Pair operations */
+        case PairLoad(pair, index, dest) => ??? // TODO
+        case PairStore(pair, index, src) => ??? // TODO
+        
+        /* Memory management */
+        case HeapAlloc(dest, size) => ??? // TODO
+        
+        /* Special operations */
+        case Lea(dest, label) => ??? // TODO
+        case SignExtend(dest, src) => ??? // TODO
+    }
 }
