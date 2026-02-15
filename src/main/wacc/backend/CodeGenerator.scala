@@ -96,7 +96,43 @@ object CodeGenerator {
       */
     private def generateInstrs(instrs: List[Instruction])(using st: GenState): Unit =
         instrs.foreach(generateInstr)
+
     
+    /**
+      * Load a value from a location into a physical register.
+      * If the location is already a PhysicalReg, returns it directly.
+      * If the location is a StackSlot, emits a load instruction to the scratch register.
+      *
+      * @param loc the location to load from
+      * @param size the register size
+      * @param scratch the scratch register to use if loading from stack
+      * @return the PhysicalReg containing the value
+      */
+    private def loadToReg(loc: Location, size: Size, scratch: PhysicalReg)
+                         (using st: GenState): PhysicalReg = loc match {
+        case reg: PhysicalReg => reg
+        case StackSlot(offset) =>
+            emit(ArmLoad(size, scratch, ArmAddrImmOffset(PhysicalReg.framePointer, ArmImmediate(offset))))
+            scratch
+    }
+    
+    /**
+      * Store a value from a physical register to a location.
+      * If the location is a PhysicalReg, emits a move instruction (if different).
+      * If the location is a StackSlot, emits a store instruction.
+      *
+      * @param src the source PhysicalReg
+      * @param loc the destination location
+      * @param size the register size
+      */
+    private def storeToLoc(src: PhysicalReg, loc: Location, size: Size)(using st: GenState): Unit = loc match {
+        case dest: PhysicalReg =>
+            if (src != dest) emit(ArmMovReg(size, dest, src))
+        case StackSlot(offset) =>
+            emit(ArmStore(size, src, ArmAddrImmOffset(PhysicalReg.framePointer, ArmImmediate(offset))))
+    }
+
+
     /**
       * Generate ARM instructions for a single high-level instruction.
       * Pattern matches on all instruction types and delegates to specific handlers.
