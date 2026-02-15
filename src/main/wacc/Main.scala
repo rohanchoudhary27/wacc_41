@@ -10,6 +10,35 @@ import wacc.ExitCodes._
 */
 object WaccCompiler {
 
+    /** Main function for the WACC compiler.
+    *
+    * Runs the frontend and then the backend on the read .wacc file. 
+    *
+    * @param args:
+    *   Command Line arguments. Only 1 is expected (the path of the file to
+    *   compile).
+    */
+    def main(args: Array[String]): Unit = {
+
+        /* Expect a singular argument */
+        if (args.length != 1) {
+            Console.err.println("Requires file.")
+            sys.exit(code(ExitCodes.CompilerFailure))
+        }
+
+        val path = Paths.get(args(0))
+
+        /* Validate file exists */
+        if (!Files.exists(path)) {
+            Console.err.println(s"Error: Path '$path' does not exist.")
+            sys.exit(code(CompilerFailure))
+        }
+
+        val ast: Program[SemanticData] = runFrontend(path)
+
+        runBackend(path, ast)
+    }
+    
     /**
     * Exit the compiler and display error messages due to a malformed program.
     *
@@ -59,43 +88,19 @@ object WaccCompiler {
         sys.exit(code(exitCode))
     }
 
-    /** Main function for the WACC compiler.
-    *
-    * Runs the frontend and then the backend on the read .wacc file. 
-    *
-    * @param args:
-    *   Command Line arguments. Only 1 is expected (the path of the file to
-    *   compile).
-    */
-    def main(args: Array[String]): Unit = {
 
-        /* Expect a singular argument */
-        if (args.length != 1) {
-            Console.err.println("Requires file.")
-            sys.exit(code(ExitCodes.CompilerFailure))
-        }
+    private def runFrontend(path: Path): Program[SemanticData] = {
+        val frontendResult: FrontendCompilationResult = WaccFrontend.run(path)
 
-        val path = Paths.get(args(0))
+        frontendResult.errors match {
+            case Some(errorLogger) =>
+                failureExit(path.getFileName.toString, 
+                            errorLogger,
+                            frontendResult.exitCode)
+                throw new RuntimeException("Unreachable") 
 
-        /* Validate file exists */
-        if (!Files.exists(path)) {
-            Console.err.println(s"Error: Path '$path' does not exist.")
-            sys.exit(code(CompilerFailure))
-        }
-
-        /* Run the frontend of the compiler */
-        val frontendCompilationResult: FrontendCompilationResult = WaccFrontend.run(path)
-
-        frontendCompilationResult.errors match {
-
-            /* Failure exit */
-            case Some(errorLogger) => failureExit(path.getFileName.toString,
-                                                  errorLogger,
-                                                  frontendCompilationResult.exitCode)
-
-            /* No errors in file - send to backend */
             case None =>
-                runBackend(path, frontendCompilationResult.typedAST.get)
+                frontendResult.typedAST.get
         }
     }
 
@@ -105,12 +110,10 @@ object WaccCompiler {
 
         val backendResult = WaccBackend.run(ast, outFilename)
 
-        /* Symmetrical success/failure handling */
         if (backendResult.exitCode == ExitCodes.Success) {
             println(s"Success - finished with exit code ${backendResult.exitCode}")
         } 
         
         sys.exit(code(backendResult.exitCode))
     }
-
 }
