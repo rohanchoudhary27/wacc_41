@@ -34,11 +34,13 @@ object WaccCompiler {
             sys.exit(code(CompilerFailure))
         }
 
+        /* Run frontend compiler and return an AST. */
         val ast: Program[SemanticData] = runFrontend(path)
 
+        /* Run backend compiler using the AST from the frontend. */
         runBackend(path, ast)
     }
-    
+
     /**
     * Exit the compiler and display error messages due to a malformed program.
     *
@@ -88,26 +90,45 @@ object WaccCompiler {
         sys.exit(code(exitCode))
     }
 
-
+    /**
+      * Runs the WACC file through the WACC frontend compiler.
+      *
+      * @param path: path to the WACC file to be compiled
+      * @return Program[SemanticData] which is an AST
+      */
     private def runFrontend(path: Path): Program[SemanticData] = {
+
+        // Run the WACC code through the front end of the compiler
         val frontendResult: FrontendCompilationResult = WaccFrontend.run(path)
 
         frontendResult.errors match {
+
+            // Case if the frontend does not compile succesfully
             case Some(errorLogger) =>
                 failureExit(path.getFileName.toString, 
                             errorLogger,
                             frontendResult.exitCode)
                 throw new RuntimeException("Unreachable") 
 
+            // Case if the frontend pass has no errors
             case None =>
                 frontendResult.typedAST.get
         }
     }
 
+    /**
+      * Runs the WACC file through the WACC frontend compiler.
+      *
+      * @param path: path of the file compiled by the frontend
+      * @param ast: the AST produced by the front end of the compiler
+      */
     private def runBackend(path: Path, ast: Program[SemanticData]): Unit = {
+
+        // Change the filename to a .s assembly file but keep the name the same
         val filename = path.getFileName.toString
         val outFilename = filename.replaceAll("\\.wacc$", "") + ".s"
 
+        // Run the ast through the backend of the compiler
         val backendResult = WaccBackend.run(ast, outFilename)
 
         if (backendResult.exitCode == ExitCodes.Success) {
