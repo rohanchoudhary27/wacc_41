@@ -134,30 +134,79 @@ object CodeGenerator {
 
 
     /**
+      * Generate a binary operation (register-register or register-immediate).
+      * 
+      * This function handles loading operands from their locations, choosing the correct
+      * instruction variant (reg-reg vs reg-imm), and storing the result.
+      *
+      * @param dest the destination virtual register
+      * @param src1 the first source virtual register
+      * @param src2 the second source operand (VirtualReg or Immediate)
+      * @param regOp constructor for register-register operation
+      * @param immOp constructor for register-immediate operation
+      */
+    private def generateBinaryOp(
+        dest: VirtualReg,
+        src1: VirtualReg,
+        src2: Operand,
+        regOp: (Size, PhysicalReg, PhysicalReg, PhysicalReg) => ArmInstruction,
+        immOp: (Size, PhysicalReg, PhysicalReg, ArmImmediate) => ArmInstruction
+    )(using st: GenState): Unit = {
+        val destLoc = locOf(dest)
+        val src1Loc = locOf(src1)
+        
+        /* Load first operand */
+        val src1Reg = loadToReg(src1Loc, dest.size, PhysicalReg.ipcScratch(0))
+        
+        (src2: @unchecked) match {
+            case src2: VirtualReg =>
+                /* Register-register operation */
+                val src2Loc = locOf(src2)
+                val src2Reg = loadToReg(src2Loc, dest.size, PhysicalReg.ipcScratch(1))
+                val resultReg = PhysicalReg.ipcScratch(0)
+                emit(regOp(dest.size, resultReg, src1Reg, src2Reg))
+                storeToLoc(resultReg, destLoc, dest.size)
+                
+            case Immediate(value) =>
+                /* Register-immediate operation */
+                val resultReg = PhysicalReg.ipcScratch(0)
+                emit(immOp(dest.size, resultReg, src1Reg, ArmImmediate(value)))
+                storeToLoc(resultReg, destLoc, dest.size)
+        }
+    }
+
+    /**
       * Generate ARM instructions for a single high-level instruction.
       * Pattern matches on all instruction types and delegates to specific handlers.
       */
-    private def generateInstr(instr: Instruction)(using GenState): Unit = instr match {
+    private def generateInstr(instr: Instruction)(using GenState): Unit = (instr: @unchecked) match {
         /* Data movement */
         case Mov(dest, src) => ??? // TODO
         case Load(dest, addr) => ??? // TODO
         case Store(src, addr) => ??? // TODO
         
         /* Arithmetic operations */
-        case Add(dest, src1, src2) => ??? // TODO
-        case Sub(dest, src1, src2) => ??? // TODO
+        case Add(dest, src1, src2) => 
+            generateBinaryOp(dest, src1, src2, ArmAddReg.apply, ArmAddImm.apply)
+        case Sub(dest, src1, src2) => 
+            generateBinaryOp(dest, src1, src2, ArmSubReg.apply, ArmSubImm.apply)
         case Mul(dest, src1, src2) => ??? // TODO
         case Div(dest, src1, src2) => ??? // TODO
         case Mod(dest, src1, src2) => ??? // TODO
         case Neg(dest, src) => ??? // TODO
         
         /* Bitwise operations */
-        case And(dest, src1, src2) => ??? // TODO
-        case Or(dest, src1, src2) => ??? // TODO
+        case And(dest, src1, src2) => 
+            generateBinaryOp(dest, src1, src2, ArmAndReg.apply, ArmAndImm.apply)
+        case Or(dest, src1, src2) => 
+            generateBinaryOp(dest, src1, src2, ArmOrReg.apply, ArmOrImm.apply)
         case Not(dest, src) => ??? // TODO
-        case Lsl(dest, src1, src2) => ??? // TODO
-        case Lsr(dest, src1, src2) => ??? // TODO
-        case Asr(dest, src1, src2) => ??? // TODO
+        case Lsl(dest, src1, src2) => 
+            generateBinaryOp(dest, src1, src2, ArmLslReg.apply, ArmLslImm.apply)
+        case Lsr(dest, src1, src2) => 
+            generateBinaryOp(dest, src1, src2, ArmLsrReg.apply, ArmLsrImm.apply)
+        case Asr(dest, src1, src2) => 
+            generateBinaryOp(dest, src1, src2, ArmAsrReg.apply, ArmAsrImm.apply)
         
         /* Comparison and conditional */
         case Cmp(src1, src2) => ??? // TODO
