@@ -57,10 +57,10 @@ class RuntimeLibraryDispatcher {
 
 /* Runtime Library implemented as Widgets */
 
+/** Runtime widget to implement `_println`, printing a new line to stdout */
 object PrintlnWidget extends Widget {
-    override val label: String = "__println"
+    override val label: String = "_println"
 
-    /* AArch64 requires 16-byte alignment before calling printf */
     override val source: String = 
         s"""// ${description}
             |// length of .L._println_str0
@@ -83,8 +83,9 @@ object PrintlnWidget extends Widget {
 }
 
 
+/** Runtime widget to implement `_printi`, printing an integer to stdout */
 object PrintIntWidget extends Widget {
-    override val label: String = "__printi"
+    override val label: String = "_printi"
 
     override val source: String =
         s"""// ${description}
@@ -108,8 +109,9 @@ object PrintIntWidget extends Widget {
     override val description: String = "prints an integer value to stdout"
 }
 
+/** Runtime widget to implement `_prints`, printing a string to stdout */
 object PrintStringWidget extends Widget {
-    override val label: String = "__prints"
+    override val label: String = "_prints"
 
     override val source: String =
         s"""// ${description}
@@ -134,8 +136,9 @@ object PrintStringWidget extends Widget {
     override val description: String = "prints a string value to stdout"
 }
 
+/** Runtime widget to implement `_printb`, printing a bool to stdout */
 object PrintBoolWidget extends Widget {
-    override val label: String = "__printb"
+    override val label: String = "_printb"
 
     override val source: String =
         s"""// ${description}
@@ -174,9 +177,9 @@ object PrintBoolWidget extends Widget {
     override val description: String = "prints a boolean value to stdout"
 }
 
-
+/** Runtime widget to implement `_printc`, printing a char to stdout */
 object PrintCharWidget extends Widget {
-    override val label: String = "__printc"
+    override val label: String = "_printc"
 
     override val source: String =
         s"""// ${description}
@@ -201,9 +204,9 @@ object PrintCharWidget extends Widget {
 }
 
 
-
+/** Runtime widget to implement `_printp`, printing a pointer value to stdout */
 object PrintPointerWidget extends Widget {
-    override val label: String = "__printp"
+    override val label: String = "_printp"
 
     override val source: String =
         s"""// ${description}
@@ -227,8 +230,9 @@ object PrintPointerWidget extends Widget {
     override val description: String = "prints a pointer value to stdout"
 }
 
+/** Runtime widget to implement `_readi`, reading an integer from stdin */
 object ReadIntegerWidget extends Widget {
-    override val label: String = "__readi"
+    override val label: String = "_readi"
 
     override val source: String =
         s"""// ${description}
@@ -254,8 +258,9 @@ object ReadIntegerWidget extends Widget {
     override val description: String = "reads an int value from stdin"
 }
 
+/** Runtime widget to implement `_readc`, reading a char from stdin */
 object ReadCharWidget extends Widget {
-    override val label: String = "__readc"
+    override val label: String = "_readc"
 
     override val source: String =
         s"""// ${description}
@@ -281,6 +286,7 @@ object ReadCharWidget extends Widget {
     override val description: String = "reads a char value from stdin"
 }
 
+/** Runtime widget that implements `_errDivZero`, terminating on division/modulo by zero. */
 object DivByZeroErrorWidget extends Widget {
     override val label: String = "_errDivZero"
 
@@ -302,6 +308,7 @@ object DivByZeroErrorWidget extends Widget {
     override val dependencies: Set[Widget] = Set(PrintStringWidget)
 }
 
+/** Runtime widget that implements `_errOverflow`, terminating on integer overflow/underflow. */
 object IntOverflowErrorWidget extends Widget {
     override val label: String = "_errOverflow"
 
@@ -322,6 +329,8 @@ object IntOverflowErrorWidget extends Widget {
 
     override val dependencies: Set[Widget] = Set(PrintStringWidget)
 }
+
+/** Runtime widget that implements `_errNull`, terminating on null pair dereference/free. */
 
 object NullDerefErrorWidget extends Widget {
     override val label: String = "_errNull"
@@ -344,6 +353,7 @@ object NullDerefErrorWidget extends Widget {
     override val dependencies: Set[Widget] = Set(PrintStringWidget)
 }
 
+/** Runtime widget that implements `_errOutOfMemory`, terminating on heap allocation failure */
 object OutOfMemoryErrorWidget extends Widget {
     override val label: String = "_errOutOfMemory"
 
@@ -365,6 +375,7 @@ object OutOfMemoryErrorWidget extends Widget {
     override val dependencies: Set[Widget] = Set(PrintStringWidget)
 }
 
+/** Runtime widget that implements `_errOutOfBounds`, terminating on array bounds errors. */
 object ArrayBoundsErrorWidget extends Widget {
     override val label: String = "_errOutOfBounds"
 
@@ -384,11 +395,9 @@ object ArrayBoundsErrorWidget extends Widget {
             |    bl exit""".stripMargin
 
     override val description: String = "array index out of bounds error handler"
-
-    // Note: This widget uses printf directly (not _prints) to print the index value
-    override val dependencies: Set[Widget] = Set.empty
 }
 
+/** Runtime widget that implements `_malloc`, wrapping `malloc` with out of memory checking */
 object MallocWidget extends Widget {
     override val label: String = "_malloc"
 
@@ -408,6 +417,7 @@ object MallocWidget extends Widget {
     override val dependencies: Set[Widget] = Set(OutOfMemoryErrorWidget)
 }
 
+/** Runtime widget that implements `_freepair`, freeing a pair pointer with null checking. */
 object FreePairWidget extends Widget {
     override val label: String = "_freepair"
 
@@ -427,12 +437,14 @@ object FreePairWidget extends Widget {
     override val dependencies: Set[Widget] = Set(NullDerefErrorWidget)
 }
 
+/** Runtime widget that implements `_arrLoad1`, bounds-checked load of 1-byte array elements. */
 object ArrayLoad1Widget extends Widget {
     override val label: String = "_arrLoad1"
 
     override val source: String =
         s"""// ${description}
-            |// Special calling convention: array ptr passed in X7, index in X17, LR (W30) is used as general register, and return into X7
+            |// Special calling convention: array ptr passed in X7, index in X17, 
+            |//LR (W30) is used as general register, and return into X7
             |_arrLoad1:
             |    // push {lr}
             |    stp lr, xzr, [sp, #-16]!
@@ -453,6 +465,7 @@ object ArrayLoad1Widget extends Widget {
     override val dependencies: Set[Widget] = Set(ArrayBoundsErrorWidget)
 }
 
+/** Runtime widget that implements `_arrStore1`, bounds-checked store of 1-byte array elements. */
 object ArrayStore1Widget extends Widget {
     override val label: String = "_arrStore1"
 
@@ -479,6 +492,7 @@ object ArrayStore1Widget extends Widget {
     override val dependencies: Set[Widget] = Set(ArrayBoundsErrorWidget)
 }
 
+/** Runtime widget that implements `_arrLoad4`, bounds-checked load of 4-byte array elements. */
 object ArrayLoad4Widget extends Widget {
     override val label: String = "_arrLoad4"
 
@@ -505,6 +519,7 @@ object ArrayLoad4Widget extends Widget {
     override val dependencies: Set[Widget] = Set(ArrayBoundsErrorWidget)
 }
 
+/**  Runtime widget that implements `_arrStore4`, bounds-checked store of 4-byte array elements. */
 object ArrayStore4Widget extends Widget {
     override val label: String = "_arrStore4"
 
@@ -531,6 +546,7 @@ object ArrayStore4Widget extends Widget {
     override val dependencies: Set[Widget] = Set(ArrayBoundsErrorWidget)
 }
 
+/** Runtime widget that implements `_arrLoad8`, bounds-checked load of 8-byte array elements. */
 object ArrayLoad8Widget extends Widget {
     override val label: String = "_arrLoad8"
 
@@ -557,6 +573,7 @@ object ArrayLoad8Widget extends Widget {
     override val dependencies: Set[Widget] = Set(ArrayBoundsErrorWidget)
 }
 
+/** Runtime widget that implements `_arrStore8`, bounds-checked store of 8-byte array elements. */
 object ArrayStore8Widget extends Widget {
     override val label: String = "_arrStore8"
 
