@@ -14,10 +14,12 @@ class HighLevelIRTest extends AnyFlatSpec with Matchers {
         val reg64 = VirtualReg(2, Size.X)
         val imm = Immediate(5)
 
+        /* dest, src1 mismatch */
         an [IllegalArgumentException] should be thrownBy {
             Sub(reg64, reg32, imm) 
         }
 
+        /* src1, src2 mismatch */
         an [IllegalArgumentException] should be thrownBy {
             Sub(reg64, reg64, reg32) 
         }
@@ -32,10 +34,12 @@ class HighLevelIRTest extends AnyFlatSpec with Matchers {
         val reg32 = VirtualReg(1, Size.W)
         val reg64 = VirtualReg(2, Size.X)
 
+        /* Mismatch size */
         an [IllegalArgumentException] should be thrownBy {
             Not(reg64, reg32) 
         }
 
+        /* Mismatch size */
         an [IllegalArgumentException] should be thrownBy {
             Not(reg32, reg64)
         }
@@ -49,6 +53,7 @@ class HighLevelIRTest extends AnyFlatSpec with Matchers {
         val reg32 = VirtualReg(1, Size.W)
         val reg64 = VirtualReg(2, Size.X)
 
+        /* Pointer can't be 32 bit */
         an [IllegalArgumentException] should be thrownBy {
             PairLoad(reg32, PairPos.Fst, reg32)
         }
@@ -62,6 +67,7 @@ class HighLevelIRTest extends AnyFlatSpec with Matchers {
         val reg32 = VirtualReg(1, Size.W)
         val reg64 = VirtualReg(2, Size.X)
 
+        /* Index must be 32 bit */
         an [IllegalArgumentException] should be thrownBy {
             ArrayLoad(reg64, reg64, reg32)
         }
@@ -75,6 +81,7 @@ class HighLevelIRTest extends AnyFlatSpec with Matchers {
         val reg32 = VirtualReg(1, Size.W)
         val reg64 = VirtualReg(2, Size.X)
 
+        /* two registers must be same size */
         an [IllegalArgumentException] should be thrownBy {
             Cmp(reg32, reg64)
         }
@@ -89,6 +96,7 @@ class HighLevelIRTest extends AnyFlatSpec with Matchers {
         val reg64 = VirtualReg(2, Size.X)
         val imm = Immediate(4)
 
+        /* Base register must be 64 bit*/
         an [IllegalArgumentException] should be thrownBy {
             AddrImmOffset(reg32, imm)
         }

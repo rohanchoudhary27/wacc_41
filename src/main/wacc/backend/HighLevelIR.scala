@@ -25,6 +25,7 @@ case class AddrStack(offset: Int) extends Address
 
 sealed trait Instruction
 
+/* Enforcing all the same register sizes */
 abstract class BinOp(dest: VirtualReg, src1: VirtualReg, src2: Operand) extends Instruction {
     require(dest.size == src1.size, 
         s"BinOp Size Mismatch: Dest ${dest.size} != Src1 ${src1.size}")
@@ -36,6 +37,7 @@ abstract class BinOp(dest: VirtualReg, src1: VirtualReg, src2: Operand) extends 
     }
 }
 
+/* Enforcing both the same register sizes */
 abstract class UnOp(dest: VirtualReg, src: Operand) extends Instruction {
     src match {
         case v: VirtualReg => require(dest.size == v.size, 
@@ -44,6 +46,7 @@ abstract class UnOp(dest: VirtualReg, src: Operand) extends Instruction {
     }
 }
 
+/* Enforcing both the same register sizes */
 abstract class CmpOp(src1: VirtualReg, src2: Operand) extends Instruction {
     src2 match {
         case v: VirtualReg => require(src1.size == v.size, 
@@ -52,10 +55,12 @@ abstract class CmpOp(src1: VirtualReg, src2: Operand) extends Instruction {
     }
 }
 
+/* Enforcing 64 bit pointer size */
 abstract class PtrInstr(ptr: VirtualReg) extends Instruction {
     require(ptr.size == Size.X, s"Pointer Source must be 64-bit, got ${ptr.size}")
 }
 
+/* Enforcing 32-bit integer index and 64 bit pointer size */
 abstract class ArrayInstr(array: VirtualReg, index: Operand) extends PtrInstr(array) {
     index match {
         case v: VirtualReg => 
