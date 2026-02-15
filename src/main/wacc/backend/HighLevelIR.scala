@@ -47,6 +47,7 @@ abstract class PtrInstr(ptr: VirtualReg) extends Instruction {
 /* Instruction case classes */
 
 /* Binary operations */
+case class Add(reg: VirtualReg, src1: VirtualReg, src2: Operand) extends BinOp(reg, src1, src2)
 case class Sub(reg: VirtualReg, src1: VirtualReg, src2: Operand) extends BinOp(reg, src1, src2)
 case class Mul(reg: VirtualReg, src1: VirtualReg, src2: Operand) extends BinOp(reg, src1, src2)
 case class Div(reg: VirtualReg, src1: VirtualReg, src2: Operand) extends BinOp(reg, src1, src2)
@@ -58,6 +59,7 @@ case class Or(reg: VirtualReg, src1: VirtualReg, src2: Operand) extends BinOp(re
 case class And(reg: VirtualReg, src1: VirtualReg, src2: Operand) extends BinOp(reg, src1, src2)
 
 /* Unary operations */
+case class Neg(reg: VirtualReg, src: VirtualReg) extends UnOp(reg, src)
 case class Not(reg: VirtualReg, src: VirtualReg) extends UnOp(reg, src)
 case class Mov(reg: VirtualReg, src: Operand) extends UnOp(reg, src)
 
@@ -66,6 +68,7 @@ case class Cmp(src1: VirtualReg, src2: Operand) extends UnOp(src1, src2)
 
 case class BranchUncond(label: Label) extends Instruction
 case class BranchCond(cond: Condition, label: Label) extends Instruction
+case class SetCond(dest: VirtualReg, cond: Condition) extends Instruction
 case class LabelDef(label: Label) extends Instruction
 
 /* Load/Store instructions */
@@ -93,6 +96,9 @@ case class HeapAlloc(dest: VirtualReg, size: Operand) extends PtrInstr(dest)
 
 /* Load the address of a label into a register (no memory access) */
 case class Lea(dest: VirtualReg, label: Label) extends PtrInstr(dest)
+
+/* Sign extend a register to be a bigger size */
+case class SignExtend(dest: VirtualReg, src: VirtualReg) extends Instruction
 
 /* ---------------------------------------------------------------------------------------------- */
 
