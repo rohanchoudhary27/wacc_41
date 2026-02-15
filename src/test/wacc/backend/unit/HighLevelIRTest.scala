@@ -50,11 +50,24 @@ class HighLevelIRTest extends AnyFlatSpec with Matchers {
         val reg64 = VirtualReg(2, Size.X)
 
         an [IllegalArgumentException] should be thrownBy {
-            ArrayLoad(reg32, reg32, reg32)
+            PairLoad(reg32, PairPos.Fst, reg32)
         }
 
         noException should be thrownBy {
-            ArrayStore(reg64, reg32, reg64)
+            PairStore(reg64, PairPos.Snd, reg64)
+        }
+    }
+
+    it should "validate array index size on array operations" in {
+        val reg32 = VirtualReg(1, Size.W)
+        val reg64 = VirtualReg(2, Size.X)
+
+        an [IllegalArgumentException] should be thrownBy {
+            ArrayLoad(reg64, reg64, reg32)
+        }
+
+        noException should be thrownBy {
+            ArrayLoad(reg64, reg32, reg32)
         }
     }
 

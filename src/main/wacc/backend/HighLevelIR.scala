@@ -50,6 +50,15 @@ abstract class PtrInstr(ptr: VirtualReg) extends Instruction {
     require(ptr.size == Size.X, s"Pointer Source must be 64-bit, got ${ptr.size}")
 }
 
+abstract class ArrayInstr(array: VirtualReg, index: Operand) extends PtrInstr(array) {
+    index match {
+        case v: VirtualReg => 
+            require(v.size == Size.W, 
+                s"Array Error: Index must be 32-bit (W), got ${v.size}")
+        case _ => 
+    }
+}
+
 /* ---------------------------------------------------------------------------------------------- */
 
 /* Instruction case classes */
@@ -92,8 +101,12 @@ case class Push(sourceReg: VirtualReg) extends Instruction
 case class Pop(destReg: VirtualReg) extends Instruction
 
 /* Array put/get instructions */
-case class ArrayLoad(array: VirtualReg, index: Operand, dest: VirtualReg) extends PtrInstr(array)
-case class ArrayStore(array: VirtualReg, index: Operand, src: Operand) extends PtrInstr(array)
+case class ArrayLoad(array: VirtualReg,
+                     index: Operand,
+                     dest: VirtualReg) extends ArrayInstr(array, index)
+case class ArrayStore(array: VirtualReg,
+                      index: Operand,
+                      src: Operand) extends ArrayInstr(array, index)
 
 /* Pair put/get instructions */
 case class PairLoad(pair: VirtualReg, index: PairPos, dest: VirtualReg) extends PtrInstr(pair)
