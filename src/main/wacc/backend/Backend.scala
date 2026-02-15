@@ -15,7 +15,7 @@ object WaccBackend {
     // CodeGenerator
     // Printer
 
-    def compile(ast: Program[SemanticData], outputFilename: String): BackendCompilationResult = {
+    def run(ast: Program[SemanticData], outputFilename: String): BackendCompilationResult = {
         try {
             val highLevelIR: RegProgram = Flattener.flatten(ast)
             val registerAllocation: RegisterAllocator.AllocationResult = 

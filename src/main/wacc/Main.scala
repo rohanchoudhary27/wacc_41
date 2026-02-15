@@ -1,6 +1,6 @@
 package wacc
 
-import java.nio.file.{Files, Paths}
+import java.nio.file.{Files, Path, Paths}
 import wacc.frontend.*
 import wacc.backend.*
 import wacc.ExitCodes._
@@ -24,6 +24,7 @@ object WaccCompiler {
         val errorType = exitCode match {
             case ExitCodes.SyntaxError => "Syntax error"
             case ExitCodes.SemanticError  => "Semantic error"
+            case _ => "Internal Error"
         }
 
         val allErrors = errorLogger.retrieveAllErrors()
@@ -94,13 +95,22 @@ object WaccCompiler {
 
             /* No errors in file - send to backend */
             case None =>
-                println(
-                    s"Success - finished with exit code ${frontendCompilationResult.exitCode}"
-                )
-                sys.exit(code(frontendCompilationResult.exitCode))
-                /* Put a helper function in main, called here to call the backend (WaccBackend.run)
-                   and handle any errors to avoid spaghetti code */
+                runBackend(path, frontendCompilationResult.typedAST.get)
         }
+    }
+
+    private def runBackend(path: Path, ast: Program[SemanticData]): Unit = {
+        val filename = path.getFileName.toString
+        val outFilename = filename.replaceAll("\\.wacc$", "") + ".s"
+
+        val backendResult = WaccBackend.run(ast, outFilename)
+
+        /* Symmetrical success/failure handling */
+        if (backendResult.exitCode == ExitCodes.Success) {
+            println(s"Success - finished with exit code ${backendResult.exitCode}")
+        } 
+        
+        sys.exit(code(backendResult.exitCode))
     }
 
 }
