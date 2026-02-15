@@ -83,4 +83,18 @@ class HighLevelIRTest extends AnyFlatSpec with Matchers {
             Cmp(reg32, reg32)
         }
     }
+
+    it should "validate address base register size" in {
+        val reg32 = VirtualReg(1, Size.W)
+        val reg64 = VirtualReg(2, Size.X)
+        val imm = Immediate(4)
+
+        an [IllegalArgumentException] should be thrownBy {
+            AddrImmOffset(reg32, imm)
+        }
+
+        noException should be thrownBy {
+            AddrRegOffset(reg64, reg32)
+        }
+    }
 }

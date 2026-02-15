@@ -8,8 +8,14 @@ case class Label(name: String) extends Operand
 
 /* Addresses */
 sealed trait Address
-case class AddrRegOffset(baseAddr: VirtualReg, offset: VirtualReg) extends  Address
-case class AddrImmOffset(baseAddr: VirtualReg, offset: Immediate) extends Address
+case class AddrRegOffset(baseAddr: VirtualReg, offset: VirtualReg) extends  Address {
+    require(baseAddr.size == Size.X, 
+            s"AddrRegOffset Mismatch: Base address must be 64-bit (X), got ${baseAddr.size}")
+}
+case class AddrImmOffset(baseAddr: VirtualReg, offset: Immediate) extends Address {
+    require(baseAddr.size == Size.X, 
+            s"AddrRegOffset Mismatch: Base address must be 64-bit (X), got ${baseAddr.size}")
+}
 case class AddrLabel(name: String) extends Address
 case class AddrStack(offset: Int) extends Address
 
