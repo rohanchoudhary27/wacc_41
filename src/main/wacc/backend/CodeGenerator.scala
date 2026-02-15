@@ -157,22 +157,27 @@ object CodeGenerator {
         
         /* Load first operand */
         val src1Reg = loadToReg(src1Loc, dest.size, PhysicalReg.ipcScratch(0))
+
+        /* Determine result register */
+        val resultReg = destLoc match {
+            case reg: PhysicalReg => reg
+            case _ => PhysicalReg.ipcScratch(0)
+        }
         
         (src2: @unchecked) match {
             case src2: VirtualReg =>
                 /* Register-register operation */
                 val src2Loc = locOf(src2)
                 val src2Reg = loadToReg(src2Loc, dest.size, PhysicalReg.ipcScratch(1))
-                val resultReg = PhysicalReg.ipcScratch(0)
                 emit(regOp(dest.size, resultReg, src1Reg, src2Reg))
-                storeToLoc(resultReg, destLoc, dest.size)
-                
+
             case Immediate(value) =>
                 /* Register-immediate operation */
-                val resultReg = PhysicalReg.ipcScratch(0)
                 emit(immOp(dest.size, resultReg, src1Reg, ArmImmediate(value)))
-                storeToLoc(resultReg, destLoc, dest.size)
         }
+
+        /* Store result */
+        storeToLoc(resultReg, destLoc, dest.size)
     }
 
     /**
