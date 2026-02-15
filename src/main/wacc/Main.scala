@@ -94,7 +94,7 @@ object WaccCompiler {
       * Runs the WACC file through the WACC frontend compiler.
       *
       * @param path: path to the WACC file to be compiled
-      * @return Program[SemanticData] which is an AST
+      * @return Program[SemanticData]: which is an AST
       */
     private def runFrontend(path: Path): Program[SemanticData] = {
 
