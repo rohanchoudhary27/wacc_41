@@ -65,6 +65,10 @@ object CodeGenerator {
       */
     def generate(instrs: List[Instruction], alloc: Map[VirtualReg, Location]): List[ArmInstruction] = {
         given st: GenState = GenState(alloc)
+        
+        /* Main label */
+        emit(ArmLabelDef(ArmAddrLabel("main")))
+        
         generateInstrs(instrs)
         st.finalInstrs
     }

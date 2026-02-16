@@ -5,6 +5,9 @@ package wacc.backend
   */
 object Outputter {
     
+    /** Indentation for assembly instructions */
+    private val INDENT = "\t"
+    
     /**
       * Generate complete assembly output from an ARM program.
       * 
@@ -17,6 +20,7 @@ object Outputter {
         /* Data section */
         if (prog.data.nonEmpty) {
             sb ++= ".data\n"
+            sb ++= ".align 4\n"
             prog.data.foreach(d => sb ++= emitDirective(d))
             sb ++= "\n"
         }
@@ -39,7 +43,12 @@ object Outputter {
       * @param dir the data directive to emit
       * @return the assembly string for this directive
       */
-    private def emitDirective(dir: ArmDataDirective): String = ???
+    private def emitDirective(dir: ArmDataDirective): String = {
+        s"${INDENT}.word ${dir.storedValue.length}\n" +
+        s"${dir.label.name}:\n" +
+        s"${INDENT}.asciz \"${dir.storedValue}\"\n" +
+        ".align 4\n"
+    }
     
     /**
       * Emit a single ARM instruction as assembly text.
