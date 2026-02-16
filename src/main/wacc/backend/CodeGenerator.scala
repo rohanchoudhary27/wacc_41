@@ -105,12 +105,38 @@ object CodeGenerator {
 
         /* Emit code for the main function */
         emit(ArmLabelDef(ArmAddrLabel("main")))
+
+        generateFuncPrologue()
         generateInstrs(regProgram.body)
+        generateFuncEpilogue()
 
         /* Return the final low-level IR for the program */
         ArmProgram(globalCtx.finalDirectives, st.finalInstrs)
     }
+
+    /**
+      * Generate low level IR for the function prologue (saving the return addr to the link
+      * register and setting the frame pointer)
+      */
+    private def generateFuncPrologue()(using GenState) = {
+        emit(ArmStorePair(Size.X,
+                         PhysicalReg.framePointer,
+                         PhysicalReg.linkReg,
+                         ArmAddrPreIndex(PhysicalReg.stackPointer, ArmImmediate(-16))))
+        emit(ArmMovReg(Size.X, PhysicalReg.framePointer, PhysicalReg.stackPointer))
+    }
     
+    /**
+      * Generate low level IR for the function epilogue (restoring the link and
+      * frame pointer registers)
+      */
+    private def generateFuncEpilogue()(using GenState) = {
+        emit(ArmLoadPair(Size.X,
+                          PhysicalReg.framePointer,
+                          PhysicalReg.linkReg, 
+                          ArmAddrPostIndex(PhysicalReg.stackPointer, ArmImmediate(16))))
+    }
+
     /**
       * Generate Low-Level IR for a function definition.
       * 
@@ -125,23 +151,10 @@ object CodeGenerator {
         // Function label
         emit(ArmLabelDef(ArmAddrLabel(func.name)))
         
-        // Function prologue
-        emit(ArmStorePair(Size.X,
-                         PhysicalReg.framePointer,
-                         PhysicalReg.linkReg,
-                         ArmAddrPreIndex(PhysicalReg.stackPointer, ArmImmediate(-16))))
-
-        emit(ArmMovReg(Size.X, PhysicalReg.framePointer, PhysicalReg.stackPointer))
-
-        // Function body
+        generateFuncPrologue()
         generateInstrs(func.body)
-
-        // Function epilogue
-        emit(ArmStorePair(Size.X,
-                          PhysicalReg.framePointer,
-                          PhysicalReg.linkReg, 
-                          ArmAddrPostIndex(PhysicalReg.stackPointer, ArmImmediate(16))))
-    
+        generateFuncEpilogue()
+   
         emit(ArmRet)
         
         st.finalInstrs
