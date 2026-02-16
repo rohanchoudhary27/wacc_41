@@ -9,7 +9,7 @@ import wacc.ExitCodes.*
   * A state class managing the virtual register allocation and instructions that make up
   * a function. The main body of a WACC program is treated as a 'main' function.
   */
-class FunctionContext(
+class FunctionState(
 ) {
 
     /* A renamed variable from the AST. While the AST has this information already in
@@ -19,9 +19,6 @@ class FunctionContext(
     /* Map of variables to their virtual registers */
     private val virtualRegMap = Map[QualifiedName, VirtualReg]()
     private var nextVirtualId = 0
-
-    /* Next available label ID for e.g. "${prefix}_0" */
-    private var nextLabelId = 0
 
     /* The list of instructions for the function */
     private val instructions = ListBuffer[Instruction]()
@@ -85,6 +82,17 @@ class FunctionContext(
       * @return
       */
     def getAllInstructions = instructions.toList
+}
+
+/**
+  * State class for managing directives.
+  */
+class GlobalFlattenContext(
+) {
+    private val directives = ListBuffer[DataDirective]()
+
+    /* Next available label ID for e.g. "${prefix}_0" */
+    private var nextLabelId = 0
 
     /**
       * Return a `Label` with the next label ID. Essentially reserves a label because labels for
@@ -100,14 +108,6 @@ class FunctionContext(
         nextLabelId += 1
         label
     }
-}
-
-/**
-  * State class for managing directives.
-  */
-class DirectiveState(
-) {
-    private val directives = ListBuffer[DataDirective]()
 
     /* Mapping strings to their memory address locations (labels) */
     private val strMap = Map[String, Label]()
@@ -158,8 +158,8 @@ object Flattener {
         val Program(funcs, stmt, _) = typedAST
 
         /* Initialise contexts */
-        given funcState: FunctionContext = FunctionContext()
-        given directiveState: DirectiveState = DirectiveState()
+        given funcState: FunctionState = FunctionState()
+        given directiveState: GlobalFlattenContext = GlobalFlattenContext()
 
         /* Flatten the main statement which populates the funcState
            instructions buffer */
@@ -180,8 +180,8 @@ object Flattener {
       * @return the list of high level IR instructions
       */
     private def flattenStmt(typedStmt: Stmt[SemanticData])
-                            (using funcState: FunctionContext,
-                                   directiveState: DirectiveState): Unit = ???
+                            (using funcState: FunctionState,
+                                   directiveState: GlobalFlattenContext): Unit = ???
 
     /**
       * Flattens a function AST node. Internally, it creates its own `ListBuffer[Instruction]`
@@ -191,10 +191,10 @@ object Flattener {
       * @return a `FunctionDef` high level IR object
       */
     private def flattenFunc(typedFunc: Func[SemanticData])
-                           (using directiveState: DirectiveState): FunctionDef = {
+                           (using directiveState: GlobalFlattenContext): FunctionDef = {
 
-        /* Create a fresh function context */
-        given funcContext: FunctionContext = FunctionContext()
+        /* Create a fresh function state */
+        given funcContext: FunctionState = FunctionState()
 
         ???
     }

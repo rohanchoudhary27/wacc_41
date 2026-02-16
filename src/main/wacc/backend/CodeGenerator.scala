@@ -1,29 +1,61 @@
 package wacc.backend
 
 import scala.collection.mutable.ListBuffer
+import wacc.backend.RegisterAllocator.AllocationResult
 
 /**
-  * State class managing code generation within a single function or program body.
-  * Tracks the allocation map, generated instructions, and provides fresh label IDs.
+  * Global context shared across all function code generation.
+  * Manages label generation and data section directives.
+  */
+class GlobalGenContext {
+    private var labelCounter = 0
+    private val dataDirectives = ListBuffer[ArmDataDirective]()
+
+    /** Get the final directive list */
+    def finalDirectives: List[ArmDataDirective] = dataDirectives.toList
+
+    /** Generate a fresh unique label for compiler-generated code */
+    def freshLabel(): ArmAddrLabel = {
+        val l = s".L$labelCounter"
+        labelCounter += 1
+        ArmAddrLabel(l)
+    }
+
+    /**
+      * Add a string constant to the data directives
+      *
+      * @param str The string to store
+      * @return An `ArmAddrLabel` to the directive
+      */
+    def addStringConstant(str: String): ArmAddrLabel = {
+        val labelName = s".msg_$labelCounter"
+        labelCounter += 1
+        val label = ArmAddrLabel(labelName)
+        dataDirectives += ArmDataDirective(label, str)
+        label
+    }
+}
+
+/**
+  * State class managing code generation.
+  * Tracks the allocation map and generated instructions.
   *
+  * @param global the global context for labels and data directives
   * @param alloc the register allocation map (VirtualReg -> Location)
   */
-class GenState(val alloc: Map[VirtualReg, Location]) {
-    private var nextLabel: Int = 0
+class GenState(val global: GlobalGenContext, val alloc: Map[VirtualReg, Location]) {
+
+    /* Program instructions (.text) */
     private val instrs = ListBuffer[ArmInstruction]()
     
     /** Get the final instruction list */
     def finalInstrs: List[ArmInstruction] = instrs.toList
-    
+
     /** Add an instruction to the output */
     def +=(instr: ArmInstruction): Unit = instrs += instr
-    
-    /** Generate a fresh label ID */
-    def fresh(): Int = {
-        val i = nextLabel
-        nextLabel += 1
-        i
-    }
+
+    /** Generate a fresh unique label */
+    def freshLabel(): ArmAddrLabel = global.freshLabel()
 }
 
 /**
@@ -32,10 +64,6 @@ class GenState(val alloc: Map[VirtualReg, Location]) {
   * Register allocation happens externally and is passed in via the alloc parameter.
   */
 object CodeGenerator {
-
-    /** Generate a fresh compiler-generated label with given prefix */
-    private def label(prefix: String = ".L")(using st: GenState): ArmAddrLabel = 
-        ArmAddrLabel(s"${prefix}_${st.fresh()}")
     
     /** Emit a single instruction to the output */
     private def emit(instr: ArmInstruction)(using st: GenState): Unit = 
@@ -44,7 +72,6 @@ object CodeGenerator {
     /** Look up the location of a virtual register */
     private def locOf(vReg: VirtualReg)(using st: GenState): Location = 
         st.alloc(vReg)
-
 
     /** Widget management */
     private val dispatcher = RuntimeLibraryDispatcher()
@@ -55,22 +82,33 @@ object CodeGenerator {
     /** Get all collected widget assembly */
     def getWidgetAssembly: String = dispatcher.getCollectedAssembly
 
-    
     /**
-      * Generate Low-Level IR for the main program body.
+      * Generate Low-Level IR for the program.
       * 
-      * @param instrs the high-level IR instruction list
-      * @param alloc the register allocation map
-      * @return the low-level ARM instruction list
+      * @param regProgram the high-level IR program
+      * @param allocs the register allocation result containing maps for main and all functions
+      * @return the complete ARM program with data section and text section
       */
-    def generate(instrs: List[Instruction], alloc: Map[VirtualReg, Location]): List[ArmInstruction] = {
-        given st: GenState = GenState(alloc)
-        
-        /* Main label */
+    def generate(regProgram: RegProgram, allocs: AllocationResult): ArmProgram = {
+
+        /* Init global context for directives and labels and populate directives */
+        val globalCtx = new GlobalGenContext()
+        regProgram.data.foreach {dir => globalCtx.addStringConstant(dir.storedValue)}
+
+        /* GenState for the entire program (accumulates all functions and main) */
+        given st: GenState = GenState(globalCtx, allocs.mainAlloc)
+        regProgram.funcs.foreach { f => 
+            val funcAlloc = allocs.funcAllocs.getOrElse(f.name, Map.empty)
+            val funcInstrs = generateFunc(f, funcAlloc, globalCtx)
+            funcInstrs.foreach(emit)
+        }
+
+        /* Emit code for the main function */
         emit(ArmLabelDef(ArmAddrLabel("main")))
-        
-        generateInstrs(instrs)
-        st.finalInstrs
+        generateInstrs(regProgram.body)
+
+        /* Return the final low-level IR for the program */
+        ArmProgram(globalCtx.finalDirectives, st.finalInstrs)
     }
     
     /**
@@ -78,10 +116,11 @@ object CodeGenerator {
       * 
       * @param func the function definition
       * @param alloc the register allocation map for this function
+      * @param ctx the global context for labels and data directives
       * @return the low-level ARM instruction list
       */
-    def generateFunc(func: FunctionDef, alloc: Map[VirtualReg, Location]): List[ArmInstruction] = {
-        given st: GenState = GenState(alloc)
+    def generateFunc(func: FunctionDef, alloc: Map[VirtualReg, Location], ctx: GlobalGenContext): List[ArmInstruction] = {
+        given st: GenState = GenState(ctx, alloc)
         
         // Function label
         emit(ArmLabelDef(ArmAddrLabel(func.name)))
