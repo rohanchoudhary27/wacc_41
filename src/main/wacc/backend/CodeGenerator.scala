@@ -10,13 +10,35 @@ import scala.collection.mutable.ListBuffer
   */
 class GenState(val alloc: Map[VirtualReg, Location]) {
     private var nextLabel: Int = 0
+
+    /* Program directives (.data) */
+    private val dataDirectives = ListBuffer[ArmDataDirective]()
+
+    /* Program instructions (.text) */
     private val instrs = ListBuffer[ArmInstruction]()
     
     /** Get the final instruction list */
     def finalInstrs: List[ArmInstruction] = instrs.toList
     
+    /** Get the final directive list */
+    def finalDirectives: List[ArmDataDirective] = dataDirectives.toList
+
     /** Add an instruction to the output */
     def +=(instr: ArmInstruction): Unit = instrs += instr
+
+    /**
+      * Add a string constant to the data directives
+      *
+      * @param str The string to store
+      * @return An `ArmAddrLabel` to the directive
+      */
+    def addStringConstant(str: String): ArmAddrLabel = {
+        val labelName = s".msg_$nextLabel"
+        nextLabel += 1
+        val label = ArmAddrLabel(labelName)
+        dataDirectives += ArmDataDirective(label, str)
+        label
+    }
     
     /** Generate a fresh label ID */
     def fresh(): Int = {
