@@ -20,9 +20,6 @@ class FunctionContext(
     private val virtualRegMap = Map[QualifiedName, VirtualReg]()
     private var nextVirtualId = 0
 
-    /* Next available label ID for e.g. "${prefix}_0" */
-    private var nextLabelId = 0
-
     /* The list of instructions for the function */
     private val instructions = ListBuffer[Instruction]()
 
@@ -85,6 +82,17 @@ class FunctionContext(
       * @return
       */
     def getAllInstructions = instructions.toList
+}
+
+/**
+  * State class for managing directives.
+  */
+class GlobalContext(
+) {
+    private val directives = ListBuffer[DataDirective]()
+
+    /* Next available label ID for e.g. "${prefix}_0" */
+    private var nextLabelId = 0
 
     /**
       * Return a `Label` with the next label ID. Essentially reserves a label because labels for
@@ -100,14 +108,6 @@ class FunctionContext(
         nextLabelId += 1
         label
     }
-}
-
-/**
-  * State class for managing directives.
-  */
-class DirectiveState(
-) {
-    private val directives = ListBuffer[DataDirective]()
 
     /* Mapping strings to their memory address locations (labels) */
     private val strMap = Map[String, Label]()
@@ -159,7 +159,7 @@ object Flattener {
 
         /* Initialise contexts */
         given funcState: FunctionContext = FunctionContext()
-        given directiveState: DirectiveState = DirectiveState()
+        given directiveState: GlobalContext= GlobalContext()
 
         /* Flatten the main statement which populates the funcState
            instructions buffer */
@@ -181,7 +181,7 @@ object Flattener {
       */
     private def flattenStmt(typedStmt: Stmt[SemanticData])
                             (using funcState: FunctionContext,
-                                   directiveState: DirectiveState): Unit = ???
+                                   directiveState: GlobalContext): Unit = ???
 
     /**
       * Flattens a function AST node. Internally, it creates its own `ListBuffer[Instruction]`
@@ -191,7 +191,7 @@ object Flattener {
       * @return a `FunctionDef` high level IR object
       */
     private def flattenFunc(typedFunc: Func[SemanticData])
-                           (using directiveState: DirectiveState): FunctionDef = {
+                           (using directiveState: GlobalContext): FunctionDef = {
 
         /* Create a fresh function context */
         given funcContext: FunctionContext = FunctionContext()
