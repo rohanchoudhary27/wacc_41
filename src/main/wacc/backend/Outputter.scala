@@ -54,7 +54,62 @@ object Outputter {
       * Emit a single ARM instruction as assembly text.
       * 
       * @param instr the instruction to emit
-      * @return the assembly string for this directive
+      * @return the assembly string for this instruction
       */
-    private def emitInstruction(instr: ArmInstruction): String = ???
+    private def emitInstruction(instr: ArmInstruction): String = instr match {
+        /* Arithmetic */
+        case ArmAddReg(size, dest, src1, src2) => ???
+        case ArmAddImm(size, dest, src1, imm) => ???
+        case ArmSubReg(size, dest, src1, src2) => ???
+        case ArmSubImm(size, dest, src1, imm) => ???
+        case ArmMulReg(size, dest, src1, src2) => ???
+        case ArmDivReg(size, dest, src1, src2) => ???
+        case ArmNeg(size, reg) => ???
+        
+        /* Logical */
+        case ArmAndReg(size, dest, src1, src2) => ???
+        case ArmAndImm(size, dest, src1, imm) => ???
+        case ArmOrReg(size, dest, src1, src2) => ???
+        case ArmOrImm(size, dest, src1, imm) => ???
+        case ArmNotReg(size, dest, src) => ???
+        
+        /* Shifts */
+        case ArmLslReg(size, dest, src1, src2) => ???
+        case ArmLslImm(size, dest, src1, imm) => ???
+        case ArmLsrReg(size, dest, src1, src2) => ???
+        case ArmLsrImm(size, dest, src1, imm) => ???
+        case ArmAsrReg(size, dest, src1, src2) => ???
+        case ArmAsrImm(size, dest, src1, imm) => ???
+        
+        /* Data Movement */
+        case ArmMovReg(size, dest, src) => ???
+        case ArmMovImm(size, dest, imm) => ???
+        case ArmMovKeep(size, dest, imm, shift) => ???
+        case ArmLoad(size, dest, addr) => ???
+        case ArmStore(size, src, addr) => ???
+        case ArmLea(dest, label) => ???
+        
+        /* Comparison */
+        case ArmCmpReg(size, src1, src2) => ???
+        case ArmCmpImm(size, src1, imm) => ???
+        
+        /* Control Flow */
+        case ArmBranchUncond(label) => ???
+        case ArmBranchCond(cond, label) => ???
+        case ArmLabelDef(label) => ???
+        case ArmBl(label) => ???
+        case ArmRet => ???
+        
+        /* Stack Operations */
+        case ArmPushTwo(size, src1, src2) => ???
+        case ArmPopTwo(size, dest1, dest2) => ???
+        
+        /* Special Instructions */
+        case ArmMSub(size, dest, mult1, mult2, sub) => ???
+        case ArmCSet(size, dest, cond) => ???
+        case ArmSMull(dest, src1, src2) => ???
+        case ArmSxtw(dest, src) => ???
+        case ArmCbz(size, reg, label) => ???
+        case ArmCbnz(size, reg, label) => ???
+    }
 }
