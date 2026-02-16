@@ -171,6 +171,23 @@ object Flattener {
     }
 
     /**
+      * Converts an operand to a virtual register by making an anonymous register
+      * if the operand is an immeidate
+      *
+      * @param op The operand to convert to a register
+      * @param funcState The FunctionState context
+      * @return The virtual register for the operand
+      */
+    private def toReg(op: Operand)(using funcState: FunctionState): VirtualReg = op match {
+        case reg: VirtualReg => reg
+        case imm: Immediate => 
+            val newReg = funcState.anonymousReg(KnownType.Int)
+            funcState.emitInstruction(Mov(newReg, imm))
+            newReg
+        case label: Label => ???
+    }
+
+    /**
       * Flattens a statment into a list of high level IR instructions. Uses the buffer passed
       * in to record new `Instruction` objects and passes this buffer to other flatten function
       * calls. At the end, it returns instrBuffer.toList
@@ -181,8 +198,37 @@ object Flattener {
       */
     private def flattenStmt(typedStmt: Stmt[SemanticData])
                             (using funcState: FunctionState,
-                                   directiveState: GlobalFlattenContext): Unit = ???
+                                   directiveState: GlobalFlattenContext): Unit = typedStmt match {
 
+        case Stmt.Block(stmts, _) => stmts.foreach(flattenStmt)
+        case Stmt.Exit(expr, _) => flattenExit(expr)
+        case _ => {
+            println(typedStmt)
+            ???
+        }
+    }
+        
+    /**
+      * Flatten an Exit AST node, emitting a Call node to the exit clib function
+      *
+      * @param expr The expr that evaluates to the exit code
+      * @param funcState The current scope function state
+      * @param directiveState The global directive state
+      */
+    private def flattenExit(expr: Expr[SemanticData])
+                           (using funcState: FunctionState,
+                                  directiveState: GlobalFlattenContext) = {
+        val exitCodeReg = toReg(flattenExpr(expr))
+        val callInstr = wacc.backend.Call(Label("exit"), List(exitCodeReg), None)
+        funcState.emitInstruction(callInstr)
+    }
+                                   
+    private def flattenExpr(typedExpr: Expr[SemanticData])
+                           (using funcState: FunctionState,
+                                  directiveState: GlobalFlattenContext): Operand = typedExpr match
+        case IntLiter(value, _) => Immediate(value)
+        case _ => ???
+                                  
     /**
       * Flattens a function AST node. Internally, it creates its own `ListBuffer[Instruction]`
       * which it then passes to any other flatten function calls.
