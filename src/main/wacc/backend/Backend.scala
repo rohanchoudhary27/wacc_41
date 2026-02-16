@@ -20,16 +20,28 @@ object WaccBackend {
       */
     def run(ast: Program[SemanticData], outputFilename: String): BackendCompilationResult = {
         try {
+
+            /* Phase 1 - Flatten*/
             val highLevelIR: RegProgram = Flattener.flatten(ast)
+
+            /* Phase 2 - Register Allocation*/
             val registerAllocation: RegisterAllocator.AllocationResult = 
                 RegisterAllocator.allocate(highLevelIR)
+
+            /* Widget dispatcher for pre-written assembly routines */
             val runtimeDispatcher = new RuntimeLibraryDispatcher()
-            //val lowLevelIR: ArmProgram = CodeGenerator.generate(highLevelIR, allocation)
-            //val assemblyMain: String = ArmPrinter.print(lowLevelIR)
+
+            /* Phase 3 - Code Generation */
+            val lowLevelIR: ArmProgram = CodeGenerator.generate(highLevelIR, registerAllocation)
+
+            /* Phase 4 - Printer */
+            val assemblyMain: String = Outputter.emit(lowLevelIR)
             val assemblyWidgets: String = runtimeDispatcher.getCollectedAssembly
-            //val assemblyFinal: String = s"$assemblyMain\n\n$assemblyWidgets"
-            //writeToFile(outputFilename, assemblyFinal)
+
+            val assemblyFinal: String = s"$assemblyMain\n\n$assemblyWidgets"
+            writeToFile(outputFilename, assemblyFinal)
             BackendCompilationResult(Success, Some(outputFilename))
+
         } catch {
             case e: Exception => Console.err.println(
                 s"Internal compiler failure during backend code generation: ${e.getMessage}"
