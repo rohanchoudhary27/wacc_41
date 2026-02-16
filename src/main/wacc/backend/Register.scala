@@ -19,23 +19,7 @@ case class StackSlot(offset: Int) extends Location
   * Scratch registers are used in the code generator for temporary computations and are thus
   * not allocatable.
   */
-case class PhysicalReg private (val index: Int, val allocatable: Boolean) extends Location {
-
-    /**
-      * Format a register to be printed
-      *
-      * @param size The size of the register (W/X)
-      * @return The output string for the register
-      */
-    def outputFormat(size: Size): String = index match
-        case 31 => if (size == Size.X) then "sp" else "wsp"
-        case 30 => "lr"
-        case 29 => "fp"
-        case _ => size match {
-            case Size.X => s"x$index"
-            case _ => s"w$index"
-        }
-}
+case class PhysicalReg private (val index: Int, val allocatable: Boolean) extends Location
 
 /**
   * Companion object containing pre-defined physical registers and utility functions
