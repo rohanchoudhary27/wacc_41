@@ -58,10 +58,10 @@ object Outputter {
       */
     private def emitInstruction(instr: ArmInstruction): String = instr match {
         /* Arithmetic */
-        case ArmAddReg(size, dest, src1, src2) => ???
-        case ArmAddImm(size, dest, src1, imm) => ???
-        case ArmSubReg(size, dest, src1, src2) => ???
-        case ArmSubImm(size, dest, src1, imm) => ???
+        case ArmAddReg(size, dest, src1, src2) => emitBinary("add", size, dest, src1, src2)
+        case ArmAddImm(size, dest, src1, imm) => emitBinary("add", size, dest, src1, imm)
+        case ArmSubReg(size, dest, src1, src2) => emitBinary("sub", size, dest, src1, src2)
+        case ArmSubImm(size, dest, src1, imm) => emitBinary("sub", size, dest, src1, imm)
         case ArmMulReg(size, dest, src1, src2) => ???
         case ArmDivReg(size, dest, src1, src2) => ???
         case ArmNeg(size, reg) => ???
@@ -82,7 +82,7 @@ object Outputter {
         case ArmAsrImm(size, dest, src1, imm) => ???
         
         /* Data Movement */
-        case ArmMovReg(size, dest, src) => ???
+        case ArmMovReg(size, dest, src) => emitUnary("mov", size, dest, src)
         case ArmMovImm(size, dest, imm) => 
             indented(s"mov ${formatReg(dest, size)}, ${formatImmediate(imm)}")
         case ArmMovKeep(size, dest, imm, shift) => ???
@@ -113,6 +113,20 @@ object Outputter {
         case ArmCbz(size, reg, label) => ???
         case ArmCbnz(size, reg, label) => ???
     }
+
+    /** Emit a binary operation: op dest, src1, src2 */
+    private def emitBinary(op: String, size: Size, dest: PhysicalReg, src1: PhysicalReg, 
+                          src2: PhysicalReg | ArmImmediate): String = {
+        val src2Str = src2 match {
+            case reg: PhysicalReg => formatReg(reg, size)
+            case imm: ArmImmediate => formatImmediate(imm)
+        }
+        indented(s"${op} ${formatReg(dest, size)}, ${formatReg(src1, size)}, ${src2Str}")
+    }
+    
+    /** Emit a unary operation: op dest, src */
+    private def emitUnary(op: String, size: Size, dest: PhysicalReg, src: PhysicalReg): String =
+        indented(s"${op} ${formatReg(dest, size)}, ${formatReg(src, size)}")
 
     /* ========== Formatting Helpers ========== */
     
