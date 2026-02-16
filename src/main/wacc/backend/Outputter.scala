@@ -102,9 +102,9 @@ object Outputter {
         case ArmRet => indented("ret")
         
         /* Stack Operations */
-        case ArmStorePair(size, src1, src2, addr) => ???
-        case ArmLoadPair(size, dest1, dest2, addr) => ???
-        
+        case ArmStorePair(size, src1, src2, addr) => emitStorePair(size, src1, src2, addr)
+
+        case ArmLoadPair(size, dest1, dest2, addr) => emitLoadPair(size, dest1, dest2, addr)        
         /* Special Instructions */
         case ArmMSub(size, dest, mult1, mult2, sub) => ???
         case ArmCSet(size, dest, cond) => ???
@@ -113,6 +113,21 @@ object Outputter {
         case ArmCbz(size, reg, label) => ???
         case ArmCbnz(size, reg, label) => ???
     }
+
+    /** Format a store pair instruction */
+    private def emitStorePair(size: Size,
+                             src1: PhysicalReg,
+                             src2: PhysicalReg,
+                             addr: ArmAddress) =
+        indented(s"stp ${formatReg(src1, size)}, ${formatReg(src2, size)}, ${{formatAddress(addr)}}")
+
+
+    /** Format a load pair instruction */
+    private def emitLoadPair(size: Size,
+                             dest1: PhysicalReg,
+                             dest2: PhysicalReg,
+                             addr: ArmAddress) =
+        indented(s"ldp ${formatReg(dest1, size)}, ${formatReg(dest2, size)}, ${{formatAddress(addr)}}")
 
     /** Emit a binary operation: op dest, src1, src2 */
     private def emitBinary(op: String, size: Size, dest: PhysicalReg, src1: PhysicalReg, 
@@ -174,6 +189,12 @@ object Outputter {
         case ArmAddrRegShift(base, offset, shift) => 
             s"[${formatReg(base, Size.X)}, ${formatReg(offset, Size.X)}, " +
             s"lsl #${ShiftAmounts.value(shift)}]"
+
+        case ArmAddrPostIndex(baseAddr, immOffset) => 
+            s"[${formatReg(baseAddr, Size.X)}], ${{formatImmediate(immOffset)}}"
+
+        case ArmAddrPreIndex(baseAddr, immOffset) => 
+            s"[${formatReg(baseAddr, Size.X)}, ${{formatImmediate(immOffset)}}]!"
             
         case ArmAddrLabel(name) => 
             s"=$name"
