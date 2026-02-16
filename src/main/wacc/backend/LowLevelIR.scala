@@ -7,6 +7,10 @@ case class ArmAddrImmOffset(baseAddr: PhysicalReg, offset: ArmImmediate) extends
 case class ArmAddrRegShift(base: PhysicalReg,
                            offset: PhysicalReg,
                            shift: ShiftAmounts.ShiftAmount) extends ArmAddress
+case class ArmAddrPreIndex(baseAddr: PhysicalReg,
+                           offset: ArmImmediate) extends ArmAddress /* E.g. [sp, #-16]! */
+case class ArmAddrPostIndex(baseAddr: PhysicalReg,
+                           offset: ArmImmediate) extends ArmAddress /* E.g. [sp], #16 */
 case class ArmAddrLabel(name: String) extends ArmAddress
 
 /* An immediate value */
