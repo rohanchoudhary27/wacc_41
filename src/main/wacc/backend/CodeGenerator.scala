@@ -3,7 +3,7 @@ package wacc.backend
 import scala.collection.mutable.ListBuffer
 import wacc.backend.RegisterAllocator.AllocationResult
 
-class GlobalContext {
+class GlobalGenContext {
     private var labelCounter = 0
     private val dataDirectives = ListBuffer[ArmDataDirective]()
 
@@ -37,7 +37,7 @@ class GlobalContext {
   *
   * @param alloc the register allocation map (VirtualReg -> Location)
   */
-class GenState(val global: GlobalContext, val alloc: Map[VirtualReg, Location]) {
+class GenState(val global: GlobalGenContext, val alloc: Map[VirtualReg, Location]) {
 
     /* Program instructions (.text) */
     private val instrs = ListBuffer[ArmInstruction]()
@@ -85,7 +85,7 @@ object CodeGenerator {
     def generate(regProgram: RegProgram, allocs: AllocationResult): ArmProgram = {
 
         /* Init global context for directives and labels and populate directives */
-        val globalCtx = new GlobalContext()
+        val globalCtx = new GlobalGenContext()
         regProgram.data.foreach {dir => globalCtx.addStringConstant(dir.storedValue)}
 
         /* New `GenState` for the current function (main function) */
@@ -111,10 +111,10 @@ object CodeGenerator {
       * @param alloc the register allocation map for this function
       * @return the low-level ARM instruction list
       */
-    def generateFunc(func: FunctionDef, alloc: Map[VirtualReg, Location], ctx: GlobalContext): List[ArmInstruction] = {
+    def generateFunc(func: FunctionDef, alloc: Map[VirtualReg, Location], ctx: GlobalGenContext): List[ArmInstruction] = {
         given st: GenState = GenState(ctx, alloc)
         
-        // Function label
+        // Function labeil
         emit(ArmLabelDef(ArmAddrLabel(func.name)))
         
         // TODO: Prologue

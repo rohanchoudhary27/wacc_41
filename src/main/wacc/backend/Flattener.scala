@@ -9,7 +9,7 @@ import wacc.ExitCodes.*
   * A state class managing the virtual register allocation and instructions that make up
   * a function. The main body of a WACC program is treated as a 'main' function.
   */
-class FunctionContext(
+class FunctionState(
 ) {
 
     /* A renamed variable from the AST. While the AST has this information already in
@@ -87,7 +87,7 @@ class FunctionContext(
 /**
   * State class for managing directives.
   */
-class GlobalContext(
+class GlobalFlattenContext(
 ) {
     private val directives = ListBuffer[DataDirective]()
 
@@ -158,8 +158,8 @@ object Flattener {
         val Program(funcs, stmt, _) = typedAST
 
         /* Initialise contexts */
-        given funcState: FunctionContext = FunctionContext()
-        given directiveState: GlobalContext= GlobalContext()
+        given funcState: FunctionState = FunctionState()
+        given directiveState: GlobalFlattenContext = GlobalFlattenContext()
 
         /* Flatten the main statement which populates the funcState
            instructions buffer */
@@ -180,8 +180,8 @@ object Flattener {
       * @return the list of high level IR instructions
       */
     private def flattenStmt(typedStmt: Stmt[SemanticData])
-                            (using funcState: FunctionContext,
-                                   directiveState: GlobalContext): Unit = ???
+                            (using funcState: FunctionState,
+                                   directiveState: GlobalFlattenContext): Unit = ???
 
     /**
       * Flattens a function AST node. Internally, it creates its own `ListBuffer[Instruction]`
@@ -191,10 +191,10 @@ object Flattener {
       * @return a `FunctionDef` high level IR object
       */
     private def flattenFunc(typedFunc: Func[SemanticData])
-                           (using directiveState: GlobalContext): FunctionDef = {
+                           (using directiveState: GlobalFlattenContext): FunctionDef = {
 
-        /* Create a fresh function context */
-        given funcContext: FunctionContext = FunctionContext()
+        /* Create a fresh function state */
+        given funcContext: FunctionState = FunctionState()
 
         ???
     }
