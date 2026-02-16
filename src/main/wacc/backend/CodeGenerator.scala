@@ -267,7 +267,7 @@ object CodeGenerator {
         case LabelDef(label) => emit(ArmLabelDef(ArmAddrLabel(label.name)))
         
         /* Function calls */
-        case Call(label, args, destOpt) => ??? // TODO
+        case Call(label, args, destOpt) => generateCall(label, args, destOpt)
         case Ret => emit(ArmRet)
         
         /* Stack operations */
@@ -317,5 +317,42 @@ object CodeGenerator {
 
         /* Store `src` in the destination location (register/stack) */
         storeToLoc(tempReg, locOf(dest), dest.size)
+    }
+
+    /**
+      * Generate the low level IR for a Call high level IR instruction
+      *
+      * @param label The label of the function
+      * @param args The argument virtual registers to the function
+      * @param destOpt The register that the return value is expected
+      */
+    private def generateCall(label: Label,
+                             args: List[VirtualReg],
+                             destOpt: Option[VirtualReg])
+                             (using GenState) = {
+
+        /* For each function argument */
+        args.zipWithIndex.foreach { case (argVReg, index) =>
+
+            /* Get the physical register of the current argument */
+            val targetReg = PhysicalReg.argRegisters(index)
+            
+            /* Move out of a stack slot into a scratch register */
+            val valReg = loadToReg(locOf(argVReg), Size.W, PhysicalReg.ipcScratch(0))
+            
+            /* Move the ith argument into the wi */
+            if (valReg != targetReg) {
+                emit(ArmMovReg(Size.W, targetReg, valReg))
+            }
+        }
+
+        /* Branch to the function */
+        emit(ArmBl(ArmAddrLabel(label.name)))
+
+        /* Move the function return value to the expected register */
+        destOpt.foreach { dest =>
+            val resultReg = PhysicalReg.argRegisters(0) 
+            storeToLoc(resultReg, locOf(dest), dest.size)
+        }
     }
 }
