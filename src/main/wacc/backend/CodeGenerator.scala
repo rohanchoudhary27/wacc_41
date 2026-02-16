@@ -125,10 +125,24 @@ object CodeGenerator {
         // Function label
         emit(ArmLabelDef(ArmAddrLabel(func.name)))
         
-        // TODO: Prologue
-        // TODO: Body
+        // Function prologue
+        emit(ArmStorePair(Size.X,
+                         PhysicalReg.framePointer,
+                         PhysicalReg.linkReg,
+                         ArmAddrPreIndex(PhysicalReg.stackPointer, ArmImmediate(-16))))
+
+        emit(ArmMovReg(Size.X, PhysicalReg.framePointer, PhysicalReg.stackPointer))
+
+        // Function body
         generateInstrs(func.body)
-        // TODO: Epilogue
+
+        // Function epilogue
+        emit(ArmStorePair(Size.X,
+                          PhysicalReg.framePointer,
+                          PhysicalReg.linkReg, 
+                          ArmAddrPostIndex(PhysicalReg.stackPointer, ArmImmediate(16))))
+    
+        emit(ArmRet)
         
         st.finalInstrs
     }
