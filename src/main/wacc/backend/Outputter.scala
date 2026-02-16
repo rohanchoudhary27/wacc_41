@@ -83,7 +83,8 @@ object Outputter {
         
         /* Data Movement */
         case ArmMovReg(size, dest, src) => ???
-        case ArmMovImm(size, dest, imm) => ???
+        case ArmMovImm(size, dest, imm) => 
+            indented(s"mov ${formatReg(dest, size)}, ${formatImmediate(imm)}")
         case ArmMovKeep(size, dest, imm, shift) => ???
         case ArmLoad(size, dest, addr) => ???
         case ArmStore(size, src, addr) => ???
@@ -94,11 +95,11 @@ object Outputter {
         case ArmCmpImm(size, src1, imm) => ???
         
         /* Control Flow */
-        case ArmBranchUncond(label) => ???
-        case ArmBranchCond(cond, label) => ???
-        case ArmLabelDef(label) => ???
-        case ArmBl(label) => ???
-        case ArmRet => ???
+        case ArmBranchUncond(label) => indented(s"b ${label.name}")
+        case ArmBranchCond(cond, label) => indented(s"b${formatCondition(cond)} ${label.name}")
+        case ArmLabelDef(label) => s"${label.name}:\n"
+        case ArmBl(label) => indented(s"bl ${label.name}")
+        case ArmRet => indented("ret")
         
         /* Stack Operations */
         case ArmPushTwo(size, src1, src2) => ???
@@ -111,5 +112,36 @@ object Outputter {
         case ArmSxtw(dest, src) => ???
         case ArmCbz(size, reg, label) => ???
         case ArmCbnz(size, reg, label) => ???
+    }
+
+    /* ========== Formatting Helpers ========== */
+    
+    /** Wrap an instruction string with indentation and newline */
+    private def indented(s: String): String = s"${INDENT}${s}\n"
+    
+    /** Format a register with the appropriate size prefix */
+    private def formatReg(reg: PhysicalReg, size: Size): String = {
+        reg.index match {
+            case 31 => if (size == Size.X) then "sp" else "wsp"
+            case 30 => "lr"
+            case 29 => "fp"
+            case _ => size match {
+                case Size.X => s"x${reg.index}"
+                case _ => s"w${reg.index}"
+            }
+        }
+    }
+
+    /** Format an immediate value */
+    private def formatImmediate(imm: ArmImmediate): String = s"#${imm.value}"
+    
+    /** Format a condition code */
+    private def formatCondition(cond: Condition): String = cond match {
+        case Condition.EQ => "eq"
+        case Condition.NE => "ne"
+        case Condition.LT => "lt"
+        case Condition.LE => "le"
+        case Condition.GT => "gt"
+        case Condition.GE => "ge"
     }
 }
