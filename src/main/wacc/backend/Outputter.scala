@@ -102,8 +102,8 @@ object Outputter {
         case ArmRet => indented("ret")
         
         /* Stack Operations */
-        case ArmPushTwo(size, src1, src2) => ???
-        case ArmPopTwo(size, dest1, dest2) => ???
+        case ArmStorePair(size, src1, src2, addr) => ???
+        case ArmLoadPair(size, dest1, dest2, addr) => ???
         
         /* Special Instructions */
         case ArmMSub(size, dest, mult1, mult2, sub) => ???

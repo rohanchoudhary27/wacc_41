@@ -120,8 +120,15 @@ case class ArmBl(label: ArmAddrLabel) extends ArmInstruction
 case object ArmRet extends ArmInstruction
 
 /* Stack operations */
-case class ArmPushTwo(size: Size, src1: PhysicalReg, src2: PhysicalReg) extends ArmInstruction
-case class ArmPopTwo(size: Size, dest1: PhysicalReg, dest2: PhysicalReg) extends ArmInstruction
+case class ArmStorePair(size: Size, 
+                        src1: PhysicalReg, 
+                        src2: PhysicalReg, 
+                        addr: ArmAddress) extends ArmInstruction
+
+case class ArmLoadPair(size: Size, 
+                       dest1: PhysicalReg, 
+                       dest2: PhysicalReg, 
+                       addr: ArmAddress) extends ArmInstruction
 
 /* Alias instructions (real aarch64 but they're convenient wrappers
    over multiple other aarch64 instructions */
