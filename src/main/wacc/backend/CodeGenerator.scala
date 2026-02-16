@@ -227,9 +227,10 @@ object CodeGenerator {
       * Generate ARM instructions for a single high-level instruction.
       * Pattern matches on all instruction types and delegates to specific handlers.
       */
-    private def generateInstr(instr: Instruction)(using GenState): Unit = (instr: @unchecked) match {
+    private def generateInstr(instr: Instruction)(using genState: GenState): Unit = (instr: @unchecked) match {
         /* Data movement */
-        case Mov(dest, src) => ??? // TODO
+        
+        case Mov(dest, src) => generateMov(dest, src)
         case Load(dest, addr) => ??? // TODO
         case Store(src, addr) => ??? // TODO
         
@@ -287,5 +288,34 @@ object CodeGenerator {
         /* Special operations */
         case Lea(dest, label) => ??? // TODO
         case SignExtend(dest, src) => ??? // TODO
+    }
+
+    /**
+      * Generate the low level IR for a MOV high level IR instruction
+      *
+      * @param dest The destination virtual address of the MOV
+      * @param src The source virtual address of the MOV
+      */
+    private def generateMov(dest: VirtualReg, src: Operand)(using GenState) = {
+
+        /* Get the source value in a scratch register */
+        val tempReg = src match {
+
+            /* Move from stack to scratch register (or return the physical register if it
+               is already in one) */
+            case srcVReg: VirtualReg =>
+                loadToReg(locOf(srcVReg), dest.size, PhysicalReg.ipcScratch(0))
+
+            /* Move an immediate to scratch */
+            case Immediate(value) =>
+                val scratch = PhysicalReg.ipcScratch(0)
+                emit(ArmMovImm(dest.size, scratch, ArmImmediate(value))) 
+                scratch
+
+            case Label(name) => ???
+        }
+
+        /* Store `src` in the destination location (register/stack) */
+        storeToLoc(tempReg, locOf(dest), dest.size)
     }
 }
