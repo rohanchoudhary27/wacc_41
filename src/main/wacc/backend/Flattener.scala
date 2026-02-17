@@ -218,8 +218,8 @@ object Flattener {
     private def flattenExit(expr: Expr[SemanticData])
                            (using funcState: FunctionState,
                                   directiveState: GlobalFlattenContext) = {
-        val exitCodeReg = toReg(flattenExpr(expr))
-        val callInstr = wacc.backend.Call(Label("exit"), List(exitCodeReg), None)
+        val exitCode = flattenExpr(expr)
+        val callInstr = wacc.backend.Call(Label("exit"), List(exitCode), None)
         funcState.emitInstruction(callInstr)
     }
                                    

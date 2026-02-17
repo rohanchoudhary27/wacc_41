@@ -350,26 +350,36 @@ object CodeGenerator {
       * Generate the low level IR for a Call high level IR instruction
       *
       * @param label The label of the function
-      * @param args The argument virtual registers to the function
+      * @param args The argument operands to the function
       * @param destOpt The register that the return value is expected
       */
     private def generateCall(label: Label,
-                             args: List[VirtualReg],
+                             args: List[Operand],
                              destOpt: Option[VirtualReg])
                              (using GenState) = {
 
         /* For each function argument */
-        args.zipWithIndex.foreach { case (argVReg, index) =>
+        args.zipWithIndex.foreach { case (arg, index) =>
 
             /* Get the physical register of the current argument */
             val targetReg = PhysicalReg.argRegisters(index)
             
-            /* Move out of a stack slot into a scratch register */
-            val valReg = loadToReg(locOf(argVReg), Size.W, PhysicalReg.ipcScratch(0))
-            
-            /* Move the ith argument into the wi */
-            if (valReg != targetReg) {
-                emit(ArmMovReg(Size.W, targetReg, valReg))
+            /* Get the value in the target register */
+            arg match {
+                case argVReg: VirtualReg =>
+                    /* Move out of a stack slot into a scratch register */
+                    val valReg = loadToReg(locOf(argVReg), Size.W, PhysicalReg.ipcScratch(0))
+                    
+                    /* Move the ith argument into the wi */
+                    if (valReg != targetReg) {
+                        emit(ArmMovReg(Size.W, targetReg, valReg))
+                    }
+                
+                case Immediate(value) =>
+                    /* Move the immediate directly to the argument register */
+                    emit(ArmMovImm(Size.W, targetReg, ArmImmediate(value)))
+                
+                case Label(name) => ???
             }
         }
 
