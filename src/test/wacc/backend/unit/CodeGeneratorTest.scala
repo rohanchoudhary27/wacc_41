@@ -15,7 +15,8 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
                             alloc: Map[VirtualReg, Location] = Map.empty): ArmProgram = {
         val prog = RegProgram(List.empty, List.empty, body)
         val allocResult = AllocationResult(alloc, Map.empty)
-        CodeGenerator.generate(prog, allocResult)
+        val (armProg, _) = CodeGenerator.generate(prog, allocResult)
+        armProg
     }
 
     /** Scratch register 0 used by the code generator */
@@ -200,7 +201,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
             List(Call(Label("exit"), List(Immediate(7)), None))
         )
         val alloc = RegisterAllocator.allocate(prog)
-        val armProg = CodeGenerator.generate(prog, alloc)
+        val (armProg, _) = CodeGenerator.generate(prog, alloc)
 
         /* Should contain: main label, prologue (stp, mov fp), mov w0 #7, bl exit, epilogue (ldp) */
         armProg.body should contain (ArmLabelDef(ArmAddrLabel("main")))

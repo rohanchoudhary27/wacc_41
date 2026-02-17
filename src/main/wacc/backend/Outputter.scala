@@ -30,10 +30,6 @@ object Outputter {
         sb ++= ".global main\n"
         prog.body.foreach(i => sb ++= emitInstruction(i))
         
-        /* Runtime library widgets */
-        sb ++= "\n// Runtime Library\n"
-        sb ++= CodeGenerator.getWidgetAssembly
-        
         sb.toString
     }
 

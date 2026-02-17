@@ -11,9 +11,12 @@ import wacc.ExitCodes._
 class GlobalGenContext {
     private var labelCounter = 0
     private val dataDirectives = ListBuffer[ArmDataDirective]()
-
+    
     /** Get the final directive list */
     def finalDirectives: List[ArmDataDirective] = dataDirectives.toList
+
+    /** Widget management */
+    val dispatcher = RuntimeLibraryDispatcher()
 
     /** Generate a fresh unique label for compiler-generated code */
     def freshLabel(): ArmAddrLabel = {
@@ -65,7 +68,7 @@ class GenState(val global: GlobalGenContext, val alloc: Map[VirtualReg, Location
   * Register allocation happens externally and is passed in via the alloc parameter.
   */
 object CodeGenerator {
-    
+
     /** Emit a single instruction to the output */
     private def emit(instr: ArmInstruction)(using st: GenState): Unit = 
         st += instr
@@ -73,15 +76,12 @@ object CodeGenerator {
     /** Look up the location of a virtual register */
     private def locOf(vReg: VirtualReg)(using st: GenState): Location = 
         st.alloc(vReg)
-
-    /** Widget management */
-    private val dispatcher = RuntimeLibraryDispatcher()
     
     /** Mark a widget as used (will be included in final assembly) */
-    def useWidget(widget: Widget): Unit = dispatcher.use(widget)
+    def useWidget(widget: Widget)(using st: GenState): Unit = st.global.dispatcher.use(widget)
     
     /** Get all collected widget assembly */
-    def getWidgetAssembly: String = dispatcher.getCollectedAssembly
+    def getWidgetAssembly()(using st: GenState): String = st.global.dispatcher.getCollectedAssembly
 
     /**
       * Generate Low-Level IR for the program.
@@ -90,7 +90,8 @@ object CodeGenerator {
       * @param allocs the register allocation result containing maps for main and all functions
       * @return the complete ARM program with data section and text section
       */
-    def generate(regProgram: RegProgram, allocs: AllocationResult): ArmProgram = {
+    def generate(regProgram: RegProgram,
+                 allocs: AllocationResult): (ArmProgram, RuntimeLibraryDispatcher) = {
 
         /* Init global context for directives and labels and populate directives */
         val globalCtx = new GlobalGenContext()
@@ -113,8 +114,10 @@ object CodeGenerator {
                        ArmImmediate(code(Success))))
         generateFuncEpilogue()
 
-        /* Return the final low-level IR for the program */
-        ArmProgram(globalCtx.finalDirectives, st.finalInstrs)
+        /* Final low-level IR for the program */
+        val program = ArmProgram(globalCtx.finalDirectives, st.finalInstrs)
+
+        (program, globalCtx.dispatcher)
     }
 
     /**
@@ -355,7 +358,7 @@ object CodeGenerator {
       *
       * @param label The name of the label which might match a clib widget function
       */
-    private def enableFunctionWidget(label: Label): Unit = {
+    private def enableFunctionWidget(label: Label)(using st: GenState): Unit = {
         label.name match {
             case "_printi" => useWidget(PrintIntWidget)
             case "_printb" => useWidget(PrintBoolWidget)

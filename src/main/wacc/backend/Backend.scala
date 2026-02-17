@@ -28,11 +28,9 @@ object WaccBackend {
             val registerAllocation: RegisterAllocator.AllocationResult = 
                 RegisterAllocator.allocate(highLevelIR)
 
-            /* Widget dispatcher for pre-written assembly routines */
-            val runtimeDispatcher = new RuntimeLibraryDispatcher()
-
             /* Phase 3 - Code Generation */
-            val lowLevelIR: ArmProgram = CodeGenerator.generate(highLevelIR, registerAllocation)
+            val (lowLevelIR, runtimeDispatcher) =
+                CodeGenerator.generate(highLevelIR, registerAllocation)
 
             /* Phase 4 - Printer */
             val assemblyMain: String = Outputter.emit(lowLevelIR)
