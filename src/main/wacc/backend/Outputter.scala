@@ -88,7 +88,7 @@ object Outputter {
         case ArmMovKeep(size, dest, imm, shift) => ???
         case ArmLoad(size, dest, addr) => emitMemOp("ldr", size, dest, addr)
         case ArmStore(size, src, addr) => emitMemOp("str", size, src, addr)
-        case ArmLea(dest, label) => ???
+        case ArmLea(dest, label) => emitLea(dest, label)
         
         /* Comparison */
         case ArmCmpReg(size, src1, src2) => emitCompare(size, src1, src2)
@@ -157,6 +157,12 @@ object Outputter {
     private def emitMemOp(op: String, size: Size, reg: PhysicalReg, addr: ArmAddress): String =
         indented(s"${op} ${formatReg(reg, size)}, ${formatAddress(addr)}")
 
+    /** Emit a Lea (load effective address) instruction */
+    private def emitLea(reg: PhysicalReg, label: ArmAddress): String = {
+        indented(s"adrp ${formatReg(reg, Size.X)}, ${formatAddress(label)}") +
+        indented(s"add ${formatReg(reg, Size.X)}, ${formatReg(reg, Size.X)}, :lo12:${{formatAddress(label)}}")
+    }
+
     /* ========== Formatting Helpers ========== */
     
     /** Wrap an instruction string with indentation and newline */
@@ -197,7 +203,7 @@ object Outputter {
             s"[${formatReg(baseAddr, Size.X)}, ${{formatImmediate(immOffset)}}]!"
             
         case ArmAddrLabel(name) => 
-            s"=$name"
+            s"$name"
     }
     
     /** Format a condition code */

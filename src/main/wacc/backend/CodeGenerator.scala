@@ -29,7 +29,7 @@ class GlobalGenContext {
       * @return An `ArmAddrLabel` to the directive
       */
     def addStringConstant(str: String): ArmAddrLabel = {
-        val labelName = s".msg_$labelCounter"
+        val labelName = s".string_$labelCounter"
         labelCounter += 1
         val label = ArmAddrLabel(labelName)
         dataDirectives += ArmDataDirective(label, str)
@@ -405,7 +405,11 @@ object CodeGenerator {
                     /* Move the immediate directly to the argument register */
                     emit(ArmMovImm(Size.W, targetReg, ArmImmediate(value)))
                 
-                case Label(name) => ???
+                case Label(name) => {
+                    /* Move the label (string directive in this case) to
+                       the argument register */
+                    emit(ArmLea(targetReg, ArmAddrLabel(name)))
+                }
             }
         }
 

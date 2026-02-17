@@ -265,6 +265,7 @@ object Flattener {
         case IntLiter(value, _) => Immediate(value)
         case BoolLiter(value, _) => Immediate(if value then 1 else 0)
         case CharLiter(value, _) => Immediate(value)
+        case StrLiter(value, _) => directiveState.addString(value)
         case _ => ???
                                   
     /**
