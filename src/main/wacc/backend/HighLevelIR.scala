@@ -104,7 +104,7 @@ case class Load(destReg: VirtualReg, source: Address) extends Instruction
 case class Store(destReg: VirtualReg, source: Address) extends Instruction
 
 /* Function instructions */
-case class Call(label: Label, args: List[VirtualReg], dest: Option[VirtualReg]) extends Instruction
+case class Call(label: Label, args: List[Operand], dest: Option[VirtualReg]) extends Instruction
 case object Ret extends Instruction
 
 /* Stack instructions */

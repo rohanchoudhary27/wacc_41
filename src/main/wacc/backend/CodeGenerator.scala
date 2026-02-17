@@ -105,12 +105,38 @@ object CodeGenerator {
 
         /* Emit code for the main function */
         emit(ArmLabelDef(ArmAddrLabel("main")))
+
+        generateFuncPrologue()
         generateInstrs(regProgram.body)
+        generateFuncEpilogue()
 
         /* Return the final low-level IR for the program */
         ArmProgram(globalCtx.finalDirectives, st.finalInstrs)
     }
+
+    /**
+      * Generate low level IR for the function prologue (saving the return addr to the link
+      * register and setting the frame pointer)
+      */
+    private def generateFuncPrologue()(using GenState) = {
+        emit(ArmStorePair(Size.X,
+                         PhysicalReg.framePointer,
+                         PhysicalReg.linkReg,
+                         ArmAddrPreIndex(PhysicalReg.stackPointer, ArmImmediate(-16))))
+        emit(ArmMovReg(Size.X, PhysicalReg.framePointer, PhysicalReg.stackPointer))
+    }
     
+    /**
+      * Generate low level IR for the function epilogue (restoring the link and
+      * frame pointer registers)
+      */
+    private def generateFuncEpilogue()(using GenState) = {
+        emit(ArmLoadPair(Size.X,
+                          PhysicalReg.framePointer,
+                          PhysicalReg.linkReg, 
+                          ArmAddrPostIndex(PhysicalReg.stackPointer, ArmImmediate(16))))
+    }
+
     /**
       * Generate Low-Level IR for a function definition.
       * 
@@ -125,10 +151,11 @@ object CodeGenerator {
         // Function label
         emit(ArmLabelDef(ArmAddrLabel(func.name)))
         
-        // TODO: Prologue
-        // TODO: Body
+        generateFuncPrologue()
         generateInstrs(func.body)
-        // TODO: Epilogue
+        generateFuncEpilogue()
+   
+        emit(ArmRet)
         
         st.finalInstrs
     }
@@ -227,9 +254,10 @@ object CodeGenerator {
       * Generate ARM instructions for a single high-level instruction.
       * Pattern matches on all instruction types and delegates to specific handlers.
       */
-    private def generateInstr(instr: Instruction)(using GenState): Unit = (instr: @unchecked) match {
+    private def generateInstr(instr: Instruction)(using genState: GenState): Unit = (instr: @unchecked) match {
         /* Data movement */
-        case Mov(dest, src) => ??? // TODO
+        
+        case Mov(dest, src) => generateMov(dest, src)
         case Load(dest, addr) => ??? // TODO
         case Store(src, addr) => ??? // TODO
         
@@ -266,7 +294,7 @@ object CodeGenerator {
         case LabelDef(label) => emit(ArmLabelDef(ArmAddrLabel(label.name)))
         
         /* Function calls */
-        case Call(label, args, destOpt) => ??? // TODO
+        case Call(label, args, destOpt) => generateCall(label, args, destOpt)
         case Ret => emit(ArmRet)
         
         /* Stack operations */
@@ -287,5 +315,81 @@ object CodeGenerator {
         /* Special operations */
         case Lea(dest, label) => ??? // TODO
         case SignExtend(dest, src) => ??? // TODO
+    }
+
+    /**
+      * Generate the low level IR for a MOV high level IR instruction
+      *
+      * @param dest The destination virtual address of the MOV
+      * @param src The source virtual address of the MOV
+      */
+    private def generateMov(dest: VirtualReg, src: Operand)(using GenState) = {
+
+        /* Get the source value in a scratch register */
+        val tempReg = src match {
+
+            /* Move from stack to scratch register (or return the physical register if it
+               is already in one) */
+            case srcVReg: VirtualReg =>
+                loadToReg(locOf(srcVReg), dest.size, PhysicalReg.ipcScratch(0))
+
+            /* Move an immediate to scratch */
+            case Immediate(value) =>
+                val scratch = PhysicalReg.ipcScratch(0)
+                emit(ArmMovImm(dest.size, scratch, ArmImmediate(value))) 
+                scratch
+
+            case Label(name) => ???
+        }
+
+        /* Store `src` in the destination location (register/stack) */
+        storeToLoc(tempReg, locOf(dest), dest.size)
+    }
+
+    /**
+      * Generate the low level IR for a Call high level IR instruction
+      *
+      * @param label The label of the function
+      * @param args The argument operands to the function
+      * @param destOpt The register that the return value is expected
+      */
+    private def generateCall(label: Label,
+                             args: List[Operand],
+                             destOpt: Option[VirtualReg])
+                             (using GenState) = {
+
+        /* For each function argument */
+        args.zipWithIndex.foreach { case (arg, index) =>
+
+            /* Get the physical register of the current argument */
+            val targetReg = PhysicalReg.argRegisters(index)
+            
+            /* Get the value in the target register */
+            arg match {
+                case argVReg: VirtualReg =>
+                    /* Move out of a stack slot into a scratch register */
+                    val valReg = loadToReg(locOf(argVReg), Size.W, PhysicalReg.ipcScratch(0))
+                    
+                    /* Move the ith argument into the wi */
+                    if (valReg != targetReg) {
+                        emit(ArmMovReg(Size.W, targetReg, valReg))
+                    }
+                
+                case Immediate(value) =>
+                    /* Move the immediate directly to the argument register */
+                    emit(ArmMovImm(Size.W, targetReg, ArmImmediate(value)))
+                
+                case Label(name) => ???
+            }
+        }
+
+        /* Branch to the function */
+        emit(ArmBl(ArmAddrLabel(label.name)))
+
+        /* Move the function return value to the expected register */
+        destOpt.foreach { dest =>
+            val resultReg = PhysicalReg.argRegisters(0) 
+            storeToLoc(resultReg, locOf(dest), dest.size)
+        }
     }
 }
