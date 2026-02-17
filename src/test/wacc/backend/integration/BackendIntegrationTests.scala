@@ -9,6 +9,8 @@ import wacc.*
 import wacc.ExitCodes._
 import wacc.integration.WaccIntegrationTestBase
 import scala.sys.process.*
+import wacc.backend.WaccBackend
+import scala.sys.process._
 
 /**
  * Represents test metadata extracted from test files 
@@ -78,11 +80,19 @@ object BackendAdapter extends AnyFlatSpec {
      * @param destination the output assembly path
      */
     private def generateAssembly(source: Path, destination: Path): Int = {
-        // TODO: we should replace this with .compile(source, destination) in the future
-        // for now tho write a dummy assembly
-        val mockAsm = ".text\n.global main\nmain:\n\tmov w0, #0\n\tret"
-        Files.writeString(destination, mockAsm)
-        0 // TODO: we return the exit code in the future
+        val frontendRes = wacc.frontend.WaccFrontend.run(source)
+
+        frontendRes.exitCode match {
+            case ExitCodes.Success =>
+                val backendRes = wacc.backend.WaccBackend.run(
+                    frontendRes.typedAST.get,
+                    destination.toString
+                )
+                code(backendRes.exitCode)
+
+            case failureCode => 
+                code(failureCode)
+        }
     }
 
     /**
@@ -102,7 +112,15 @@ object BackendAdapter extends AnyFlatSpec {
             "-march=armv8-a",
             asmPath.toString
         )
-        cmd.! // Returns exit code
+        
+        // Create a logger that prints stderr to the console
+        val logger = ProcessLogger(
+            (o: String) => println(s"[GCC OUT]: $o"),
+            (e: String) => println(s"[GCC ERR]: $e")
+        )
+        
+        // Run with the logger
+        cmd ! logger 
     }
 
     /**
