@@ -171,4 +171,23 @@ class OutputterTest extends AnyFlatSpec with Matchers {
 
         output should not include (".data")
     }
+
+    "Outputter for print" should "include the correct print widget" in {
+
+        val prog = ArmProgram(
+            List.empty,
+            List(
+                ArmLabelDef(ArmAddrLabel("main")), 
+                ArmBl(ArmAddrLabel("_printi")), 
+                ArmRet
+            )
+        )
+
+        val mainOutput = Outputter.emit(prog)
+        val widgetOutput = PrintIntWidget.source
+        val fullOutput = s"$mainOutput\n\n$widgetOutput"
+
+        fullOutput should include ("_printi:") // check for label
+        fullOutput should include ("bl printf") // check for implementation detail
+    }
 }
