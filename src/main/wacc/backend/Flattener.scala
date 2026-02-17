@@ -203,6 +203,7 @@ object Flattener {
         case Stmt.Block(stmts, _) => stmts.foreach(flattenStmt)
         case Stmt.Exit(expr, _) => flattenExit(expr)
         case Stmt.Print(expr, _) => flattenPrint(expr)
+        case Stmt.Println(expr, _) => flattenPrintln(expr)
         case _ => {
             println(typedStmt)
             ???
@@ -249,6 +250,27 @@ object Flattener {
         val callInstr = wacc.backend.Call(Label(printWidget.label), List(printVal), None)
         funcState.emitInstruction(callInstr)
                                     
+    }
+
+    /**
+      * Flatten a Println AST node, emitting a Call node to the right print widget
+      * with a new line
+      *
+      * @param expr The expression to be printed
+      * @param funcState The current scope function state
+      * @param directiveState The global directive state
+      */
+    private def flattenPrintln(expr: Expr[SemanticData])
+                              (using funcState: FunctionState,
+                                     directiveState: GlobalFlattenContext) = {
+
+        /* Flatten to the type specific print function */
+        flattenPrint(expr) 
+
+        /* Call println which will just print a new line char */
+        val printlnCall = wacc.backend.Call(Label("_println"), List(), None)
+    
+        funcState.emitInstruction(printlnCall)
     }
 
     /**
