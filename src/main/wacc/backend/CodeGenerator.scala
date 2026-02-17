@@ -25,11 +25,11 @@ class GlobalGenContext {
     /**
       * Add a string constant to the data directives
       *
+      * @param labelName The name of the label for the string to be stored
       * @param str The string to store
       * @return An `ArmAddrLabel` to the directive
       */
-    def addStringConstant(str: String): ArmAddrLabel = {
-        val labelName = s".string_$labelCounter"
+    def addStringConstant(labelName: String, str: String): ArmAddrLabel = {
         labelCounter += 1
         val label = ArmAddrLabel(labelName)
         dataDirectives += ArmDataDirective(label, str)
@@ -94,7 +94,7 @@ object CodeGenerator {
 
         /* Init global context for directives and labels and populate directives */
         val globalCtx = new GlobalGenContext()
-        regProgram.data.foreach {dir => globalCtx.addStringConstant(dir.storedValue)}
+        regProgram.data.foreach {dir => globalCtx.addStringConstant(dir.label.name, dir.storedValue)}
 
         /* GenState for the entire program (accumulates all functions and main) */
         given st: GenState = GenState(globalCtx, allocs.mainAlloc)
