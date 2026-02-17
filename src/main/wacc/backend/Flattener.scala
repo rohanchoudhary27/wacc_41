@@ -202,6 +202,7 @@ object Flattener {
 
         case Stmt.Block(stmts, _) => stmts.foreach(flattenStmt)
         case Stmt.Exit(expr, _) => flattenExit(expr)
+        case Stmt.Print(expr, _) => flattenPrint(expr)
         case _ => {
             println(typedStmt)
             ???
@@ -222,11 +223,48 @@ object Flattener {
         val callInstr = wacc.backend.Call(Label("exit"), List(exitCode), None)
         funcState.emitInstruction(callInstr)
     }
-                                   
+
+    /**
+      * Flatten a Print AST node, emitting a Call node to the right print widget
+      *
+      * @param expr The expression to be printed
+      * @param funcState The current scope function state
+      * @param directiveState The global directive state
+      */
+    private def flattenPrint(expr: Expr[SemanticData])
+                            (using funcState: FunctionState,
+                                   directiveState: GlobalFlattenContext) = {
+
+        val printVal = flattenExpr(expr)
+
+        val SemanticData.Typed(_, semType) = expr.info
+
+        val printWidget: Widget = semType match
+            case wacc.frontend.KnownType.Int =>  PrintIntWidget
+            case KnownType.Bool => PrintBoolWidget
+            case wacc.frontend.KnownType.Char => PrintCharWidget
+            case wacc.frontend.KnownType.String => PrintStringWidget
+        
+
+        val callInstr = wacc.backend.Call(Label(printWidget.label), List(printVal), None)
+        funcState.emitInstruction(callInstr)
+                                    
+    }
+
+    /**
+      * Flatten an Expr AST node to an Operand
+      *
+      * @param typedExpr The expr to flatten
+      * @param funcState The current scope function state
+      * @param directiveState The global directive state
+      * @return The flattened Operand
+      */
     private def flattenExpr(typedExpr: Expr[SemanticData])
                            (using funcState: FunctionState,
                                   directiveState: GlobalFlattenContext): Operand = typedExpr match
         case IntLiter(value, _) => Immediate(value)
+        case BoolLiter(value, _) => Immediate(if value then 1 else 0)
+        case CharLiter(value, _) => Immediate(value)
         case _ => ???
                                   
     /**
