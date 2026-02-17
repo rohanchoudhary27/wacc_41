@@ -2,8 +2,9 @@ package wacc.backend.unit
 
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.flatspec.AnyFlatSpec
-import wacc.backend.{Flattener, Call as IRCall, Label, Immediate, Mov}
-import wacc.frontend.{SemanticData, IntLiter, Stmt, Program}
+import wacc.backend.{Flattener, Call as IRCall, Print as IRPrint, Label, Immediate, Mov, DataDirective,
+                     PrintCharWidget, PrintIntWidget, PrintBoolWidget, PrintStringWidget}
+import wacc.frontend.*
 
 /**
   * Unit tests for the Flattener
@@ -15,11 +16,12 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         Program(List.empty, stmt, SemanticData.Pos((0, 0)))
 
     /** Dummy position annotation */
-    private val pos: SemanticData = SemanticData.Pos((1, 1))
+    val synPos = SyntacticData.Pos(0, 0)
+    val semPos = synPos.toSemanticPos
 
-    "Flattener" should "flatten exit with int literal to a Call instruction" in {
+    "The flattener for exit" should "flatten with int literal to a Call instruction" in {
         val ast = programWith(
-            Stmt.Exit(IntLiter(7, pos), pos)
+            Stmt.Exit(IntLiter(7, semPos), semPos)
         )
         val result = Flattener.flatten(ast)
 
@@ -38,7 +40,7 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
 
     it should "flatten exit with zero exit code" in {
         val ast = programWith(
-            Stmt.Exit(IntLiter(0, pos), pos)
+            Stmt.Exit(IntLiter(0, semPos), semPos)
         )
         val result = Flattener.flatten(ast)
 
@@ -51,7 +53,7 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
 
     it should "flatten exit with negative exit code" in {
         val ast = programWith(
-            Stmt.Exit(IntLiter(-1, pos), pos)
+            Stmt.Exit(IntLiter(-1, semPos), semPos)
         )
         val result = Flattener.flatten(ast)
 
@@ -64,7 +66,7 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
 
     it should "flatten exit with large exit code" in {
         val ast = programWith(
-            Stmt.Exit(IntLiter(256, pos), pos)
+            Stmt.Exit(IntLiter(256, semPos), semPos)
         )
         val result = Flattener.flatten(ast)
 
@@ -78,8 +80,8 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
     it should "flatten a block containing an exit statement" in {
         val ast = programWith(
             Stmt.Block(List(
-                Stmt.Exit(IntLiter(42, pos), pos)
-            ), pos)
+                Stmt.Exit(IntLiter(42, semPos), semPos)
+            ), semPos)
         )
         val result = Flattener.flatten(ast)
 
@@ -96,9 +98,9 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         val ast = programWith(
             Stmt.Block(List(
                 Stmt.Block(List(
-                    Stmt.Exit(IntLiter(99, pos), pos)
-                ), pos)
-            ), pos)
+                    Stmt.Exit(IntLiter(99, semPos), semPos)
+                ), semPos)
+            ), semPos)
         )
         val result = Flattener.flatten(ast)
 
@@ -111,7 +113,7 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
 
     it should "produce no data directives for a simple exit" in {
         val ast = programWith(
-            Stmt.Exit(IntLiter(0, pos), pos)
+            Stmt.Exit(IntLiter(0, semPos), semPos)
         )
         val result = Flattener.flatten(ast)
 
@@ -120,16 +122,16 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
 
     it should "produce no function definitions for a simple exit" in {
         val ast = programWith(
-            Stmt.Exit(IntLiter(0, pos), pos)
+            Stmt.Exit(IntLiter(0, semPos), semPos)
         )
         val result = Flattener.flatten(ast)
 
         result.funcs shouldBe empty
     }
 
-    it should "pass the immediate directly as a Call argument (not wrapping in a Mov)" in {
+    "The flattener to a Call" should "pass the imm as a Call argument (not wrapping in Mov)" in {
         val ast = programWith(
-            Stmt.Exit(IntLiter(7, pos), pos)
+            Stmt.Exit(IntLiter(7, semPos), semPos)
         )
         val result = Flattener.flatten(ast)
 
@@ -138,4 +140,79 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         result.body.head shouldBe a [IRCall]
         result.body.exists { case Mov(_, _) => true; case _ => false } shouldBe false
     }
+
+    "The flattener for prints" should "flatten a simple print statement for a char" in {
+
+        val printChar =
+            Stmt.Print(CharLiter('a', SemanticData.Typed(synPos.pos, KnownType.Char)), semPos)
+
+        val inputAST = programWith(printChar)
+
+        val flatOutput = Flattener.flatten(inputAST) 
+
+        flatOutput.data shouldBe Nil
+        flatOutput.funcs shouldBe Nil
+
+        val charVal = 97
+        flatOutput.body shouldBe List(IRPrint(Immediate(charVal), PrintCharWidget, false))
+    }
+
+    it should "flatten a simple print statment for an int" in {
+
+        val printInt =
+            Stmt.Print(IntLiter(2, SemanticData.Typed(synPos.pos, KnownType.Int)), semPos)
+
+        val inputAST = programWith(printInt)
+
+        val flatOutput = Flattener.flatten(inputAST) 
+
+        flatOutput.data shouldBe Nil
+        flatOutput.funcs shouldBe Nil
+
+        flatOutput.body shouldBe List(IRPrint(Immediate(2), PrintIntWidget, false))
+    }
+
+    it should "flatten a simple print statment for a bool" in {
+
+        val printBool =
+            Stmt.Print(BoolLiter(false, SemanticData.Typed(synPos.pos, KnownType.Bool)), semPos)
+
+        val inputAST = programWith(printBool)
+
+        val flatOutput = Flattener.flatten(inputAST) 
+
+        flatOutput.data shouldBe Nil
+        flatOutput.funcs shouldBe Nil
+
+        flatOutput.body shouldBe List(IRPrint(Immediate(0), PrintBoolWidget, false))
+    }
+
+    it should "flatten a simple print statment for a string" in {
+
+        val printStr =
+            Stmt.Print(StrLiter("hello", SemanticData.Typed(synPos.pos, KnownType.String)), semPos)
+
+        val inputAST = programWith(printStr)
+
+        val flatOutput = Flattener.flatten(inputAST) 
+
+        flatOutput.data shouldBe List(DataDirective(Label("string_0"), "hello"))
+        flatOutput.funcs shouldBe Nil
+        flatOutput.body shouldBe List(IRPrint(Label("string_0"), PrintStringWidget, false))
+    }
+
+    it should "flatten a simple println statment" in {
+        val printlnInt =
+            Stmt.Println(IntLiter(2, SemanticData.Typed(synPos.pos, KnownType.Int)), semPos)
+
+        val inputAST = programWith(printlnInt)
+
+        val flatOutput = Flattener.flatten(inputAST) 
+
+        flatOutput.data shouldBe Nil
+        flatOutput.funcs shouldBe Nil
+
+        flatOutput.body shouldBe List(IRPrint(Immediate(2), PrintIntWidget, true))
+    }
+
 }

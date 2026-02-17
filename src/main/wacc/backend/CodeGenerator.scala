@@ -2,6 +2,7 @@ package wacc.backend
 
 import scala.collection.mutable.ListBuffer
 import wacc.backend.RegisterAllocator.AllocationResult
+import wacc.ExitCodes._
 
 /**
   * Global context shared across all function code generation.
@@ -10,9 +11,12 @@ import wacc.backend.RegisterAllocator.AllocationResult
 class GlobalGenContext {
     private var labelCounter = 0
     private val dataDirectives = ListBuffer[ArmDataDirective]()
-
+    
     /** Get the final directive list */
     def finalDirectives: List[ArmDataDirective] = dataDirectives.toList
+
+    /** Widget management */
+    val dispatcher = RuntimeLibraryDispatcher()
 
     /** Generate a fresh unique label for compiler-generated code */
     def freshLabel(): ArmAddrLabel = {
@@ -24,11 +28,11 @@ class GlobalGenContext {
     /**
       * Add a string constant to the data directives
       *
+      * @param labelName The name of the label for the string to be stored
       * @param str The string to store
       * @return An `ArmAddrLabel` to the directive
       */
-    def addStringConstant(str: String): ArmAddrLabel = {
-        val labelName = s".msg_$labelCounter"
+    def addStringConstant(labelName: String, str: String): ArmAddrLabel = {
         labelCounter += 1
         val label = ArmAddrLabel(labelName)
         dataDirectives += ArmDataDirective(label, str)
@@ -64,7 +68,7 @@ class GenState(val global: GlobalGenContext, val alloc: Map[VirtualReg, Location
   * Register allocation happens externally and is passed in via the alloc parameter.
   */
 object CodeGenerator {
-    
+
     /** Emit a single instruction to the output */
     private def emit(instr: ArmInstruction)(using st: GenState): Unit = 
         st += instr
@@ -72,15 +76,12 @@ object CodeGenerator {
     /** Look up the location of a virtual register */
     private def locOf(vReg: VirtualReg)(using st: GenState): Location = 
         st.alloc(vReg)
-
-    /** Widget management */
-    private val dispatcher = RuntimeLibraryDispatcher()
     
     /** Mark a widget as used (will be included in final assembly) */
-    def useWidget(widget: Widget): Unit = dispatcher.use(widget)
+    def useWidget(widget: Widget)(using st: GenState): Unit = st.global.dispatcher.use(widget)
     
     /** Get all collected widget assembly */
-    def getWidgetAssembly: String = dispatcher.getCollectedAssembly
+    def getWidgetAssembly()(using st: GenState): String = st.global.dispatcher.getCollectedAssembly
 
     /**
       * Generate Low-Level IR for the program.
@@ -89,11 +90,12 @@ object CodeGenerator {
       * @param allocs the register allocation result containing maps for main and all functions
       * @return the complete ARM program with data section and text section
       */
-    def generate(regProgram: RegProgram, allocs: AllocationResult): ArmProgram = {
+    def generate(regProgram: RegProgram,
+                 allocs: AllocationResult): (ArmProgram, RuntimeLibraryDispatcher) = {
 
         /* Init global context for directives and labels and populate directives */
         val globalCtx = new GlobalGenContext()
-        regProgram.data.foreach {dir => globalCtx.addStringConstant(dir.storedValue)}
+        regProgram.data.foreach {dir => globalCtx.addStringConstant(dir.label.name, dir.storedValue)}
 
         /* GenState for the entire program (accumulates all functions and main) */
         given st: GenState = GenState(globalCtx, allocs.mainAlloc)
@@ -108,10 +110,14 @@ object CodeGenerator {
 
         generateFuncPrologue()
         generateInstrs(regProgram.body)
+        emit(ArmMovImm(Size.W, PhysicalReg.argRegisters(0),
+                       ArmImmediate(code(Success))))
         generateFuncEpilogue()
 
-        /* Return the final low-level IR for the program */
-        ArmProgram(globalCtx.finalDirectives, st.finalInstrs)
+        /* Final low-level IR for the program */
+        val program = ArmProgram(globalCtx.finalDirectives, st.finalInstrs)
+
+        (program, globalCtx.dispatcher)
     }
 
     /**
@@ -135,6 +141,7 @@ object CodeGenerator {
                           PhysicalReg.framePointer,
                           PhysicalReg.linkReg, 
                           ArmAddrPostIndex(PhysicalReg.stackPointer, ArmImmediate(16))))
+        emit(ArmRet)
     }
 
     /**
@@ -297,6 +304,9 @@ object CodeGenerator {
         case Call(label, args, destOpt) => generateCall(label, args, destOpt)
         case Ret => emit(ArmRet)
         
+        /* Print */
+        case Print(src, widget, newline) => generatePrint(src, widget, newline)
+        
         /* Stack operations */
         case Push(src) => ??? // TODO
         case Pop(dest) => ??? // TODO
@@ -347,6 +357,26 @@ object CodeGenerator {
     }
 
     /**
+      * Generate low-level IR for a Print instruction.
+      * Registers the widget and delegates to generateCall for the actual call sequence.
+      * Optionally emits a newline via PrintlnWidget.
+      *
+      * @param src the operand to print
+      * @param widget the print widget for the appropriate type
+      * @param newline whether to also emit a newline after printing
+      */
+    private def generatePrint(src: Operand, widget: Widget, newline: Boolean)
+                             (using st: GenState): Unit = {
+        useWidget(widget)
+        generateCall(Label(widget.label), List(src), None)
+
+        if (newline) {
+            useWidget(PrintlnWidget)
+            generateCall(Label(PrintlnWidget.label), List(), None)
+        }
+    }
+
+    /**
       * Generate the low level IR for a Call high level IR instruction
       *
       * @param label The label of the function
@@ -379,7 +409,11 @@ object CodeGenerator {
                     /* Move the immediate directly to the argument register */
                     emit(ArmMovImm(Size.W, targetReg, ArmImmediate(value)))
                 
-                case Label(name) => ???
+                case Label(name) => {
+                    /* Move the label (string directive in this case) to
+                       the argument register */
+                    emit(ArmLea(targetReg, ArmAddrLabel(name)))
+                }
             }
         }
 

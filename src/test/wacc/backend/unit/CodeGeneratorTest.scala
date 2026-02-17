@@ -15,7 +15,8 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
                             alloc: Map[VirtualReg, Location] = Map.empty): ArmProgram = {
         val prog = RegProgram(List.empty, List.empty, body)
         val allocResult = AllocationResult(alloc, Map.empty)
-        CodeGenerator.generate(prog, allocResult)
+        val (armProg, _) = CodeGenerator.generate(prog, allocResult)
+        armProg
     }
 
     /** Scratch register 0 used by the code generator */
@@ -200,7 +201,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
             List(Call(Label("exit"), List(Immediate(7)), None))
         )
         val alloc = RegisterAllocator.allocate(prog)
-        val armProg = CodeGenerator.generate(prog, alloc)
+        val (armProg, _) = CodeGenerator.generate(prog, alloc)
 
         /* Should contain: main label, prologue (stp, mov fp), mov w0 #7, bl exit, epilogue (ldp) */
         armProg.body should contain (ArmLabelDef(ArmAddrLabel("main")))
@@ -252,5 +253,55 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         ldpIdx should be >= 0
         movIdx should be > stpIdx
         movIdx should be < ldpIdx
+    }
+
+    /* ==================== Widget Tests ==================== */
+
+    "CodeGenerator for widgets" should "register PrintIntWidget when Print instruction is used" in {
+
+        val prog = RegProgram(
+            List.empty,
+            List.empty,
+            List(Print(Immediate(5), PrintIntWidget, false))
+        )
+        val alloc = RegisterAllocator.allocate(prog)
+
+        val (_, dispatcher) = CodeGenerator.generate(prog, alloc)
+
+        val widgetAssembly = dispatcher.getCollectedAssembly
+        
+        widgetAssembly should include ("_printi:")
+        widgetAssembly should include ("%d") 
+    }
+
+    it should "register PrintlnWidget when Print instruction has newline=true" in {
+        val prog = RegProgram(
+            List.empty,
+            List.empty,
+            List(Print(Immediate(2), PrintIntWidget, true))
+        )
+        val alloc = RegisterAllocator.allocate(prog)
+
+        val (_, dispatcher) = CodeGenerator.generate(prog, alloc)
+        val widgetAssembly = dispatcher.getCollectedAssembly
+
+        widgetAssembly should include ("_printi:")
+        widgetAssembly should include ("_println:")
+        widgetAssembly should include ("puts") // what println uses to make the new line
+    }
+
+    it should "NOT register widgets that are not used" in {
+        val prog = RegProgram(
+            List.empty, 
+            List.empty, 
+            List(Mov(VirtualReg(0, Size.W), Immediate(1)))
+        )
+        val alloc = RegisterAllocator.allocate(prog)
+
+        val (_, dispatcher) = CodeGenerator.generate(prog, alloc)
+        val widgetAssembly = dispatcher.getCollectedAssembly
+
+        widgetAssembly should not include ("_prints:")
+        widgetAssembly should not include ("malloc")
     }
 }
