@@ -358,6 +358,19 @@ object CodeGenerator {
                              destOpt: Option[VirtualReg])
                              (using GenState) = {
 
+        label.name match {
+            case "_printi" => useWidget(PrintIntWidget)
+            case "_printb" => useWidget(PrintBoolWidget)
+            case "_printc" => useWidget(PrintCharWidget)
+            case "_prints" => useWidget(PrintStringWidget)
+            case "_printp" => useWidget(PrintPointerWidget)
+            case "_println" => useWidget(PrintlnWidget)
+            case "_malloc" => useWidget(MallocWidget)
+            case "_free"   => useWidget(FreePairWidget)
+            case _ => // user defined function call i.e. not a widget
+        }
+
+        dispatcher.use(PrintIntWidget)
         /* For each function argument */
         args.zipWithIndex.foreach { case (arg, index) =>
 
