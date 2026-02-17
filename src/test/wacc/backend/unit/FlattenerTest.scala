@@ -2,7 +2,8 @@ package wacc.backend.unit
 
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.flatspec.AnyFlatSpec
-import wacc.backend.{Flattener, Call as IRCall, Label, Immediate, Mov, DataDirective}
+import wacc.backend.{Flattener, Call as IRCall, Print as IRPrint, Label, Immediate, Mov, DataDirective,
+                     PrintCharWidget, PrintIntWidget, PrintBoolWidget, PrintStringWidget}
 import wacc.frontend.*
 
 /**
@@ -153,8 +154,7 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         flatOutput.funcs shouldBe Nil
 
         val charVal = 97
-        flatOutput.body shouldBe List(wacc.backend.Call(Label("_printc"),
-                                       List(Immediate(charVal)), None))
+        flatOutput.body shouldBe List(IRPrint(Immediate(charVal), PrintCharWidget, false))
     }
 
     it should "flatten a simple print statment for an int" in {
@@ -169,8 +169,7 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         flatOutput.data shouldBe Nil
         flatOutput.funcs shouldBe Nil
 
-        flatOutput.body shouldBe List(wacc.backend.Call(Label("_printi"),
-                                       List(Immediate(2)), None))
+        flatOutput.body shouldBe List(IRPrint(Immediate(2), PrintIntWidget, false))
     }
 
     it should "flatten a simple print statment for a bool" in {
@@ -185,8 +184,7 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         flatOutput.data shouldBe Nil
         flatOutput.funcs shouldBe Nil
 
-        flatOutput.body shouldBe List(wacc.backend.Call(Label("_printb"),
-                                       List(Immediate(0)), None))
+        flatOutput.body shouldBe List(IRPrint(Immediate(0), PrintBoolWidget, false))
     }
 
     it should "flatten a simple print statment for a string" in {
@@ -200,7 +198,7 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
 
         flatOutput.data shouldBe List(DataDirective(Label("string_0"), "hello"))
         flatOutput.funcs shouldBe Nil
-        flatOutput.body shouldBe List(IRCall(Label("_prints"), List(Label("string_0")), None))
+        flatOutput.body shouldBe List(IRPrint(Label("string_0"), PrintStringWidget, false))
     }
 
     it should "flatten a simple println statment" in {
@@ -214,8 +212,7 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         flatOutput.data shouldBe Nil
         flatOutput.funcs shouldBe Nil
 
-        flatOutput.body shouldBe List(IRCall(Label("_printi"), List(Immediate(2)), None),
-                                      IRCall(Label("_println"), List(), None))
+        flatOutput.body shouldBe List(IRPrint(Immediate(2), PrintIntWidget, true))
     }
 
 }

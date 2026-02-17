@@ -232,7 +232,7 @@ object Flattener {
       * @param funcState The current scope function state
       * @param directiveState The global directive state
       */
-    private def flattenPrint(expr: Expr[SemanticData])
+    private def flattenPrint(expr: Expr[SemanticData], newline: Boolean = false)
                             (using funcState: FunctionState,
                                    directiveState: GlobalFlattenContext) = {
 
@@ -247,9 +247,7 @@ object Flattener {
             case wacc.frontend.KnownType.String => PrintStringWidget
         
 
-        val callInstr = wacc.backend.Call(Label(printWidget.label), List(printVal), None)
-        funcState.emitInstruction(callInstr)
-                                    
+        funcState.emitInstruction(wacc.backend.Print(printVal, printWidget, newline))
     }
 
     /**
@@ -263,14 +261,7 @@ object Flattener {
     private def flattenPrintln(expr: Expr[SemanticData])
                               (using funcState: FunctionState,
                                      directiveState: GlobalFlattenContext) = {
-
-        /* Flatten to the type specific print function */
-        flattenPrint(expr) 
-
-        /* Call println which will just print a new line char */
-        val printlnCall = wacc.backend.Call(Label("_println"), List(), None)
-    
-        funcState.emitInstruction(printlnCall)
+        flattenPrint(expr, newline = true)
     }
 
     /**

@@ -257,12 +257,12 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
 
     /* ==================== Widget Tests ==================== */
 
-    "CodeGenerator for widgets" should "register PrintIntWidget when _printi is called" in {
+    "CodeGenerator for widgets" should "register PrintIntWidget when Print instruction is used" in {
 
         val prog = RegProgram(
             List.empty,
             List.empty,
-            List(Call(Label("_printi"), List(Immediate(5)), None))
+            List(Print(Immediate(5), PrintIntWidget, false))
         )
         val alloc = RegisterAllocator.allocate(prog)
 
@@ -274,19 +274,20 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         widgetAssembly should include ("%d") 
     }
 
-    it should "register PrintlnWidget when _println is called" in {
+    it should "register PrintlnWidget when Print instruction has newline=true" in {
         val prog = RegProgram(
             List.empty,
             List.empty,
-            List(Call(Label("_println"), List.empty, None))
+            List(Print(Immediate(2), PrintIntWidget, true))
         )
         val alloc = RegisterAllocator.allocate(prog)
 
         val (_, dispatcher) = CodeGenerator.generate(prog, alloc)
         val widgetAssembly = dispatcher.getCollectedAssembly
 
+        widgetAssembly should include ("_printi:")
         widgetAssembly should include ("_println:")
-        widgetAssembly should include ("puts") // what prinln uses to make the new line
+        widgetAssembly should include ("puts") // what println uses to make the new line
     }
 
     it should "NOT register widgets that are not used" in {

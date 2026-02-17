@@ -304,6 +304,9 @@ object CodeGenerator {
         case Call(label, args, destOpt) => generateCall(label, args, destOpt)
         case Ret => emit(ArmRet)
         
+        /* Print */
+        case Print(src, widget, newline) => generatePrint(src, widget, newline)
+        
         /* Stack operations */
         case Push(src) => ??? // TODO
         case Pop(dest) => ??? // TODO
@@ -354,21 +357,22 @@ object CodeGenerator {
     }
 
     /**
-      * Enable a built-in clib functionwidget if the label name matches one
+      * Generate low-level IR for a Print instruction.
+      * Registers the widget and delegates to generateCall for the actual call sequence.
+      * Optionally emits a newline via PrintlnWidget.
       *
-      * @param label The name of the label which might match a clib widget function
+      * @param src the operand to print
+      * @param widget the print widget for the appropriate type
+      * @param newline whether to also emit a newline after printing
       */
-    private def enableFunctionWidget(label: Label)(using st: GenState): Unit = {
-        label.name match {
-            case "_printi" => useWidget(PrintIntWidget)
-            case "_printb" => useWidget(PrintBoolWidget)
-            case "_printc" => useWidget(PrintCharWidget)
-            case "_prints" => useWidget(PrintStringWidget)
-            case "_printp" => useWidget(PrintPointerWidget)
-            case "_println" => useWidget(PrintlnWidget)
-            case "_malloc" => useWidget(MallocWidget)
-            case "_free"   => useWidget(FreePairWidget)
-            case _ => // user defined function call i.e. not a widget
+    private def generatePrint(src: Operand, widget: Widget, newline: Boolean)
+                             (using st: GenState): Unit = {
+        useWidget(widget)
+        generateCall(Label(widget.label), List(src), None)
+
+        if (newline) {
+            useWidget(PrintlnWidget)
+            generateCall(Label(PrintlnWidget.label), List(), None)
         }
     }
 
@@ -383,9 +387,6 @@ object CodeGenerator {
                              args: List[Operand],
                              destOpt: Option[VirtualReg])
                              (using GenState) = {
-
-        /* If calling a clib function, enable its widget */
-        enableFunctionWidget(label)
 
         /* For each function argument */
         args.zipWithIndex.foreach { case (arg, index) =>
