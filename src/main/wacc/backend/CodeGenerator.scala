@@ -347,17 +347,11 @@ object CodeGenerator {
     }
 
     /**
-      * Generate the low level IR for a Call high level IR instruction
+      * Enable a built-in clib functionwidget if the label name matches one
       *
-      * @param label The label of the function
-      * @param args The argument operands to the function
-      * @param destOpt The register that the return value is expected
+      * @param label The name of the label which might match a clib widget function
       */
-    private def generateCall(label: Label,
-                             args: List[Operand],
-                             destOpt: Option[VirtualReg])
-                             (using GenState) = {
-
+    private def enableFunctionWidget(label: Label): Unit = {
         label.name match {
             case "_printi" => useWidget(PrintIntWidget)
             case "_printb" => useWidget(PrintBoolWidget)
@@ -369,8 +363,23 @@ object CodeGenerator {
             case "_free"   => useWidget(FreePairWidget)
             case _ => // user defined function call i.e. not a widget
         }
+    }
 
-        dispatcher.use(PrintIntWidget)
+    /**
+      * Generate the low level IR for a Call high level IR instruction
+      *
+      * @param label The label of the function
+      * @param args The argument operands to the function
+      * @param destOpt The register that the return value is expected
+      */
+    private def generateCall(label: Label,
+                             args: List[Operand],
+                             destOpt: Option[VirtualReg])
+                             (using GenState) = {
+
+        /* If calling a clib function, enable its widget */
+        enableFunctionWidget(label)
+
         /* For each function argument */
         args.zipWithIndex.foreach { case (arg, index) =>
 
