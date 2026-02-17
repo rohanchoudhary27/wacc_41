@@ -2,6 +2,7 @@ package wacc.backend
 
 import scala.collection.mutable.ListBuffer
 import wacc.backend.RegisterAllocator.AllocationResult
+import wacc.ExitCodes._
 
 /**
   * Global context shared across all function code generation.
@@ -108,6 +109,8 @@ object CodeGenerator {
 
         generateFuncPrologue()
         generateInstrs(regProgram.body)
+        emit(ArmMovImm(Size.W, PhysicalReg.argRegisters(0),
+                       ArmImmediate(code(Success))))
         generateFuncEpilogue()
 
         /* Return the final low-level IR for the program */
@@ -135,6 +138,7 @@ object CodeGenerator {
                           PhysicalReg.framePointer,
                           PhysicalReg.linkReg, 
                           ArmAddrPostIndex(PhysicalReg.stackPointer, ArmImmediate(16))))
+        emit(ArmRet)
     }
 
     /**
