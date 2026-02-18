@@ -7,3 +7,6 @@ valid/IO/print/printInt.wacc
 valid/IO/print/println.wacc
 
 valid/basic/exit
+
+valid/if/ifTrue.wacc
+valid/if/ifFalse.wacc

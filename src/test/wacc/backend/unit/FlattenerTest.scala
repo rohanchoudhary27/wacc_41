@@ -3,8 +3,8 @@ package wacc.backend.unit
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.flatspec.AnyFlatSpec
 import wacc.backend.{Flattener, Call as IRCall, Print as IRPrint, Label, Immediate, Mov, DataDirective,
-                     PrintCharWidget, PrintIntWidget, PrintBoolWidget, PrintStringWidget,
-                     Cmp, SetCond, Not, And, Or, VirtualReg, Size}
+                     PrintCharWidget, PrintIntWidget, PrintBoolWidget, PrintStringWidget, BranchCond,
+                     BranchUncond,Cmp, SetCond, Not, And, Or, VirtualReg, Size, LabelDef, Condition}
 import wacc.frontend.*
 
 /**
@@ -349,6 +349,43 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         /* Should contain Or instruction */
         val orInstrs = flatOutput.body.collect { case o: Or => o }
         orInstrs should have length 1
+    }
+
+    "The flattener for if statements" should "flatten an if statement" in {
+
+        val blockTypes = SemanticData.Typed(synPos.pos, KnownType.Int)
+
+        val cond = BinaryExpr(BinaryOperator.LT,
+                              IntLiter(2, blockTypes),
+                              IntLiter(5, blockTypes),
+                              SemanticData.Typed(synPos.pos, KnownType.Bool))
+
+        val ifBlock = Stmt.Print(StrLiter("hello!", blockTypes), semPos)
+        val elseBlock = Stmt.Print(StrLiter("good bye!", blockTypes), semPos)
+
+        val ifStmt = Stmt.If(cond, ifBlock, elseBlock, semPos)
+
+        val inputAST = programWith(ifStmt)
+
+        val instrs = Flattener.flatten(inputAST).body
+
+        val elseBranch = instrs.collectFirst { case BranchCond(_, label) => label }
+        elseBranch should be (defined)
+        val elseLabel = elseBranch.get
+
+        val endBranch = instrs.collectFirst { case BranchUncond(label) => label }
+        endBranch should be (defined)
+        val endLabel = endBranch.get
+
+        /* Label defs should exist */
+        instrs should contain (LabelDef(elseLabel))
+        instrs should contain (LabelDef(endLabel))
+
+        /* else label branching should be before its definition */
+        instrs.indexOf(BranchCond(Condition.EQ, elseLabel)) should be < instrs.indexOf(LabelDef(elseLabel))
+        
+        /* end label branching should be before its definition */
+        instrs.indexOf(BranchUncond(endLabel)) should be < instrs.indexOf(LabelDef(endLabel))
     }
 
 }
