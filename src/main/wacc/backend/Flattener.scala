@@ -280,6 +280,7 @@ object Flattener {
         case CharLiter(value, _) => Immediate(value)
         case StrLiter(value, _) => directiveState.addString(value)
         case BinaryExpr(op, left, right, _) => flattenBinaryExpr(op, left, right)
+        case UnaryExpr(op, expr, _) => flattenUnaryExpr(op, expr)
         case _ => ???
     
     /**
@@ -343,6 +344,90 @@ object Flattener {
 
         resultReg
     }
+
+    /**
+      * Flatten a unary expression
+      *
+      * @param op The unary operator
+      * @param expr The operand expression
+      * @param funcState The current scope function state
+      * @param directiveState The global directive state
+      * @return The virtual register containing the result
+      */
+    private def flattenUnaryExpr(op: UnaryOperator,
+                                 expr: Expr[SemanticData])
+                                 (using funcState: FunctionState,
+                                        directiveState: GlobalFlattenContext): VirtualReg = {
+        val operand = flattenExpr(expr)
+
+        op match {
+            case UnaryOperator.Not => flattenNot(operand)
+            case _ => ???
+        }
+    }
+
+    /**
+      * Flatten a boolean NOT operation
+      *
+      * @param operand The operand to negate
+      * @param funcState The current scope function state
+      * @return The virtual register containing the negated result
+      */
+    private def flattenNot(operand: Operand)
+                          (using funcState: FunctionState): VirtualReg = {
+        val srcReg = toReg(operand)
+        val resultReg = funcState.anonymousReg(KnownType.Bool)
+
+        funcState.emitInstruction(Not(resultReg, srcReg))
+        
+        resultReg
+    }
+
+    /**
+      * Helper function to flatten binary boolean operations
+      *
+      * @param leftOp The left operand
+      * @param rightOp The right operand
+      * @param makeInstr Function to create the instruction given dest, src1, src2
+      * @param funcState The current scope function state
+      * @return The virtual register containing the result
+      */
+    private def flattenBinaryBoolOp(leftOp: Operand,
+                                     rightOp: Operand,
+                                     makeInstr: (VirtualReg, VirtualReg, VirtualReg) => Instruction)
+                                    (using funcState: FunctionState): VirtualReg = {
+        val leftReg = toReg(leftOp)
+        val rightReg = toReg(rightOp)
+        val resultReg = funcState.anonymousReg(KnownType.Bool)
+
+        funcState.emitInstruction(makeInstr(resultReg, leftReg, rightReg))
+        
+        resultReg
+    }
+
+    /**
+      * Flatten a boolean AND operation
+      *
+      * @param leftOp The left operand
+      * @param rightOp The right operand
+      * @param funcState The current scope function state
+      * @return The virtual register containing the AND result
+      */
+    private def flattenAnd(leftOp: Operand, rightOp: Operand)
+                          (using funcState: FunctionState): VirtualReg =
+        flattenBinaryBoolOp(leftOp, rightOp, And.apply)
+
+    /**
+      * Flatten a boolean OR operation
+      *
+      * @param leftOp The left operand
+      * @param rightOp The right operand
+      * @param funcState The current scope function state
+      * @return The virtual register containing the OR result
+      */
+    private def flattenOr(leftOp: Operand, rightOp: Operand)
+                         (using funcState: FunctionState): VirtualReg =
+        flattenBinaryBoolOp(leftOp, rightOp, Or.apply)
                                   
     /**
       * Flattens a function AST node. Internally, it creates its own `ListBuffer[Instruction]`
