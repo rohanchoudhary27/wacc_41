@@ -314,7 +314,7 @@ object CodeGenerator {
         case Mul(dest, src1, src2) => ??? // TODO
         case Div(dest, src1, src2) => ??? // TODO
         case Mod(dest, src1, src2) => ??? // TODO
-        case Neg(dest, src) => ??? // TODO
+        case Neg(dest, src) => generateNeg(dest, src)
         
         /* Bitwise operations */
         case And(dest, src1, src2) => 
@@ -548,7 +548,7 @@ object CodeGenerator {
       * Generate low-level IR for boolean NOT.
       * 
       * @param dest the destination virtual register
-      * @param src the source virtual register to negate
+      * @param src the source virtual register to not
       */
     private def generateNot(dest: VirtualReg, src: VirtualReg)(using st: GenState): Unit = {
         generateUnaryOp(dest, src, None, { (destReg, srcReg) =>
@@ -559,4 +559,15 @@ object CodeGenerator {
         })
     }
 
+    /**
+      * Generate the low level IR for a negation (-x)
+      *
+      * @param dest the destination virtual register
+      * @param src the source virtual register to not
+      */
+    private def generateNeg(dest: VirtualReg, src: VirtualReg)(using st: GenState): Unit = {
+        generateUnaryOp(dest, src, None, { (destReg, srcReg) =>
+            emit(ArmNeg(dest.size, destReg, srcReg))
+        })
+    }
 }
