@@ -208,6 +208,7 @@ object Flattener {
         case Stmt.Exit(expr, _) => flattenExit(expr)
         case Stmt.Print(expr, _) => flattenPrint(expr)
         case Stmt.Println(expr, _) => flattenPrintln(expr)
+        case Stmt.If(cond, ifBlock, elseBlock, _) => flattenIf(cond, ifBlock, elseBlock)
         case _ => {
             println(typedStmt)
             ???
@@ -252,6 +253,34 @@ object Flattener {
         
 
         funcState.emitInstruction(wacc.backend.Print(printVal, printWidget, newline))
+    }
+
+    private def flattenIf(cond: Expr[SemanticData],
+                          ifBlock: Stmt[SemanticData],
+                          elseBlock: Stmt[SemanticData])
+                            (using funcState: FunctionState,
+                                   directiveState: GlobalFlattenContext) = {
+
+        val flatCondition = flattenExpr(cond)
+
+        /* Define labels */
+        val elseLabel = directiveState.getNextLabel(".L_else")
+        val endLabel = directiveState.getNextLabel(".L_end")
+
+        /* If the condition is false, jump to the else case*/
+        funcState.emitInstruction(Cmp(toReg(flatCondition), Immediate(0)))
+        funcState.emitInstruction(BranchCond(Condition.EQ, elseLabel))
+
+        /* Fall through to the true case and then jump to the end */
+        flattenStmt(ifBlock)
+        funcState.emitInstruction(BranchUncond(endLabel))
+
+        /* Define the else section */
+        funcState.emitInstruction(LabelDef(elseLabel))
+        flattenStmt(elseBlock)
+
+        /* End of if statement label */
+        funcState.emitInstruction(LabelDef(endLabel))
     }
 
     /**
