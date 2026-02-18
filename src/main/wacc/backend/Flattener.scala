@@ -178,10 +178,14 @@ object Flattener {
       * @param funcState The FunctionState context
       * @return The virtual register for the operand
       */
-    private def toReg(op: Operand)(using funcState: FunctionState): VirtualReg = op match {
+    private def toReg(op: Operand)(using funcState: FunctionState): VirtualReg = 
+        toReg(op, KnownType.Int)
+    
+    private def toReg(op: Operand, targetType: KnownType)
+                     (using funcState: FunctionState): VirtualReg = op match {
         case reg: VirtualReg => reg
         case imm: Immediate => 
-            val newReg = funcState.anonymousReg(KnownType.Int)
+            val newReg = funcState.anonymousReg(targetType)
             funcState.emitInstruction(Mov(newReg, imm))
             newReg
         case label: Label => ???
@@ -305,6 +309,8 @@ object Flattener {
             case BinaryOperator.GT | BinaryOperator.GTE | BinaryOperator.LT | 
                  BinaryOperator.LTE | BinaryOperator.EQ | BinaryOperator.NEQ =>
                 flattenComparison(op, leftOp, rightOp)
+            case BinaryOperator.And => flattenAnd(leftOp, rightOp)
+            case BinaryOperator.Or => flattenOr(leftOp, rightOp)
             case _ => ???
         }
     }
@@ -375,7 +381,7 @@ object Flattener {
       */
     private def flattenNot(operand: Operand)
                           (using funcState: FunctionState): VirtualReg = {
-        val srcReg = toReg(operand)
+        val srcReg = toReg(operand, KnownType.Bool)
         val resultReg = funcState.anonymousReg(KnownType.Bool)
 
         funcState.emitInstruction(Not(resultReg, srcReg))
@@ -396,8 +402,8 @@ object Flattener {
                                      rightOp: Operand,
                                      makeInstr: (VirtualReg, VirtualReg, VirtualReg) => Instruction)
                                     (using funcState: FunctionState): VirtualReg = {
-        val leftReg = toReg(leftOp)
-        val rightReg = toReg(rightOp)
+        val leftReg = toReg(leftOp, KnownType.Bool)
+        val rightReg = toReg(rightOp, KnownType.Bool)
         val resultReg = funcState.anonymousReg(KnownType.Bool)
 
         funcState.emitInstruction(makeInstr(resultReg, leftReg, rightReg))
