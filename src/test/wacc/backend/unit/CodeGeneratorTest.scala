@@ -255,6 +255,129 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         movIdx should be < ldpIdx
     }
 
+    /* ==================== Comparison Instruction Tests ==================== */
+
+    "CodeGenerator generateCmp" should "generate ArmCmpReg for register-register comparison" in {
+        val src1 = VirtualReg(0, Size.W)
+        val src2 = VirtualReg(1, Size.W)
+        val alloc = Map(
+            src1 -> (PhysicalReg.argRegisters(0): Location),
+            src2 -> (PhysicalReg.argRegisters(1): Location)
+        )
+
+        val result = programWith(List(Cmp(src1, src2)), alloc)
+
+        val cmpInstrs = result.body.collect { case c: ArmCmpReg => c }
+        cmpInstrs should have length 1
+        cmpInstrs.head.size shouldBe Size.W
+    }
+
+    it should "generate ArmCmpImm for register-immediate comparison" in {
+        val src1 = VirtualReg(0, Size.W)
+        val alloc = Map(src1 -> (PhysicalReg.argRegisters(0): Location))
+
+        val result = programWith(List(Cmp(src1, Immediate(42))), alloc)
+
+        val cmpInstrs = result.body.collect { case c: ArmCmpImm => c }
+        cmpInstrs should have length 1
+        cmpInstrs.head.size shouldBe Size.W
+        cmpInstrs.head.src2 shouldBe ArmImmediate(42)
+    }
+
+    /* ==================== SetCond Instruction Tests ==================== */
+
+    "CodeGenerator generateSetCond" should "generate ArmCSet with correct condition code for EQ" in {
+        val dest = VirtualReg(0, Size.B)
+        val alloc = Map(dest -> (PhysicalReg.argRegisters(0): Location))
+
+        val result = programWith(List(SetCond(dest, Condition.EQ)), alloc)
+
+        val csetInstrs = result.body.collect { case c: ArmCSet => c }
+        csetInstrs should have length 1
+        csetInstrs.head.cond shouldBe Condition.EQ
+    }
+
+    it should "generate ArmCSet with correct condition code for NE" in {
+        val dest = VirtualReg(0, Size.B)
+        val alloc = Map(dest -> (PhysicalReg.argRegisters(0): Location))
+
+        val result = programWith(List(SetCond(dest, Condition.NE)), alloc)
+
+        val csetInstrs = result.body.collect { case c: ArmCSet => c }
+        csetInstrs.head.cond shouldBe Condition.NE
+    }
+
+    it should "generate ArmCSet with correct condition code for GT" in {
+        val dest = VirtualReg(0, Size.B)
+        val alloc = Map(dest -> (PhysicalReg.argRegisters(0): Location))
+
+        val result = programWith(List(SetCond(dest, Condition.GT)), alloc)
+
+        val csetInstrs = result.body.collect { case c: ArmCSet => c }
+        csetInstrs.head.cond shouldBe Condition.GT
+    }
+
+    it should "generate ArmCSet with correct condition code for LT" in {
+        val dest = VirtualReg(0, Size.B)
+        val alloc = Map(dest -> (PhysicalReg.argRegisters(0): Location))
+
+        val result = programWith(List(SetCond(dest, Condition.LT)), alloc)
+
+        val csetInstrs = result.body.collect { case c: ArmCSet => c }
+        csetInstrs.head.cond shouldBe Condition.LT
+    }
+
+    /* ==================== Boolean Operator Tests ==================== */
+
+    "CodeGenerator generateNot" should "generate ArmNotReg for NOT operation" in {
+        val src = VirtualReg(0, Size.B)
+        val dest = VirtualReg(1, Size.B)
+        val alloc = Map(
+            src -> (PhysicalReg.argRegisters(0): Location),
+            dest -> (PhysicalReg.argRegisters(1): Location)
+        )
+
+        val result = programWith(List(Not(dest, src)), alloc)
+
+        val notInstrs = result.body.collect { case n: ArmNotReg => n }
+        notInstrs should have length 1
+        notInstrs.head.size shouldBe Size.B
+    }
+
+    "CodeGenerator generateBinaryOp for And" should "generate ArmAndReg for register-register AND" in {
+        val src1 = VirtualReg(0, Size.B)
+        val src2 = VirtualReg(1, Size.B)
+        val dest = VirtualReg(2, Size.B)
+        val alloc = Map(
+            src1 -> (PhysicalReg.argRegisters(0): Location),
+            src2 -> (PhysicalReg.argRegisters(1): Location),
+            dest -> (PhysicalReg.argRegisters(2): Location)
+        )
+
+        val result = programWith(List(And(dest, src1, src2)), alloc)
+
+        val andInstrs = result.body.collect { case a: ArmAndReg => a }
+        andInstrs should have length 1
+        andInstrs.head.size shouldBe Size.B
+    }
+
+    "CodeGenerator generateBinaryOp for Or" should "generate ArmOrReg for register-register OR" in {
+        val src1 = VirtualReg(0, Size.B)
+        val src2 = VirtualReg(1, Size.B)
+        val dest = VirtualReg(2, Size.B)
+        val alloc = Map(
+            src1 -> (PhysicalReg.argRegisters(0): Location),
+            src2 -> (PhysicalReg.argRegisters(1): Location),
+            dest -> (PhysicalReg.argRegisters(2): Location)
+        )
+
+        val result = programWith(List(Or(dest, src1, src2)), alloc)
+
+        val orInstrs = result.body.collect { case o: ArmOrReg => o }
+        orInstrs should have length 1
+        orInstrs.head.size shouldBe Size.B
+    }
+
     /* ==================== Widget Tests ==================== */
 
     "CodeGenerator for widgets" should "register PrintIntWidget when Print instruction is used" in {
