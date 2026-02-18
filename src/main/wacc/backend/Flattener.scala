@@ -279,7 +279,70 @@ object Flattener {
         case BoolLiter(value, _) => Immediate(if value then 1 else 0)
         case CharLiter(value, _) => Immediate(value)
         case StrLiter(value, _) => directiveState.addString(value)
+        case BinaryExpr(op, left, right, _) => flattenBinaryExpr(op, left, right)
         case _ => ???
+    
+    /**
+      * Flatten a binary expression
+      *
+      * @param op The binary operator
+      * @param left The left operand expression
+      * @param right The right operand expression
+      * @param funcState The current scope function state
+      * @param directiveState The global directive state
+      * @return The virtual register containing the result
+      */
+    private def flattenBinaryExpr(op: BinaryOperator,
+                                  left: Expr[SemanticData],
+                                  right: Expr[SemanticData])
+                                  (using funcState: FunctionState,
+                                         directiveState: GlobalFlattenContext): VirtualReg = {
+        val leftOp = flattenExpr(left)
+        val rightOp = flattenExpr(right)
+
+        op match {
+            case BinaryOperator.GT | BinaryOperator.GTE | BinaryOperator.LT | 
+                 BinaryOperator.LTE | BinaryOperator.EQ | BinaryOperator.NEQ =>
+                flattenComparison(op, leftOp, rightOp)
+            case _ => ???
+        }
+    }
+
+    /**
+      * Flatten a comparison operation
+      *
+      * @param op The comparison operator
+      * @param leftOp The left operand
+      * @param rightOp The right operand
+      * @param funcState The current scope function state
+      * @return The virtual register containing the comparison result (0 or 1)
+      */
+    private def flattenComparison(op: BinaryOperator,
+                                  leftOp: Operand,
+                                  rightOp: Operand)
+                                  (using funcState: FunctionState): VirtualReg = {
+        val leftReg = toReg(leftOp)
+        val rightReg = toReg(rightOp)
+
+        /* Emit the compare instruction */
+        funcState.emitInstruction(Cmp(leftReg, rightReg))
+
+        /* Map frontend operator to backend condition */
+        val condition = op match {
+            case BinaryOperator.GT  => Condition.GT
+            case BinaryOperator.GTE => Condition.GE
+            case BinaryOperator.LT  => Condition.LT
+            case BinaryOperator.LTE => Condition.LE
+            case BinaryOperator.EQ  => Condition.EQ
+            case BinaryOperator.NEQ => Condition.NE
+        }
+
+        /* Create result register and emit SetCond instruction */
+        val resultReg = funcState.anonymousReg(KnownType.Bool)
+        funcState.emitInstruction(SetCond(resultReg, condition))
+
+        resultReg
+    }
                                   
     /**
       * Flattens a function AST node. Internally, it creates its own `ListBuffer[Instruction]`
