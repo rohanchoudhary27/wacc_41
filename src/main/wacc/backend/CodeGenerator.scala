@@ -310,7 +310,10 @@ object CodeGenerator {
         
         /* Print */
         case Print(src, widget, newline) => generatePrint(src, widget, newline)
-        
+
+        /* Character functions */
+        case Chr(dest, src, widget) => generateChr(dest, src, widget)
+
         /* Stack operations */
         case Push(src) => ??? // TODO
         case Pop(dest) => ??? // TODO
@@ -378,6 +381,57 @@ object CodeGenerator {
             useWidget(PrintlnWidget)
             generateCall(Label(PrintlnWidget.label), List(), None)
         }
+    }
+
+    /**
+      * Generates the low level IR for a `Chr` high level IR node
+      *
+      * @param src
+      * @param widget
+      * @param st
+      */
+    private def generateChr(dest: Operand, src: Operand, widget: Widget)
+                           (using st: GenState): Unit = {
+        
+        /* Runtime error widget for out of bounds ascii int */
+        useWidget(widget)
+
+        /* Load operand into a register */
+        val srcReg = src match {
+
+            /* Load to scratch */
+            case Immediate(value) => {
+                val scratch = PhysicalReg.ipcScratch(0)
+                emit(ArmMovImm(Size.W, scratch, ArmImmediate(value))) 
+                scratch
+            }
+
+            /* Load from stack if not already in a register */
+            case vReg @ VirtualReg(regNo, size) => {
+                locOf(vReg) match
+                    case stackLoc: StackSlot =>
+                        loadToReg(stackLoc, Size.W, PhysicalReg.ipcScratch(0))
+                    case reg: PhysicalReg => reg
+            }
+
+            case Label(name) => ???
+        }
+
+        val maxValidChar = 127
+
+        /* Move the operand into w0 for the error function */
+        emit(ArmMovReg(Size.W, PhysicalReg.argRegisters(0), srcReg))
+
+        /* If the int value is not 0-127 inclusive, runtime error */
+        emit(ArmCmpImm(Size.W, srcReg, ArmImmediate(maxValidChar)))
+        emit(ArmBranchCond(Condition.GT, ArmAddrLabel(widget.label)))
+
+        val destLoc = dest match {
+            case v: VirtualReg => locOf(v)
+            case _ => ??? // dest should always be a reg/stack slot
+        }
+
+        storeToLoc(srcReg, destLoc, Size.W)
     }
 
     /**
