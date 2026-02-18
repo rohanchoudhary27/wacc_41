@@ -210,5 +210,6 @@ object Outputter {
         case Condition.LE => "le"
         case Condition.GT => "gt"
         case Condition.GE => "ge"
+        case Condition.HI => "hi"
     }
 }

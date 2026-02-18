@@ -47,7 +47,7 @@ object ShiftAmounts {
   * The conditions for branching instructions
   */
 enum Condition {
-    case EQ, NE, LT, LE, GT, GE
+    case EQ, NE, LT, LE, GT, GE, HI
 }
 
 /**

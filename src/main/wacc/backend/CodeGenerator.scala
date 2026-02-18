@@ -424,7 +424,7 @@ object CodeGenerator {
 
         /* If the int value is not 0-127 inclusive, runtime error */
         emit(ArmCmpImm(Size.W, srcReg, ArmImmediate(maxValidChar)))
-        emit(ArmBranchCond(Condition.GT, ArmAddrLabel(widget.label)))
+        emit(ArmBranchCond(Condition.HI, ArmAddrLabel(widget.label)))
 
         val destLoc = dest match {
             case v: VirtualReg => locOf(v)
