@@ -60,7 +60,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         movInstrs should not be empty
     }
 
-    it should "generate a load from stack when source is on the stack" in {
+    it should "generate a load (ldur) from stack when source is on the stack" in {
         val src = VirtualReg(0, Size.W)
         val dest = VirtualReg(1, Size.W)
         val alloc = Map(
@@ -70,18 +70,18 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
 
         val result = programWith(List(Mov(dest, src)), alloc)
 
-        val loads = result.body.collect { case l: ArmLoad => l }
+        val loads = result.body.collect { case l: ArmLdur => l }
         loads should not be empty
         loads.head.src shouldBe ArmAddrImmOffset(PhysicalReg.framePointer, ArmImmediate(-8))
     }
 
-    it should "generate a store to stack when destination is on the stack" in {
+    it should "generate a store (stur) to stack when destination is on the stack" in {
         val dest = VirtualReg(0, Size.W)
         val alloc = Map(dest -> (StackSlot(-8): Location))
 
         val result = programWith(List(Mov(dest, Immediate(5))), alloc)
 
-        val stores = result.body.collect { case s: ArmStore => s }
+        val stores = result.body.collect { case s: ArmStur => s }
         stores should not be empty
         stores.head.src shouldBe ArmAddrImmOffset(PhysicalReg.framePointer, ArmImmediate(-8))
     }
