@@ -292,7 +292,7 @@ object CodeGenerator {
             generateBinaryOp(dest, src1, src2, ArmAsrReg.apply, ArmAsrImm.apply)
         
         /* Comparison and conditional */
-        case Cmp(src1, src2) => ??? // TODO
+        case Cmp(src1, src2) => generateCmp(src1, src2)
         case SetCond(dest, cond) => ??? // TODO
         
         /* Control flow */
@@ -424,6 +424,33 @@ object CodeGenerator {
         destOpt.foreach { dest =>
             val resultReg = PhysicalReg.argRegisters(0) 
             storeToLoc(resultReg, locOf(dest), dest.size)
+        }
+    }
+
+    /**
+      * Generate low-level IR for a Cmp instruction.
+      * Compares two operands by loading them into registers and emitting ArmCmpReg or ArmCmpImm.
+      * 
+      * @param src1 the first source operand (left side of comparison)
+      * @param src2 the second source operand (right side of comparison)
+      */
+    private def generateCmp(src1: VirtualReg, src2: Operand)(using st: GenState): Unit = {
+        val src1Loc = locOf(src1)
+        
+        /* Load first operand into a register */
+        val src1Reg = loadToReg(src1Loc, src1.size, PhysicalReg.ipcScratch(0))
+
+        /* Handle second operand and emit comparison */
+        (src2: @unchecked) match {
+            case src2VReg: VirtualReg =>
+                /* Register-register comparison */
+                val src2Loc = locOf(src2VReg)
+                val src2Reg = loadToReg(src2Loc, src1.size, PhysicalReg.ipcScratch(1))
+                emit(ArmCmpReg(src1.size, src1Reg, src2Reg))
+
+            case Immediate(value) =>
+                /* Register-immediate comparison */
+                emit(ArmCmpImm(src1.size, src1Reg, ArmImmediate(value)))
         }
     }
 }
