@@ -370,6 +370,7 @@ object Flattener {
         case BoolLiter(value, _) => Immediate(if value then 1 else 0)
         case CharLiter(value, _) => Immediate(value)
         case StrLiter(value, _) => directiveState.addString(value)
+        case Ident(name, SemanticData.Var(_, renameId, _)) => funcState.lookupReg(name, renameId)
         case _ => ???
                                   
     /**
