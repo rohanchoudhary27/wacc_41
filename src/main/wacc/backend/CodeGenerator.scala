@@ -390,31 +390,17 @@ object CodeGenerator {
       * @param widget
       * @param st
       */
-    private def generateChr(dest: Operand, src: Operand, widget: Widget)
+    private def generateChr(dest: VirtualReg, src: VirtualReg, widget: Widget)
                            (using st: GenState): Unit = {
         
         /* Runtime error widget for out of bounds ascii int */
         useWidget(widget)
 
         /* Load operand into a register */
-        val srcReg = src match {
-
-            /* Load to scratch */
-            case Immediate(value) => {
-                val scratch = PhysicalReg.ipcScratch(0)
-                emit(ArmMovImm(Size.W, scratch, ArmImmediate(value))) 
-                scratch
-            }
-
-            /* Load from stack if not already in a register */
-            case vReg @ VirtualReg(regNo, size) => {
-                locOf(vReg) match
-                    case stackLoc: StackSlot =>
-                        loadToReg(stackLoc, Size.W, PhysicalReg.ipcScratch(0))
-                    case reg: PhysicalReg => reg
-            }
-
-            case Label(name) => ???
+        val srcReg = locOf(src) match {
+            case stackLoc: StackSlot =>
+                loadToReg(stackLoc, Size.W, PhysicalReg.ipcScratch(0))
+            case reg: PhysicalReg => reg
         }
 
         val maxValidChar = 127
@@ -560,4 +546,5 @@ object CodeGenerator {
         /* Store result */
         storeToLoc(resultReg, destLoc, dest.size)
     }
+
 }
