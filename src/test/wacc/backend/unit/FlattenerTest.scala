@@ -232,7 +232,9 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         result.body should have length 1
         result.body.head shouldBe a [Mov]
         
-        val mov = result.body.head.asInstanceOf[Mov]
+        val mov: Mov = (result.body.head: @unchecked) match {
+            case m: Mov => m
+        }
         mov.src shouldBe Immediate(5)
         mov.reg should matchPattern { case VirtualReg(0, Size.W) => }
     }
@@ -264,8 +266,12 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         // 2. Mov(v1, v0)
         result.body should have length 2
         
-        val instr1 = result.body(0).asInstanceOf[Mov]
-        val instr2 = result.body(1).asInstanceOf[Mov]
+        val instr1: Mov = (result.body(0): @unchecked) match {
+            case m: Mov => m
+        }
+        val instr2: Mov = (result.body(1): @unchecked) match {
+            case m: Mov => m
+        }
 
         instr1.src shouldBe Immediate(5)
         val xReg = instr1.reg
@@ -295,8 +301,12 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         val result = Flattener.flatten(programWith(block))
 
         result.body should have length 2
-        val declMov = result.body(0).asInstanceOf[Mov]
-        val asgnMov = result.body(1).asInstanceOf[Mov]
+        val declMov: Mov = (result.body(0): @unchecked) match {
+            case m: Mov => m
+        }
+        val asgnMov: Mov = (result.body(1): @unchecked) match {
+            case m: Mov => m
+        }
 
         // Both instructions should target the same register
         declMov.reg shouldBe asgnMov.reg
