@@ -3,7 +3,8 @@ package wacc.backend.unit
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.flatspec.AnyFlatSpec
 import wacc.backend.{Flattener, Call as IRCall, Print as IRPrint, Label, Immediate, Mov, DataDirective,
-                     PrintCharWidget, PrintIntWidget, PrintBoolWidget, PrintStringWidget}
+                     PrintCharWidget, PrintIntWidget, PrintBoolWidget, PrintStringWidget, BranchCond,
+                     BranchUncond,Cmp, SetCond, Not, And, Or, VirtualReg, Size, LabelDef, Condition}
 import wacc.frontend.*
 import wacc.backend.VirtualReg
 import wacc.backend.Size
@@ -311,6 +312,212 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         // Both instructions should target the same register
         declMov.reg shouldBe asgnMov.reg
         asgnMov.src shouldBe Immediate(10)
+    }
+
+    "The flattener for comparison operators" should "flatten greater than comparison" in {
+        val leftExpr = IntLiter(5, SemanticData.Typed(synPos.pos, KnownType.Int))
+        val rightExpr = IntLiter(3, SemanticData.Typed(synPos.pos, KnownType.Int))
+        val gtExpr = BinaryExpr(BinaryOperator.GT, leftExpr, rightExpr,
+                                SemanticData.Typed(synPos.pos, KnownType.Bool))
+
+        val printStmt = Stmt.Print(gtExpr, semPos)
+        val inputAST = programWith(printStmt)
+
+        val flatOutput = Flattener.flatten(inputAST)
+
+        /* Should emit: Mov(left), Mov(right), Cmp, SetCond, Print */
+        flatOutput.body.length should be >= 3
+        
+        /* Find the Cmp and SetCond instructions */
+        val cmpInstrs = flatOutput.body.collect { case c: Cmp => c }
+        val setCondInstrs = flatOutput.body.collect { case s: SetCond => s }
+        
+        cmpInstrs should have length 1
+        setCondInstrs should have length 1
+        setCondInstrs.head.cond shouldBe wacc.backend.Condition.GT
+    }
+
+    it should "flatten less than or equal comparison" in {
+        val leftExpr = IntLiter(2, SemanticData.Typed(synPos.pos, KnownType.Int))
+        val rightExpr = IntLiter(10, SemanticData.Typed(synPos.pos, KnownType.Int))
+        val lteExpr = BinaryExpr(BinaryOperator.LTE, leftExpr, rightExpr,
+                                 SemanticData.Typed(synPos.pos, KnownType.Bool))
+
+        val printStmt = Stmt.Print(lteExpr, semPos)
+        val inputAST = programWith(printStmt)
+
+        val flatOutput = Flattener.flatten(inputAST)
+
+        val setCondInstrs = flatOutput.body.collect { case s: SetCond => s }
+        setCondInstrs should have length 1
+        setCondInstrs.head.cond shouldBe wacc.backend.Condition.LE
+    }
+
+    it should "flatten equality comparison" in {
+        val leftExpr = IntLiter(7, SemanticData.Typed(synPos.pos, KnownType.Int))
+        val rightExpr = IntLiter(7, SemanticData.Typed(synPos.pos, KnownType.Int))
+        val eqExpr = BinaryExpr(BinaryOperator.EQ, leftExpr, rightExpr,
+                                SemanticData.Typed(synPos.pos, KnownType.Bool))
+
+        val printStmt = Stmt.Print(eqExpr, semPos)
+        val inputAST = programWith(printStmt)
+
+        val flatOutput = Flattener.flatten(inputAST)
+
+        val setCondInstrs = flatOutput.body.collect { case s: SetCond => s }
+        setCondInstrs.head.cond shouldBe wacc.backend.Condition.EQ
+    }
+
+    it should "flatten not equal comparison" in {
+        val leftExpr = IntLiter(5, SemanticData.Typed(synPos.pos, KnownType.Int))
+        val rightExpr = IntLiter(3, SemanticData.Typed(synPos.pos, KnownType.Int))
+        val neqExpr = BinaryExpr(BinaryOperator.NEQ, leftExpr, rightExpr,
+                                 SemanticData.Typed(synPos.pos, KnownType.Bool))
+
+        val printStmt = Stmt.Print(neqExpr, semPos)
+        val inputAST = programWith(printStmt)
+
+        val flatOutput = Flattener.flatten(inputAST)
+
+        val setCondInstrs = flatOutput.body.collect { case s: SetCond => s }
+        setCondInstrs.head.cond shouldBe wacc.backend.Condition.NE
+    }
+
+    it should "flatten comparison and emit Cmp instruction" in {
+        val leftExpr = IntLiter(10, SemanticData.Typed(synPos.pos, KnownType.Int))
+        val rightExpr = IntLiter(20, SemanticData.Typed(synPos.pos, KnownType.Int))
+        val ltExpr = BinaryExpr(BinaryOperator.LT, leftExpr, rightExpr,
+                                SemanticData.Typed(synPos.pos, KnownType.Bool))
+
+        val printStmt = Stmt.Print(ltExpr, semPos)
+        val inputAST = programWith(printStmt)
+
+        val flatOutput = Flattener.flatten(inputAST)
+
+        val cmpInstrs = flatOutput.body.collect { case c: Cmp => c }
+        cmpInstrs should have length 1
+        
+        /* Both operands should be virtual registers */
+        cmpInstrs.head.src1 shouldBe a [VirtualReg]
+        cmpInstrs.head.src2 shouldBe a [VirtualReg]
+    }
+
+    "The flattener for boolean operators" should "flatten NOT operator" in {
+        val boolExpr = BoolLiter(true, SemanticData.Typed(synPos.pos, KnownType.Bool))
+        val notExpr = UnaryExpr(UnaryOperator.Not, boolExpr,
+                                SemanticData.Typed(synPos.pos, KnownType.Bool))
+
+        val printStmt = Stmt.Print(notExpr, semPos)
+        val inputAST = programWith(printStmt)
+
+        val flatOutput = Flattener.flatten(inputAST)
+
+        /* Should contain Not instruction */
+        val notInstrs = flatOutput.body.collect { case n: Not => n }
+        notInstrs should have length 1
+    }
+
+    it should "flatten AND operator" in {
+        val leftExpr = BoolLiter(true, SemanticData.Typed(synPos.pos, KnownType.Bool))
+        val rightExpr = BoolLiter(false, SemanticData.Typed(synPos.pos, KnownType.Bool))
+        val andExpr = BinaryExpr(BinaryOperator.And, leftExpr, rightExpr,
+                                 SemanticData.Typed(synPos.pos, KnownType.Bool))
+
+        val printStmt = Stmt.Print(andExpr, semPos)
+        val inputAST = programWith(printStmt)
+
+        val flatOutput = Flattener.flatten(inputAST)
+
+        /* Should contain And instruction */
+        val andInstrs = flatOutput.body.collect { case a: And => a }
+        andInstrs should have length 1
+    }
+
+    it should "flatten OR operator" in {
+        val leftExpr = BoolLiter(true, SemanticData.Typed(synPos.pos, KnownType.Bool))
+        val rightExpr = BoolLiter(false, SemanticData.Typed(synPos.pos, KnownType.Bool))
+        val orExpr = BinaryExpr(BinaryOperator.Or, leftExpr, rightExpr,
+                                SemanticData.Typed(synPos.pos, KnownType.Bool))
+
+        val printStmt = Stmt.Print(orExpr, semPos)
+        val inputAST = programWith(printStmt)
+
+        val flatOutput = Flattener.flatten(inputAST)
+
+        /* Should contain Or instruction */
+        val orInstrs = flatOutput.body.collect { case o: Or => o }
+        orInstrs should have length 1
+    }
+
+    "The flattener for if statements" should "flatten an if statement" in {
+
+        val blockTypes = SemanticData.Typed(synPos.pos, KnownType.Int)
+
+        val cond = BinaryExpr(BinaryOperator.LT,
+                              IntLiter(2, blockTypes),
+                              IntLiter(5, blockTypes),
+                              SemanticData.Typed(synPos.pos, KnownType.Bool))
+
+        val ifBlock = Stmt.Print(StrLiter("hello!", blockTypes), semPos)
+        val elseBlock = Stmt.Print(StrLiter("good bye!", blockTypes), semPos)
+
+        val ifStmt = Stmt.If(cond, ifBlock, elseBlock, semPos)
+
+        val inputAST = programWith(ifStmt)
+
+        val instrs = Flattener.flatten(inputAST).body
+
+        val elseBranch = instrs.collectFirst { case BranchCond(_, label) => label }
+        elseBranch should be (defined)
+        val elseLabel = elseBranch.get
+
+        val endBranch = instrs.collectFirst { case BranchUncond(label) => label }
+        endBranch should be (defined)
+        val endLabel = endBranch.get
+
+        /* Label defs should exist */
+        instrs should contain (LabelDef(elseLabel))
+        instrs should contain (LabelDef(endLabel))
+
+        /* else label branching should be before its definition */
+        instrs.indexOf(BranchCond(Condition.EQ, elseLabel)) should be < instrs.indexOf(LabelDef(elseLabel))
+        
+        /* end label branching should be before its definition */
+        instrs.indexOf(BranchUncond(endLabel)) should be < instrs.indexOf(LabelDef(endLabel))
+    }
+
+    "The flattener for while statements" should "flatten a while statement" in {
+
+        val blockTypes = SemanticData.Typed(synPos.pos, KnownType.Int)
+
+        val cond = BinaryExpr(BinaryOperator.LT,
+                              IntLiter(2, blockTypes),
+                              IntLiter(5, blockTypes),
+                              SemanticData.Typed(synPos.pos, KnownType.Bool))
+
+        val body = Stmt.Print(IntLiter(1, blockTypes), semPos)
+        val whileStmt = Stmt.While(cond, body, semPos)
+
+        val inputAST = programWith(whileStmt)
+        val instrs = Flattener.flatten(inputAST).body
+
+        val condBranch = instrs.collectFirst { case BranchUncond(label) => label }
+        condBranch should be (defined)
+        val condLabel = condBranch.get
+
+        val bodyBranch = instrs.collectFirst { case BranchCond(_, label) => label }
+        bodyBranch should be (defined)
+        val bodyLabel = bodyBranch.get
+
+        /* Label defs should exist */
+        instrs should contain (LabelDef(condLabel))
+        instrs should contain (LabelDef(bodyLabel))
+
+        /* cond label branching should be before its definition */
+        instrs.indexOf(BranchUncond(condLabel)) should be < instrs.indexOf(LabelDef(condLabel))
+        
+        /* body label branching should be after its definition */
+        instrs.indexOf(BranchCond(Condition.EQ, bodyLabel)) should be > instrs.indexOf(LabelDef(bodyLabel))
     }
 
 }
