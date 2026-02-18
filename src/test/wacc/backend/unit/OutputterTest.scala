@@ -122,6 +122,82 @@ class OutputterTest extends AnyFlatSpec with Matchers {
         output should include ("main:")
     }
 
+    /* ==================== Comparison Instruction Tests ==================== */
+
+    it should "emit cmp for register-register comparison" in {
+        val output = emitInstr(
+            ArmCmpReg(Size.W, PhysicalReg.argRegisters(0), PhysicalReg.argRegisters(1))
+        )
+        output should include ("cmp w0, w1")
+    }
+
+    it should "emit cmp for register-immediate comparison" in {
+        val output = emitInstr(
+            ArmCmpImm(Size.W, PhysicalReg.argRegisters(0), ArmImmediate(42))
+        )
+        output should include ("cmp w0, #42")
+    }
+
+    /* ==================== Conditional Set Instruction Tests ==================== */
+
+    it should "emit cset with EQ condition" in {
+        val output = emitInstr(
+            ArmCSet(Size.B, PhysicalReg.argRegisters(0), Condition.EQ)
+        )
+        output should include ("cset w0, eq")
+    }
+
+    it should "emit cset with NE condition" in {
+        val output = emitInstr(
+            ArmCSet(Size.B, PhysicalReg.argRegisters(0), Condition.NE)
+        )
+        output should include ("cset w0, ne")
+    }
+
+    it should "emit cset with GT condition" in {
+        val output = emitInstr(
+            ArmCSet(Size.B, PhysicalReg.argRegisters(0), Condition.GT)
+        )
+        output should include ("cset w0, gt")
+    }
+
+    it should "emit cset with LT condition" in {
+        val output = emitInstr(
+            ArmCSet(Size.B, PhysicalReg.argRegisters(0), Condition.LT)
+        )
+        output should include ("cset w0, lt")
+    }
+
+    it should "emit cset with GE condition" in {
+        val output = emitInstr(
+            ArmCSet(Size.B, PhysicalReg.argRegisters(0), Condition.GE)
+        )
+        output should include ("cset w0, ge")
+    }
+
+    it should "emit cset with LE condition" in {
+        val output = emitInstr(
+            ArmCSet(Size.B, PhysicalReg.argRegisters(0), Condition.LE)
+        )
+        output should include ("cset w0, le")
+    }
+
+    /* ==================== Boolean NOT Instruction Tests ==================== */
+
+    it should "emit mvn for bitwise NOT operation" in {
+        val output = emitInstr(
+            ArmNotReg(Size.B, PhysicalReg.argRegisters(0), PhysicalReg.argRegisters(1))
+        )
+        output should include ("mvn w0, w1")
+    }
+
+    it should "emit mvn with 32-bit registers" in {
+        val output = emitInstr(
+            ArmNotReg(Size.W, PhysicalReg.argRegisters(2), PhysicalReg.argRegisters(3))
+        )
+        output should include ("mvn w2, w3")
+    }
+
     /* ==================== Full Program Tests ==================== */
 
     it should "emit a complete exit 7 program" in {
