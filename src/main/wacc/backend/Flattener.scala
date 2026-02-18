@@ -424,8 +424,39 @@ object Flattener {
 
         op match {
             case UnaryOperator.Not => flattenNot(operand)
-            case _ => ???
+            case UnaryOperator.Chr => flattenChr(operand)
+            case UnaryOperator.Ord => flattenOrd(operand)
+            case UnaryOperator.Neg => flattenNeg(operand)
+            case UnaryOperator.Len => ??? /* TODO: requires arrays */
         }
+    }
+
+    /**
+      * Flatten a `chr` unary operator. Emits a `Chr` high level IR node
+      * because the code generator needs have logic for the runtime error check (ascii
+      * chars can only be 0-127 inclusive).
+      *
+      * @param operand The operand to the chr function
+      * @param funcState The current scope function state
+      * @return The virtual register containing the result
+      */
+    private def flattenChr(operand: Operand)
+                          (using funcState: FunctionState): VirtualReg = {
+        val reg = toReg(operand)
+        val chrReg = funcState.anonymousReg(KnownType.Int)
+        funcState.emitInstruction(wacc.backend.Chr(chrReg, reg, BadCharWidgetError))
+        chrReg
+    }
+
+    private def flattenOrd(operand: Operand)
+                          (using funcState: FunctionState): VirtualReg = toReg(operand)
+
+    private def flattenNeg(operand: Operand)
+                          (using funcState: FunctionState): VirtualReg = {
+        val reg = toReg(operand)
+        val negReg = funcState.anonymousReg(KnownType.Int)
+        funcState.emitInstruction(Neg(negReg, reg))
+        negReg
     }
 
     /**
