@@ -67,7 +67,6 @@ object Outputter {
         case ArmAndImm(size, dest, src1, imm) => ???
         case ArmOrReg(size, dest, src1, src2) => ???
         case ArmOrImm(size, dest, src1, imm) => ???
-        case ArmNotReg(size, dest, src) => emitUnary("mvn", size, dest, src)
         
         /* Shifts */
         case ArmLslReg(size, dest, src1, src2) => ???

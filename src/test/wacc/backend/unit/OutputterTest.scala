@@ -182,22 +182,6 @@ class OutputterTest extends AnyFlatSpec with Matchers {
         output should include ("cset w0, le")
     }
 
-    /* ==================== Boolean NOT Instruction Tests ==================== */
-
-    it should "emit mvn for bitwise NOT operation" in {
-        val output = emitInstr(
-            ArmNotReg(Size.B, PhysicalReg.argRegisters(0), PhysicalReg.argRegisters(1))
-        )
-        output should include ("mvn w0, w1")
-    }
-
-    it should "emit mvn with 32-bit registers" in {
-        val output = emitInstr(
-            ArmNotReg(Size.W, PhysicalReg.argRegisters(2), PhysicalReg.argRegisters(3))
-        )
-        output should include ("mvn w2, w3")
-    }
-
     /* ==================== Full Program Tests ==================== */
 
     it should "emit a complete exit 7 program" in {

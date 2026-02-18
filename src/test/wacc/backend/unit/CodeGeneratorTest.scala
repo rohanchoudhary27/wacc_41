@@ -329,7 +329,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
 
     /* ==================== Boolean Operator Tests ==================== */
 
-    "CodeGenerator generateNot" should "generate ArmNotReg for NOT operation" in {
+    "CodeGenerator generateNot" should "generate cmp + cset for boolean NOT" in {
         val src = VirtualReg(0, Size.B)
         val dest = VirtualReg(1, Size.B)
         val alloc = Map(
@@ -339,9 +339,16 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
 
         val result = programWith(List(Not(dest, src)), alloc)
 
-        val notInstrs = result.body.collect { case n: ArmNotReg => n }
-        notInstrs should have length 1
-        notInstrs.head.size shouldBe Size.B
+        // Should emit: cmp src, #0 then cset dest, eq
+        val cmpInstrs = result.body.collect { case c: ArmCmpImm => c }
+        cmpInstrs should have length 1
+        cmpInstrs.head.size shouldBe Size.B
+        cmpInstrs.head.src2.value shouldBe 0
+
+        val csetInstrs = result.body.collect { case c: ArmCSet => c }
+        csetInstrs should have length 1
+        csetInstrs.head.size shouldBe Size.B
+        csetInstrs.head.cond shouldBe Condition.EQ
     }
 
     "CodeGenerator generateBinaryOp for And" should "generate ArmAndReg for register-register AND" in {

@@ -257,39 +257,7 @@ object CodeGenerator {
         storeToLoc(resultReg, destLoc, dest.size)
     }
 
-    /**
-      * Generate a unary operation.
-      * 
-      * This function handles loading the operand from its location, emitting the
-      * unary operation instruction, and storing the result.
-      *
-      * @param dest the destination virtual register
-      * @param src the source virtual register
-      * @param op constructor for the unary operation
-      */
-    private def generateUnaryOp(
-        dest: VirtualReg,
-        src: VirtualReg,
-        op: (Size, PhysicalReg, PhysicalReg) => ArmInstruction
-    )(using st: GenState): Unit = {
-        val destLoc = locOf(dest)
-        val srcLoc = locOf(src)
-        
-        /* Load source operand */
-        val srcReg = loadToReg(srcLoc, dest.size, PhysicalReg.ipcScratch(0))
-        
-        /* Determine result register */
-        val resultReg = destLoc match {
-            case reg: PhysicalReg => reg
-            case _ => PhysicalReg.ipcScratch(0)
-        }
-        
-        /* Emit unary operation */
-        emit(op(dest.size, resultReg, srcReg))
-        
-        /* Store result */
-        storeToLoc(resultReg, destLoc, dest.size)
-    }
+
 
     /**
       * Generate ARM instructions for a single high-level instruction.
@@ -318,7 +286,7 @@ object CodeGenerator {
         case Or(dest, src1, src2) => 
             generateBinaryOp(dest, src1, src2, ArmOrReg.apply, ArmOrImm.apply)
         case Not(dest, src) => 
-            generateUnaryOp(dest, src, ArmNotReg.apply)
+            generateNot(dest, src)
 
         case Lsl(dest, src1, src2) => 
             generateBinaryOp(dest, src1, src2, ArmLslReg.apply, ArmLslImm.apply)
@@ -507,6 +475,33 @@ object CodeGenerator {
         
         /* Emit conditional set instruction */
         emit(ArmCSet(dest.size, resultReg, cond))
+        
+        /* Store result */
+        storeToLoc(resultReg, destLoc, dest.size)
+    }
+
+    /**
+      * Generate low-level IR for boolean NOT.
+      * 
+      * @param dest the destination virtual register
+      * @param src the source virtual register to negate
+      */
+    private def generateNot(dest: VirtualReg, src: VirtualReg)(using st: GenState): Unit = {
+        val srcLoc = locOf(src)
+        val destLoc = locOf(dest)
+        
+        /* Load source operand */
+        val srcReg = loadToReg(srcLoc, src.size, PhysicalReg.ipcScratch(0))
+        
+        /* Determine result register */
+        val resultReg = destLoc match {
+            case reg: PhysicalReg => reg
+            case _ => PhysicalReg.ipcScratch(0)
+        }
+        
+        /* Compare with 0 and set to 1 if equal (i.e. invert the boolean) */
+        emit(ArmCmpImm(src.size, srcReg, ArmImmediate(0)))
+        emit(ArmCSet(dest.size, resultReg, Condition.EQ))
         
         /* Store result */
         storeToLoc(resultReg, destLoc, dest.size)
