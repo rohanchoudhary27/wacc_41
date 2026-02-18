@@ -199,9 +199,14 @@ object CodeGenerator {
         case reg: PhysicalReg => reg
         case StackSlot(offset) =>
             if (isSafeSignedOffset(offset)) {
-                emit(ArmLoad(
-                    size, scratch, ArmAddrImmOffset(PhysicalReg.framePointer, ArmImmediate(offset))
-                ))
+                if (offset < 0) /* negative offset, use LDUR */ {
+                    emit(ArmLdur(size, scratch, ArmAddrImmOffset(PhysicalReg.framePointer, ArmImmediate(offset))))  
+                } else { /* positive offset, use LDR */
+                    emit(ArmLoad(
+                        size, scratch, ArmAddrImmOffset(PhysicalReg.framePointer, ArmImmediate(offset))
+                    ))
+                }
+                
             } else {
                 /* Large offset, so we need to load the offset into x17, then `ldr [fp, x17]` */
                 val offsetReg = PhysicalReg.ipcScratch(1) // use x17
@@ -228,9 +233,15 @@ object CodeGenerator {
             if (src != dest) emit(ArmMovReg(size, dest, src))
         case StackSlot(offset) =>
             if (isSafeSignedOffset(offset)) {
-                emit(ArmStore(
-                    size, src, ArmAddrImmOffset(PhysicalReg.framePointer, ArmImmediate(offset))
-                ))
+                if (offset < 0) { /* negative offset, use STUR */
+                    emit(ArmStur(
+                        size, src, ArmAddrImmOffset(PhysicalReg.framePointer, ArmImmediate(offset))
+                    ))
+                } else { /* positive offset, use STR */
+                    emit(ArmStore(
+                        size, src, ArmAddrImmOffset(PhysicalReg.framePointer, ArmImmediate(offset))
+                    ))
+                }
             } else {
                 /* large offset, so we need to load the offset into x17, then `str [fp, x17]` */
                 val offsetReg = PhysicalReg.ipcScratch(1) // use x17
