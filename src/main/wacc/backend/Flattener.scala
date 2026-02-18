@@ -209,6 +209,7 @@ object Flattener {
         case Stmt.Print(expr, _) => flattenPrint(expr)
         case Stmt.Println(expr, _) => flattenPrintln(expr)
         case Stmt.If(cond, ifBlock, elseBlock, _) => flattenIf(cond, ifBlock, elseBlock)
+        case Stmt.While(cond, body, _) => flattenWhile(cond, body)
         case _ => {
             println(typedStmt)
             ???
@@ -282,6 +283,30 @@ object Flattener {
         /* End of if statement label */
         funcState.emitInstruction(LabelDef(endLabel))
     }
+
+    private def flattenWhile(cond: Expr[SemanticData],
+                             body: Stmt[SemanticData])
+                            (using funcState: FunctionState,
+                                   directiveState: GlobalFlattenContext) = {
+        
+        val flatCondition = flattenExpr(cond)
+
+        /* Define labels */
+        val bodyLabel = directiveState.getNextLabel(".L_body")
+        val condLabel = directiveState.getNextLabel(".L_cond")
+
+        /* Jump to the condition */
+        funcState.emitInstruction(BranchUncond(condLabel))
+
+        /* Loop body */
+        funcState.emitInstruction(LabelDef(bodyLabel))
+        flattenStmt(body)
+
+        /* Evaluate the condition and jump back if it's true */
+        funcState.emitInstruction(LabelDef(condLabel))
+        funcState.emitInstruction(Cmp(toReg(flatCondition), Immediate(1)))
+        funcState.emitInstruction(BranchCond(Condition.EQ, bodyLabel))
+    } 
 
     /**
       * Flatten a Println AST node, emitting a Call node to the right print widget
