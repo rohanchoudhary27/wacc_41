@@ -138,6 +138,36 @@ class OutputterTest extends AnyFlatSpec with Matchers {
         output should include ("cmp w0, #42")
     }
 
+    /* ==================== Boolean Operator Instruction Tests ==================== */
+
+    it should "emit and for register-register AND" in {
+        val output = emitInstr(
+            ArmAndReg(Size.B, PhysicalReg.argRegisters(0), PhysicalReg.argRegisters(1), PhysicalReg.argRegisters(2))
+        )
+        output should include ("and w0, w1, w2")
+    }
+
+    it should "emit and for register-immediate AND" in {
+        val output = emitInstr(
+            ArmAndImm(Size.B, PhysicalReg.argRegisters(0), PhysicalReg.argRegisters(1), ArmImmediate(1))
+        )
+        output should include ("and w0, w1, #1")
+    }
+
+    it should "emit orr for register-register OR" in {
+        val output = emitInstr(
+            ArmOrReg(Size.B, PhysicalReg.argRegisters(0), PhysicalReg.argRegisters(1), PhysicalReg.argRegisters(2))
+        )
+        output should include ("orr w0, w1, w2")
+    }
+
+    it should "emit orr for register-immediate OR" in {
+        val output = emitInstr(
+            ArmOrImm(Size.B, PhysicalReg.argRegisters(0), PhysicalReg.argRegisters(1), ArmImmediate(1))
+        )
+        output should include ("orr w0, w1, #1")
+    }
+
     /* ==================== Conditional Set Instruction Tests ==================== */
 
     it should "emit cset with EQ condition" in {

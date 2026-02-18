@@ -63,10 +63,10 @@ object Outputter {
         case ArmNeg(size, reg) => ???
         
         /* Logical */
-        case ArmAndReg(size, dest, src1, src2) => ???
-        case ArmAndImm(size, dest, src1, imm) => ???
-        case ArmOrReg(size, dest, src1, src2) => ???
-        case ArmOrImm(size, dest, src1, imm) => ???
+        case ArmAndReg(size, dest, src1, src2) => emitBinary("and", size, dest, src1, src2)
+        case ArmAndImm(size, dest, src1, imm) => emitBinary("and", size, dest, src1, imm)
+        case ArmOrReg(size, dest, src1, src2) => emitBinary("orr", size, dest, src1, src2)
+        case ArmOrImm(size, dest, src1, imm) => emitBinary("orr", size, dest, src1, imm)
         
         /* Shifts */
         case ArmLslReg(size, dest, src1, src2) => ???
