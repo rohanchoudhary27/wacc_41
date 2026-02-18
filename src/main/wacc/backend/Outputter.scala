@@ -63,11 +63,10 @@ object Outputter {
         case ArmNeg(size, reg) => ???
         
         /* Logical */
-        case ArmAndReg(size, dest, src1, src2) => ???
-        case ArmAndImm(size, dest, src1, imm) => ???
-        case ArmOrReg(size, dest, src1, src2) => ???
-        case ArmOrImm(size, dest, src1, imm) => ???
-        case ArmNotReg(size, dest, src) => ???
+        case ArmAndReg(size, dest, src1, src2) => emitBinary("and", size, dest, src1, src2)
+        case ArmAndImm(size, dest, src1, imm) => emitBinary("and", size, dest, src1, imm)
+        case ArmOrReg(size, dest, src1, src2) => emitBinary("orr", size, dest, src1, src2)
+        case ArmOrImm(size, dest, src1, imm) => emitBinary("orr", size, dest, src1, imm)
         
         /* Shifts */
         case ArmLslReg(size, dest, src1, src2) => ???
@@ -98,12 +97,13 @@ object Outputter {
         case ArmRet => indented("ret")
         
         /* Stack Operations */
+        case ArmLoadPair(size, dest1, dest2, addr) => emitLoadPair(size, dest1, dest2, addr)
         case ArmStorePair(size, src1, src2, addr) => emitStorePair(size, src1, src2, addr)
 
-        case ArmLoadPair(size, dest1, dest2, addr) => emitLoadPair(size, dest1, dest2, addr)        
         /* Special Instructions */
         case ArmMSub(size, dest, mult1, mult2, sub) => ???
-        case ArmCSet(size, dest, cond) => ???
+        case ArmCSet(size, dest, cond) => 
+            indented(s"cset ${formatReg(dest, size)}, ${formatCondition(cond)}")
         case ArmSMull(dest, src1, src2) => ???
         case ArmSxtw(dest, src) => ???
         case ArmCbz(size, reg, label) => ???

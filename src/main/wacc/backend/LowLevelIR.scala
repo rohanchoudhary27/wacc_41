@@ -84,9 +84,6 @@ case class ArmAndReg(size: Size,
                      reg: PhysicalReg,
                      src1: PhysicalReg,
                      src2: PhysicalReg) extends ArmInstruction
-case class ArmNotReg(size: Size,
-                     reg: PhysicalReg,
-                     src: PhysicalReg) extends ArmInstruction
 
 /* Immediate logical instructions */
 case class ArmOrImm(size: Size,

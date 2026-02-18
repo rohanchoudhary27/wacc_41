@@ -257,6 +257,8 @@ object CodeGenerator {
         storeToLoc(resultReg, destLoc, dest.size)
     }
 
+
+
     /**
       * Generate ARM instructions for a single high-level instruction.
       * Pattern matches on all instruction types and delegates to specific handlers.
@@ -283,7 +285,9 @@ object CodeGenerator {
             generateBinaryOp(dest, src1, src2, ArmAndReg.apply, ArmAndImm.apply)
         case Or(dest, src1, src2) => 
             generateBinaryOp(dest, src1, src2, ArmOrReg.apply, ArmOrImm.apply)
-        case Not(dest, src) => ??? // TODO
+        case Not(dest, src) => 
+            generateNot(dest, src)
+
         case Lsl(dest, src1, src2) => 
             generateBinaryOp(dest, src1, src2, ArmLslReg.apply, ArmLslImm.apply)
         case Lsr(dest, src1, src2) => 
@@ -292,8 +296,8 @@ object CodeGenerator {
             generateBinaryOp(dest, src1, src2, ArmAsrReg.apply, ArmAsrImm.apply)
         
         /* Comparison and conditional */
-        case Cmp(src1, src2) => ??? // TODO
-        case SetCond(dest, cond) => ??? // TODO
+        case Cmp(src1, src2) => generateCmp(src1, src2)
+        case SetCond(dest, cond) => generateSetCond(dest, cond)
         
         /* Control flow */
         case BranchUncond(label) => emit(ArmBranchUncond(ArmAddrLabel(label.name)))
@@ -425,5 +429,81 @@ object CodeGenerator {
             val resultReg = PhysicalReg.argRegisters(0) 
             storeToLoc(resultReg, locOf(dest), dest.size)
         }
+    }
+
+    /**
+      * Generate low-level IR for a Cmp instruction.
+      * Compares two operands by loading them into registers and emitting ArmCmpReg or ArmCmpImm.
+      * 
+      * @param src1 the first source operand (left side of comparison)
+      * @param src2 the second source operand (right side of comparison)
+      */
+    private def generateCmp(src1: VirtualReg, src2: Operand)(using st: GenState): Unit = {
+        val src1Loc = locOf(src1)
+        
+        /* Load first operand into a register */
+        val src1Reg = loadToReg(src1Loc, src1.size, PhysicalReg.ipcScratch(0))
+
+        /* Handle second operand and emit comparison */
+        (src2: @unchecked) match {
+            case src2VReg: VirtualReg =>
+                /* Register-register comparison */
+                val src2Loc = locOf(src2VReg)
+                val src2Reg = loadToReg(src2Loc, src1.size, PhysicalReg.ipcScratch(1))
+                emit(ArmCmpReg(src1.size, src1Reg, src2Reg))
+
+            case Immediate(value) =>
+                /* Register-immediate comparison */
+                emit(ArmCmpImm(src1.size, src1Reg, ArmImmediate(value)))
+        }
+    }
+
+    /**
+      * Generate low-level IR for a SetCond instruction.
+      * 
+      * @param dest the destination virtual register
+      * @param cond the condition to test
+      */
+    private def generateSetCond(dest: VirtualReg, cond: Condition)(using st: GenState): Unit = {
+        val destLoc = locOf(dest)
+        
+        /* Determine result register */
+        val resultReg = destLoc match {
+            case reg: PhysicalReg => reg
+            case _ => PhysicalReg.ipcScratch(0)
+        }
+        
+        /* Emit conditional set instruction */
+        emit(ArmCSet(dest.size, resultReg, cond))
+        
+        /* Store result */
+        storeToLoc(resultReg, destLoc, dest.size)
+    }
+
+    /**
+      * Generate low-level IR for boolean NOT.
+      * 
+      * @param dest the destination virtual register
+      * @param src the source virtual register to negate
+      */
+    private def generateNot(dest: VirtualReg, src: VirtualReg)(using st: GenState): Unit = {
+        val srcLoc = locOf(src)
+        val destLoc = locOf(dest)
+        
+        /* Load source operand */
+        val srcReg = loadToReg(srcLoc, src.size, PhysicalReg.ipcScratch(0))
+        
+        /* Determine result register */
+        val resultReg = destLoc match {
+            case reg: PhysicalReg => reg
+            case _ => PhysicalReg.ipcScratch(0)
+        }
+        
+        /* Compare with 0 and set to 1 if equal (i.e. invert the boolean) */
+        emit(ArmCmpImm(src.size, srcReg, ArmImmediate(0)))
+        emit(ArmCSet(dest.size, resultReg, Condition.EQ))
+        
+        /* Store result */
+        storeToLoc(resultReg, destLoc, dest.size)
     }
 }
