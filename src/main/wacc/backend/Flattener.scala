@@ -201,6 +201,7 @@ object Flattener {
                                    directiveState: GlobalFlattenContext): Unit = typedStmt match {
 
         case Stmt.Block(stmts, _) => stmts.foreach(flattenStmt)
+        case Stmt.Skip(_) => () /* do nothing on skip */
         case Stmt.Exit(expr, _) => flattenExit(expr)
         case Stmt.Print(expr, _) => flattenPrint(expr)
         case Stmt.Println(expr, _) => flattenPrintln(expr)
@@ -328,8 +329,7 @@ object Flattener {
                                    directiveState: GlobalFlattenContext) = {
 
         val printVal = flattenExpr(expr)
-
-        val SemanticData.Typed(_, semType) = expr.info
+        val semType = expr.expressionType
 
         val printWidget: Widget = semType match
             case wacc.frontend.KnownType.Int =>  PrintIntWidget
