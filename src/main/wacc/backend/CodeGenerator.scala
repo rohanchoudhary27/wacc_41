@@ -335,7 +335,7 @@ object CodeGenerator {
       */
     private def generateMov(dest: VirtualReg, src: Operand)(using GenState) = {
 
-        /* Get the source value in a scratch register */
+        /* Get the source value in a scratch register to avoid memory to memory moves */
         val tempReg = src match {
 
             /* Move from stack to scratch register (or return the physical register if it
@@ -348,8 +348,12 @@ object CodeGenerator {
                 val scratch = PhysicalReg.ipcScratch(0)
                 emit(ArmMovImm(dest.size, scratch, ArmImmediate(value))) 
                 scratch
-
-            case Label(name) => ???
+            
+            /* Load the memory address into scratch using lea */
+            case Label(name) =>
+                val scratch = PhysicalReg.ipcScratch(0)
+                emit(ArmLea(scratch, ArmAddrLabel(name)))
+                scratch
         }
 
         /* Store `src` in the destination location (register/stack) */

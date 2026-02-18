@@ -234,7 +234,7 @@ object Flattener {
         /* funcState's `defineReg` expects a `KnownType` but the type extracted from the
             `ident` is a `SemanticType`. But we know from type checker that it's always going
              to be a `KnownType`, so just convert it to a `KnownType`. */
-        val kty: KnownType = typ match {
+        val kty: KnownType = (typ: @unchecked) match {
             case t: KnownType => t
             // case _:  /* error!!!!!! should not happen in a declaration */
         }
