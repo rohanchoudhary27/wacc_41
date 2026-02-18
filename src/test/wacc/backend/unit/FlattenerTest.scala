@@ -4,7 +4,8 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.flatspec.AnyFlatSpec
 import wacc.backend.{Flattener, Call as IRCall, Print as IRPrint, Label, Immediate, Mov, DataDirective,
                      PrintCharWidget, PrintIntWidget, PrintBoolWidget, PrintStringWidget, BranchCond,
-                     BranchUncond,Cmp, SetCond, Not, And, Or, VirtualReg, Size, LabelDef, Condition}
+                     BranchUncond,Cmp, SetCond, Not, And, Or, VirtualReg, Size, LabelDef, Condition,
+                     Neg, Chr}
 import wacc.frontend.*
 
 /**
@@ -420,6 +421,42 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         
         /* body label branching should be after its definition */
         instrs.indexOf(BranchCond(Condition.EQ, bodyLabel)) should be > instrs.indexOf(LabelDef(bodyLabel))
+    }
+
+    "The flattener for unary operators" should "flatten the neg operator" in {
+        val intExpr = IntLiter(10, SemanticData.Typed(synPos.pos, KnownType.Int))
+        val negExpr = UnaryExpr(UnaryOperator.Neg, intExpr,
+                                SemanticData.Typed(synPos.pos, KnownType.Int))
+
+        val printStmt = Stmt.Print(negExpr, semPos)
+        val inputAST = programWith(printStmt)
+
+        val flatOutput = Flattener.flatten(inputAST)
+
+        val negInstrs = flatOutput.body.collect { case n: Neg => n }
+        negInstrs should have length 1
+        
+        /* Check that dest and src are different */
+        negInstrs.head match {
+            case Neg(dest, src) => dest should not be src
+        }
+    }
+
+    it should "flatten chr operator" in {
+        val intExpr = IntLiter(97, SemanticData.Typed(synPos.pos, KnownType.Int))
+        val chrExpr = UnaryExpr(UnaryOperator.Chr, intExpr,
+                                SemanticData.Typed(synPos.pos, KnownType.Char))
+
+        val printStmt = Stmt.Print(chrExpr, semPos)
+        val inputAST = programWith(printStmt)
+
+        val flatOutput = Flattener.flatten(inputAST)
+
+        val chrInstrs = flatOutput.body.collect { case c: Chr => c }
+        chrInstrs should have length 1
+        
+        /* Needs the error widget */
+        chrInstrs.head.widget should not be None
     }
 
 }
