@@ -293,7 +293,7 @@ object CodeGenerator {
         
         /* Comparison and conditional */
         case Cmp(src1, src2) => generateCmp(src1, src2)
-        case SetCond(dest, cond) => ??? // TODO
+        case SetCond(dest, cond) => generateSetCond(dest, cond)
         
         /* Control flow */
         case BranchUncond(label) => emit(ArmBranchUncond(ArmAddrLabel(label.name)))
@@ -452,5 +452,27 @@ object CodeGenerator {
                 /* Register-immediate comparison */
                 emit(ArmCmpImm(src1.size, src1Reg, ArmImmediate(value)))
         }
+    }
+
+    /**
+      * Generate low-level IR for a SetCond instruction.
+      * 
+      * @param dest the destination virtual register
+      * @param cond the condition to test
+      */
+    private def generateSetCond(dest: VirtualReg, cond: Condition)(using st: GenState): Unit = {
+        val destLoc = locOf(dest)
+        
+        /* Determine result register */
+        val resultReg = destLoc match {
+            case reg: PhysicalReg => reg
+            case _ => PhysicalReg.ipcScratch(0)
+        }
+        
+        /* Emit conditional set instruction */
+        emit(ArmCSet(dest.size, resultReg, cond))
+        
+        /* Store result */
+        storeToLoc(resultReg, destLoc, dest.size)
     }
 }
