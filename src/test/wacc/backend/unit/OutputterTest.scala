@@ -212,6 +212,20 @@ class OutputterTest extends AnyFlatSpec with Matchers {
         output should include ("cset w0, le")
     }
 
+    it should "emit neg for integer negation" in {
+        val output = emitInstr(
+            ArmNeg(Size.W, PhysicalReg.argRegisters(1), PhysicalReg.argRegisters(0))
+        )
+        output should include ("neg w1, w0")
+    }
+
+    it should "emit mov for chr identity assignment" in {
+        val output = emitInstr(
+            ArmMovReg(Size.W, PhysicalReg.argRegisters(1), PhysicalReg.argRegisters(0))
+        )
+        output should include ("mov w1, w0")
+    }
+
     /* ==================== Full Program Tests ==================== */
 
     it should "emit a complete exit 7 program" in {
@@ -260,6 +274,21 @@ class OutputterTest extends AnyFlatSpec with Matchers {
         val output = Outputter.emit(prog)
 
         output should not include (".data")
+    }
+
+    it should "emit the full data section with the correct Chr error message" in {
+        val errorMsg = "fatal error: int %d is not ascii character 0-127\n"
+        
+        val prog = ArmProgram(
+            List(ArmDataDirective(ArmAddrLabel("_errBadChar"), errorMsg)),
+            List(ArmLabelDef(ArmAddrLabel("main")), ArmRet)
+        )
+
+        val output = Outputter.emit(prog)
+
+        output should include (".data")
+        output should include ("_errBadChar:")
+        output should include (errorMsg)
     }
 
     "Outputter for print" should "include the correct print widget" in {
