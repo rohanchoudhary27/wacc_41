@@ -83,6 +83,14 @@ object CodeGenerator {
     /** Get all collected widget assembly */
     def getWidgetAssembly()(using st: GenState): String = st.global.dispatcher.getCollectedAssembly
 
+    /** Checks if an Immediate offset fits within the 9-bit signed immediate range (-256 to +255) 
+     * allowed by the STR/LDR/STUR/LDUR instructions
+     * 
+     * @param offset the immediate offset value used in addressing mode
+     */
+    private def isSafeSignedOffset(offset: Int): Boolean = 
+        offset >= -256 && offset<= 255
+
     /**
       * Generate Low-Level IR for the program.
       * 
@@ -176,9 +184,10 @@ object CodeGenerator {
 
     
     /**
-      * Load a value from a location into a physical register.
-      * If the location is already a PhysicalReg, returns it directly.
-      * If the location is a StackSlot, emits a load instruction to the scratch register.
+      * Load a value from a location into a physical register. 
+      * 
+      * Handles large stack signed offsets by using a scratch register for address 
+      * calculation. 
       *
       * @param loc the location to load from
       * @param size the register size
@@ -189,24 +198,48 @@ object CodeGenerator {
                          (using st: GenState): PhysicalReg = loc match {
         case reg: PhysicalReg => reg
         case StackSlot(offset) =>
-            emit(ArmLoad(size, scratch, ArmAddrImmOffset(PhysicalReg.framePointer, ArmImmediate(offset))))
+            if (isSafeSignedOffset(offset)) {
+                emit(ArmLoad(
+                    size, scratch, ArmAddrImmOffset(PhysicalReg.framePointer, ArmImmediate(offset))
+                ))
+            } else {
+                /* Large offset, so we need to load the offset into x17, then `ldr [fp, x17]` */
+                val offsetReg = PhysicalReg.ipcScratch(1) // use x17
+                emit(ArmMovImm(Size.X, offsetReg, ArmImmediate(offset)))
+                emit(ArmLoad(size, scratch, ArmAddrRegOffset(PhysicalReg.framePointer, offsetReg)))
+            }
             scratch
     }
     
     /**
-      * Store a value from a physical register to a location.
-      * If the location is a PhysicalReg, emits a move instruction (if different).
-      * If the location is a StackSlot, emits a store instruction.
+      * Store a value from a physical register to a location. 
+      * 
+      * Handles large stack signed offsets by using a scratch register for address 
+      * calculation. 
       *
       * @param src the source PhysicalReg
       * @param loc the destination location
       * @param size the register size
       */
-    private def storeToLoc(src: PhysicalReg, loc: Location, size: Size)(using st: GenState): Unit = loc match {
+    private def storeToLoc(
+        src: PhysicalReg, loc: Location, size: Size
+    )(using st: GenState): Unit = loc match {
         case dest: PhysicalReg =>
             if (src != dest) emit(ArmMovReg(size, dest, src))
         case StackSlot(offset) =>
-            emit(ArmStore(size, src, ArmAddrImmOffset(PhysicalReg.framePointer, ArmImmediate(offset))))
+            if (isSafeSignedOffset(offset)) {
+                emit(ArmStore(
+                    size, src, ArmAddrImmOffset(PhysicalReg.framePointer, ArmImmediate(offset))
+                ))
+            } else {
+                /* large offset, so we need to load the offset into x17, then `str [fp, x17]` */
+                val offsetReg = PhysicalReg.ipcScratch(1) // use x17
+                emit(ArmMovImm(Size.X, offsetReg, ArmImmediate(offset)))
+                emit(ArmStore(
+                    size, src, ArmAddrRegOffset(PhysicalReg.framePointer, offsetReg)
+                ))
+            }
+            
     }
 
 
