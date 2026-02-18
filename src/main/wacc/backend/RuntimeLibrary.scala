@@ -612,7 +612,7 @@ object BadCharWidgetError extends Widget {
             |// length of .L._errBadChar_str0
             |   .word 50
             |.L._errBadChar_str0:
-            |   .asciz "fatal error: int %d is not ascii character 0-127 \n"
+            |   .asciz "fatal error: int %d is not ascii character 0-127\\n"
             |.align 4
             |_errBadChar:
             |   adr x0, .L._errBadChar_str0
