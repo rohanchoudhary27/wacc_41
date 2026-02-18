@@ -551,24 +551,12 @@ object CodeGenerator {
       * @param src the source virtual register to negate
       */
     private def generateNot(dest: VirtualReg, src: VirtualReg)(using st: GenState): Unit = {
-        val srcLoc = locOf(src)
-        val destLoc = locOf(dest)
-        
-        /* Load source operand */
-        val srcReg = loadToReg(srcLoc, src.size, PhysicalReg.ipcScratch(0))
-        
-        /* Determine result register */
-        val resultReg = destLoc match {
-            case reg: PhysicalReg => reg
-            case _ => PhysicalReg.ipcScratch(0)
-        }
-        
-        /* Compare with 0 and set to 1 if equal (i.e. invert the boolean) */
-        emit(ArmCmpImm(src.size, srcReg, ArmImmediate(0)))
-        emit(ArmCSet(dest.size, resultReg, Condition.EQ))
-        
-        /* Store result */
-        storeToLoc(resultReg, destLoc, dest.size)
+        generateUnaryOp(dest, src, None, { (destReg, srcReg) =>
+
+            /* Compare with 0 and set to 1 if equal (i.e. invert the boolean) */
+            emit(ArmCmpImm(src.size, srcReg, ArmImmediate(0)))
+            emit(ArmCSet(dest.size, destReg, Condition.EQ))
+        })
     }
 
 }
