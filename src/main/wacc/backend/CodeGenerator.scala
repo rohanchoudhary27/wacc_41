@@ -258,6 +258,40 @@ object CodeGenerator {
     }
 
     /**
+      * Generate a unary operation.
+      * 
+      * This function handles loading the operand from its location, emitting the
+      * unary operation instruction, and storing the result.
+      *
+      * @param dest the destination virtual register
+      * @param src the source virtual register
+      * @param op constructor for the unary operation
+      */
+    private def generateUnaryOp(
+        dest: VirtualReg,
+        src: VirtualReg,
+        op: (Size, PhysicalReg, PhysicalReg) => ArmInstruction
+    )(using st: GenState): Unit = {
+        val destLoc = locOf(dest)
+        val srcLoc = locOf(src)
+        
+        /* Load source operand */
+        val srcReg = loadToReg(srcLoc, dest.size, PhysicalReg.ipcScratch(0))
+        
+        /* Determine result register */
+        val resultReg = destLoc match {
+            case reg: PhysicalReg => reg
+            case _ => PhysicalReg.ipcScratch(0)
+        }
+        
+        /* Emit unary operation */
+        emit(op(dest.size, resultReg, srcReg))
+        
+        /* Store result */
+        storeToLoc(resultReg, destLoc, dest.size)
+    }
+
+    /**
       * Generate ARM instructions for a single high-level instruction.
       * Pattern matches on all instruction types and delegates to specific handlers.
       */
@@ -283,7 +317,9 @@ object CodeGenerator {
             generateBinaryOp(dest, src1, src2, ArmAndReg.apply, ArmAndImm.apply)
         case Or(dest, src1, src2) => 
             generateBinaryOp(dest, src1, src2, ArmOrReg.apply, ArmOrImm.apply)
-        case Not(dest, src) => ??? // TODO
+        case Not(dest, src) => 
+            generateUnaryOp(dest, src, ArmNotReg.apply)
+
         case Lsl(dest, src1, src2) => 
             generateBinaryOp(dest, src1, src2, ArmLslReg.apply, ArmLslImm.apply)
         case Lsr(dest, src1, src2) => 
