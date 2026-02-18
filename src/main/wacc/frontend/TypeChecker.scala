@@ -493,22 +493,6 @@ object TypeChecker {
       case SemanticData.Error(_) => Call(ident, exprList, semInfo)
     }
 
-  /** Get the type of an expression given it is annotated with
-    * SemanticData.Typed. Helper function for `checkRvalue`.
-    *
-    * @param expr:
-    *   The expression to extract a type out of
-    *
-    * @return:
-    *   The semantic type of the expression
-    */
-  private def getExpressionType(expr: Expr[SemanticData]): SemanticType =
-    expr.info match {
-      case SemanticData.Var(_, _, t) => t
-      case SemanticData.Typed(_, t)  => t
-      case _                         => ?
-    }
-
   /** Type check a NewPair node
     *
     * @param e1:
@@ -554,8 +538,8 @@ object TypeChecker {
           SemanticData.Typed(
             info.pos,
             KnownType.Pair(
-              getExpressionType(checkedExpr1),
-              getExpressionType(checkedExpr2)
+              checkedExpr1.expressionType,
+              checkedExpr2.expressionType
             )
           )
         )
@@ -584,7 +568,7 @@ object TypeChecker {
       case Constraint.Is(arrType @ KnownType.Array(elemType)) => {
         /* first pass: infer types of all elements to check compatibility */
         val typedElems = elems.map(e => checkExpr(e, Constraint.Infer))
-        val elemTypes = typedElems.map(getExpressionType)
+        val elemTypes = typedElems.map(e => e.expressionType)
 
         /* check if any elements are incompatible with expected type */
         val incompatibleTypes =
@@ -620,7 +604,7 @@ object TypeChecker {
         } else {
           /* first pass: infer types of all elements */
           val typedElems = elems.map(e => checkExpr(e, Constraint.Infer))
-          val elemTypes = typedElems.map(getExpressionType)
+          val elemTypes = typedElems.map(e => e.expressionType)
 
           /* find LCA by folding types with ~ operator */
           val lcaOpt: Option[SemanticType] = elemTypes.tail.foldLeft(
