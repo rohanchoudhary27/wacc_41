@@ -18,7 +18,7 @@ class OutputterTest extends AnyFlatSpec with Matchers {
 
     /* ==================== Store Pair Tests ==================== */
 
-    "Outputter" should "emit stp with pre-index addressing for prologue" in {
+    "Outputter store pair" should "emit stp with pre-index addressing for prologue" in {
         val output = emitInstr(
             ArmStorePair(Size.X,
                 PhysicalReg.framePointer,
@@ -80,7 +80,7 @@ class OutputterTest extends AnyFlatSpec with Matchers {
 
     /* ==================== MovImm Tests ==================== */
 
-    it should "emit mov with immediate value" in {
+    "Outputter mov imm" should "emit mov with immediate value" in {
         val output = emitInstr(
             ArmMovImm(Size.W, PhysicalReg.argRegisters(0), ArmImmediate(7))
         )
@@ -96,7 +96,7 @@ class OutputterTest extends AnyFlatSpec with Matchers {
 
     /* ==================== MovReg Tests ==================== */
 
-    it should "emit mov between registers" in {
+    "Outputter mov reg" should "emit mov between registers" in {
         val output = emitInstr(
             ArmMovReg(Size.X, PhysicalReg.framePointer, PhysicalReg.stackPointer)
         )
@@ -105,7 +105,7 @@ class OutputterTest extends AnyFlatSpec with Matchers {
 
     /* ==================== Branch and Link Tests ==================== */
 
-    it should "emit bl instruction" in {
+    "Outputter bl" should "emit bl instruction" in {
         val output = emitInstr(ArmBl(ArmAddrLabel("exit")))
         output should include ("bl exit")
     }
@@ -117,14 +117,14 @@ class OutputterTest extends AnyFlatSpec with Matchers {
 
     /* ==================== Label Tests ==================== */
 
-    it should "emit label definition without indentation" in {
+    "Outputter label outputting" should "emit label definition without indentation" in {
         val output = emitInstr(ArmLabelDef(ArmAddrLabel("main")))
         output should include ("main:")
     }
 
     /* ==================== Comparison Instruction Tests ==================== */
 
-    it should "emit cmp for register-register comparison" in {
+    "Outputter cmp" should "emit cmp for register-register comparison" in {
         val output = emitInstr(
             ArmCmpReg(Size.W, PhysicalReg.argRegisters(0), PhysicalReg.argRegisters(1))
         )
@@ -140,7 +140,7 @@ class OutputterTest extends AnyFlatSpec with Matchers {
 
     /* ==================== Boolean Operator Instruction Tests ==================== */
 
-    it should "emit and for register-register AND" in {
+    "Outputter boolean op" should "emit and for register-register AND" in {
         val output = emitInstr(
             ArmAndReg(Size.B, PhysicalReg.argRegisters(0), PhysicalReg.argRegisters(1), PhysicalReg.argRegisters(2))
         )
@@ -170,7 +170,7 @@ class OutputterTest extends AnyFlatSpec with Matchers {
 
     /* ==================== Conditional Set Instruction Tests ==================== */
 
-    it should "emit cset with EQ condition" in {
+    "Outputter cset" should "emit cset with EQ condition" in {
         val output = emitInstr(
             ArmCSet(Size.B, PhysicalReg.argRegisters(0), Condition.EQ)
         )
@@ -228,7 +228,7 @@ class OutputterTest extends AnyFlatSpec with Matchers {
 
     /* ==================== Full Program Tests ==================== */
 
-    it should "emit a complete exit 7 program" in {
+    "Outputter full prog tests" should "emit a complete exit 7 program" in {
         val prog = ArmProgram(
             List.empty,
             List(
