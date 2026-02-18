@@ -5,6 +5,8 @@ import org.scalatest.flatspec.AnyFlatSpec
 import wacc.backend.{Flattener, Call as IRCall, Print as IRPrint, Label, Immediate, Mov, DataDirective,
                      PrintCharWidget, PrintIntWidget, PrintBoolWidget, PrintStringWidget}
 import wacc.frontend.*
+import wacc.backend.VirtualReg
+import wacc.backend.Size
 
 /**
   * Unit tests for the Flattener
@@ -213,6 +215,92 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         flatOutput.funcs shouldBe Nil
 
         flatOutput.body shouldBe List(IRPrint(Immediate(2), PrintIntWidget, true))
+    }
+
+    "The flattener for declarations" should "flatten a simple int declaration to a Mov" in {
+        // int x = 5
+        val decl = Stmt.Decl(
+            SyntaxType.Int,
+            Ident("x", SemanticData.Var(synPos.pos, 0, KnownType.Int)),
+            IntLiter(5, SemanticData.Typed(synPos.pos, KnownType.Int)),
+            semPos
+        )
+        
+        val result = Flattener.flatten(programWith(decl))
+        
+        // Should generate: Mov(VirtualReg(0, W), Immediate(5))
+        result.body should have length 1
+        result.body.head shouldBe a [Mov]
+        
+        val mov = result.body.head.asInstanceOf[Mov]
+        mov.src shouldBe Immediate(5)
+        mov.reg should matchPattern { case VirtualReg(0, Size.W) => }
+    }
+
+    it should "flatten a variable usage correctly" in {
+        // begin int x = 5; int y = x end
+
+        val xIdent = Ident("x", SemanticData.Var(synPos.pos, 0, KnownType.Int))
+        
+        val xDecl = Stmt.Decl(
+            SyntaxType.Int,
+            xIdent,
+            IntLiter(5, SemanticData.Typed(synPos.pos, KnownType.Int)),
+            semPos
+        )
+        
+        val yDecl = Stmt.Decl(
+            SyntaxType.Int,
+            Ident("y", SemanticData.Var(synPos.pos, 0, KnownType.Int)),
+            xIdent,
+            semPos
+        )
+
+        val block = Stmt.Block(List(xDecl, yDecl), semPos)
+        val result = Flattener.flatten(programWith(block))
+
+        // Expect:
+        // 1. Mov(v0, 5)
+        // 2. Mov(v1, v0)
+        result.body should have length 2
+        
+        val instr1 = result.body(0).asInstanceOf[Mov]
+        val instr2 = result.body(1).asInstanceOf[Mov]
+
+        instr1.src shouldBe Immediate(5)
+        val xReg = instr1.reg
+
+        instr2.reg should matchPattern { case VirtualReg(1, Size.W) => }
+        instr2.src shouldBe xReg // The source of y's assignment should be x's register
+    }
+
+    "The flattener for assignments" should "update the existing register" in {
+        // begin int x = 5; x = 10 end
+        val xIdent = Ident("x", SemanticData.Var(synPos.pos, 0, KnownType.Int))
+        
+        val xDecl = Stmt.Decl(
+            SyntaxType.Int,
+            xIdent,
+            IntLiter(5, SemanticData.Typed(synPos.pos, KnownType.Int)),
+            semPos
+        )
+        
+        val xAsgn = Stmt.Asgn(
+            xIdent,
+            IntLiter(10, SemanticData.Typed(synPos.pos, KnownType.Int)),
+            semPos
+        )
+
+        val block = Stmt.Block(List(xDecl, xAsgn), semPos)
+        val result = Flattener.flatten(programWith(block))
+
+        result.body should have length 2
+        val declMov = result.body(0).asInstanceOf[Mov]
+        val asgnMov = result.body(1).asInstanceOf[Mov]
+
+        // Both instructions should target the same register
+        declMov.reg shouldBe asgnMov.reg
+        asgnMov.src shouldBe Immediate(10)
     }
 
 }
