@@ -10,3 +10,5 @@ valid/basic/exit
 
 valid/if/ifTrue.wacc
 valid/if/ifFalse.wacc
+
+valid/while/whileFalse.wacc

@@ -388,4 +388,38 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         instrs.indexOf(BranchUncond(endLabel)) should be < instrs.indexOf(LabelDef(endLabel))
     }
 
+    "The flattener for while statements" should "flatten a while statement" in {
+
+        val blockTypes = SemanticData.Typed(synPos.pos, KnownType.Int)
+
+        val cond = BinaryExpr(BinaryOperator.LT,
+                              IntLiter(2, blockTypes),
+                              IntLiter(5, blockTypes),
+                              SemanticData.Typed(synPos.pos, KnownType.Bool))
+
+        val body = Stmt.Print(IntLiter(1, blockTypes), semPos)
+        val whileStmt = Stmt.While(cond, body, semPos)
+
+        val inputAST = programWith(whileStmt)
+        val instrs = Flattener.flatten(inputAST).body
+
+        val condBranch = instrs.collectFirst { case BranchUncond(label) => label }
+        condBranch should be (defined)
+        val condLabel = condBranch.get
+
+        val bodyBranch = instrs.collectFirst { case BranchCond(_, label) => label }
+        bodyBranch should be (defined)
+        val bodyLabel = bodyBranch.get
+
+        /* Label defs should exist */
+        instrs should contain (LabelDef(condLabel))
+        instrs should contain (LabelDef(bodyLabel))
+
+        /* cond label branching should be before its definition */
+        instrs.indexOf(BranchUncond(condLabel)) should be < instrs.indexOf(LabelDef(condLabel))
+        
+        /* body label branching should be after its definition */
+        instrs.indexOf(BranchCond(Condition.EQ, bodyLabel)) should be > instrs.indexOf(LabelDef(bodyLabel))
+    }
+
 }
