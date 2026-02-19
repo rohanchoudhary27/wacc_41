@@ -83,6 +83,41 @@ object CodeGenerator {
     /** Get all collected widget assembly */
     def getWidgetAssembly()(using st: GenState): String = st.global.dispatcher.getCollectedAssembly
 
+    /** Checks if an Immediate offset fits within the 9-bit signed immediate range (-256 to +255) 
+     * allowed by the STR/LDR/STUR/LDUR instructions
+     * 
+     * @param offset the immediate offset value used in addressing mode
+     */
+    private def isSafeSignedOffset(offset: Int): Boolean = 
+        offset >= -256 && offset<= 255
+
+    /**
+      * Helper to get the set of callee-saved registers (x19-x28) used in a function.
+      * We only need to save the ones we actually assign
+      */
+    private def getUsedCalleeSaved(alloc: Map[VirtualReg, Location]): List[PhysicalReg] = {
+        val used = alloc.values.collect { 
+            case r: PhysicalReg if PhysicalReg.calleeSaved.contains(r) => r 
+        }.toSet
+
+        used.toList.sortBy(_.index)
+    }
+
+    /**
+      * Helper to calculate the size of the local variables area.
+      * Scans for the lowest StackSlot offset and aligns the size to 16 bytes.
+      */
+    private def getLocalsSize(alloc: Map[VirtualReg, Location]): Int = {
+        val minOffset = alloc.values.collect { 
+            case StackSlot(offset) => offset 
+        }.minOption.getOrElse(0)
+        
+        /* offsets are negative so size is abs(minOffset) */
+        val size = Math.abs(minOffset)
+        
+        if (size % 16 == 0) size else size + (16 - (size % 16)) /* 16 byte alignment */
+    }
+
     /**
       * Generate Low-Level IR for the program.
       * 
@@ -108,11 +143,23 @@ object CodeGenerator {
         /* Emit code for the main function */
         emit(ArmLabelDef(ArmAddrLabel("main")))
 
-        generateFuncPrologue()
+        /* Calculate local variables size needed to put onto stack 
+            and the calle-saved registers used */
+        val localsSize = getLocalsSize(allocs.mainAlloc)
+        val savedRegs = getUsedCalleeSaved(allocs.mainAlloc)
+
+        /* To ensure compatibility with the register allocator's offset calculations,
+            the stack frame is organized such that the FP remains adjacent to the LR
+            at the top of the frame, with local variables immediately below it.
+            Callee-saved registers are pushed to the bottom of the stack. This layout 
+            preserves the relative offsets of local variables to the FP regardless of
+            the number of callee-saved registers saved in the stack. */
+        generateFuncPrologue(localsSize, savedRegs)
         generateInstrs(regProgram.body)
+        /* main return 0 */
         emit(ArmMovImm(Size.W, PhysicalReg.argRegisters(0),
                        ArmImmediate(code(Success))))
-        generateFuncEpilogue()
+        generateFuncEpilogue(localsSize, savedRegs)
 
         /* Final low-level IR for the program */
         val program = ArmProgram(globalCtx.finalDirectives, st.finalInstrs)
@@ -121,22 +168,86 @@ object CodeGenerator {
     }
 
     /**
-      * Generate low level IR for the function prologue (saving the return addr to the link
-      * register and setting the frame pointer)
+      * Generate low level IR for the function prologue.
+      * 
+      * The prologue sets up the stack frame:
+      *     1. Frame Pointer (FP) and Link Register (LR) are saved to the stack
+      *     2. The FP is updated to point to the current stack top 
+      *     3. Space is reserved for local variables by subtracting from SP (`sub sp, sp, <size>`)
+      *     4. Any callee-saved registers (x19-x28) used by the function are pushed onto
+      *        the stack below the local variables to preserve offsets
+      *
+      * @param localsSize The size in bytes required for local variables (aligned to 16)
+      * @param savedRegs  The list of used callee-saved physical registers to save
       */
-    private def generateFuncPrologue()(using GenState) = {
+    private def generateFuncPrologue(
+        localsSize: Int, savedRegs: List[PhysicalReg]
+    )(using GenState) = {
+        /* save FP and LR */
         emit(ArmStorePair(Size.X,
                          PhysicalReg.framePointer,
                          PhysicalReg.linkReg,
                          ArmAddrPreIndex(PhysicalReg.stackPointer, ArmImmediate(-16))))
+
+        /* set FP to be SP */
         emit(ArmMovReg(Size.X, PhysicalReg.framePointer, PhysicalReg.stackPointer))
+
+        /* reserve space for locals (stack slots) */
+        if (localsSize > 0) {
+            /* sub sp, sp, <localsSize> */
+            emit(ArmSubImm(
+                Size.X, PhysicalReg.stackPointer, PhysicalReg.stackPointer, ArmImmediate(localsSize)
+            ))
+        }
+
+        /* push callee-saved registers in pairs */
+        savedRegs.grouped(2).foreach {
+            case List(r1, r2) => /* do stp xi, x(i+1), [sp, #-16]! */
+                emit(ArmStorePair(
+                    Size.X, r1, r2, ArmAddrPreIndex(PhysicalReg.stackPointer, ArmImmediate(-16))
+                ))
+            case List(r1) => /* push 16 bytes for alignment */
+                emit(ArmStore(
+                    Size.X, r1, ArmAddrPreIndex(PhysicalReg.stackPointer, ArmImmediate(-16))
+                ))
+            case _ => ()
+        }
     }
     
     /**
-      * Generate low level IR for the function epilogue (restoring the link and
-      * frame pointer registers)
+      * Generates the function epilogue
+      *
+      * The epilogue restores the previous state before returning to the caller:
+      *     1. Callee-saved registers are popped from the stack
+      *     2. The stack space reserved for local variables is reclaimed
+      *     3. The caller's FP and the LR are restored
+      *     4. `ret` emitted
+      *
+      * @param localsSize The size in bytes of the local variable area to reclaim
+      * @param savedRegs  The list of callee-saved registers to restore
       */
-    private def generateFuncEpilogue()(using GenState) = {
+    private def generateFuncEpilogue(
+        localsSize: Int, savedRegs: List[PhysicalReg]
+    )(using GenState) = {
+        savedRegs.reverse.grouped(2).foreach {
+            case List(r2, r1) => 
+                /* (r1, r2) was pushed in prologue, and stack top has r1 at low addr, r2 at high 
+                    addr. LDP loads low addr into first register, high into second, so we load 
+                    into r1, r2 */
+                /* do ldp r1, r2, [sp], #16 */
+                emit(ArmLoadPair(Size.X, r1, r2, 
+                                 ArmAddrPostIndex(PhysicalReg.stackPointer, ArmImmediate(16))))
+            case List(r1) =>
+                emit(ArmLoad(Size.X, r1, 
+                             ArmAddrPostIndex(PhysicalReg.stackPointer, ArmImmediate(16))))
+            case _ =>
+        }
+        /* we have to free local variable space too */
+        if (localsSize > 0) {
+            emit(ArmAddImm(Size.X, PhysicalReg.stackPointer, PhysicalReg.stackPointer, 
+                           ArmImmediate(localsSize)))
+        }
+        /* restore FP and LR */
         emit(ArmLoadPair(Size.X,
                           PhysicalReg.framePointer,
                           PhysicalReg.linkReg, 
@@ -158,11 +269,13 @@ object CodeGenerator {
         // Function label
         emit(ArmLabelDef(ArmAddrLabel(func.name)))
         
-        generateFuncPrologue()
+        /* calculate requirements for prologue/epilogue */
+        val localsSize = getLocalsSize(alloc)
+        val savedRegs = getUsedCalleeSaved(alloc)
+
+        generateFuncPrologue(localsSize, savedRegs)
         generateInstrs(func.body)
-        generateFuncEpilogue()
-   
-        emit(ArmRet)
+        generateFuncEpilogue(localsSize, savedRegs)
         
         st.finalInstrs
     }
@@ -176,9 +289,10 @@ object CodeGenerator {
 
     
     /**
-      * Load a value from a location into a physical register.
-      * If the location is already a PhysicalReg, returns it directly.
-      * If the location is a StackSlot, emits a load instruction to the scratch register.
+      * Load a value from a location into a physical register. 
+      * 
+      * Handles large stack signed offsets by using a scratch register for address 
+      * calculation. 
       *
       * @param loc the location to load from
       * @param size the register size
@@ -189,24 +303,59 @@ object CodeGenerator {
                          (using st: GenState): PhysicalReg = loc match {
         case reg: PhysicalReg => reg
         case StackSlot(offset) =>
-            emit(ArmLoad(size, scratch, ArmAddrImmOffset(PhysicalReg.framePointer, ArmImmediate(offset))))
+            if (isSafeSignedOffset(offset)) {
+                if (offset < 0) /* negative offset, use LDUR */ {
+                    emit(ArmLdur(size, scratch, ArmAddrImmOffset(PhysicalReg.framePointer, ArmImmediate(offset))))  
+                } else { /* positive offset, use LDR */
+                    emit(ArmLoad(
+                        size, scratch, ArmAddrImmOffset(PhysicalReg.framePointer, ArmImmediate(offset))
+                    ))
+                }
+                
+            } else {
+                /* Large offset, so we need to load the offset into x17, then `ldr [fp, x17]` */
+                val offsetReg = PhysicalReg.ipcScratch(1) // use x17
+                emit(ArmMovImm(Size.X, offsetReg, ArmImmediate(offset)))
+                emit(ArmLoad(size, scratch, ArmAddrRegOffset(PhysicalReg.framePointer, offsetReg)))
+            }
             scratch
     }
     
     /**
-      * Store a value from a physical register to a location.
-      * If the location is a PhysicalReg, emits a move instruction (if different).
-      * If the location is a StackSlot, emits a store instruction.
+      * Store a value from a physical register to a location. 
+      * 
+      * Handles large stack signed offsets by using a scratch register for address 
+      * calculation. 
       *
       * @param src the source PhysicalReg
       * @param loc the destination location
       * @param size the register size
       */
-    private def storeToLoc(src: PhysicalReg, loc: Location, size: Size)(using st: GenState): Unit = loc match {
+    private def storeToLoc(
+        src: PhysicalReg, loc: Location, size: Size
+    )(using st: GenState): Unit = loc match {
         case dest: PhysicalReg =>
             if (src != dest) emit(ArmMovReg(size, dest, src))
         case StackSlot(offset) =>
-            emit(ArmStore(size, src, ArmAddrImmOffset(PhysicalReg.framePointer, ArmImmediate(offset))))
+            if (isSafeSignedOffset(offset)) {
+                if (offset < 0) { /* negative offset, use STUR */
+                    emit(ArmStur(
+                        size, src, ArmAddrImmOffset(PhysicalReg.framePointer, ArmImmediate(offset))
+                    ))
+                } else { /* positive offset, use STR */
+                    emit(ArmStore(
+                        size, src, ArmAddrImmOffset(PhysicalReg.framePointer, ArmImmediate(offset))
+                    ))
+                }
+            } else {
+                /* large offset, so we need to load the offset into x17, then `str [fp, x17]` */
+                val offsetReg = PhysicalReg.ipcScratch(1) // use x17
+                emit(ArmMovImm(Size.X, offsetReg, ArmImmediate(offset)))
+                emit(ArmStore(
+                    size, src, ArmAddrRegOffset(PhysicalReg.framePointer, offsetReg)
+                ))
+            }
+            
     }
 
 
@@ -339,7 +488,7 @@ object CodeGenerator {
       */
     private def generateMov(dest: VirtualReg, src: Operand)(using GenState) = {
 
-        /* Get the source value in a scratch register */
+        /* Get the source value in a scratch register to avoid memory to memory moves */
         val tempReg = src match {
 
             /* Move from stack to scratch register (or return the physical register if it
@@ -352,8 +501,12 @@ object CodeGenerator {
                 val scratch = PhysicalReg.ipcScratch(0)
                 emit(ArmMovImm(dest.size, scratch, ArmImmediate(value))) 
                 scratch
-
-            case Label(name) => ???
+            
+            /* Load the memory address into scratch using lea */
+            case Label(name) =>
+                val scratch = PhysicalReg.ipcScratch(0)
+                emit(ArmLea(scratch, ArmAddrLabel(name)))
+                scratch
         }
 
         /* Store `src` in the destination location (register/stack) */

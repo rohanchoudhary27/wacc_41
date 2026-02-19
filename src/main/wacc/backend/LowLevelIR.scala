@@ -103,6 +103,8 @@ case class ArmMovKeep(size: Size, reg: PhysicalReg,
                    shift: ShiftAmounts.ShiftAmount) extends ArmInstruction
 case class ArmLoad(size: Size, reg: PhysicalReg, src: ArmAddress) extends ArmInstruction
 case class ArmStore(size: Size, reg: PhysicalReg, src: ArmAddress) extends ArmInstruction
+case class ArmLdur(size: Size, reg: PhysicalReg, src: ArmAddress) extends ArmInstruction
+case class ArmStur(size: Size, reg: PhysicalReg, src: ArmAddress) extends ArmInstruction
 case class ArmLea(destReg: PhysicalReg, label: ArmAddrLabel) extends ArmInstruction
 
 /* Conditionals */

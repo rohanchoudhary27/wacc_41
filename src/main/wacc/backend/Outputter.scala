@@ -83,6 +83,8 @@ object Outputter {
         case ArmMovKeep(size, dest, imm, shift) => ???
         case ArmLoad(size, dest, addr) => emitMemOp("ldr", size, dest, addr)
         case ArmStore(size, src, addr) => emitMemOp("str", size, src, addr)
+        case ArmLdur(size, dest, addr) => emitMemOp("ldur", size, dest, addr)
+        case ArmStur(size, src, addr) => emitMemOp("stur", size, src, addr)
         case ArmLea(dest, label) => emitLea(dest, label)
         
         /* Comparison */

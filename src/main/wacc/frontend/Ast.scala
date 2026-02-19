@@ -7,7 +7,25 @@ type Args[A] = List[Expr[A]]
 /* Traits */
 sealed trait LValue[A] { val info: A }
 sealed trait RValue[A] { val info: A }
-sealed trait Expr[A] extends RValue[A] { val info: A }
+sealed trait Expr[A] extends RValue[A] {
+    val info: A 
+
+    /** Get the type of an expression given it is annotated with
+     * SemanticData.Typed or SemanticData.Var
+     *
+     * @param expr:
+     *   The expression to extract a type out of
+     *
+     * @return:
+     *   The semantic type of the expression
+     */
+    def expressionType: SemanticType =
+        info match {
+            case SemanticData.Var(_, _, t) => t
+            case SemanticData.Typed(_, t)  => t
+            case _                         => ?
+        }
+}
 
 /* The WACC syntactic type system */
 enum SyntaxType {
