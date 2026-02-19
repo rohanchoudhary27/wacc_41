@@ -205,15 +205,107 @@ object Flattener {
                                    directiveState: GlobalFlattenContext): Unit = typedStmt match {
 
         case Stmt.Block(stmts, _) => stmts.foreach(flattenStmt)
+        case Stmt.Skip(_) => () /* do nothing on skip */
         case Stmt.Exit(expr, _) => flattenExit(expr)
         case Stmt.Print(expr, _) => flattenPrint(expr)
         case Stmt.Println(expr, _) => flattenPrintln(expr)
+        case Stmt.Decl(_, ident, rval, _) => flattenDecl(ident, rval)
+        case Stmt.Asgn(lval, rval, _) => flattenAsgn(lval, rval)
         case Stmt.If(cond, ifBlock, elseBlock, _) => flattenIf(cond, ifBlock, elseBlock)
         case Stmt.While(cond, body, _) => flattenWhile(cond, body)
         case _ => {
             println(typedStmt)
             ???
         }
+    }
+
+    /**
+      * Flattens a variable declaration into high level IR.
+      * 
+      * A declaration introduces a new variable into the current scope. We must
+      * allocate a fresh virtual register for it and then emit a `Mov`` instruction
+      * to initialize it with the evaluated right hand side.
+      *
+      * @param ident The AST identifier node being declared
+      * @param rval The AST right hand side value being assigned
+      */
+    private def flattenDecl(
+        ident: Ident[SemanticData], 
+        rval: RValue[SemanticData]
+    )(using funcState: FunctionState, directiveState: GlobalFlattenContext): Unit = { 
+        val SemanticData.Var(_, varId, typ) = ident.info: @unchecked 
+
+        /* unlike assignments, declarations create a new variable binding, so we must call 
+            defineReg to allocate a fresh `VirtualReg` and store it in the environment so 
+            future lookups (eg `lvalue` or `expr` lookups) can find it */
+        /* funcState's `defineReg` expects a `KnownType` but the type extracted from the
+            `ident` is a `SemanticType`. But we know from type checker that it's always going
+             to be a `KnownType`, so just convert it to a `KnownType`. */
+        val kty: KnownType = (typ: @unchecked) match {
+            case t: KnownType => t
+            // case _:  /* error!!!!!! should not happen in a declaration */
+        }
+        
+        val destReg: VirtualReg = funcState.defineReg(ident.name, varId, kty)
+
+        val srcOperand: Operand = flattenRValue(rval)
+
+        funcState.emitInstruction(Mov(destReg, srcOperand))
+    }
+
+    /**
+      * Flattens a variable assignment into high level IR.
+      * 
+      * An assignment updates a location that already exists. We look up the
+      * existing destination (can be register or memory) and emit a Mov to update it
+      *
+      * @param lval The AST left hand side location being updated
+      * @param rval The AST right hand side value being assigned
+      */
+    private def flattenAsgn(
+        lval: LValue[SemanticData],
+        rval: RValue[SemanticData]
+    )(using funcState: FunctionState, directiveState: GlobalFlattenContext) = {
+        /* assignments update existing state, and flattenLValue handles looking up
+            the previously allocated VirtualReg for identifiers or memory for heap objects */
+        val destReg: VirtualReg = flattenLValue(lval)
+        val srcOperand: Operand = flattenRValue(rval)
+
+        funcState.emitInstruction(Mov(destReg, srcOperand))
+    }
+
+    /**
+      * Flattens an LValue AST node into a VirtualReg representing its destination
+      *
+      * @param lval The AST left-hand side node.
+      * 
+      * @return The VirtualReg associated with the evaluated LValue
+      */
+    private def flattenLValue(lval: LValue[SemanticData])
+                             (using funcState: FunctionState): VirtualReg = lval match {
+        case ident: Ident[SemanticData] =>
+            val SemanticData.Var(_, varId, _) = ident.info: @unchecked 
+            funcState.lookupReg(ident.name, varId)
+            
+        case _ => 
+            // we handle arrays and pairs later...
+            ??? 
+    }
+
+    /**
+      * Flattens an RValue AST node into an Operand
+      *
+      * @param rval The AST right hand side node
+      * 
+      * @return The evaluated Operand (VirtualReg or Immediate) containing the value
+      */
+    private def flattenRValue(
+        rval: RValue[SemanticData]
+    )(using funcState: FunctionState, directiveState: GlobalFlattenContext): Operand = rval match {
+        case expr: Expr[SemanticData] => flattenExpr(expr)
+        case _ => 
+            // array literals, newpairs, calls, and pairelems later on...
+            ??? 
     }
         
     /**
@@ -243,8 +335,7 @@ object Flattener {
                                    directiveState: GlobalFlattenContext) = {
 
         val printVal = flattenExpr(expr)
-
-        val SemanticData.Typed(_, semType) = expr.info
+        val semType = expr.expressionType
 
         val printWidget: Widget = semType match
             case wacc.frontend.KnownType.Int =>  PrintIntWidget
@@ -337,6 +428,7 @@ object Flattener {
         case BoolLiter(value, _) => Immediate(if value then 1 else 0)
         case CharLiter(value, _) => Immediate(value)
         case StrLiter(value, _) => directiveState.addString(value)
+        case Ident(name, SemanticData.Var(_, renameId, _)) => funcState.lookupReg(name, renameId)
         case BinaryExpr(op, left, right, _) => flattenBinaryExpr(op, left, right)
         case UnaryExpr(op, expr, _) => flattenUnaryExpr(op, expr)
         case _ => ???

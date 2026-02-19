@@ -15,7 +15,7 @@ case class StackSlot(offset: Int) extends Location
   * a certain number of defined registers
   *
   * @param index The register number in aarch64
-  * @param allocatable True if the re register is allocatable by the allocator, false otherwise.
+  * @param allocatable True if the register is allocatable by the allocator, false otherwise.
   * Scratch registers are used in the code generator for temporary computations and are thus
   * not allocatable.
   */

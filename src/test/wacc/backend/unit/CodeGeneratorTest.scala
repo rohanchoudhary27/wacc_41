@@ -60,7 +60,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         movInstrs should not be empty
     }
 
-    it should "generate a load from stack when source is on the stack" in {
+    it should "generate a load (ldur) from stack when source is on the stack" in {
         val src = VirtualReg(0, Size.W)
         val dest = VirtualReg(1, Size.W)
         val alloc = Map(
@@ -70,18 +70,18 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
 
         val result = programWith(List(Mov(dest, src)), alloc)
 
-        val loads = result.body.collect { case l: ArmLoad => l }
+        val loads = result.body.collect { case l: ArmLdur => l }
         loads should not be empty
         loads.head.src shouldBe ArmAddrImmOffset(PhysicalReg.framePointer, ArmImmediate(-8))
     }
 
-    it should "generate a store to stack when destination is on the stack" in {
+    it should "generate a store (stur) to stack when destination is on the stack" in {
         val dest = VirtualReg(0, Size.W)
         val alloc = Map(dest -> (StackSlot(-8): Location))
 
         val result = programWith(List(Mov(dest, Immediate(5))), alloc)
 
-        val stores = result.body.collect { case s: ArmStore => s }
+        val stores = result.body.collect { case s: ArmStur => s }
         stores should not be empty
         stores.head.src shouldBe ArmAddrImmOffset(PhysicalReg.framePointer, ArmImmediate(-8))
     }
@@ -492,5 +492,110 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
            handles it. */
         val movInstrs = result.body.collect { case m: ArmMovReg => m }
         movInstrs should not be empty
+    }
+
+    /* ==================== Stack Layout & Callee-Saved Tests ==================== */
+
+    "CodeGenerator stack layout" should "push callee-saved registers x19-x28 if used" in {
+        val funcDef = FunctionDef("safeFunc", List.empty, List.empty)
+        
+        // Force allocator to use x19 and x20
+        val v1 = VirtualReg(1, Size.X)
+        val v2 = VirtualReg(2, Size.X)
+        val alloc = Map(
+            v1 -> (PhysicalReg.calleeSaved(0): Location), // x19
+            v2 -> (PhysicalReg.calleeSaved(1): Location)  // x20
+        )
+        
+        val ctx = new GlobalGenContext()
+        val instrs = CodeGenerator.generateFunc(funcDef, alloc, ctx)
+
+        // Prologue: stp x19, x20, [sp, #-16]!
+        val pushes = instrs.collect { 
+            case s @ ArmStorePair(Size.X, r1, _, _) 
+                if r1 == PhysicalReg.calleeSaved(0) => s 
+        }
+        pushes should not be empty
+        
+        // Epilogue: ldp x19, x20, [sp], #16
+        val pops = instrs.collect { 
+            case l @ ArmLoadPair(Size.X, r1, _, _) 
+                if r1 == PhysicalReg.calleeSaved(0) => l 
+        }
+        pops should not be empty
+    }
+
+    it should "reserve stack space for locals using sub sp" in {
+        val funcDef = FunctionDef("localFunc", List.empty, List.empty)
+        
+        // Force a stack slot at -24 (allocator puts locals at negative offsets)
+        val v1 = VirtualReg(1, Size.W)
+        val alloc = Map(v1 -> (StackSlot(-24): Location))
+        
+        val ctx = new GlobalGenContext()
+        val instrs = CodeGenerator.generateFunc(funcDef, alloc, ctx)
+
+        // Should be sub sp, sp, #32 (because aligned to 16 bytes)
+        val subs = instrs.collect { 
+            case ArmSubImm(
+                Size.X, PhysicalReg.stackPointer, PhysicalReg.stackPointer, ArmImmediate(32)
+            ) => true
+        }
+        subs should not be empty
+    }
+
+    /* ==================== Negative Offset (LDUR/STUR) Tests ==================== */
+
+    "CodeGenerator load/store" should "generate LDUR for negative stack offsets" in {
+        val dest = VirtualReg(0, Size.W)
+        // Stack slot at -8 (within -256 range)
+        val alloc = Map(dest -> (StackSlot(-8): Location)) 
+        
+        // generate: Mov(x0, v0) -> Load v0 into scratch, move scratch to x0
+        val result = programWith(
+            List(Mov(VirtualReg(1, Size.W), dest)), // v1 = v0(stack)
+            alloc + (VirtualReg(1, Size.W) -> PhysicalReg.argRegisters(0))
+        )
+
+        // Expect ArmLdur because offset is -8
+        val ldurs = result.body.collect { case i: ArmLdur => i }
+        ldurs should not be empty
+        ldurs.head.src shouldBe ArmAddrImmOffset(PhysicalReg.framePointer, ArmImmediate(-8))
+    }
+
+    it should "generate STUR for negative stack offsets" in {
+        val dest = VirtualReg(0, Size.W)
+        val alloc = Map(dest -> (StackSlot(-16): Location))
+        
+        // generate: Mov(v0, 10)
+        val result = programWith(List(Mov(dest, Immediate(10))), alloc)
+
+        // Expect ArmStur because offset is -16
+        val sturs = result.body.collect { case i: ArmStur => i }
+        sturs should not be empty
+        sturs.head.src shouldBe ArmAddrImmOffset(PhysicalReg.framePointer, ArmImmediate(-16))
+    }
+
+    it should "handle large stack offsets by materializing offset in scratch register" in {
+        val dest = VirtualReg(0, Size.W)
+        // Large negative offset outside -256 range
+        val largeOffset = -1024
+        val alloc = Map(dest -> (StackSlot(largeOffset): Location))
+        
+        val result = programWith(List(Mov(dest, Immediate(10))), alloc)
+
+        // Should find: mov x17, #-1024
+        val movImms = result.body.collect { 
+            case ArmMovImm(Size.X, reg, ArmImmediate(`largeOffset`)) 
+                if reg == PhysicalReg.ipcScratch(1) => true 
+        }
+        movImms should not be empty
+
+        // Should find: str w16, [fp, x17] (ArmStore with RegOffset)
+        val stores = result.body.collect { 
+            case ArmStore(_, _, ArmAddrRegOffset(PhysicalReg.framePointer, offsetReg))
+                if offsetReg == PhysicalReg.ipcScratch(1) => true
+        }
+        stores should not be empty
     }
 }

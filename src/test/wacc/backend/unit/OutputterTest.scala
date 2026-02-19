@@ -309,4 +309,20 @@ class OutputterTest extends AnyFlatSpec with Matchers {
         fullOutput should include ("_printi:") // check for label
         fullOutput should include ("bl printf") // check for implementation detail
     }
+
+    "Outputter for ldur/stur" should "emit ldur with signed immediate offset" in {
+        val output = emitInstr(
+            ArmLdur(Size.W, PhysicalReg.argRegisters(0), 
+                ArmAddrImmOffset(PhysicalReg.framePointer, ArmImmediate(-8)))
+        )
+        output should include ("ldur w0, [fp, #-8]")
+    }
+
+    it should "emit stur with signed immediate offset" in {
+        val output = emitInstr(
+            ArmStur(Size.X, PhysicalReg.argRegisters(1), 
+                ArmAddrImmOffset(PhysicalReg.stackPointer, ArmImmediate(-16)))
+        )
+        output should include ("stur x1, [sp, #-16]")
+    }
 }
