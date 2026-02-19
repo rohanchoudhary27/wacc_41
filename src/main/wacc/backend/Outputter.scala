@@ -60,7 +60,7 @@ object Outputter {
         case ArmSubImm(size, dest, src1, imm) => emitBinary("sub", size, dest, src1, imm)
         case ArmMulReg(size, dest, src1, src2) => ???
         case ArmDivReg(size, dest, src1, src2) => ???
-        case ArmNeg(size, reg) => ???
+        case ArmNeg(size, dest, src) => emitUnary("neg", size, dest, src)
         
         /* Logical */
         case ArmAndReg(size, dest, src1, src2) => emitBinary("and", size, dest, src1, src2)
@@ -212,5 +212,6 @@ object Outputter {
         case Condition.LE => "le"
         case Condition.GT => "gt"
         case Condition.GE => "ge"
+        case Condition.HI => "hi"
     }
 }

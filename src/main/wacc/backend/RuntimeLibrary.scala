@@ -600,3 +600,25 @@ object ArrayStore8Widget extends Widget {
 
     override val dependencies: Set[Widget] = Set(ArrayBoundsErrorWidget)
 }
+
+/** Runtime widget for an invalid int given to the `chr` function (not 0-127 inclusive) */
+object BadCharWidgetError extends Widget {
+    override val label: String = "_errBadChar"
+
+    override val description: String = "A char integer value must be between 0 and 127 inclusive"
+
+    override val source: String =
+        s"""//${description}
+            |// length of .L._errBadChar_str0
+            |   .word 50
+            |.L._errBadChar_str0:
+            |   .asciz "fatal error: int %d is not ascii character 0-127\\n"
+            |.align 4
+            |_errBadChar:
+            |   adr x0, .L._errBadChar_str0
+            |   bl printf
+            |   mov x0, #0
+            |   bl fflush
+            |   mov w0, #-1
+            |   bl exit""".stripMargin
+}

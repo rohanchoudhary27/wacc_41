@@ -40,7 +40,8 @@ case class ArmDivReg(size: Size,
                      src1: PhysicalReg,
                      src2: PhysicalReg) extends ArmInstruction
 case class ArmNeg(size: Size,
-                  reg: PhysicalReg) extends ArmInstruction
+                  reg: PhysicalReg,
+                  src: PhysicalReg) extends ArmInstruction
 case class ArmLslReg(size: Size,
                      reg: PhysicalReg,
                      src1: PhysicalReg,

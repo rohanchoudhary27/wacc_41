@@ -435,6 +435,65 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         widgetAssembly should not include ("malloc")
     }
 
+    "CodeGenerator for Chr widgets" should "register widget for invalid ascii int" in {
+        val src = VirtualReg(0, Size.W)
+        val dest = VirtualReg(1, Size.W)
+        val prog = RegProgram(
+            List.empty,
+            List.empty,
+            List(Chr(dest, src, BadCharWidgetError))
+        )
+
+        val alloc = RegisterAllocator.allocate(prog)
+
+        val (_, dispatcher) = CodeGenerator.generate(prog, alloc)
+        val widgetAssembly = dispatcher.getCollectedAssembly
+        
+        widgetAssembly should include ("_errBadChar:")
+        widgetAssembly should include ("bl exit") 
+    }
+
+    /* ==================== Unary Operator Tests ==================== */
+
+    "CodeGenerator for negation" should "generate ArmNeg" in {
+        val src = VirtualReg(0, Size.W)
+        val dest = VirtualReg(1, Size.W)
+        val alloc = Map(
+            src -> (PhysicalReg.argRegisters(0): Location),
+            dest -> (PhysicalReg.argRegisters(1): Location)
+        )
+
+        val result = programWith(List(Neg(dest, src)), alloc)
+
+        val negInstrs = result.body.collect { case n: ArmNeg => n }
+        negInstrs should have length 1
+        negInstrs.head.size shouldBe Size.W
+    }
+
+    "CodeGenerator chr" should "generate bounds check and move" in {
+        val src = VirtualReg(0, Size.W)
+        val dest = VirtualReg(1, Size.W)
+        val alloc = Map(
+            src -> (PhysicalReg.argRegisters(0): Location),
+            dest -> (PhysicalReg.argRegisters(1): Location)
+        )
+
+        val result = programWith(List(Chr(dest, src, BadCharWidgetError)), alloc)
+
+        val cmpInstrs = result.body.collect { case c: ArmCmpImm => c }
+        cmpInstrs should have length 1
+        cmpInstrs.head.src2.value shouldBe 127
+
+        val branchInstrs = result.body.collect { case b: ArmBranchCond => b }
+        branchInstrs.exists(_.cond == Condition.HI) shouldBe true
+
+        /* If src and dest are different registers we need the mov.
+           Didn't have to check this in negate because the neg instr in aarch64
+           handles it. */
+        val movInstrs = result.body.collect { case m: ArmMovReg => m }
+        movInstrs should not be empty
+    }
+
     /* ==================== Stack Layout & Callee-Saved Tests ==================== */
 
     "CodeGenerator stack layout" should "push callee-saved registers x19-x28 if used" in {

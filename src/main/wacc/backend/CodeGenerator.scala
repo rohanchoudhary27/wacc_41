@@ -406,7 +406,43 @@ object CodeGenerator {
         storeToLoc(resultReg, destLoc, dest.size)
     }
 
+    /**
+      * Generate the low-level IR for a unary operation
+      *
+      * @param dest The destination virtual register
+      * @param src The source virtual register
+      * @param optWidget Some(widget) if one is to be used, else None
+      * @param emitFunc A function that emits the low-level IR
+      * @param st A GenState object
+      */
+    private def generateUnaryOp(dest: VirtualReg,
+                                src: VirtualReg,
+                                optWidget: Option[Widget],
+                                emitFunc: (PhysicalReg, PhysicalReg) => Unit)
+                               (using st: GenState): Unit = {
 
+        /* Enable a widget if provided with one */
+        optWidget.foreach(useWidget)
+
+        /* Get the source and destination locations (stack/reg) */
+        val srcLoc = locOf(src)
+        val destLoc = locOf(dest)
+        
+        /* Load source operand */
+        val srcReg = loadToReg(srcLoc, src.size, PhysicalReg.ipcScratch(0))
+        
+        /* Determine result register */
+        val destReg = destLoc match {
+            case reg: PhysicalReg => reg
+            case _ => PhysicalReg.ipcScratch(1)
+        }
+        
+        /* Emit the unary operation specific low level IR */
+        emitFunc(srcReg, destReg)
+        
+        /* Store result back to its original location */
+        storeToLoc(destReg, destLoc, dest.size)
+    }
 
     /**
       * Generate ARM instructions for a single high-level instruction.
@@ -427,7 +463,7 @@ object CodeGenerator {
         case Mul(dest, src1, src2) => ??? // TODO
         case Div(dest, src1, src2) => ??? // TODO
         case Mod(dest, src1, src2) => ??? // TODO
-        case Neg(dest, src) => ??? // TODO
+        case Neg(dest, src) => generateNeg(dest, src)
         
         /* Bitwise operations */
         case And(dest, src1, src2) => 
@@ -459,7 +495,10 @@ object CodeGenerator {
         
         /* Print */
         case Print(src, widget, newline) => generatePrint(src, widget, newline)
-        
+
+        /* Character functions */
+        case Chr(dest, src, widget) => generateChr(dest, src, widget)
+
         /* Stack operations */
         case Push(src) => ??? // TODO
         case Pop(dest) => ??? // TODO
@@ -531,6 +570,31 @@ object CodeGenerator {
             useWidget(PrintlnWidget)
             generateCall(Label(PrintlnWidget.label), List(), None)
         }
+    }
+
+    /**
+      * Generates the low level IR for a `Chr` high level IR node
+      *
+      * @param src
+      * @param widget
+      * @param st
+      */
+    private def generateChr(dest: VirtualReg, src: VirtualReg, widget: Widget)
+                           (using st: GenState): Unit = {
+
+        generateUnaryOp(dest, src, Some(widget), {(s, d) => {
+            val maxValidChar = 127
+            /* Move the operand into w0 for the error function */
+            emit(ArmMovReg(Size.W, PhysicalReg.argRegisters(0), s))
+
+            /* If the int value is not 0-127 inclusive, runtime error */
+            emit(ArmCmpImm(Size.W, s, ArmImmediate(maxValidChar)))
+            emit(ArmBranchCond(Condition.HI, ArmAddrLabel(widget.label)))
+
+            if (d != s) {
+                emit(ArmMovReg(Size.W, d, s))
+            }
+        }})
     }
 
     /**
@@ -637,26 +701,26 @@ object CodeGenerator {
       * Generate low-level IR for boolean NOT.
       * 
       * @param dest the destination virtual register
-      * @param src the source virtual register to negate
+      * @param src the source virtual register to not
       */
     private def generateNot(dest: VirtualReg, src: VirtualReg)(using st: GenState): Unit = {
-        val srcLoc = locOf(src)
-        val destLoc = locOf(dest)
-        
-        /* Load source operand */
-        val srcReg = loadToReg(srcLoc, src.size, PhysicalReg.ipcScratch(0))
-        
-        /* Determine result register */
-        val resultReg = destLoc match {
-            case reg: PhysicalReg => reg
-            case _ => PhysicalReg.ipcScratch(0)
-        }
-        
-        /* Compare with 0 and set to 1 if equal (i.e. invert the boolean) */
-        emit(ArmCmpImm(src.size, srcReg, ArmImmediate(0)))
-        emit(ArmCSet(dest.size, resultReg, Condition.EQ))
-        
-        /* Store result */
-        storeToLoc(resultReg, destLoc, dest.size)
+        generateUnaryOp(dest, src, None, { (destReg, srcReg) =>
+
+            /* Compare with 0 and set to 1 if equal (i.e. invert the boolean) */
+            emit(ArmCmpImm(src.size, srcReg, ArmImmediate(0)))
+            emit(ArmCSet(dest.size, destReg, Condition.EQ))
+        })
+    }
+
+    /**
+      * Generate the low level IR for a negation (-x)
+      *
+      * @param dest the destination virtual register
+      * @param src the source virtual register to not
+      */
+    private def generateNeg(dest: VirtualReg, src: VirtualReg)(using st: GenState): Unit = {
+        generateUnaryOp(dest, src, None, { (destReg, srcReg) =>
+            emit(ArmNeg(dest.size, destReg, srcReg))
+        })
     }
 }
