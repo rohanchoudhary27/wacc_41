@@ -610,8 +610,7 @@ object Flattener {
         val Func(typ, ident, params, stmt, _) = typedFunc
 
         /* Function label */
-        val funcLabel = Label(s"${ident.name}")
-        funcState.emitInstruction(LabelDef(funcLabel))
+        val funcLabel = Label(s"f_${ident.name}")
 
         val flatParams = params.map(flattenParam)
         flattenStmt(stmt)

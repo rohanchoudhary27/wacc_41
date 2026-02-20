@@ -269,6 +269,9 @@ object CodeGenerator {
     def generateFunc(func: FunctionDef, alloc: Map[VirtualReg, Location], ctx: GlobalGenContext): List[ArmInstruction] = {
         given st: GenState = GenState(ctx, alloc)
         
+        /* Function label */
+        emit(ArmLabelDef(ArmAddrLabel(func.name)))
+        
         /* calculate requirements for prologue/epilogue */
         val localsSize = getLocalsSize(alloc)
         val savedRegs = getUsedCalleeSaved(alloc)
