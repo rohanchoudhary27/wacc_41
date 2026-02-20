@@ -304,8 +304,9 @@ object Flattener {
         rval: RValue[SemanticData]
     )(using funcState: FunctionState, directiveState: GlobalFlattenContext): Operand = rval match {
         case expr: Expr[SemanticData] => flattenExpr(expr)
+        case wacc.frontend.Call(ident, argList, info) => flattenCall(ident, argList)
         case _ => 
-            // array literals, newpairs, calls, and pairelems later on...
+            // array literals, newpairs, and pairelems later on...
             ??? 
     }
         
@@ -656,5 +657,38 @@ object Flattener {
         /* Move return value to register 0 (return reg) */
         funcState.emitInstruction(Mov(returnReg, flatExprReg))
         funcState.emitInstruction(Ret)
+    }
+
+    /**
+      * Flatten a call statement
+      *
+      * @param expr The call statement to be flattened
+      * @param funcState The current scope function state
+      * @param globalContext The flattener global context
+      */
+    private def flattenCall(ident: Ident[SemanticData],
+                            argList: List[Expr[SemanticData]])
+                            (using funcState: FunctionState,
+                                   globalContext: GlobalFlattenContext): Operand = {
+        
+        /* Flatten function arguments */
+        val flatArgs: List[Operand] = argList.map(arg => flattenExpr(arg))
+
+        /* Extract KnownType of function return */
+        val returnType = ident.info match {
+            case SemanticData.Func(_, _, typ, _) => typ
+            case _ => ???
+        }
+        val knownReturnType = returnType match
+            case typ: KnownType => typ
+        
+        /* Allocate return register */
+        val resultReg = funcState.anonymousReg(knownReturnType)
+
+        /* Emit call instruction */
+        val funcLabel = Label(s"f_${ident.name}")
+        funcState.emitInstruction(wacc.backend.Call(funcLabel, flatArgs, Some(resultReg)))
+
+        resultReg
     }
 }
