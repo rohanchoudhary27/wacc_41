@@ -269,18 +269,16 @@ object CodeGenerator {
     def generateFunc(func: FunctionDef, alloc: Map[VirtualReg, Location], ctx: GlobalGenContext): List[ArmInstruction] = {
         given st: GenState = GenState(ctx, alloc)
         
-        // Function label
-        emit(ArmLabelDef(ArmAddrLabel(func.name)))
-        
         /* calculate requirements for prologue/epilogue */
         val localsSize = getLocalsSize(alloc)
         val savedRegs = getUsedCalleeSaved(alloc)
 
         generateFuncPrologue(localsSize, savedRegs)
-        generateInstrs(func.body)
 
         val epilogueLabel = ArmAddrLabel(s".L_${func.name}_epilogue")
         st.currEpilogueLabel = Some(epilogueLabel)
+        generateInstrs(func.body)
+
         emit(ArmLabelDef(epilogueLabel))
         generateFuncEpilogue(localsSize, savedRegs)
         
@@ -703,8 +701,8 @@ object CodeGenerator {
       * @param genState The current function scope code generator state
       */
     private def generateReturn()(using genState: GenState) = {
-        val epilogueLabel = genState.currEpilogueLabel.get
-        emit(ArmBranchUncond(epilogueLabel))
+        val optEpilogueLabel = genState.currEpilogueLabel
+        optEpilogueLabel.foreach(l => emit(ArmBranchUncond(l)))
     }
 
     /**
