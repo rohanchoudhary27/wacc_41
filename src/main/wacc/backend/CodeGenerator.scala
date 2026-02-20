@@ -620,6 +620,17 @@ object CodeGenerator {
     }
 
     /**
+      * Align an integer number of bytes to 16 bytes for stack pushing
+      *
+      * @param numBytes The number of bytes to push
+      * @return The 16-byte aligned number of bytes to push
+      */
+    private def alignBytes(numBytes: Int): Int = {
+        if (numBytes % 16 == 0) numBytes 
+        else numBytes + (16 - (numBytes % 16))
+    }
+
+    /**
       * Generate the low level IR for a Call high level IR instruction
       *
       * @param label The label of the function
@@ -640,6 +651,19 @@ object CodeGenerator {
 
             val size = operandSize(arg)
 
+            /* Allocate stack space (moving stack pointer) to accomodate arguments
+               beyond the first 8 which must live on the stack.
+               
+               we use a byte per arg because when calling CLib funcs this is a requirement
+               and also byte alignment is faster for hardware.
+            */
+            val unalignedStackBytes = stackArgs.length * 8 
+            val stackBytesAdded = alignBytes(unalignedStackBytes)
+            emit(ArmSubImm(Size.X,
+                           PhysicalReg.stackPointer,
+                           PhysicalReg.stackPointer,
+                           ArmImmediate(stackBytesAdded)))
+
             /* Put the argument in a scratch register */
             val valReg = arg match {
                 case v: VirtualReg => loadToReg(locOf(v), size, PhysicalReg.ipcScratch(0))
@@ -651,12 +675,11 @@ object CodeGenerator {
                     PhysicalReg.ipcScratch(0)
             }
 
-            /* Store the argument (in scratch) on the stack*/
+            /* Store the argument (in scratch) on the stack */
             emit(ArmStore(size,
                           valReg, 
-                          ArmAddrPreIndex(PhysicalReg.stackPointer,
+                          ArmAddrImmOffset(PhysicalReg.stackPointer,
                                           ArmImmediate(-Size.bytes(size)))))
-            stackBytesAdded += Size.bytes(size)
         }
 
         /* For each function of the register arguments */
