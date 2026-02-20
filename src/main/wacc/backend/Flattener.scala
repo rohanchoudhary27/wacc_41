@@ -209,6 +209,7 @@ object Flattener {
         case Stmt.Exit(expr, _) => flattenExit(expr)
         case Stmt.Print(expr, _) => flattenPrint(expr)
         case Stmt.Println(expr, _) => flattenPrintln(expr)
+        case Stmt.Return(expr, _) => flattenReturn(expr)
         case Stmt.Decl(_, ident, rval, _) => flattenDecl(ident, rval)
         case Stmt.Asgn(lval, rval, _) => flattenAsgn(lval, rval)
         case Stmt.If(cond, ifBlock, elseBlock, _) => flattenIf(cond, ifBlock, elseBlock)
@@ -636,5 +637,24 @@ object Flattener {
         }
 
         funcState.defineReg(param.ident.name, varId, kty)
+    }
+
+    /**
+      * Flatten a return statement
+      *
+      * @param expr The return statement to be flattened
+      * @param funcState The current scope function state
+      * @param globalContext The flattener global context
+      */
+    private def flattenReturn(expr: Expr[SemanticData])
+                            (using funcState: FunctionState,
+                                   globalContext: GlobalFlattenContext): Unit = {
+ 
+        val flatExprReg = toReg(flattenExpr(expr))
+        val returnReg = VirtualReg(0, flatExprReg.size)
+        
+        /* Move return value to register 0 (return reg) */
+        funcState.emitInstruction(Mov(returnReg, flatExprReg))
+        funcState.emitInstruction(Ret)
     }
 }
