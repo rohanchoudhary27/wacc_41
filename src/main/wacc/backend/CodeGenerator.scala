@@ -49,6 +49,9 @@ class GlobalGenContext {
   */
 class GenState(val global: GlobalGenContext, val alloc: Map[VirtualReg, Location]) {
 
+    /* The current return label to branch to at the end of the current function */
+    var currEpilogueLabel: Option[ArmAddrLabel] = None
+
     /* Program instructions (.text) */
     private val instrs = ListBuffer[ArmInstruction]()
     
@@ -275,6 +278,10 @@ object CodeGenerator {
 
         generateFuncPrologue(localsSize, savedRegs)
         generateInstrs(func.body)
+
+        val epilogueLabel = ArmAddrLabel(s".L_${func.name}_epilogue")
+        st.currEpilogueLabel = Some(epilogueLabel)
+        emit(ArmLabelDef(epilogueLabel))
         generateFuncEpilogue(localsSize, savedRegs)
         
         st.finalInstrs
@@ -491,7 +498,7 @@ object CodeGenerator {
         
         /* Function calls */
         case Call(label, args, destOpt) => generateCall(label, args, destOpt)
-        case Ret => emit(ArmRet)
+        case Ret => generateReturn()
         
         /* Print */
         case Print(src, widget, newline) => generatePrint(src, widget, newline)
@@ -646,6 +653,16 @@ object CodeGenerator {
             val resultReg = PhysicalReg.argRegisters(0) 
             storeToLoc(resultReg, locOf(dest), dest.size)
         }
+    }
+
+    /**
+      * Generate the low level IR for a returns statement
+      *
+      * @param genState The current function scope code generator state
+      */
+    private def generateReturn()(using genState: GenState) = {
+        val epilogueLabel = genState.currEpilogueLabel.get
+        emit(ArmBranchUncond(epilogueLabel))
     }
 
     /**
