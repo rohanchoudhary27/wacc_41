@@ -365,6 +365,20 @@ object CodeGenerator {
             
     }
 
+    /**
+      * Return the `Size` of an operand
+      *
+      * @param op The operand to get the size of
+      * @return The register size of the opernad (Size.W / Size.X)
+      */
+    private def operandSize(op: Operand) = {
+        op match {
+            case v: VirtualReg => v.size
+            case _: Immediate => Size.W
+            case _: Label => Size.X
+        }
+    }
+
 
     /**
       * Generate a binary operation (register-register or register-immediate).
@@ -616,8 +630,36 @@ object CodeGenerator {
                              destOpt: Option[VirtualReg])
                              (using GenState) = {
 
-        /* For each function argument */
-        args.zipWithIndex.foreach { case (arg, index) =>
+        val stackArgs = args.drop(8)
+        val regArgs = args.take(8)
+        var stackBytesAdded = 0
+
+        /* Store excess arguments on the stack */
+        stackArgs.foreach { arg =>
+
+            val size = operandSize(arg)
+
+            /* Put the argument in a scratch register */
+            val valReg = arg match {
+                case v: VirtualReg => loadToReg(locOf(v), size, PhysicalReg.ipcScratch(0))
+                case Immediate(value) => 
+                    emit(ArmMovImm(size, PhysicalReg.ipcScratch(0), ArmImmediate(value)))
+                    PhysicalReg.ipcScratch(0)
+                case Label(name) => 
+                    emit(ArmLea(PhysicalReg.ipcScratch(0), ArmAddrLabel(name)))
+                    PhysicalReg.ipcScratch(0)
+            }
+
+            /* Store the argument (in scratch) on the stack*/
+            emit(ArmStore(size,
+                          valReg, 
+                          ArmAddrPreIndex(PhysicalReg.stackPointer,
+                                          ArmImmediate(-Size.bytes(size)))))
+            stackBytesAdded += Size.bytes(size)
+        }
+
+        /* For each function of the register arguments */
+        regArgs.zipWithIndex.foreach { case (arg, index) =>
 
             /* Get the physical register of the current argument */
             val targetReg = PhysicalReg.argRegisters(index)
