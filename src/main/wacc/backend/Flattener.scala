@@ -305,11 +305,13 @@ object Flattener {
         /* We need to generate different high level IR based on the lvalue. If it's a pair access
             we have to use PairStore instead of a simple Mov, so we pattern match lval */
         lval match {
-            case ident: Ident[SemanticData] =>
+            case _: Ident[SemanticData] =>
                 val destReg: VirtualReg = flattenLValue(lval)
                 funcState.emitInstruction(Mov(destReg, srcOperand))
             case p: PairElem[SemanticData] => 
                 val (pairPtr, pos) = resolvePairElem(p) /* get the base pointer and index */
+                /* null check when accessing the pair p */
+                funcState.emitInstruction(NullCheck(pairPtr))
                 funcState.emitInstruction(PairStore(pairPtr, pos, srcOperand))
             case _ => ???
         }
@@ -328,7 +330,9 @@ object Flattener {
             val SemanticData.Var(_, varId, _) = ident.info: @unchecked 
             funcState.lookupReg(ident.name, varId)
             
-        case _ => ???
+        case _ => 
+            // we handle arrays and pairs later...
+            ??? 
     }
 
     /**
@@ -360,6 +364,9 @@ object Flattener {
             pairPtr
         case p: PairElem[SemanticData] => 
             val (pairPtr, pos) = resolvePairElem(p)
+
+            /* emit the null check when referencing a pair */
+            funcState.emitInstruction(NullCheck(pairPtr))
 
             /* The pair register will be a pointer to the first element (kind of), so put it
                 in a `X`-sized register. See the comment above for NewPairs. */
@@ -423,6 +430,8 @@ object Flattener {
             case KnownType.Bool => PrintBoolWidget
             case wacc.frontend.KnownType.Char => PrintCharWidget
             case wacc.frontend.KnownType.String => PrintStringWidget
+            case wacc.frontend.KnownType.Pair(_, _) => PrintPointerWidget
+            case wacc.frontend.KnownType.Array(_) => PrintPointerWidget
         
 
         funcState.emitInstruction(wacc.backend.Print(printVal, printWidget, newline))
