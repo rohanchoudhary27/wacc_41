@@ -13,16 +13,19 @@ abstract class WaccIntegrationTestBase(
     protected val configurationPath: Path
 ) extends AnyFlatSpec with Matchers {
     /* File location and path info */
-    private val examplesRoot = Paths.get("examples")
+    private val rootTestPath = Paths.get("AllIntegrationTests")
     private val programExtension = "wacc"
     
      /* Valid and invalid test scopes */
-    private val validDir = examplesRoot.resolve("valid")
-    private val invalidDir = examplesRoot.resolve("invalid")
+    private val validDir = rootTestPath.resolve("examples/valid")
+    private val invalidDir = rootTestPath.resolve("examples/invalid")
+    private val customValidDir = rootTestPath.resolve("custom/valid")
       
     /* All the example WACC programs in the examples dir */
     private val allPrograms: Seq[Path] =
-        getWaccProgramsUnder(validDir) ++ getWaccProgramsUnder(invalidDir)
+        getWaccProgramsUnder(validDir) ++
+        getWaccProgramsUnder(invalidDir) ++
+        getWaccProgramsUnder(customValidDir)
 
     protected val enabledScopes: Set[String]
         = readScopes(configurationPath)
@@ -39,11 +42,11 @@ abstract class WaccIntegrationTestBase(
         allPrograms.groupBy { f =>
 
             /* Turn examples/{valid, invalid}/... into {valid, invalid}/... */
-            val rel = examplesRoot.relativize(f).toString 
+            val rel = rootTestPath.relativize(f).toString 
 
             /* Get the scope name (if the file is "invalid/syntaxError/basic/skpErr.wacc", 
                this gets "invalid/syntaxError") to be the groupBy key */
-            rel.split('/').take(2).mkString("/") 
+            rel.split('/').take(3).mkString("/") 
         }.map { (k, v) => { action(k, v) } }
         .toMap
 
@@ -62,12 +65,12 @@ abstract class WaccIntegrationTestBase(
     protected def expectedStatus(file: Path): Int = {
 
         /* Make the file relative to examples root to get the scope */
-        val rel = examplesRoot.relativize(file).toString 
+        val rel = rootTestPath.relativize(file).toString 
 
-        if (rel.startsWith("valid/")) code(Success)
-        else if (rel.startsWith("invalid/syntaxErr/") ||
-                 rel.startsWith("invalid/whack/")) code(SyntaxError)
-        else if (rel.startsWith("invalid/semanticErr/")) code(SemanticError)
+        if (rel.startsWith("examples/valid/") || rel.startsWith("custom/valid/")) code(Success)
+        else if (rel.startsWith("examples/invalid/syntaxErr/") ||
+                 rel.startsWith("examples/invalid/whack/")) code(SyntaxError)
+        else if (rel.startsWith("examples/invalid/semanticErr/")) code(SemanticError)
         else code(CompilerFailure)
     }
 
@@ -80,7 +83,7 @@ abstract class WaccIntegrationTestBase(
     protected def isEnabled(file: Path): Boolean = {
         if (enabledScopes.isEmpty) false
         else {
-            val fileRel = examplesRoot.relativize(file).toString
+            val fileRel = rootTestPath.relativize(file).toString
             val scopeKey = scopeFor(file)
             enabledScopes.exists { s =>
                 val scope = s.stripSuffix("/")
@@ -116,7 +119,7 @@ abstract class WaccIntegrationTestBase(
      */
     private def scopeFor(file: Path): String = {
         Option(file.getParent) match {
-            case Some(parent) => examplesRoot.relativize(parent).toString
+            case Some(parent) => rootTestPath.relativize(parent).toString
             case None => ""
         }
     }

@@ -1,3 +1,6 @@
 [submodule "examples"]
 	path = examples
 	url = https://gitlab.doc.ic.ac.uk/teaching-fellows/wacc/examples.git
+[submodule "AllIntegrationTests/examples"]
+	path = AllIntegrationTests/examples
+	url = git@gitlab.doc.ic.ac.uk:teaching-fellows/wacc/examples.git
