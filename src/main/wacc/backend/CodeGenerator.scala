@@ -471,7 +471,7 @@ object CodeGenerator {
         }
         
         /* Emit the unary operation specific low level IR */
-        emitFunc(srcReg, destReg)
+        emitFunc(destReg, srcReg)
         
         /* Store result back to its original location */
         storeToLoc(destReg, destLoc, dest.size)
