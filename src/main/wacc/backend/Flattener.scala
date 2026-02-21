@@ -651,9 +651,9 @@ object Flattener {
                                    globalContext: GlobalFlattenContext): Unit = {
  
         val flatExprReg = toReg(flattenExpr(expr))
-        val returnReg = VirtualReg(0, flatExprReg.size)
+        val returnReg = VirtualReg(-1, flatExprReg.size)
         
-        /* Move return value to register 0 (return reg) */
+        /* Move return value to register -1 (return reg) */
         funcState.emitInstruction(Mov(returnReg, flatExprReg))
         funcState.emitInstruction(Ret)
     }

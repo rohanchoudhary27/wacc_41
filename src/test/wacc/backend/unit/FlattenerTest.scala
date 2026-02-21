@@ -590,7 +590,7 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
 
         flatFuncs.length shouldBe 1
         flatFuncs.head.args shouldBe List(VirtualReg(0, Size.W))
-        flatFuncs.head.body shouldBe List(Mov(VirtualReg(0, Size.W), VirtualReg(0, Size.W)), Ret)
+        flatFuncs.head.body shouldBe List(Mov(VirtualReg(-1, Size.W), VirtualReg(0, Size.W)), Ret)
     }
 
 }

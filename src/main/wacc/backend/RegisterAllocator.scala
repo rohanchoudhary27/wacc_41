@@ -56,6 +56,10 @@ object RegisterAllocator {
                       args: List[VirtualReg]): Map[VirtualReg, Location] = {
     
         val allocationMap = mutable.Map[VirtualReg, Location]()
+
+        allocationMap(VirtualReg(-1, Size.B)) = PhysicalReg.argRegisters(0)
+        allocationMap(VirtualReg(-1, Size.W)) = PhysicalReg.argRegisters(0)
+        allocationMap(VirtualReg(-1, Size.X)) = PhysicalReg.argRegisters(0)
         
         /* Allocate the argument registers/stack positions first */
         args.zipWithIndex.foreach { case (arg, index) =>
