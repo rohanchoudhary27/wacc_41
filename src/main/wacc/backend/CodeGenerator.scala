@@ -558,7 +558,7 @@ object CodeGenerator {
             generateBinaryOp(dest, src1, src2, ArmSubReg.apply, ArmSubImm.apply)
         case Mul(dest, src1, src2) => generateMul(dest, src1, src2)
         case Div(dest, src1, src2) => generateDivMod(dest, src1, src2, isMod = false)
-        case Mod(dest, src1, src2) => generateDivMod(dest, src1, src2, isMod = false)
+        case Mod(dest, src1, src2) => generateDivMod(dest, src1, src2, isMod = true)
         case Neg(dest, src) => generateNeg(dest, src)
         
         /* Bitwise operations */
