@@ -1,0 +1,29 @@
+# Multiple func arguments (but all in reg) and nested return paths
+
+# Output:
+# 1
+#
+
+# Program:
+
+begin
+  # Returns 1 if x is between a and b, and 0 otherwise
+  int checkInRange(int x, int a, int b) is
+    if x > a then
+      if x < b then
+        return 1
+      else
+        return 0
+      fi
+    else
+      return 0
+    fi
+  end
+
+  int val = 5;
+  int low = 2;
+  int high = 10;
+  
+  int result = call checkInRange(val, low, high);
+  print result
+end
