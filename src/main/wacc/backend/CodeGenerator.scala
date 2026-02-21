@@ -232,8 +232,8 @@ object CodeGenerator {
     private def generateFuncEpilogue(
         localsSize: Int, savedRegs: List[PhysicalReg]
     )(using GenState) = {
-        savedRegs.reverse.grouped(2).foreach {
-            case List(r2, r1) => 
+        savedRegs.grouped(2).toList.reverse.foreach {
+            case List(r1, r2) => 
                 /* (r1, r2) was pushed in prologue, and stack top has r1 at low addr, r2 at high 
                     addr. LDP loads low addr into first register, high into second, so we load 
                     into r1, r2 */
