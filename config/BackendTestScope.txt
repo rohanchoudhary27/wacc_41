@@ -17,3 +17,16 @@ examples/valid/if/ifFalse.wacc
 examples/valid/while/whileFalse.wacc
 
 custom/valid
+examples/valid/function/simple_functions/negFunction.wacc
+examples/valid/function/simple_functions/lotsOfLocals.wacc
+examples/valid/function/simple_functions/functionUpdateParameter.wacc
+examples/valid/function/simple_functions/sameNameAsVar.wacc
+examples/valid/function/simple_functions/sameArgName2.wacc
+examples/valid/function/simple_functions/sameArgName.wacc
+examples/valid/function/simple_functions/functionSimple.wacc
+examples/valid/function/simple_functions/functionMultiReturns.wacc
+examples/valid/function/simple_functions/functionIfReturns.wacc
+examples/valid/function/simple_functions/functionDoubleReturn.wacc
+examples/valid/function/simple_functions/functionDeclaration.wacc
+examples/valid/function/simple_functions/argScopeCanBeShadowed.wacc
+examples/valid/function/nested_functions/functionConditionalReturn.wacc
