@@ -406,14 +406,28 @@ object CodeGenerator {
         storeToLoc(resultReg, destLoc, dest.size)
     }
 
+    /**
+     * Generate low-level AArch64 IR for mutliplication with integer overflow checking
+     * 
+     * @param dest: destination virtual register to store result to
+     * @param src1: first source virtual register
+     * @param src1: second operand (can be an immediate  or virtual register)
+     */
     private def generateMul(dest: VirtualReg, src1: VirtualReg, src2: Operand) (using st: GenState): Unit = {
+        /* Tells RuntimeLibraryDispatcher to add the integer overflow widget to .s file */
         useWidget(IntOverflowErrorWidget)
 
+        /* Look up in register allocator where our variables are*/
         val destLoc = locOf(dest)
+
+        /* If src1 is a StackSlot then put into x16 scratch register, otherwise return curret register */
         val src1Reg = loadToReg(locOf(src1), dest.size, PhysicalReg.ipcScratch(0))
 
+        /* Load src2 into the x17 scratch register */
         val src2Reg = src2 match {
+            /* If virtual register, just load to x17 */
             case v: VirtualReg => loadToReg(locOf(v), dest.size, PhysicalReg.ipcScratch(1))
+            /* If immediate, then move to x17 */
             case Immediate(v) => 
                 val temp = PhysicalReg.ipcScratch(1)
                 emit(ArmMovImm(dest.size, temp, ArmImmediate(v)))
@@ -421,19 +435,26 @@ object CodeGenerator {
             case _ => ???
         }
 
+        /* If the dest location is a register then continue as is. 
+           If the dest location is in stack then make dest x16 scratch register. */
         val resultReg = destLoc match {
             case r: PhysicalReg => r
             case _ => PhysicalReg.ipcScratch(0)
         }
 
+        /* Take two 32 bit (w) numbers and multiply, store as a 64 bit (x) register */
         emit(ArmSMull(resultReg, src1Reg, src2Reg))
 
+        /* Take lower 32 bits of result and sign extend to 64 into x8.
+           If no overflow then the 32-bit version will be identical to the 64bit SMULL result. */
         val scratch3 = PhysicalReg.mathScratch
         emit(ArmSxtw(scratch3, resultReg))
         emit(ArmCmpReg(Size.X, resultReg, scratch3))
 
+        /* If comparison not equal then an overflow occured, so branch to error widget */
         emit(ArmBranchCond(Condition.NE, ArmAddrLabel(IntOverflowErrorWidget.label)))
 
+        /* If comparison equal then save the valid result */
         storeToLoc(resultReg, destLoc, dest.size)
     }
 
