@@ -119,6 +119,24 @@ object CodeGenerator {
     }
 
     /**
+     * Emits a null pointer check for a given register.
+     * Jumps to the `NullDerefErrorWidget`'s label if the pointer is null.
+     * 
+     * @param ptrReg the register to check
+     */ 
+    private def nullCheck(ptrReg: PhysicalReg)(using st: GenState): Unit = {
+        useWidget(NullDerefErrorWidget)
+        /* emit the following assembly
+            ```
+            cmp ptrReg, #0
+	        b.eq ${NullDerefErrorWidget.label}
+            ```
+            to check that the ptrReg is null or not */
+        emit(ArmCmpImm(Size.X, ptrReg, ArmImmediate(0)))
+        emit(ArmBranchCond(Condition.EQ, ArmAddrLabel(NullDerefErrorWidget.label)))
+    }
+
+    /**
       * Generate Low-Level IR for the program.
       * 
       * @param regProgram the high-level IR program
@@ -508,15 +526,127 @@ object CodeGenerator {
         case ArrayStore(array, index, src) => ??? // TODO
         
         /* Pair operations */
-        case PairLoad(pair, index, dest) => ??? // TODO
-        case PairStore(pair, index, src) => ??? // TODO
+        case PairLoad(pair, index, dest) => generatePairLoad(pair, index, dest)
+        case PairStore(pair, index, src) => generatePairStore(pair, index, src)
+        case NullCheck(ptr) => generateNullCheck(ptr)
         
         /* Memory management */
-        case HeapAlloc(dest, size) => ??? // TODO
+        case HeapAlloc(dest, size) => generateHeapAlloc(dest, size)
         
         /* Special operations */
         case Lea(dest, label) => ??? // TODO
         case SignExtend(dest, src) => ??? // TODO
+    }
+
+    /**
+      * Generates low level IR to allocate heap memory.
+      * 
+      * Moves the requested size into the first argument register (`x0`), emits a `bl`
+      * to `_malloc` widget, and saves the returned memory pointer from `x0` (which is the address
+      * of the malloced heap space) into the specified destination virtual register.
+      *
+      * @param dest the destination virtual register to store the allocated heap pointer
+      * @param size the operand specifying the number of bytes to allocate
+      */
+    private def generateHeapAlloc(dest: VirtualReg, size: Operand)(using st: GenState): Unit = {
+        /* the argument register for malloc, this should contain the size */
+        val arg0 = PhysicalReg.argRegisters(0) /* w0 or x0 */
+        
+        useWidget(MallocWidget)
+
+        /* move the requested size into the input arg0 register */
+        size match {
+            case Immediate(value) => 
+                /* TODO: check immediates range with mov */
+                emit(ArmMovImm(Size.X, arg0, ArmImmediate(value))) 
+            case v: VirtualReg => 
+                loadToReg(locOf(v), Size.X, arg0)
+            case Label(name) => 
+                emit(ArmLea(arg0, ArmAddrLabel(name)))
+        }
+        
+        /* call our malloc widget */
+        emit(ArmBl(ArmAddrLabel(MallocWidget.label)))
+        
+        /* store the returned pointer (inside x0) into the destination register */
+        storeToLoc(arg0, locOf(dest), Size.X)
+    }
+
+    /**
+      * Generates low level IR to safely load a value from a heap allocated pair
+      * 
+      * Loads the pair's base pointer into a scratch register (`x16`).
+      * Determines the exact memory offset (0 bytes for `fst`, 8 bytes for `snd`) and loads 
+      * the 8 byte slot into a second scratch register (`x17`) before moving it to the destination.
+      *
+      * @param pairPtr the virtual register holding the base pointer of the pair
+      * @param pos the position within the pair (`fst` or `snd`) to read from
+      * @param dest the destination virtual register to store the loaded value
+      */
+    private def generatePairLoad(pairPtr: VirtualReg, pos: PairPos, dest: VirtualReg)
+                                (using st: GenState): Unit = {
+        /* load the base pointer into strach register x16 */
+        val ptrReg = loadToReg(locOf(pairPtr), Size.X, PhysicalReg.ipcScratch(0))
+        
+        val offset = pos match {
+            case PairPos.Fst => 0
+            case PairPos.Snd => 8
+        }
+        
+        /* we first load the memory address (ptrReg + offset) into a scratch register x17, then
+            load that to the destination location because AArch64 forbids direct memory to memory 
+            transfers (if dest is a memory location on the stack). */
+        val destScratch = PhysicalReg.ipcScratch(1)
+        emit(ArmLoad(Size.X, destScratch, ArmAddrImmOffset(ptrReg, ArmImmediate(offset))))
+        storeToLoc(destScratch, locOf(dest), dest.size)
+    }
+
+    /**
+      * Generates low level IR to check if a pointer is null
+      */
+    private def generateNullCheck(ptr: VirtualReg)(using st: GenState): Unit = {
+        // Load the pointer into a scratch register
+        val ptrReg = loadToReg(locOf(ptr), Size.X, PhysicalReg.ipcScratch(0))
+        
+        nullCheck(ptrReg) 
+    }
+
+    /**
+      * Generates low level IR to safely store a value into a heap allocated pair.
+      * 
+      * Loads the pair's base pointer into a scratch register (`x16`).
+      * Transfers the source operand into a 64-bit scratch register (`x17`), calculates the
+      * memory offset (0 for `Fst`, 8 for `Snd`), and emits the store instruction to overwrite
+      * the heap memory.
+      *
+      * @param pairPtr the virtual register holding the base pointer of the pair
+      * @param pos the position within the pair (`Fst` or `Snd`) to write to
+      * @param src the source operand containing the value to store
+      */
+    private def generatePairStore(pairPtr: VirtualReg, pos: PairPos, src: Operand)
+                                 (using st: GenState): Unit = {
+        /* load the base pointer into strach register x16 */
+        val ptrReg = loadToReg(locOf(pairPtr), Size.X, PhysicalReg.ipcScratch(0))
+        
+        val offset = pos match {
+            case PairPos.Fst => 0
+            case PairPos.Snd => 8
+        }
+        
+        /* Load the source value into x17 (scratch register) (see the comment in generatePairLoad)
+            about why we store this in a scratch register first. */
+        val srcScratch = PhysicalReg.ipcScratch(1)
+        src match {
+            case v: VirtualReg => 
+                loadToReg(locOf(v), Size.X, srcScratch)
+            case Immediate(value) => 
+                emit(ArmMovImm(Size.X, srcScratch, ArmImmediate(value)))
+            case Label(name) => 
+                emit(ArmLea(srcScratch, ArmAddrLabel(name)))
+        }
+        
+        /* Store the 8 byte scrath register into heap memory */
+        emit(ArmStore(Size.X, srcScratch, ArmAddrImmOffset(ptrReg, ArmImmediate(offset))))
     }
 
     /**
