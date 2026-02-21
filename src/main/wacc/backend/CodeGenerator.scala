@@ -271,7 +271,7 @@ object CodeGenerator {
         
         /* Function label */
         emit(ArmLabelDef(ArmAddrLabel(func.name)))
-        
+
         /* calculate requirements for prologue/epilogue */
         val localsSize = getLocalsSize(alloc)
         val savedRegs = getUsedCalleeSaved(alloc)
@@ -644,25 +644,25 @@ object CodeGenerator {
 
         val stackArgs = args.drop(8)
         val regArgs = args.take(8)
-        var stackBytesAdded = 0
 
-        /* Store excess arguments on the stack */
-        stackArgs.foreach { arg =>
+        /* Allocate stack space (moving stack pointer) to accomodate arguments
+            beyond the first 8 which must live on the stack.
+            
+            we use a byte per arg because when calling CLib funcs this is a requirement
+            and also byte alignment is faster for hardware.
+        */
+        val unalignedStackBytes = stackArgs.length * 8 
+        val stackBytesAdded = alignBytes(unalignedStackBytes)
+        emit(ArmSubImm(Size.X,
+                        PhysicalReg.stackPointer,
+                        PhysicalReg.stackPointer,
+                        ArmImmediate(stackBytesAdded)))
+
+        /* Space is now allocated, so store excess arguments on the stack */
+        stackArgs.zipWithIndex.foreach { (arg, i) =>
 
             val size = operandSize(arg)
-
-            /* Allocate stack space (moving stack pointer) to accomodate arguments
-               beyond the first 8 which must live on the stack.
-               
-               we use a byte per arg because when calling CLib funcs this is a requirement
-               and also byte alignment is faster for hardware.
-            */
-            val unalignedStackBytes = stackArgs.length * 8 
-            val stackBytesAdded = alignBytes(unalignedStackBytes)
-            emit(ArmSubImm(Size.X,
-                           PhysicalReg.stackPointer,
-                           PhysicalReg.stackPointer,
-                           ArmImmediate(stackBytesAdded)))
+            val offset = i * 8 /* offset from the stack pointer */
 
             /* Put the argument in a scratch register */
             val valReg = arg match {
@@ -679,7 +679,7 @@ object CodeGenerator {
             emit(ArmStore(size,
                           valReg, 
                           ArmAddrImmOffset(PhysicalReg.stackPointer,
-                                          ArmImmediate(-Size.bytes(size)))))
+                                           ArmImmediate(offset))))
         }
 
         /* For each function of the register arguments */
@@ -713,6 +713,14 @@ object CodeGenerator {
 
         /* Branch to the function */
         emit(ArmBl(ArmAddrLabel(label.name)))
+
+        /* Post function call, we restore the stack pointer (collapse the frame) */
+        if (stackBytesAdded > 0) {
+            emit(ArmAddImm(Size.X, 
+                           PhysicalReg.stackPointer, 
+                           PhysicalReg.stackPointer, 
+                           ArmImmediate(stackBytesAdded)))
+        }
 
         /* Move the function return value to the expected register */
         destOpt.foreach { dest =>
