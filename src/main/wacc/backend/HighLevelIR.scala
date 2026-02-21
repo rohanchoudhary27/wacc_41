@@ -127,6 +127,9 @@ case class ArrayStore(array: VirtualReg,
 case class PairLoad(pair: VirtualReg, index: PairPos, dest: VirtualReg) extends PtrInstr(pair)
 case class PairStore(pair: VirtualReg, index: PairPos, src: Operand) extends PtrInstr(pair)
 
+/* Check if a pointer is null, throwing a runtime error if so */
+case class NullCheck(ptr: VirtualReg) extends PtrInstr(ptr)
+
 /* Heap allocation instruction for arrays/pairs */
 case class HeapAlloc(dest: VirtualReg, size: Operand) extends PtrInstr(dest)
 
