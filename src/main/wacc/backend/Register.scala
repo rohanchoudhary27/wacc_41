@@ -67,6 +67,6 @@ object PhysicalReg {
       * @return A list of `PhysicalReg` objects which are allocatable
       */
     def getAllocatable: List[PhysicalReg] = {
-        argRegisters ++ callerSaved ++ calleeSaved
+        calleeSaved
     }
 }

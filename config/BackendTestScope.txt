@@ -1,17 +1,32 @@
-valid/IO/print/print-backspace.wacc
-valid/IO/print/print.wacc
-valid/IO/print/printBool.wacc
-valid/IO/print/printChar.wacc
-valid/IO/print/printEscChar.wacc
-valid/IO/print/printInt.wacc
-valid/IO/print/println.wacc
+examples/valid/IO/print/print-backspace.wacc
+examples/valid/IO/print/print.wacc
+examples/valid/IO/print/printBool.wacc
+examples/valid/IO/print/printChar.wacc
+examples/valid/IO/print/printEscChar.wacc
+examples/valid/IO/print/printInt.wacc
+examples/valid/IO/print/println.wacc
 
-valid/basic
+examples/valid/basic
 
-valid/variables
-valid/sequence
+examples/valid/variables
+examples/valid/sequence
 
-valid/if/ifTrue.wacc
-valid/if/ifFalse.wacc
+examples/valid/if/ifTrue.wacc
+examples/valid/if/ifFalse.wacc
 
-valid/while/whileFalse.wacc
+examples/valid/while/whileFalse.wacc
+
+custom/valid
+examples/valid/function/simple_functions/negFunction.wacc
+examples/valid/function/simple_functions/lotsOfLocals.wacc
+examples/valid/function/simple_functions/functionUpdateParameter.wacc
+examples/valid/function/simple_functions/sameNameAsVar.wacc
+examples/valid/function/simple_functions/sameArgName2.wacc
+examples/valid/function/simple_functions/sameArgName.wacc
+examples/valid/function/simple_functions/functionSimple.wacc
+examples/valid/function/simple_functions/functionMultiReturns.wacc
+examples/valid/function/simple_functions/functionIfReturns.wacc
+examples/valid/function/simple_functions/functionDoubleReturn.wacc
+examples/valid/function/simple_functions/functionDeclaration.wacc
+examples/valid/function/simple_functions/argScopeCanBeShadowed.wacc
+examples/valid/function/nested_functions/functionConditionalReturn.wacc

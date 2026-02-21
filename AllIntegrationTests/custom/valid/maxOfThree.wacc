@@ -1,0 +1,26 @@
+# Tests nested function calls
+
+# Output:
+# 67
+#
+
+# Program:
+
+begin
+  int max(int a, int b) is
+    if a > b then
+      return a
+    else
+      return b
+    fi
+  end
+
+  int maxOfThree(int x, int y, int z) is
+    int firstMax = call max(x, y);
+    int finalMax = call max(firstMax, z);
+    return finalMax
+  end
+
+  int result = call maxOfThree(10, 67, 15);
+  println result
+end
