@@ -5,7 +5,7 @@ import org.scalatest.flatspec.AnyFlatSpec
 import wacc.backend.{Flattener, Call as IRCall, Print as IRPrint, Label, Immediate, Mov, DataDirective,
                      PrintCharWidget, PrintIntWidget, PrintBoolWidget, PrintStringWidget, BranchCond,
                      BranchUncond,Cmp, SetCond, Not, And, Or, VirtualReg, Size, LabelDef, Condition,
-                     Neg, Chr}
+                     Neg, Chr, Ret}
 import wacc.frontend.*
 import wacc.backend.VirtualReg
 import wacc.backend.Size
@@ -555,6 +555,42 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         
         /* Needs the error widget */
         chrInstrs.head.widget should not be None
+    }
+
+    "The flattener for functions" should "flatten a function definition and its return" in {
+
+        val funcTable: Map[String, SemanticData.Func] = Map(
+            "f" -> SemanticData.Func(synPos.pos, "f", KnownType.Int, List(KnownType.Int))
+        )
+
+        val xVarInfo = SemanticData.Var(synPos.pos, 1, KnownType.Int)
+        val xIdent = Ident("x", xVarInfo)
+        val paramX = Param(SyntaxType.Int, xIdent, semPos)
+
+        val returnStmt = Stmt.Return(xIdent, semPos)
+
+        val funcSignature = funcTable("f")
+        val funcF = Func(
+            SyntaxType.Int, 
+            Ident("f", funcSignature), 
+            List(paramX), 
+            returnStmt, 
+            semPos
+        )
+
+        val mainBody: Stmt[SemanticData] = Stmt.Block(List(Stmt.Skip(semPos)), semPos)
+
+        val inputAST = Program(
+            List(funcF),
+            mainBody,
+            SemanticData.TopLevel(funcTable)
+        )
+
+        val flatFuncs = Flattener.flatten(inputAST).funcs
+
+        flatFuncs.length shouldBe 1
+        flatFuncs.head.args shouldBe List(VirtualReg(0, Size.W))
+        flatFuncs.head.body shouldBe List(Mov(VirtualReg(0, Size.W), VirtualReg(0, Size.W)), Ret)
     }
 
 }
