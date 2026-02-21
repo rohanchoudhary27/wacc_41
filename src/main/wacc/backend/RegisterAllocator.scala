@@ -66,7 +66,9 @@ object RegisterAllocator {
             }
         }
 
-        val freeRegs = mutable.Queue.from(PhysicalReg.getAllocatable)
+        /* Can't allocate the registers used for arguments so remove from pool */
+        val freePool = PhysicalReg.getAllocatable.filterNot(p => p.index < math.min(8, args.length))
+        val freeRegs = mutable.Queue.from(freePool)
 
         /* Growing the stack downwards for local variables. Local stack slots are assigned
            negative offsets from the FP */
