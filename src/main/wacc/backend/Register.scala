@@ -44,6 +44,9 @@ object PhysicalReg {
     /* Registers for function arguments */
     val argRegisters = genRegList(0, 7, allocatable = true)
 
+    /* 3rd scratch register for comlext expressions */
+    val mathScratch = new PhysicalReg(8, allocatable = false)
+
     /* Caller saved general purpose registers */
     val callerSaved = genRegList(9, 15, allocatable = true)
     

@@ -406,6 +406,70 @@ object CodeGenerator {
         storeToLoc(resultReg, destLoc, dest.size)
     }
 
+    private def generateMul(dest: VirtualReg, src1: VirtualReg, src2: Operand) (using st: GenState): Unit = {
+        useWidget(IntOverflowErrorWidget)
+
+        val destLoc = locOf(dest)
+        val src1Reg = loadToReg(locOf(src1), dest.size, PhysicalReg.ipcScratch(0))
+
+        val src2Reg = src2 match {
+            case v: VirtualReg => loadToReg(locOf(v), dest.size, PhysicalReg.ipcScratch(1))
+            case Immediate(v) => 
+                val temp = PhysicalReg.ipcScratch(1)
+                emit(ArmMovImm(dest.size, temp, ArmImmediate(v)))
+                temp
+            case _ => ???
+        }
+
+        val resultReg = destLoc match {
+            case r: PhysicalReg => r
+            case _ => PhysicalReg.ipcScratch(0)
+        }
+
+        emit(ArmSMull(resultReg, src1Reg, src2Reg))
+
+        val scratch3 = PhysicalReg.mathScratch
+        emit(ArmSxtw(scratch3, resultReg))
+        emit(ArmCmpReg(Size.X, resultReg, scratch3))
+
+        emit(ArmBranchCond(Condition.NE, ArmAddrLabel(IntOverflowErrorWidget.label)))
+
+        storeToLoc(resultReg, destLoc, dest.size)
+    }
+
+    private def generateDivMod(dest: VirtualReg, src1: VirtualReg, src2: Operand, isMod: Boolean) (using st: GenState): Unit = {
+        useWidget(DivByZeroErrorWidget)
+
+        val destLoc = locOf(dest)
+        val src1Reg = loadToReg(locOf(src1), dest.size, PhysicalReg.ipcScratch(0))
+
+        val src2Reg = src2 match {
+            case v: VirtualReg => loadToReg(locOf(v), dest.size, PhysicalReg.ipcScratch(1))
+            case Immediate(v) => 
+                val temp = PhysicalReg.ipcScratch(1)
+                emit(ArmMovImm(dest.size, temp, ArmImmediate(v)))
+                temp
+            case _ => ???
+        }
+
+        emit(ArmCbz(dest.size, src2Reg, ArmAddrLabel(DivByZeroErrorWidget.label)))
+
+        val resultReg = destLoc match {
+            case r: PhysicalReg => r
+            case _ => PhysicalReg.ipcScratch(0)
+        }
+
+        if (isMod) {
+                val scratch3 = PhysicalReg.mathScratch
+                emit(ArmDivReg(dest.size, scratch3, src1Reg, src2Reg))
+                emit(ArmMSub(dest.size, resultReg, scratch3, src2Reg, src1Reg))
+        } else {
+            emit(ArmDivReg(dest.size, resultReg, src1Reg, src2Reg))
+        }
+
+        storeToLoc(resultReg, destLoc, dest.size)
+    }
+
     /**
       * Generate the low-level IR for a unary operation
       *
@@ -460,9 +524,9 @@ object CodeGenerator {
             generateBinaryOp(dest, src1, src2, ArmAddReg.apply, ArmAddImm.apply)
         case Sub(dest, src1, src2) => 
             generateBinaryOp(dest, src1, src2, ArmSubReg.apply, ArmSubImm.apply)
-        case Mul(dest, src1, src2) => ??? // TODO
-        case Div(dest, src1, src2) => ??? // TODO
-        case Mod(dest, src1, src2) => ??? // TODO
+        case Mul(dest, src1, src2) => generateMul(dest, src1, src2)
+        case Div(dest, src1, src2) => generateDivMod(dest, src1, src2, isMod = false)
+        case Mod(dest, src1, src2) => generateDivMod(dest, src1, src2, isMod = false)
         case Neg(dest, src) => generateNeg(dest, src)
         
         /* Bitwise operations */
