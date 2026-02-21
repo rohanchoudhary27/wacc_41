@@ -168,6 +168,74 @@ class OutputterTest extends AnyFlatSpec with Matchers {
         output should include ("orr w0, w1, #1")
     }
 
+    /* ==================== Binary Operator Instruction Tests ==================== */
+
+    "Outputter binary operations" should "emit add for register-register addition" in {
+        val output = emitInstr(
+            ArmAddReg(Size.B, PhysicalReg.argRegisters(0), PhysicalReg.argRegisters(1), PhysicalReg.argRegisters(2))
+        )
+        output should include ("add w0, w1, w2")
+    }
+
+    it should "emit add for register-immediate addition" in {
+        val output = emitInstr(
+            ArmAddImm(Size.B, PhysicalReg.argRegisters(0), PhysicalReg.argRegisters(1), ArmImmediate(5))
+        )
+        output should include ("add w0, w1, #5")
+    }
+
+    it should "emit sub for register-register subtraction" in {
+        val output = emitInstr(
+            ArmSubReg(Size.B, PhysicalReg.argRegisters(0), PhysicalReg.argRegisters(1), PhysicalReg.argRegisters(2))
+        )
+        output should include ("sub w0, w1, w2")
+    }
+
+    it should "emit sub for register-immediate subtraction" in {
+        val output = emitInstr(
+            ArmSubImm(Size.B, PhysicalReg.argRegisters(0), PhysicalReg.argRegisters(1), ArmImmediate(5))
+        )
+        output should include ("sub w0, w1, #5")
+    }
+
+    it should "emit mul for register-register multiplication" in {
+        val output = emitInstr(
+            ArmMulReg(Size.B, PhysicalReg.argRegisters(0), PhysicalReg.argRegisters(1), PhysicalReg.argRegisters(2))
+        )
+        output should include ("mul w0, w1, w2")
+    }
+
+    it should "emit smull for signed multiply long (32 bit to 64 bit)" in {
+        val output = emitInstr(
+            ArmSMull(PhysicalReg.mathScratch, PhysicalReg.argRegisters(1), PhysicalReg.argRegisters(2))
+        )
+        output should include ("smull x8, w1, w2")
+    }
+
+    it should "emit sdiv for signed division" in {
+        val output = emitInstr(
+            ArmDivReg(Size.W, PhysicalReg.argRegisters(0), PhysicalReg.argRegisters(1), PhysicalReg.argRegisters(2))
+        )
+        output should include ("sdiv w0, w1, w2")
+    }
+
+    it should "emit sxtx for sign extending 32 to 64 bit" in {
+        val output = emitInstr(
+            ArmSxtw(PhysicalReg.mathScratch, PhysicalReg.argRegisters(0))
+        )
+        output should include ("sxtw x8, w0")
+    }
+
+    it should "emit msub for multiply subtract in modulo" in {
+        val output = emitInstr(
+            ArmMSub(Size.W, PhysicalReg.argRegisters(0), 
+            PhysicalReg.argRegisters(1), 
+            PhysicalReg.argRegisters(2), 
+            PhysicalReg.argRegisters(3))
+        )
+        output should include ("msub w0, w1, w2, w3")
+    }
+
     /* ==================== Conditional Set Instruction Tests ==================== */
 
     "Outputter cset" should "emit cset with EQ condition" in {
@@ -224,6 +292,20 @@ class OutputterTest extends AnyFlatSpec with Matchers {
             ArmMovReg(Size.W, PhysicalReg.argRegisters(1), PhysicalReg.argRegisters(0))
         )
         output should include ("mov w1, w0")
+    }
+
+    it should "emit cbz for compare and branch on zero" in {
+        val output = emitInstr(
+            ArmCbz(Size.W, PhysicalReg.argRegisters(0), ArmAddrLabel("_errDivZero"))
+        )
+        output should include ("cbz w0, _errDivZero")
+    }
+
+    it should "emit cbnz for compare and branch on non zero" in {
+        val output = emitInstr(
+            ArmCbnz(Size.X, PhysicalReg.mathScratch, ArmAddrLabel("_errOverflow"))
+        )
+        output should include ("cbnz x8, _errOverflow")
     }
 
     /* ==================== Full Program Tests ==================== */
