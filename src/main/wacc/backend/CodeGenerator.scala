@@ -417,7 +417,7 @@ object CodeGenerator {
         /* Tells RuntimeLibraryDispatcher to add the integer overflow widget to .s file */
         useWidget(IntOverflowErrorWidget)
 
-        /* Look up in register allocator where our variables are*/
+        /* Look up in register allocator where our variables are */
         val destLoc = locOf(dest)
 
         /* If src1 is a StackSlot then put into x16 scratch register, otherwise return curret register */
@@ -458,14 +458,30 @@ object CodeGenerator {
         storeToLoc(resultReg, destLoc, dest.size)
     }
 
-    private def generateDivMod(dest: VirtualReg, src1: VirtualReg, src2: Operand, isMod: Boolean) (using st: GenState): Unit = {
+    /**
+     * Generate low-level AArch64 IR for divide and modulo with division by zero checking
+     * 
+     * @param dest: destination virtual register to store result to
+     * @param src1: first source virtual register
+     * @param src1: second operand (can be an immediate  or virtual register)
+     * @param isMod: flag to indicate whether integer division or modulo is to be carried out
+     */
+    private def generateDivMod(dest: VirtualReg, src1: VirtualReg, src2: Operand, isMod: Boolean) 
+        (using st: GenState): Unit = {
+        /* Tells RuntimeLibraryDispatcher to add the divisioon by zero widget to .s file */
         useWidget(DivByZeroErrorWidget)
 
+        /* Look up in register allocator where our variables are */
         val destLoc = locOf(dest)
+
+        /* If src1 is a StackSlot then put into x16 scratch register, otherwise return curret register */
         val src1Reg = loadToReg(locOf(src1), dest.size, PhysicalReg.ipcScratch(0))
 
+        /* Load src2 into the x17 scratch register */
         val src2Reg = src2 match {
+            /* If virtual register, just load to x17 */
             case v: VirtualReg => loadToReg(locOf(v), dest.size, PhysicalReg.ipcScratch(1))
+            /* If immediate, then move to x17 */
             case Immediate(v) => 
                 val temp = PhysicalReg.ipcScratch(1)
                 emit(ArmMovImm(dest.size, temp, ArmImmediate(v)))
@@ -473,21 +489,28 @@ object CodeGenerator {
             case _ => ???
         }
 
+        /* Divide by zero check, if so jump to divide by zero widget */
         emit(ArmCbz(dest.size, src2Reg, ArmAddrLabel(DivByZeroErrorWidget.label)))
 
+        /* If the dest location is a register then continue as is. 
+           If the dest location is in stack then make dest x16 scratch register. */
         val resultReg = destLoc match {
             case r: PhysicalReg => r
             case _ => PhysicalReg.ipcScratch(0)
         }
 
+        /* Use flag to pick either integer division or modulo */
         if (isMod) {
-                val scratch3 = PhysicalReg.mathScratch
-                emit(ArmDivReg(dest.size, scratch3, src1Reg, src2Reg))
-                emit(ArmMSub(dest.size, resultReg, scratch3, src2Reg, src1Reg))
+            /* Calculate modulo using integer division */
+            val scratch3 = PhysicalReg.mathScratch
+            emit(ArmDivReg(dest.size, scratch3, src1Reg, src2Reg))
+            emit(ArmMSub(dest.size, resultReg, scratch3, src2Reg, src1Reg))
+            /* Calculate integer division */
         } else {
             emit(ArmDivReg(dest.size, resultReg, src1Reg, src2Reg))
         }
 
+        /* Save the result to dest location */
         storeToLoc(resultReg, destLoc, dest.size)
     }
 
