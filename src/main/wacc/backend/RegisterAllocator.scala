@@ -57,26 +57,29 @@ object RegisterAllocator {
     
         val allocationMap = mutable.Map[VirtualReg, Location]()
 
+        /* Allocate the return register */
         allocationMap(VirtualReg(-1, Size.B)) = PhysicalReg.argRegisters(0)
         allocationMap(VirtualReg(-1, Size.W)) = PhysicalReg.argRegisters(0)
         allocationMap(VirtualReg(-1, Size.X)) = PhysicalReg.argRegisters(0)
         
-        /* Allocate the argument registers/stack positions first */
+        /* Allocating only callee saved registers until the WACC extension */
+        val freeRegs = mutable.Queue.from(PhysicalReg.getAllocatable)
+        var localVarStackOffset = -8
+
+        /* Allocate callee saved registers for the function parameters (the params will
+           be moved into these at the start of function generation */
         args.zipWithIndex.foreach { case (arg, index) =>
             if (index < 8) {
-                allocationMap(arg) = PhysicalReg.argRegisters(index)
+                if (freeRegs.nonEmpty) {
+                    allocationMap(arg) = freeRegs.dequeue() 
+                } else {
+                    allocationMap(arg) = StackSlot(localVarStackOffset)
+                    localVarStackOffset -= 8
+                }
             } else {
                 allocationMap(arg) = StackSlot(getNextArgOffset(index))
             }
         }
-
-        /* Can't allocate the registers used for arguments so remove from pool */
-        val freePool = PhysicalReg.getAllocatable.filterNot(p => p.index < math.min(8, args.length))
-        val freeRegs = mutable.Queue.from(freePool)
-
-        /* Growing the stack downwards for local variables. Local stack slots are assigned
-           negative offsets from the FP */
-        var localVarStackOffset = -8
 
         /**
           * Recursively populate the register allocation map

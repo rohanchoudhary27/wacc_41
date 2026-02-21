@@ -278,6 +278,17 @@ object CodeGenerator {
 
         generateFuncPrologue(localsSize, savedRegs)
 
+        /* Parameters are moved to their allocated registers (by the RegisterAllocator)
+           because they're caller save. E.g. they'll be used if the function calls another
+           function. */
+        func.args.zipWithIndex.foreach { case (arg, index) =>
+            if (index < 8) {
+                /* Parameter's assigned location by register allocator */
+                val destLoc = alloc(arg)
+                storeToLoc(PhysicalReg.argRegisters(index), destLoc, arg.size)
+            }
+        }
+
         val epilogueLabel = ArmAddrLabel(s".L_${func.name}_epilogue")
         st.currEpilogueLabel = Some(epilogueLabel)
         generateInstrs(func.body)
