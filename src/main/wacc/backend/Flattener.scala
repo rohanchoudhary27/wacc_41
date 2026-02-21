@@ -42,7 +42,7 @@ class FunctionState(
     }
 
     /**
-      * Define a new virtual register mapping.
+      * Define a new virtual register mapping with given type.
       *
       * @param varName the string name of the variable
       * @param renameId the renamed ID from the frontend of the variable
@@ -58,13 +58,43 @@ class FunctionState(
     }
 
     /**
-      * Allocate a register as part of computing an expression (not to a variable)
+      * Define a new virtual register mapping with given size.
       *
-      * @param typ
+      * @param varName the string name of the variable
+      * @param renameId the renamed ID from the frontend of the variable
+      * @param size the `Size` of the variable
+      * @return a new virtual register
+      */
+    def defineReg(varName: String, renameId: Int, size: Size): VirtualReg = {
+        val nextReg = VirtualReg(nextVirtualId, size)
+        virtualRegMap +=
+            QualifiedName(varName, renameId) -> nextReg
+        nextVirtualId += 1
+        nextReg
+    }
+
+    /**
+      * Allocate a register as part of computing an expression (not to a variable) with
+      * the given type.
+      *
+      * @param typ the `KnownType` of the variable
       * @return
       */
     def anonymousReg(typ: KnownType): VirtualReg = {
         val nextReg = VirtualReg(nextVirtualId, Size.fromType(typ))
+        nextVirtualId += 1
+        nextReg
+    }
+
+    /**
+      * Allocate a register as part of computing an expression (not to a variable) with
+      * the given size.
+      *
+      * @param size the `Size` of the variable
+      * @return
+      */
+    def anonymousReg(size: Size): VirtualReg = {
+        val nextReg = VirtualReg(nextVirtualId, size)
         nextVirtualId += 1
         nextReg
     }
@@ -145,6 +175,8 @@ class GlobalFlattenContext(
   * level 3-register IR which is to then be input to the register allocator and code generator 
   */
 object Flattener {
+
+    private val PAIR_HEAP_SIZE_B = 16
 
     /**
       * The main function of the Flattener. Inputs a typed AST (Program[SemanticData]) from the
@@ -268,10 +300,19 @@ object Flattener {
     )(using funcState: FunctionState, directiveState: GlobalFlattenContext) = {
         /* assignments update existing state, and flattenLValue handles looking up
             the previously allocated VirtualReg for identifiers or memory for heap objects */
-        val destReg: VirtualReg = flattenLValue(lval)
         val srcOperand: Operand = flattenRValue(rval)
-
-        funcState.emitInstruction(Mov(destReg, srcOperand))
+        
+        /* We need to generate different high level IR based on the lvalue. If it's a pair access
+            we have to use PairStore instead of a simple Mov, so we pattern match lval */
+        lval match {
+            case ident: Ident[SemanticData] =>
+                val destReg: VirtualReg = flattenLValue(lval)
+                funcState.emitInstruction(Mov(destReg, srcOperand))
+            case p: PairElem[SemanticData] => 
+                val (pairPtr, pos) = resolvePairElem(p) /* get the base pointer and index */
+                funcState.emitInstruction(PairStore(pairPtr, pos, srcOperand))
+            case _ => ???
+        }
     }
 
     /**
@@ -287,9 +328,7 @@ object Flattener {
             val SemanticData.Var(_, varId, _) = ident.info: @unchecked 
             funcState.lookupReg(ident.name, varId)
             
-        case _ => 
-            // we handle arrays and pairs later...
-            ??? 
+        case _ => ???
     }
 
     /**
@@ -303,9 +342,51 @@ object Flattener {
         rval: RValue[SemanticData]
     )(using funcState: FunctionState, directiveState: GlobalFlattenContext): Operand = rval match {
         case expr: Expr[SemanticData] => flattenExpr(expr)
-        case _ => 
-            // array literals, newpairs, calls, and pairelems later on...
-            ??? 
+        case NewPair(e1, e2, _) => 
+            /* flatten both expressions, they'll be put inside PairStore */
+            val src1 = flattenExpr(e1)
+            val src2 = flattenExpr(e2)
+            /* Pairs are always allocated in 16 bytes on the heap, so get a new 
+                anonymous register with size `Size.X` and heap allocate with 16 bytes. The
+                freshly allocated anonymous register will be the base pointer of the pair, i.e.,
+                the pointer that corresponds to the first element. this is simialr to C arrays
+                where int *p = {1, 2, 3} the pointer p refers to the first element. */
+            val pairPtr = funcState.anonymousReg(Size.X) 
+            funcState.emitInstruction(HeapAlloc(pairPtr, Immediate(PAIR_HEAP_SIZE_B)))
+
+            funcState.emitInstruction(PairStore(pairPtr, PairPos.Fst, src1))
+            funcState.emitInstruction(PairStore(pairPtr, PairPos.Snd, src2))
+            
+            pairPtr
+        case p: PairElem[SemanticData] => 
+            val (pairPtr, pos) = resolvePairElem(p)
+
+            /* The pair register will be a pointer to the first element (kind of), so put it
+                in a `X`-sized register. See the comment above for NewPairs. */
+            val destReg = funcState.anonymousReg(Size.X)
+
+            /* Load the `pos`-index of the pair from pairPtr into destReg */
+            funcState.emitInstruction(PairLoad(pairPtr, pos, destReg))
+
+            destReg
+        case _ => ??? // array liters and calls
+    }
+
+    /**
+     * Resolve the virtual register that contains the pair and the position.
+     * 
+     * @param pairElem The `PairElem` to resolve
+     * @return `(VirtualReg, PairPos)` the virtual base register of the pair and fst/snd
+     */ 
+    private def resolvePairElem(
+        pairElem: PairElem[SemanticData]
+    )(using funcState: FunctionState): (VirtualReg, PairPos) = {
+        val PairElem(isFst, lval, _) = pairElem
+         /* flatten the lvalue to get the pair register */
+        val pairPtr = flattenLValue(lval)
+
+        val pos = if isFst then PairPos.Fst else PairPos.Snd
+        (pairPtr, pos)
     }
         
     /**
@@ -428,6 +509,7 @@ object Flattener {
         case BoolLiter(value, _) => Immediate(if value then 1 else 0)
         case CharLiter(value, _) => Immediate(value)
         case StrLiter(value, _) => directiveState.addString(value)
+        case PairLiter(_) => Immediate(0) /* reference compiler uses 0 to represent `null` */
         case Ident(name, SemanticData.Var(_, renameId, _)) => funcState.lookupReg(name, renameId)
         case BinaryExpr(op, left, right, _) => flattenBinaryExpr(op, left, right)
         case UnaryExpr(op, expr, _) => flattenUnaryExpr(op, expr)
