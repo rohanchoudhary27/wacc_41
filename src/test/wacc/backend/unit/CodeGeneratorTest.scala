@@ -385,6 +385,75 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         orInstrs.head.size shouldBe Size.B
     }
 
+    /* ==================== Binary Operator Tests ==================== */
+
+    "CodeGenerator for generateMul" should "generate safe multiplicaton for Mul" in {
+        val src1 = VirtualReg(0, Size.W)
+        val src2 = VirtualReg(1, Size.W)
+        val dest = VirtualReg(2, Size.W)
+        val alloc = Map(
+            src1 -> (PhysicalReg.argRegisters(0): Location),
+            src2 -> (PhysicalReg.argRegisters(1): Location),
+            dest -> (PhysicalReg.argRegisters(2): Location)
+        )
+
+        val prog = RegProgram(List.empty, List.empty, List(Mul(dest, src1, src2)))
+        val allocResult = AllocationResult(alloc, Map.empty)
+        val (armProg, dispatcher) = CodeGenerator.generate(prog, allocResult)
+
+        armProg.body.collect { case m: ArmSMull => m } should not be empty
+        armProg.body.collect { case s: ArmSxtw => s } should not be empty
+        armProg.body.collect { case c: ArmCmpReg if c.size == Size.X => c } should not be empty
+        
+        val branches = armProg.body.collect { case b: ArmBranchCond => b }
+        branches.exists(b => b.cond == Condition.NE && b.label.name == IntOverflowErrorWidget.label) shouldBe true
+
+        dispatcher.getCollectedAssembly should include (IntOverflowErrorWidget.label)
+    }
+
+    "CodeGenerator for generateDivMod" should "generate safe division for Div" in {
+        val src1 = VirtualReg(0, Size.W)
+        val src2 = VirtualReg(1, Size.W)
+        val dest = VirtualReg(2, Size.W)
+        val alloc = Map(
+            src1 -> (PhysicalReg.argRegisters(0): Location),
+            src2 -> (PhysicalReg.argRegisters(1): Location),
+            dest -> (PhysicalReg.argRegisters(2): Location)
+        )
+        val prog = RegProgram(List.empty, List.empty, List(Div(dest, src1, src2)))
+        val allocResult = AllocationResult(alloc, Map.empty)
+        val (armProg, dispatcher) = CodeGenerator.generate(prog, allocResult)
+
+        val cbzs = armProg.body.collect { case c: ArmCbz => c }
+        cbzs.exists(_.label.name == DivByZeroErrorWidget.label) shouldBe true
+
+        armProg.body.collect { case x: ArmDivReg => x } should not be empty
+        
+        dispatcher.getCollectedAssembly should include (DivByZeroErrorWidget.label)
+    }
+
+    it should "generate safe division for Mod" in {
+        val src1 = VirtualReg(0, Size.W)
+        val src2 = VirtualReg(1, Size.W)
+        val dest = VirtualReg(2, Size.W)
+        val alloc = Map(
+            src1 -> (PhysicalReg.argRegisters(0): Location),
+            src2 -> (PhysicalReg.argRegisters(1): Location),
+            dest -> (PhysicalReg.argRegisters(2): Location)
+        )
+        val prog = RegProgram(List.empty, List.empty, List(Mod(dest, src1, src2)))
+        val allocResult = AllocationResult(alloc, Map.empty)
+        val (armProg, dispatcher) = CodeGenerator.generate(prog, allocResult)
+
+        val cbzs = armProg.body.collect { case c: ArmCbz => c }
+        cbzs.exists(_.label.name == DivByZeroErrorWidget.label) shouldBe true
+
+        armProg.body.collect { case x: ArmDivReg => x } should not be empty
+        armProg.body.collect { case m: ArmMSub => m } should not be empty
+        
+        dispatcher.getCollectedAssembly should include (DivByZeroErrorWidget.label)
+    }
+
     /* ==================== Widget Tests ==================== */
 
     "CodeGenerator for widgets" should "register PrintIntWidget when Print instruction is used" in {
