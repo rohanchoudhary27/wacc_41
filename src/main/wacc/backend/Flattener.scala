@@ -418,7 +418,7 @@ object Flattener {
                              body: Stmt[SemanticData])
                             (using funcState: FunctionState,
                                    directiveState: GlobalFlattenContext) = {
-
+        
         /* Define labels */
         val bodyLabel = directiveState.getNextLabel(".L_body")
         val condLabel = directiveState.getNextLabel(".L_cond")
@@ -489,10 +489,16 @@ object Flattener {
         val leftOp = flattenExpr(left)
         val rightOp = flattenExpr(right)
 
+        /* Get expression KnownType - TODO replace with Ege's helper function */
+        val exprType = left.expressionType match {
+            case t: KnownType => t
+            case _ => KnownType.Int
+        }
+
         op match {
             case BinaryOperator.GT | BinaryOperator.GTE | BinaryOperator.LT | 
                  BinaryOperator.LTE | BinaryOperator.EQ | BinaryOperator.NEQ =>
-                flattenComparison(op, leftOp, rightOp)
+                flattenComparison(op, leftOp, rightOp, exprType)
             case BinaryOperator.And => 
                 flattenBinaryOp(leftOp, rightOp, And.apply, KnownType.Bool)
             case BinaryOperator.Or => 
@@ -512,10 +518,11 @@ object Flattener {
       */
     private def flattenComparison(op: BinaryOperator,
                                   leftOp: Operand,
-                                  rightOp: Operand)
+                                  rightOp: Operand,
+                                  compType: KnownType)
                                   (using funcState: FunctionState): VirtualReg = {
-        val leftReg = toReg(leftOp)
-        val rightReg = toReg(rightOp)
+        val leftReg = toReg(leftOp, compType)
+        val rightReg = toReg(rightOp, compType)
 
         /* Emit the compare instruction */
         funcState.emitInstruction(Cmp(leftReg, rightReg))
