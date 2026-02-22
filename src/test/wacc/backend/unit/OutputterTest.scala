@@ -310,6 +310,44 @@ class OutputterTest extends AnyFlatSpec with Matchers {
         fullOutput should include ("bl printf") // check for implementation detail
     }
 
+    "Outputter for read" should "include the correct read integer widget" in {
+
+        val prog = ArmProgram(
+            List.empty,
+            List(
+                ArmLabelDef(ArmAddrLabel("main")),
+                ArmBl(ArmAddrLabel("_readi")),
+                ArmRet
+            )
+        )
+
+        val mainOutput = Outputter.emit(prog)
+        val widgetOutput = ReadIntegerWidget.source
+        val fullOutput = s"$mainOutput\n\n$widgetOutput"
+
+        fullOutput should include ("_readi:") // check for label
+        fullOutput should include ("bl scanf") // check for implementation detail
+    }
+
+    it should "include the correct read char widget" in {
+
+        val prog = ArmProgram(
+            List.empty,
+            List(
+                ArmLabelDef(ArmAddrLabel("main")),
+                ArmBl(ArmAddrLabel("_readc")),
+                ArmRet
+            )
+        )
+
+        val mainOutput = Outputter.emit(prog)
+        val widgetOutput = ReadCharWidget.source
+        val fullOutput = s"$mainOutput\n\n$widgetOutput"
+
+        fullOutput should include ("_readc:") // check for label
+        fullOutput should include ("bl scanf") // check for implementation detail
+    }
+
     "Outputter for ldur/stur" should "emit ldur with signed immediate offset" in {
         val output = emitInstr(
             ArmLdur(Size.W, PhysicalReg.argRegisters(0), 
