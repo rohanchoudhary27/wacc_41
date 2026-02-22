@@ -457,6 +457,7 @@ object Flattener {
             case wacc.frontend.KnownType.String => PrintStringWidget
             case wacc.frontend.KnownType.Pair(_, _) => PrintPointerWidget
             case wacc.frontend.KnownType.Array(_) => PrintPointerWidget
+            case wacc.frontend.Null => PrintPointerWidget
         
 
         funcState.emitInstruction(wacc.backend.Print(printVal, printWidget, newline))
