@@ -2,9 +2,9 @@ package wacc.backend.unit
 
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.flatspec.AnyFlatSpec
-import wacc.backend.{Flattener, Call as IRCall, Print as IRPrint, Label, Immediate, Mov, DataDirective,
-                     PrintCharWidget, PrintIntWidget, PrintBoolWidget, PrintStringWidget, BranchCond,
-                     BranchUncond,Cmp, SetCond, Not, And, Or, VirtualReg, Size, LabelDef, Condition,
+import wacc.backend.{Flattener, Call as IRCall, Print as IRPrint, Read as IRRead, Label, Immediate, Mov, DataDirective,
+                     PrintCharWidget, PrintIntWidget, PrintBoolWidget, PrintStringWidget, ReadIntegerWidget, ReadCharWidget,
+                     BranchCond, BranchUncond,Cmp, SetCond, Not, And, Or, VirtualReg, Size, LabelDef, Condition,
                      Neg, Chr, Ret}
 import wacc.frontend.*
 import wacc.backend.VirtualReg
@@ -217,6 +217,64 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         flatOutput.funcs shouldBe Nil
 
         flatOutput.body shouldBe List(IRPrint(Immediate(2), PrintIntWidget, true))
+    }
+
+    "The flattener for read statements" should "flatten a read int statement" in {
+        // begin int x = 0; read x end
+        val xIdent = Ident("x", SemanticData.Var(synPos.pos, 0, KnownType.Int))
+        
+        val xDecl = Stmt.Decl(
+            SyntaxType.Int,
+            xIdent,
+            IntLiter(0, SemanticData.Typed(synPos.pos, KnownType.Int)),
+            semPos
+        )
+        
+        val readStmt = Stmt.Read(xIdent, semPos)
+
+        val block = Stmt.Block(List(xDecl, readStmt), semPos)
+        val result = Flattener.flatten(programWith(block))
+
+        // Should generate: Mov(VirtualReg(0, W), Immediate(0)), Read(VirtualReg(0, W), ReadIntegerWidget)
+        result.body should have length 2
+        
+        val decl: Mov = (result.body(0): @unchecked) match {
+            case m: Mov => m
+        }
+        val read: IRRead = (result.body(1): @unchecked) match {
+            case r: IRRead => r
+        }
+
+        decl.reg should matchPattern { case VirtualReg(0, Size.W) => }
+        read.dest shouldBe decl.reg
+        read.widget shouldBe ReadIntegerWidget
+    }
+
+    it should "flatten a read char statement" in {
+        // begin char c = 'a'; read c end
+        val cIdent = Ident("c", SemanticData.Var(synPos.pos, 0, KnownType.Char))
+        
+        val cDecl = Stmt.Decl(
+            SyntaxType.Char,
+            cIdent,
+            CharLiter('a', SemanticData.Typed(synPos.pos, KnownType.Char)),
+            semPos
+        )
+        
+        val readStmt = Stmt.Read(cIdent, semPos)
+
+        val block = Stmt.Block(List(cDecl, readStmt), semPos)
+        val result = Flattener.flatten(programWith(block))
+
+        // Should generate: Mov(VirtualReg(0, B), Immediate(97)), Read(VirtualReg(0, B), ReadCharWidget)
+        result.body should have length 2
+        
+        val read: IRRead = (result.body(1): @unchecked) match {
+            case r: IRRead => r
+        }
+
+        read.widget shouldBe ReadCharWidget
+        read.dest should matchPattern { case VirtualReg(0, Size.B) => }
     }
 
     "The flattener for declarations" should "flatten a simple int declaration to a Mov" in {
