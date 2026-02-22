@@ -58,13 +58,43 @@ class FunctionState(
     }
 
     /**
-      * Allocate a register as part of computing an expression (not to a variable)
+      * Define a new virtual register mapping with given size.
       *
-      * @param typ
+      * @param varName the string name of the variable
+      * @param renameId the renamed ID from the frontend of the variable
+      * @param size the `Size` of the variable
+      * @return a new virtual register
+      */
+    def defineReg(varName: String, renameId: Int, size: Size): VirtualReg = {
+        val nextReg = VirtualReg(nextVirtualId, size)
+        virtualRegMap +=
+            QualifiedName(varName, renameId) -> nextReg
+        nextVirtualId += 1
+        nextReg
+    }
+
+    /**
+      * Allocate a register as part of computing an expression (not to a variable) with
+      * the given type.
+      *
+      * @param typ the `KnownType` of the variable
       * @return
       */
     def anonymousReg(typ: KnownType): VirtualReg = {
         val nextReg = VirtualReg(nextVirtualId, Size.fromType(typ))
+        nextVirtualId += 1
+        nextReg
+    }
+
+    /**
+      * Allocate a register as part of computing an expression (not to a variable) with
+      * the given size.
+      *
+      * @param size the `Size` of the variable
+      * @return
+      */
+    def anonymousReg(size: Size): VirtualReg = {
+        val nextReg = VirtualReg(nextVirtualId, size)
         nextVirtualId += 1
         nextReg
     }
@@ -145,6 +175,8 @@ class GlobalFlattenContext(
   * level 3-register IR which is to then be input to the register allocator and code generator 
   */
 object Flattener {
+
+    private val PAIR_HEAP_SIZE_B = 16
 
     /**
       * The main function of the Flattener. Inputs a typed AST (Program[SemanticData]) from the
@@ -249,8 +281,9 @@ object Flattener {
         }
         
         val destReg: VirtualReg = funcState.defineReg(ident.name, varId, kty)
-
         val srcOperand: Operand = flattenRValue(rval)
+
+        /* what if destReg's size and srcOperand's size are different? */
 
         funcState.emitInstruction(Mov(destReg, srcOperand))
     }
@@ -270,10 +303,21 @@ object Flattener {
     )(using funcState: FunctionState, directiveState: GlobalFlattenContext) = {
         /* assignments update existing state, and flattenLValue handles looking up
             the previously allocated VirtualReg for identifiers or memory for heap objects */
-        val destReg: VirtualReg = flattenLValue(lval)
         val srcOperand: Operand = flattenRValue(rval)
-
-        funcState.emitInstruction(Mov(destReg, srcOperand))
+        
+        /* We need to generate different high level IR based on the lvalue. If it's a pair access
+            we have to use PairStore instead of a simple Mov, so we pattern match lval */
+        lval match {
+            case _: Ident[SemanticData] =>
+                val destReg: VirtualReg = flattenLValue(lval)
+                funcState.emitInstruction(Mov(destReg, srcOperand))
+            case p: PairElem[SemanticData] => 
+                val (pairPtr, pos) = resolvePairElem(p) /* get the base pointer and index */
+                /* null check when accessing the pair p */
+                funcState.emitInstruction(NullCheck(pairPtr))
+                funcState.emitInstruction(PairStore(pairPtr, pos, srcOperand))
+            case _ => ???
+        }
     }
 
     /**
@@ -283,14 +327,22 @@ object Flattener {
       * 
       * @return The VirtualReg associated with the evaluated LValue
       */
-    private def flattenLValue(lval: LValue[SemanticData])
-                             (using funcState: FunctionState): VirtualReg = lval match {
+    private def flattenLValue(
+        lval: LValue[SemanticData]
+    )(using funcState: FunctionState, directiveState: GlobalFlattenContext): VirtualReg = lval match {
         case ident: Ident[SemanticData] =>
             val SemanticData.Var(_, varId, _) = ident.info: @unchecked 
             funcState.lookupReg(ident.name, varId)
-            
+        
+        case p: PairElem[SemanticData] =>
+            /* To write to an inner pair (lvalue means that), we must first find out where 
+                it lives in memory. If we have something like `fst fst p`, to 
+                get the address of this whole expression, we need to get the address 
+                of the inner `fst p`, and so on.  */
+            flattenPairElem(p)
+
         case _ => 
-            // we handle arrays and pairs later...
+            // we handle arrays later... (good luck saim)
             ??? 
     }
 
@@ -306,9 +358,70 @@ object Flattener {
     )(using funcState: FunctionState, directiveState: GlobalFlattenContext): Operand = rval match {
         case expr: Expr[SemanticData] => flattenExpr(expr)
         case wacc.frontend.Call(ident, argList, info) => flattenCall(ident, argList)
-        case _ => 
-            // array literals, newpairs, and pairelems later on...
-            ??? 
+        case NewPair(e1, e2, _) => 
+            /* flatten both expressions, they'll be put inside PairStore */
+            val src1 = flattenExpr(e1)
+            val src2 = flattenExpr(e2)
+            /* Pairs are always allocated in 16 bytes on the heap, so get a new 
+                anonymous register with size `Size.X` and heap allocate with 16 bytes. The
+                freshly allocated anonymous register will be the base pointer of the pair, i.e.,
+                the pointer that corresponds to the first element. this is simialr to C arrays
+                where int *p = {1, 2, 3} the pointer p refers to the first element. */
+            val pairPtr = funcState.anonymousReg(Size.X) 
+            funcState.emitInstruction(HeapAlloc(pairPtr, Immediate(PAIR_HEAP_SIZE_B)))
+
+            funcState.emitInstruction(PairStore(pairPtr, PairPos.Fst, src1))
+            funcState.emitInstruction(PairStore(pairPtr, PairPos.Snd, src2))
+            
+            pairPtr
+        case p: PairElem[SemanticData] => flattenPairElem(p)
+        case _ => ??? // array liters and calls
+    }
+
+    /**
+     * Flattens a `PairElem` AST node by emitting instructions to resolve its base pointer,
+     * perform a runtime null check, and load its contents from the heap.
+     * 
+     * @param p The `PairElem` AST node to flatten
+     * @return A `VirtualReg` containing the loaded value or resolved memory address.
+     */
+    private def flattenPairElem(
+        p: PairElem[SemanticData]
+    )(using funcState: FunctionState, directiveState: GlobalFlattenContext): VirtualReg = {
+        val PairElem(_, _, SemanticData.Typed(_, t)) = p: @unchecked
+        val (pairPtr, pos) = resolvePairElem(p)
+
+        /* emit the null check when referencing a pair */
+        funcState.emitInstruction(NullCheck(pairPtr))
+
+        /* Extract the element size from its type and allocate an anonymous register
+            based on that type. */
+        val pairElemSize = Size.fromSemType(t)
+
+        val destReg = funcState.anonymousReg(pairElemSize)
+
+        /* Load the `pos`-index of the pair from pairPtr into destReg */
+        funcState.emitInstruction(PairLoad(pairPtr, pos, destReg))
+
+        destReg
+    }
+    
+
+    /**
+     * Resolve the virtual register that contains the pair and the position.
+     * 
+     * @param pairElem The `PairElem` to resolve
+     * @return `(VirtualReg, PairPos)` the virtual base register of the pair and fst/snd
+     */ 
+    private def resolvePairElem(
+        pairElem: PairElem[SemanticData]
+    )(using funcState: FunctionState, directiveState: GlobalFlattenContext): (VirtualReg, PairPos) = {
+        val PairElem(isFst, lval, _) = pairElem
+         /* flatten the lvalue to get the pair register */
+        val pairPtr = flattenLValue(lval)
+
+        val pos = if isFst then PairPos.Fst else PairPos.Snd
+        (pairPtr, pos)
     }
         
     /**
@@ -381,6 +494,9 @@ object Flattener {
             case KnownType.Bool => PrintBoolWidget
             case wacc.frontend.KnownType.Char => PrintCharWidget
             case wacc.frontend.KnownType.String => PrintStringWidget
+            case wacc.frontend.KnownType.Pair(_, _) => PrintPointerWidget
+            case wacc.frontend.KnownType.Array(_) => PrintPointerWidget
+            case wacc.frontend.Null => PrintPointerWidget
         
 
         funcState.emitInstruction(wacc.backend.Print(printVal, printWidget, newline))
@@ -467,6 +583,7 @@ object Flattener {
         case BoolLiter(value, _) => Immediate(if value then 1 else 0)
         case CharLiter(value, _) => Immediate(value)
         case StrLiter(value, _) => directiveState.addString(value)
+        case PairLiter(_) => Immediate(0) /* reference compiler uses 0 to represent `null` */
         case Ident(name, SemanticData.Var(_, renameId, _)) => funcState.lookupReg(name, renameId)
         case BinaryExpr(op, left, right, _) => flattenBinaryExpr(op, left, right)
         case UnaryExpr(op, expr, _) => flattenUnaryExpr(op, expr)

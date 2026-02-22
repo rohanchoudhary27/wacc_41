@@ -9,6 +9,11 @@ import wacc.backend.{Flattener, Call as IRCall, Print as IRPrint, Read as IRRead
 import wacc.frontend.*
 import wacc.backend.VirtualReg
 import wacc.backend.Size
+import wacc.backend.HeapAlloc
+import wacc.backend.PairStore
+import wacc.backend.PairPos
+import wacc.backend.NullCheck
+import wacc.backend.PairLoad
 
 /**
   * Unit tests for the Flattener
@@ -18,6 +23,9 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
     /** Helper to create a minimal typed AST with no functions */
     private def programWith(stmt: Stmt[SemanticData]): Program[SemanticData] =
         Program(List.empty, stmt, SemanticData.Pos((0, 0)))
+
+    private def programWith(stmts: List[Stmt[SemanticData]]): Program[SemanticData] =
+        Program(List.empty, Stmt.Block(stmts, SemanticData.Pos(0, 0)), SemanticData.Pos((0, 0)))
 
     /** Dummy position annotation */
     val synPos = SyntacticData.Pos(0, 0)
@@ -722,4 +730,181 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         flatFuncs.head.body shouldBe List(Mov(VirtualReg(-1, Size.W), VirtualReg(0, Size.W)), Ret)
     }
 
+    "The flattener for pairs" should "flatten a newpair expression into a HeapAlloc and PairStores" in {
+        // pair(int, int) p = newpair(10, 20)
+        val e1 = IntLiter(10, SemanticData.Typed(synPos.pos, KnownType.Int))
+        val e2 = IntLiter(20, SemanticData.Typed(synPos.pos, KnownType.Int))
+        val newPair = NewPair(e1, e2, SemanticData.Typed(synPos.pos, KnownType.Pair(KnownType.Int, KnownType.Int)))
+        
+        val decl = Stmt.Decl(
+            SyntaxType.Pair(SyntaxType.Int, SyntaxType.Int),
+            Ident("p", SemanticData.Var(synPos.pos, 0, KnownType.Pair(KnownType.Int, KnownType.Int))),
+            newPair,
+            semPos
+        )
+        
+        val flatOutput = Flattener.flatten(programWith(decl))
+
+        // should see a HeapAlloc of 16 bytes
+        val allocs = flatOutput.body.collect { case h: HeapAlloc => h }
+        allocs should have length 1
+        allocs.head.size shouldBe Immediate(16) // PAIR_HEAP_SIZE_B
+
+        // should see exactly two PairStores (for fst and snd)
+        val stores = flatOutput.body.collect { case p: PairStore => p }
+        stores should have length 2
+        
+        // Ensure Fst and Snd are both stored
+        stores.map(_.index) should contain allOf (PairPos.Fst, PairPos.Snd)
+    }
+
+    it should "flatten reading from a pair (fst/snd) with a NullCheck" in {
+        // pair(int, int) p = newpair(10, 20)
+        // int x = fst p
+        val e1 = IntLiter(10, SemanticData.Typed(synPos.pos, KnownType.Int))
+        val e2 = IntLiter(20, SemanticData.Typed(synPos.pos, KnownType.Int))
+        val newPair = NewPair(e1, e2, SemanticData.Typed(synPos.pos, KnownType.Pair(KnownType.Int, KnownType.Int)))
+        
+        val declP = Stmt.Decl(
+            SyntaxType.Pair(SyntaxType.Int, SyntaxType.Int),
+            Ident("p", SemanticData.Var(synPos.pos, 0, KnownType.Pair(KnownType.Int, KnownType.Int))),
+            newPair,
+            semPos
+        )
+        val pairIdent = Ident("p", SemanticData.Var(synPos.pos, 0, KnownType.Pair(KnownType.Int, KnownType.Int)))
+        val fstElem = PairElem(isFst = true, pairIdent, SemanticData.Typed(synPos.pos, KnownType.Int))
+        
+        val decl = Stmt.Decl(SyntaxType.Int, Ident("x", SemanticData.Var(synPos.pos, 0, KnownType.Int)), fstElem, semPos)
+        
+        val flatOutput = Flattener.flatten(programWith(List(declP, decl)))
+
+        // should explicitly emit a NullCheck before loading
+        val nullChecks = flatOutput.body.collect { case n: NullCheck => n }
+        nullChecks should have length 1
+
+        // should emit a PairLoad with Fst
+        val loads = flatOutput.body.collect { case p: PairLoad => p }
+        loads should have length 1
+        loads.head.index shouldBe PairPos.Fst
+    }
+
+    it should "flatten writing to a pair (fst p = 5) with a NullCheck" in {
+        // pair(int, int) p = newpair(10, 20)
+        // fst p = 5
+        val e1 = IntLiter(10, SemanticData.Typed(synPos.pos, KnownType.Int))
+        val e2 = IntLiter(20, SemanticData.Typed(synPos.pos, KnownType.Int))
+        val newPair = NewPair(e1, e2, SemanticData.Typed(synPos.pos, KnownType.Pair(KnownType.Int, KnownType.Int)))
+        
+        val declP = Stmt.Decl(
+            SyntaxType.Pair(SyntaxType.Int, SyntaxType.Int),
+            Ident("p", SemanticData.Var(synPos.pos, 0, KnownType.Pair(KnownType.Int, KnownType.Int))),
+            newPair,
+            semPos
+        )
+
+        val pairIdent = Ident("p", SemanticData.Var(synPos.pos, 0, KnownType.Pair(KnownType.Int, KnownType.Int)))
+        val fstElem = PairElem(isFst = true, pairIdent, SemanticData.Typed(synPos.pos, KnownType.Int))
+        val rhs = IntLiter(5, SemanticData.Typed(synPos.pos, KnownType.Int))
+        
+        val asgn = Stmt.Asgn(fstElem, rhs, semPos)
+        
+        val flatOutput = Flattener.flatten(programWith(List(declP, asgn)))
+
+        // Should explicitly emit a NullCheck before storing
+        val nullChecks = flatOutput.body.collect { case n: NullCheck => n }
+        nullChecks should have length 1
+
+        // Should emit a PairStore with Fst
+        val stores = flatOutput.body.collect { case p: PairStore => p }
+        stores should have length 3
+        stores.head.index shouldBe PairPos.Fst
+    }
+
+    it should "flatten reading from a nested pair (int x = snd fst p)" in {
+        // pair(pair, int) p = newpair(null, 3)
+        // int x = snd fst p
+        val outerPairType = KnownType.Pair(PairAny, KnownType.Int)
+        
+        // AST: snd (fst p)
+        val e1 = PairLiter(SemanticData.Typed(synPos.pos, Null))
+        val e2 = IntLiter(3, SemanticData.Typed(synPos.pos, KnownType.Int))
+        val newPair = NewPair(e1, e2, SemanticData.Typed(synPos.pos, KnownType.Pair(Null, KnownType.Int)))
+        val pairIdent = Ident("p", SemanticData.Var(synPos.pos, 0, outerPairType))
+        val declP = Stmt.Decl(
+            SyntaxType.Pair(SyntaxType.ErasedPair, SyntaxType.Int),
+            pairIdent,
+            newPair,
+            semPos
+        )
+
+        val innerFst = PairElem(isFst = true, pairIdent, SemanticData.Typed(synPos.pos, PairAny))
+        val outerSnd = PairElem(isFst = false, innerFst, SemanticData.Typed(synPos.pos, KnownType.Int))
+        
+        // int x = snd fst p
+        val decl = Stmt.Decl(
+            SyntaxType.Int, 
+            Ident("x", SemanticData.Var(synPos.pos, 0, KnownType.Int)),
+            outerSnd,
+            semPos
+        )
+        val flatOutput = Flattener.flatten(programWith(List(declP, decl)))
+        
+        // We should see a sequence of: NullCheck -> PairLoad -> NullCheck -> PairLoad
+        val nullChecks = flatOutput.body.collect { case n: NullCheck => n }
+        nullChecks should have length 2
+        
+        val loads = flatOutput.body.collect { case p: PairLoad => p }
+        loads should have length 2
+        
+        // Check the traversal order: first load Fst, then load Snd
+        loads(0).index shouldBe PairPos.Fst
+        loads(1).index shouldBe PairPos.Snd
+        
+        // The destination of the first load must be the base pointer of the second load
+        loads(0).dest shouldBe loads(1).pair
+    }
+
+    it should "flatten writing to a nested pair (fst fst p = 5)" in {
+        // pair(pair, int) p = newpair(null, 3)
+        // fst fst p = 5
+        val outerPairType = KnownType.Pair(PairAny, KnownType.Int)
+        
+        // snd (fst p)
+        val e1 = PairLiter(SemanticData.Typed(synPos.pos, Null))
+        val e2 = IntLiter(3, SemanticData.Typed(synPos.pos, KnownType.Int))
+        val newPair = NewPair(e1, e2, SemanticData.Typed(synPos.pos, KnownType.Pair(Null, KnownType.Int)))
+        val pairIdent = Ident("p", SemanticData.Var(synPos.pos, 0, outerPairType))
+        val declP = Stmt.Decl(
+            SyntaxType.Pair(SyntaxType.ErasedPair, SyntaxType.Int),
+            pairIdent,
+            newPair,
+            semPos
+        )
+        
+        // fst (fst p) = 5
+        val innerFst = PairElem(isFst = true, pairIdent, SemanticData.Typed(synPos.pos, PairAny))
+        val outerFst = PairElem(isFst = true, innerFst, SemanticData.Typed(synPos.pos, KnownType.Int))
+        
+        val rhs = IntLiter(5, SemanticData.Typed(synPos.pos, KnownType.Int))
+        val asgn = Stmt.Asgn(outerFst, rhs, semPos)
+        
+        val flatOutput = Flattener.flatten(programWith(List(declP, asgn)))
+        
+        // we should see NullCheck -> PairLoad (to traverse) -> NullCheck -> PairStore (to write)
+        val nullChecks = flatOutput.body.collect { case n: NullCheck => n }
+        nullChecks should have length 2
+        
+        // there should be exactly one load (to find the inner pair)
+        val loads = flatOutput.body.collect { case p: PairLoad => p }
+        loads should have length 1
+        loads.head.index shouldBe PairPos.Fst
+
+        // there should be exactly 3 stores (two for the newpair and one to write the 5)
+        val stores = flatOutput.body.collect { case p: PairStore => p }
+        stores should have length 3
+        stores.head.index shouldBe PairPos.Fst
+        
+        // the temporary pointer loaded by PairLoad must be the base pointer for the PairStore
+        loads.head.dest shouldBe stores.last.pair
+    }
 }
