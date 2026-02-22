@@ -279,8 +279,9 @@ object Flattener {
         }
         
         val destReg: VirtualReg = funcState.defineReg(ident.name, varId, kty)
-
         val srcOperand: Operand = flattenRValue(rval)
+
+        /* what if destReg's size and srcOperand's size are different? */
 
         funcState.emitInstruction(Mov(destReg, srcOperand))
     }
@@ -362,15 +363,17 @@ object Flattener {
             funcState.emitInstruction(PairStore(pairPtr, PairPos.Snd, src2))
             
             pairPtr
-        case p: PairElem[SemanticData] => 
+        case p @ PairElem(_, _, SemanticData.Typed(_, t)) => 
             val (pairPtr, pos) = resolvePairElem(p)
 
             /* emit the null check when referencing a pair */
             funcState.emitInstruction(NullCheck(pairPtr))
 
-            /* The pair register will be a pointer to the first element (kind of), so put it
-                in a `X`-sized register. See the comment above for NewPairs. */
-            val destReg = funcState.anonymousReg(Size.X)
+            /* Extract the element size from its type and allocate an anonymous register
+                based on that type. */
+            val pairElemSize = Size.fromSemType(t)
+
+            val destReg = funcState.anonymousReg(pairElemSize)
 
             /* Load the `pos`-index of the pair from pairPtr into destReg */
             funcState.emitInstruction(PairLoad(pairPtr, pos, destReg))

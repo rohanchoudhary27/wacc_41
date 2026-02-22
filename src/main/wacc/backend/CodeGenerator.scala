@@ -596,6 +596,8 @@ object CodeGenerator {
         /* we first load the memory address (ptrReg + offset) into a scratch register x17, then
             load that to the destination location because AArch64 forbids direct memory to memory 
             transfers (if dest is a memory location on the stack). */
+        /* also note that we load the full 8-byte pair slot (pair slots are always 8 bytes) from
+            the heap into the 64 bit (corrsponds to Size.X) scratch register */
         val destScratch = PhysicalReg.ipcScratch(1)
         emit(ArmLoad(Size.X, destScratch, ArmAddrImmOffset(ptrReg, ArmImmediate(offset))))
         storeToLoc(destScratch, locOf(dest), dest.size)
