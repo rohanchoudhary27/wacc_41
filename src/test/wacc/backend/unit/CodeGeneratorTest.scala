@@ -598,4 +598,63 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         }
         stores should not be empty
     }
+
+    "CodeGenerator for pairs" should "generate bl _malloc for HeapAlloc" in {
+        val dest = VirtualReg(0, Size.X)
+        val allocMap = Map[VirtualReg, Location](dest -> PhysicalReg.argRegisters(1)) // Put dest in x1
+        
+        // generate HeapAlloc(v0, 16)
+        val result = programWith(
+            List(HeapAlloc(dest, Immediate(16))),
+            allocMap
+        )
+
+        // check we load 16 into x0
+        val movs = result.body.collect { case m: ArmMovImm => m }
+        movs.exists(m => m.reg == PhysicalReg.argRegisters(0) && m.src == ArmImmediate(16)) shouldBe true
+
+        // check we branch to _malloc
+        val bls = result.body.collect { case b: ArmBl => b }
+        bls.exists(_.label.name == "_malloc") shouldBe true
+    }
+
+    it should "generate cmp and b.eq to _errNull for NullCheck" in {
+        val ptr = VirtualReg(0, Size.X)
+        val allocMap = Map[VirtualReg, Location](ptr -> PhysicalReg.argRegisters(0)) // ptr in x0
+        
+        val result = programWith(List(NullCheck(ptr)), allocMap)
+
+        // should compare against 0
+        val cmps = result.body.collect { case c: ArmCmpImm => c }
+        cmps should not be empty
+        cmps.head.src2 shouldBe ArmImmediate(0)
+
+        // Should branch conditionally (EQ) to _errNull
+        val branches = result.body.collect { case b: ArmBranchCond => b }
+        branches should not be empty
+        branches.head.cond shouldBe Condition.EQ
+        branches.head.label.name shouldBe "_errNull"
+    }
+
+    it should "generate correct memory offsets for PairLoad" in {
+        val ptr = VirtualReg(0, Size.X)
+        val dest = VirtualReg(1, Size.X)
+        val allocMap = Map[VirtualReg, Location](
+            ptr -> PhysicalReg.argRegisters(0),
+            dest -> PhysicalReg.argRegisters(1)
+        )
+        
+        // generate: PairLoad(ptr, Snd, dest)
+        val result = programWith(List(PairLoad(ptr, PairPos.Snd, dest)), allocMap)
+
+        // Expect a Load using the scratch register with an 8-byte offset for Snd
+        val loads = result.body.collect { case l: ArmLoad => l }
+        loads should not be empty
+        
+        // Check that the offset is #8
+        val memoryAddr = (loads.last.src: @unchecked) match {
+            case x: ArmAddrImmOffset => x
+        }
+        memoryAddr.offset shouldBe ArmImmediate(8)
+    }
 }
