@@ -418,8 +418,6 @@ object Flattener {
                              body: Stmt[SemanticData])
                             (using funcState: FunctionState,
                                    directiveState: GlobalFlattenContext) = {
-        
-        val flatCondition = flattenExpr(cond)
 
         /* Define labels */
         val bodyLabel = directiveState.getNextLabel(".L_body")
@@ -434,6 +432,7 @@ object Flattener {
 
         /* Evaluate the condition and jump back if it's true */
         funcState.emitInstruction(LabelDef(condLabel))
+        val flatCondition = flattenExpr(cond)
         funcState.emitInstruction(Cmp(toReg(flatCondition), Immediate(1)))
         funcState.emitInstruction(BranchCond(Condition.EQ, bodyLabel))
     } 
