@@ -131,7 +131,14 @@ class GlobalFlattenContext(
         strMap.get(str) match
             case None => {
                 val strLabel = Label(s"string_${strCount}")
-                directives += DataDirective(strLabel, str)
+
+                /* Escape chars must be written with backslashes in the assembly */
+                val escapedStr = str
+                    .replace("\"", "\\\"")
+                    .replace("\'", "\\\'")
+                    .replace("\n", "\\n")
+
+                directives += DataDirective(strLabel, escapedStr)
                 strMap += str -> strLabel
                 strCount += 1
                 strLabel
