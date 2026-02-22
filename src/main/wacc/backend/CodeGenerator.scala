@@ -622,8 +622,9 @@ object CodeGenerator {
         case Call(label, args, destOpt) => generateCall(label, args, destOpt)
         case Ret => generateReturn()
         
-        /* Print */
+        /* I/O operations */
         case Print(src, widget, newline) => generatePrint(src, widget, newline)
+        case Read(dest, widget) => generateRead(dest, widget)
 
         /* Character functions */
         case Chr(dest, src, widget) => generateChr(dest, src, widget)
@@ -699,6 +700,19 @@ object CodeGenerator {
             useWidget(PrintlnWidget)
             generateCall(Label(PrintlnWidget.label), List(), None)
         }
+    }
+
+    /**
+      * Generate the low level IR for a Read high level IR instruction.
+      *
+      * @param dest The destination virtual register to read into
+      * @param widget The read widget to use
+      * @param st The generator state
+      */
+    private def generateRead(dest: VirtualReg, widget: Widget)
+                            (using st: GenState): Unit = {
+        useWidget(widget)
+        generateCall(Label(widget.label), List(dest), Some(dest))
     }
 
     /**

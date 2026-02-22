@@ -207,6 +207,7 @@ object Flattener {
         case Stmt.Block(stmts, _) => stmts.foreach(flattenStmt)
         case Stmt.Skip(_) => () /* do nothing on skip */
         case Stmt.Exit(expr, _) => flattenExit(expr)
+        case Stmt.Read(lval, _) => flattenRead(lval)
         case Stmt.Print(expr, _) => flattenPrint(expr)
         case Stmt.Println(expr, _) => flattenPrintln(expr)
         case Stmt.Return(expr, _) => flattenReturn(expr)
@@ -323,6 +324,42 @@ object Flattener {
         val exitCode = flattenExpr(expr)
         val callInstr = wacc.backend.Call(Label("exit"), List(exitCode), None)
         funcState.emitInstruction(callInstr)
+    }
+
+    /**
+      * Flatten a Read AST node, emitting a Read instruction with the appropriate widget
+      *
+      * @param lval The left-value to read into
+      * @param funcState The current scope function state
+      * @param directiveState The global directive state
+      */
+    private def flattenRead(lval: LValue[SemanticData])
+                           (using funcState: FunctionState,
+                                  directiveState: GlobalFlattenContext): Unit = {
+        val destReg = flattenLValue(lval)
+        
+        /* Extract type from lvalue */
+        val readType = lval match {
+            case ident: Ident[SemanticData] =>
+                val SemanticData.Var(_, _, semType) = ident.info: @unchecked
+                semType
+            case _ => ??? // arrays and pairs to be done later
+        }
+        
+        /* Convert SemanticType to KnownType */
+        val knownType = readType match {
+            case kt: KnownType => kt
+            case _ => ??? // shouldn't happen after type checking
+        }
+        
+        /* Select widget based on type - read only supports int and char */
+        val readWidget = knownType match {
+            case KnownType.Int => ReadIntegerWidget
+            case KnownType.Char => ReadCharWidget
+            case _ => ???
+        }
+        
+        funcState.emitInstruction(Read(destReg, readWidget))
     }
 
     /**

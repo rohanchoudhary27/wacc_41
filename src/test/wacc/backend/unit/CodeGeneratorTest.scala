@@ -504,6 +504,40 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         widgetAssembly should not include ("malloc")
     }
 
+    it should "register ReadIntegerWidget when Read instruction is used" in {
+        val dest = VirtualReg(0, Size.W)
+        val prog = RegProgram(
+            List.empty,
+            List.empty,
+            List(Read(dest, ReadIntegerWidget))
+        )
+        val alloc = RegisterAllocator.allocate(prog)
+
+        val (_, dispatcher) = CodeGenerator.generate(prog, alloc)
+        val widgetAssembly = dispatcher.getCollectedAssembly
+
+        widgetAssembly should include ("_readi:")
+        widgetAssembly should include ("%d")
+        widgetAssembly should include ("scanf")
+    }
+
+    it should "register ReadCharWidget when Read instruction is used" in {
+        val dest = VirtualReg(0, Size.B)
+        val prog = RegProgram(
+            List.empty,
+            List.empty,
+            List(Read(dest, ReadCharWidget))
+        )
+        val alloc = RegisterAllocator.allocate(prog)
+
+        val (_, dispatcher) = CodeGenerator.generate(prog, alloc)
+        val widgetAssembly = dispatcher.getCollectedAssembly
+
+        widgetAssembly should include ("_readc:")
+        widgetAssembly should include ("%c")
+        widgetAssembly should include ("scanf")
+    }
+
     "CodeGenerator for Chr widgets" should "register widget for invalid ascii int" in {
         val src = VirtualReg(0, Size.W)
         val dest = VirtualReg(1, Size.W)
