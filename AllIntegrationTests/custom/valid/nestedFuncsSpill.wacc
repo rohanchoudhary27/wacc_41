@@ -1,0 +1,26 @@
+# Tests nested function calls which spill args
+
+# Output:
+# 19
+#
+
+# Program:
+
+begin
+  int takesInEight(int a, int b, int c, int d, int e, int f, int g, int h) is
+    if a > b then
+      return f
+    else
+      return h
+    fi
+  end
+
+  int takesInTen(int a, int b, int c, int d, int e, int f, int g, int h, int i, int j) is
+    int firstCall = call takesInEight(a, b, c, d, e, f, g, h);
+    int finalCall = call takesInEight(j, c, d, e, a, f, g, i);
+    return finalCall
+  end
+
+  int result = call takesInTen(10, 67, 15, 4, 12, 19, 30, 5, 10, 28);
+  println result
+end

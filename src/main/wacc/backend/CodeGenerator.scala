@@ -49,6 +49,9 @@ class GlobalGenContext {
   */
 class GenState(val global: GlobalGenContext, val alloc: Map[VirtualReg, Location]) {
 
+    /* The current return label to branch to at the end of the current function */
+    var currEpilogueLabel: Option[ArmAddrLabel] = None
+
     /* Program instructions (.text) */
     private val instrs = ListBuffer[ArmInstruction]()
     
@@ -247,8 +250,8 @@ object CodeGenerator {
     private def generateFuncEpilogue(
         localsSize: Int, savedRegs: List[PhysicalReg]
     )(using GenState) = {
-        savedRegs.reverse.grouped(2).foreach {
-            case List(r2, r1) => 
+        savedRegs.grouped(2).toList.reverse.foreach {
+            case List(r1, r2) => 
                 /* (r1, r2) was pushed in prologue, and stack top has r1 at low addr, r2 at high 
                     addr. LDP loads low addr into first register, high into second, so we load 
                     into r1, r2 */
@@ -284,15 +287,31 @@ object CodeGenerator {
     def generateFunc(func: FunctionDef, alloc: Map[VirtualReg, Location], ctx: GlobalGenContext): List[ArmInstruction] = {
         given st: GenState = GenState(ctx, alloc)
         
-        // Function label
+        /* Function label */
         emit(ArmLabelDef(ArmAddrLabel(func.name)))
-        
+
         /* calculate requirements for prologue/epilogue */
         val localsSize = getLocalsSize(alloc)
         val savedRegs = getUsedCalleeSaved(alloc)
 
         generateFuncPrologue(localsSize, savedRegs)
+
+        /* Parameters are moved to their allocated registers (by the RegisterAllocator)
+           because they're caller save. E.g. they'll be used if the function calls another
+           function. */
+        func.args.zipWithIndex.foreach { case (arg, index) =>
+            if (index < 8) {
+                /* Parameter's assigned location by register allocator */
+                val destLoc = alloc(arg)
+                storeToLoc(PhysicalReg.argRegisters(index), destLoc, arg.size)
+            }
+        }
+
+        val epilogueLabel = ArmAddrLabel(s".L_${func.name}_epilogue")
+        st.currEpilogueLabel = Some(epilogueLabel)
         generateInstrs(func.body)
+
+        emit(ArmLabelDef(epilogueLabel))
         generateFuncEpilogue(localsSize, savedRegs)
         
         st.finalInstrs
@@ -376,6 +395,20 @@ object CodeGenerator {
             
     }
 
+    /**
+      * Return the `Size` of an operand
+      *
+      * @param op The operand to get the size of
+      * @return The register size of the opernad (Size.W / Size.X)
+      */
+    private def operandSize(op: Operand) = {
+        op match {
+            case v: VirtualReg => v.size
+            case _: Immediate => Size.W
+            case _: Label => Size.X
+        }
+    }
+
 
     /**
       * Generate a binary operation (register-register or register-immediate).
@@ -456,7 +489,7 @@ object CodeGenerator {
         }
         
         /* Emit the unary operation specific low level IR */
-        emitFunc(srcReg, destReg)
+        emitFunc(destReg, srcReg)
         
         /* Store result back to its original location */
         storeToLoc(destReg, destLoc, dest.size)
@@ -509,10 +542,11 @@ object CodeGenerator {
         
         /* Function calls */
         case Call(label, args, destOpt) => generateCall(label, args, destOpt)
-        case Ret => emit(ArmRet)
+        case Ret => generateReturn()
         
-        /* Print */
+        /* I/O operations */
         case Print(src, widget, newline) => generatePrint(src, widget, newline)
+        case Read(dest, widget) => generateRead(dest, widget)
 
         /* Character functions */
         case Chr(dest, src, widget) => generateChr(dest, src, widget)
@@ -693,6 +727,19 @@ object CodeGenerator {
     }
 
     /**
+      * Generate the low level IR for a Read high level IR instruction.
+      *
+      * @param dest The destination virtual register to read into
+      * @param widget The read widget to use
+      * @param st The generator state
+      */
+    private def generateRead(dest: VirtualReg, widget: Widget)
+                            (using st: GenState): Unit = {
+        useWidget(widget)
+        generateCall(Label(widget.label), List(dest), Some(dest))
+    }
+
+    /**
       * Generates the low level IR for a `Chr` high level IR node
       *
       * @param src
@@ -718,6 +765,17 @@ object CodeGenerator {
     }
 
     /**
+      * Align an integer number of bytes to 16 bytes for stack pushing
+      *
+      * @param numBytes The number of bytes to push
+      * @return The 16-byte aligned number of bytes to push
+      */
+    private def alignBytes(numBytes: Int): Int = {
+        if (numBytes % 16 == 0) numBytes 
+        else numBytes + (16 - (numBytes % 16))
+    }
+
+    /**
       * Generate the low level IR for a Call high level IR instruction
       *
       * @param label The label of the function
@@ -729,8 +787,48 @@ object CodeGenerator {
                              destOpt: Option[VirtualReg])
                              (using GenState) = {
 
-        /* For each function argument */
-        args.zipWithIndex.foreach { case (arg, index) =>
+        val stackArgs = args.drop(8)
+        val regArgs = args.take(8)
+
+        /* Allocate stack space (moving stack pointer) to accomodate arguments
+            beyond the first 8 which must live on the stack.
+            
+            we use a byte per arg because when calling CLib funcs this is a requirement
+            and also byte alignment is faster for hardware.
+        */
+        val unalignedStackBytes = stackArgs.length * 8 
+        val stackBytesAdded = alignBytes(unalignedStackBytes)
+        emit(ArmSubImm(Size.X,
+                        PhysicalReg.stackPointer,
+                        PhysicalReg.stackPointer,
+                        ArmImmediate(stackBytesAdded)))
+
+        /* Space is now allocated, so store excess arguments on the stack */
+        stackArgs.zipWithIndex.foreach { (arg, i) =>
+
+            val size = operandSize(arg)
+            val offset = i * 8 /* offset from the stack pointer */
+
+            /* Put the argument in a scratch register */
+            val valReg = arg match {
+                case v: VirtualReg => loadToReg(locOf(v), size, PhysicalReg.ipcScratch(0))
+                case Immediate(value) => 
+                    emit(ArmMovImm(size, PhysicalReg.ipcScratch(0), ArmImmediate(value)))
+                    PhysicalReg.ipcScratch(0)
+                case Label(name) => 
+                    emit(ArmLea(PhysicalReg.ipcScratch(0), ArmAddrLabel(name)))
+                    PhysicalReg.ipcScratch(0)
+            }
+
+            /* Store the argument (in scratch) on the stack */
+            emit(ArmStore(size,
+                          valReg, 
+                          ArmAddrImmOffset(PhysicalReg.stackPointer,
+                                           ArmImmediate(offset))))
+        }
+
+        /* For each function of the register arguments */
+        regArgs.zipWithIndex.foreach { case (arg, index) =>
 
             /* Get the physical register of the current argument */
             val targetReg = PhysicalReg.argRegisters(index)
@@ -761,11 +859,29 @@ object CodeGenerator {
         /* Branch to the function */
         emit(ArmBl(ArmAddrLabel(label.name)))
 
+        /* Post function call, we restore the stack pointer (collapse the frame) */
+        if (stackBytesAdded > 0) {
+            emit(ArmAddImm(Size.X, 
+                           PhysicalReg.stackPointer, 
+                           PhysicalReg.stackPointer, 
+                           ArmImmediate(stackBytesAdded)))
+        }
+
         /* Move the function return value to the expected register */
         destOpt.foreach { dest =>
             val resultReg = PhysicalReg.argRegisters(0) 
             storeToLoc(resultReg, locOf(dest), dest.size)
         }
+    }
+
+    /**
+      * Generate the low level IR for a returns statement
+      *
+      * @param genState The current function scope code generator state
+      */
+    private def generateReturn()(using genState: GenState) = {
+        val optEpilogueLabel = genState.currEpilogueLabel
+        optEpilogueLabel.foreach(l => emit(ArmBranchUncond(l)))
     }
 
     /**

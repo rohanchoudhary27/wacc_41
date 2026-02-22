@@ -108,8 +108,9 @@ case class Store(destReg: VirtualReg, source: Address) extends Instruction
 case class Call(label: Label, args: List[Operand], dest: Option[VirtualReg]) extends Instruction
 case object Ret extends Instruction
 
-/* Print instruction */
+/* I/O instructions */
 case class Print(src: Operand, widget: Widget, newline: Boolean) extends Instruction
+case class Read(dest: VirtualReg, widget: Widget) extends Instruction
 
 /* Stack instructions */
 case class Push(sourceReg: VirtualReg) extends Instruction
