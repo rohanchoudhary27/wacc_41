@@ -36,7 +36,7 @@ object WaccBackend {
             val assemblyMain: String = Outputter.emit(lowLevelIR)
             val assemblyWidgets: String = runtimeDispatcher.getCollectedAssembly
 
-            val assemblyFinal: String = s"$assemblyMain\n\n$assemblyWidgets"
+            val assemblyFinal: String = s"$assemblyMain\n\n$assemblyWidgets\n"
             writeToFile(outputFilename, assemblyFinal)
             BackendCompilationResult(Success, Some(outputFilename))
 
