@@ -3,9 +3,9 @@ package wacc.backend.unit
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.flatspec.AnyFlatSpec
 import wacc.backend.{Flattener, Call as IRCall, Print as IRPrint, Read as IRRead, Label, Immediate, Mov, DataDirective,
-                     PrintCharWidget, PrintIntWidget, PrintBoolWidget, PrintStringWidget, ReadIntegerWidget, ReadCharWidget,
-                     BranchCond, BranchUncond,Cmp, SetCond, Not, And, Or, VirtualReg, Size, LabelDef, Condition,
-                     Neg, Chr, Ret}
+                     PrintCharWidget, PrintIntWidget, PrintBoolWidget, PrintStringWidget, BranchCond,
+                     BranchUncond,Cmp, SetCond, Not, And, Or, VirtualReg, Size, LabelDef, Condition,
+                     Neg, Chr, Add, Sub, Mul, Div, Mod, Ret, ReadIntegerWidget, ReadCharWidget}
 import wacc.frontend.*
 import wacc.backend.VirtualReg
 import wacc.backend.Size
@@ -379,6 +379,77 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         // Both instructions should target the same register
         declMov.reg shouldBe asgnMov.reg
         asgnMov.src shouldBe Immediate(10)
+    }
+
+    "The flattener for maths expressions" should "flatten addition" in {
+        val leftExpr = IntLiter(5, SemanticData.Typed(synPos.pos, KnownType.Int))
+        val rightExpr = IntLiter(3, SemanticData.Typed(synPos.pos, KnownType.Int))
+        val addExpr = BinaryExpr(BinaryOperator.Add, leftExpr, rightExpr, SemanticData.Typed(synPos.pos, KnownType.Int))
+
+        val printStmt = Stmt.Print(addExpr, semPos)
+        val inputAST = programWith(printStmt)
+
+        val flatOutput = Flattener.flatten(inputAST)
+
+        val addInstrs = flatOutput.body.collect { case a: Add => a }
+        addInstrs should have length 1
+        addInstrs.head.src1 shouldBe a [VirtualReg]
+    }
+
+    it should "flatten subtraction" in {
+        val leftExpr = IntLiter(5, SemanticData.Typed(synPos.pos, KnownType.Int))
+        val rightExpr = IntLiter(3, SemanticData.Typed(synPos.pos, KnownType.Int))
+        val subExpr = BinaryExpr(BinaryOperator.Sub, leftExpr, rightExpr, SemanticData.Typed(synPos.pos, KnownType.Int))
+
+        val printStmt = Stmt.Print(subExpr, semPos)
+        val inputAST = programWith(printStmt)
+
+        val flatOutput = Flattener.flatten(inputAST)
+
+        val subInstrs = flatOutput.body.collect { case s: Sub => s }
+        subInstrs should have length 1
+    }
+
+    it should "flatten multiplication" in {
+        val leftExpr = IntLiter(5, SemanticData.Typed(synPos.pos, KnownType.Int))
+        val rightExpr = IntLiter(3, SemanticData.Typed(synPos.pos, KnownType.Int))
+        val mulExpr = BinaryExpr(BinaryOperator.Mul, leftExpr, rightExpr, SemanticData.Typed(synPos.pos, KnownType.Int))
+
+        val printStmt = Stmt.Print(mulExpr, semPos)
+        val inputAST = programWith(printStmt)
+
+        val flatOutput = Flattener.flatten(inputAST)
+
+        val mulInstrs = flatOutput.body.collect { case m: Mul => m }
+        mulInstrs should have length 1
+    }
+
+    it should "flatten division" in {
+        val leftExpr = IntLiter(5, SemanticData.Typed(synPos.pos, KnownType.Int))
+        val rightExpr = IntLiter(3, SemanticData.Typed(synPos.pos, KnownType.Int))
+        val divExpr = BinaryExpr(BinaryOperator.Div, leftExpr, rightExpr, SemanticData.Typed(synPos.pos, KnownType.Int))
+
+        val printStmt = Stmt.Print(divExpr, semPos)
+        val inputAST = programWith(printStmt)
+
+        val flatOutput = Flattener.flatten(inputAST)
+
+        val divInstrs = flatOutput.body.collect { case x: Div => x }
+        divInstrs should have length 1
+    }
+
+    it should "flatten modulo" in {
+        val leftExpr = IntLiter(5, SemanticData.Typed(synPos.pos, KnownType.Int))
+        val rightExpr = IntLiter(3, SemanticData.Typed(synPos.pos, KnownType.Int))
+        val modExpr = BinaryExpr(BinaryOperator.Mod, leftExpr, rightExpr, SemanticData.Typed(synPos.pos, KnownType.Int))
+
+        val printStmt = Stmt.Print(modExpr, semPos)
+        val inputAST = programWith(printStmt)
+
+        val flatOutput = Flattener.flatten(inputAST)
+
+        val modInstrs = flatOutput.body.collect { case x: Mod => x }
+        modInstrs should have length 1
     }
 
     "The flattener for comparison operators" should "flatten greater than comparison" in {
