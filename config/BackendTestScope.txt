@@ -15,3 +15,17 @@ valid/if/ifTrue.wacc
 valid/if/ifFalse.wacc
 
 valid/while/whileFalse.wacc
+
+valid/pairs/createPair.wacc
+valid/pairs/createPair02.wacc
+valid/pairs/createPair03.wacc
+valid/pairs/createRefPair.wacc
+valid/pairs/writeFst.wacc
+valid/pairs/writeSnd.wacc
+valid/pairs/printPair.wacc
+valid/pairs/nestedPairLeftAssign.wacc
+valid/pairs/nestedPairRightExtract.wacc
+valid/pairs/null.wacc
+valid/pairs/printNull.wacc
+valid/pairs/printNullPair.wacc
+valid/pairs/printPairOfNulls.wacc
