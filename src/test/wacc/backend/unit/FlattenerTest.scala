@@ -655,4 +655,91 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         stores.head.index shouldBe PairPos.Fst
     }
 
+    it should "flatten reading from a nested pair (int x = snd fst p)" in {
+        // pair(pair, int) p = newpair(null, 3)
+        // int x = snd fst p
+        val outerPairType = KnownType.Pair(PairAny, KnownType.Int)
+        
+        // AST: snd (fst p)
+        val e1 = PairLiter(SemanticData.Typed(synPos.pos, Null))
+        val e2 = IntLiter(3, SemanticData.Typed(synPos.pos, KnownType.Int))
+        val newPair = NewPair(e1, e2, SemanticData.Typed(synPos.pos, KnownType.Pair(Null, KnownType.Int)))
+        val pairIdent = Ident("p", SemanticData.Var(synPos.pos, 0, outerPairType))
+        val declP = Stmt.Decl(
+            SyntaxType.Pair(SyntaxType.ErasedPair, SyntaxType.Int),
+            pairIdent,
+            newPair,
+            semPos
+        )
+
+        val innerFst = PairElem(isFst = true, pairIdent, SemanticData.Typed(synPos.pos, PairAny))
+        val outerSnd = PairElem(isFst = false, innerFst, SemanticData.Typed(synPos.pos, KnownType.Int))
+        
+        // int x = snd fst p
+        val decl = Stmt.Decl(
+            SyntaxType.Int, 
+            Ident("x", SemanticData.Var(synPos.pos, 0, KnownType.Int)),
+            outerSnd,
+            semPos
+        )
+        val flatOutput = Flattener.flatten(programWith(List(declP, decl)))
+        
+        // We should see a sequence of: NullCheck -> PairLoad -> NullCheck -> PairLoad
+        val nullChecks = flatOutput.body.collect { case n: NullCheck => n }
+        nullChecks should have length 2
+        
+        val loads = flatOutput.body.collect { case p: PairLoad => p }
+        loads should have length 2
+        
+        // Check the traversal order: first load Fst, then load Snd
+        loads(0).index shouldBe PairPos.Fst
+        loads(1).index shouldBe PairPos.Snd
+        
+        // The destination of the first load must be the base pointer of the second load
+        loads(0).dest shouldBe loads(1).pair
+    }
+
+    it should "flatten writing to a nested pair (fst fst p = 5)" in {
+        // pair(pair, int) p = newpair(null, 3)
+        // fst fst p = 5
+        val outerPairType = KnownType.Pair(PairAny, KnownType.Int)
+        
+        // snd (fst p)
+        val e1 = PairLiter(SemanticData.Typed(synPos.pos, Null))
+        val e2 = IntLiter(3, SemanticData.Typed(synPos.pos, KnownType.Int))
+        val newPair = NewPair(e1, e2, SemanticData.Typed(synPos.pos, KnownType.Pair(Null, KnownType.Int)))
+        val pairIdent = Ident("p", SemanticData.Var(synPos.pos, 0, outerPairType))
+        val declP = Stmt.Decl(
+            SyntaxType.Pair(SyntaxType.ErasedPair, SyntaxType.Int),
+            pairIdent,
+            newPair,
+            semPos
+        )
+        
+        // fst (fst p) = 5
+        val innerFst = PairElem(isFst = true, pairIdent, SemanticData.Typed(synPos.pos, PairAny))
+        val outerFst = PairElem(isFst = true, innerFst, SemanticData.Typed(synPos.pos, KnownType.Int))
+        
+        val rhs = IntLiter(5, SemanticData.Typed(synPos.pos, KnownType.Int))
+        val asgn = Stmt.Asgn(outerFst, rhs, semPos)
+        
+        val flatOutput = Flattener.flatten(programWith(List(declP, asgn)))
+        
+        // we should see NullCheck -> PairLoad (to traverse) -> NullCheck -> PairStore (to write)
+        val nullChecks = flatOutput.body.collect { case n: NullCheck => n }
+        nullChecks should have length 2
+        
+        // there should be exactly one load (to find the inner pair)
+        val loads = flatOutput.body.collect { case p: PairLoad => p }
+        loads should have length 1
+        loads.head.index shouldBe PairPos.Fst
+
+        // there should be exactly 3 stores (two for the newpair and one to write the 5)
+        val stores = flatOutput.body.collect { case p: PairStore => p }
+        stores should have length 3
+        stores.head.index shouldBe PairPos.Fst
+        
+        // the temporary pointer loaded by PairLoad must be the base pointer for the PairStore
+        loads.head.dest shouldBe stores.last.pair
+    }
 }
