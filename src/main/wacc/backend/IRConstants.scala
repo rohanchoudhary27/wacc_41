@@ -1,6 +1,7 @@
 package wacc.backend
 
 import wacc.frontend.KnownType
+import wacc.frontend.SemanticType
 
 /**
   * Size in bytes for registers/memory operations
@@ -21,11 +22,17 @@ object Size {
         case `X` => 8
     }
 
-    /* Get the numerical value of the `Size` class */
+    /* Get the size of a type */
     def fromType(typ: KnownType): Size = typ match {
         case KnownType.Char | KnownType.Bool => Size.B
         case KnownType.Int => Size.W
         case KnownType.String | _: KnownType.Array | _: KnownType.Pair => Size.X
+    }
+
+    /* Get the size of a semantic type */
+    def fromSemType(typ: SemanticType): Size = typ match {
+      case t: KnownType => fromType(t)
+      case _ => Size.X
     }
 }
 
