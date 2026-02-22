@@ -621,17 +621,22 @@ object CodeGenerator {
         /* Load the source value into x17 (scratch register) (see the comment in generatePairLoad)
             about why we store this in a scratch register first. */
         val srcScratch = PhysicalReg.ipcScratch(1)
-        src match {
+        val finalSrcReg = src match {
             case v: VirtualReg => 
+                /* capture the returned register (we don't want to simply reuse x17 defined above,
+                    but to see if a register exists (and in that case use that) or else use the
+                    scratch register. */
                 loadToReg(locOf(v), Size.X, srcScratch)
             case Immediate(value) => 
                 emit(ArmMovImm(Size.X, srcScratch, ArmImmediate(value)))
+                srcScratch
             case Label(name) => 
                 emit(ArmLea(srcScratch, ArmAddrLabel(name)))
+                srcScratch
         }
         
         /* Store the 8 byte scrath register into heap memory */
-        emit(ArmStore(Size.X, srcScratch, ArmAddrImmOffset(ptrReg, ArmImmediate(offset))))
+        emit(ArmStore(Size.X, finalSrcReg, ArmAddrImmOffset(ptrReg, ArmImmediate(offset))))
     }
 
     /**
