@@ -139,23 +139,35 @@ object BackendAdapter extends AnyFlatSpec {
 
         val io = new ProcessIO(
             stdin => {
-                val writer = new java.io.PrintWriter(stdin)
-                inputs.foreach(writer.println)
-                writer.close()
+                try {
+                    val writer = new java.io.PrintWriter(stdin)
+                    inputs.foreach { line =>
+                        writer.println(line)
+                    }
+                    writer.flush()
+                } finally {
+                    stdin.close()
+                }
             },
             stdoutStream => {
-                val reader = scala.io.Source.fromInputStream(stdoutStream)
-                reader.getLines().foreach(l => stdout.append(l).append("\n"))
-                reader.close()
+                try {
+                    val reader = scala.io.Source.fromInputStream(stdoutStream)
+                    reader.getLines().foreach(l => stdout.append(l).append("\n"))
+                } finally {
+                    stdoutStream.close()
+                }
             },
             stderrStream => {
-                val reader = scala.io.Source.fromInputStream(stderrStream)
-                val errors = reader.mkString
-                if (errors.nonEmpty) {
-                    stderr.append(errors)
-                    info(s"stderr output: $errors")
+                try {
+                    val reader = scala.io.Source.fromInputStream(stderrStream)
+                    val errors = reader.mkString
+                    if (errors.nonEmpty) {
+                        stderr.append(errors)
+                        info(s"stderr output: $errors")
+                    }
+                } finally {
+                    stderrStream.close()
                 }
-                reader.close()
             }
         )
 

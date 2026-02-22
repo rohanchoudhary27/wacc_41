@@ -6,6 +6,8 @@ examples/valid/IO/print/printEscChar.wacc
 examples/valid/IO/print/printInt.wacc
 examples/valid/IO/print/println.wacc
 
+examples/valid/IO/read
+
 examples/valid/basic
 
 examples/valid/variables
