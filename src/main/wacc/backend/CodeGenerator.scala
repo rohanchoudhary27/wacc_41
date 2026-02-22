@@ -549,27 +549,10 @@ object CodeGenerator {
       * @param size the operand specifying the number of bytes to allocate
       */
     private def generateHeapAlloc(dest: VirtualReg, size: Operand)(using st: GenState): Unit = {
-        /* the argument register for malloc, this should contain the size */
-        val arg0 = PhysicalReg.argRegisters(0) /* w0 or x0 */
-        
-        useWidget(MallocWidget)
-
-        /* move the requested size into the input arg0 register */
-        size match {
-            case Immediate(value) => 
-                /* TODO: check immediates range with mov */
-                emit(ArmMovImm(Size.X, arg0, ArmImmediate(value))) 
-            case v: VirtualReg => 
-                loadToReg(locOf(v), Size.X, arg0)
-            case Label(name) => 
-                emit(ArmLea(arg0, ArmAddrLabel(name)))
-        }
-        
-        /* call our malloc widget */
-        emit(ArmBl(ArmAddrLabel(MallocWidget.label)))
-        
-        /* store the returned pointer (inside x0) into the destination register */
-        storeToLoc(arg0, locOf(dest), Size.X)
+        val widget = MallocWidget
+        useWidget(widget)
+        /* size goes into x0, dest is returned */
+        generateCall(Label(widget.label), List(size), Some(dest))
     }
 
     /**
