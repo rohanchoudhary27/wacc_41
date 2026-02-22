@@ -58,8 +58,8 @@ object Outputter {
         case ArmAddImm(size, dest, src1, imm) => emitBinary("add", size, dest, src1, imm)
         case ArmSubReg(size, dest, src1, src2) => emitBinary("sub", size, dest, src1, src2)
         case ArmSubImm(size, dest, src1, imm) => emitBinary("sub", size, dest, src1, imm)
-        case ArmMulReg(size, dest, src1, src2) => ???
-        case ArmDivReg(size, dest, src1, src2) => ???
+        case ArmMulReg(size, dest, src1, src2) => emitBinary("mul", size, dest, src1, src2)
+        case ArmDivReg(size, dest, src1, src2) => emitBinary("sdiv", size, dest, src1, src2)
         case ArmNeg(size, dest, src) => emitUnary("neg", size, dest, src)
         
         /* Logical */
@@ -103,13 +103,32 @@ object Outputter {
         case ArmStorePair(size, src1, src2, addr) => emitStorePair(size, src1, src2, addr)
 
         /* Special Instructions */
-        case ArmMSub(size, dest, mult1, mult2, sub) => ???
+        case ArmMSub(size, dest, mult1, mult2, sub) =>
+            val d = formatReg(dest, size)
+            val m1 = formatReg(mult1, size)
+            val m2 = formatReg(mult2, size)
+            val s = formatReg(sub, size)
+            indented(s"msub $d, $m1, $m2, $s")
+
         case ArmCSet(size, dest, cond) => 
             indented(s"cset ${formatReg(dest, size)}, ${formatCondition(cond)}")
-        case ArmSMull(dest, src1, src2) => ???
-        case ArmSxtw(dest, src) => ???
-        case ArmCbz(size, reg, label) => ???
-        case ArmCbnz(size, reg, label) => ???
+
+        case ArmSMull(dest, src1, src2) => 
+            indented(
+                s"smull ${formatReg(dest, Size.X)}, " +
+                  s"${formatReg(src1, Size.W)}, " +
+                  s"${formatReg(src2, Size.W)}"
+                )
+
+        case ArmSxtw(dest, src) => 
+            indented(s"sxtw ${formatReg(dest, Size.X)}, ${formatReg(src, Size.W)}")
+
+        case ArmCbz(size, reg, label) => 
+            indented(s"cbz ${formatReg(reg, size)}, ${label.name}")
+            
+        case ArmCbnz(size, reg, label) => 
+            indented(s"cbnz ${formatReg(reg, size)}, ${label.name}")
+
     }
 
     /** Format a store pair instruction */

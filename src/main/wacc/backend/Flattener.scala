@@ -498,6 +498,11 @@ object Flattener {
                 flattenBinaryOp(leftOp, rightOp, And.apply, KnownType.Bool)
             case BinaryOperator.Or => 
                 flattenBinaryOp(leftOp, rightOp, Or.apply, KnownType.Bool)
+            case BinaryOperator.Add => flattenBinaryOp(leftOp, rightOp, Add.apply, KnownType.Int)
+            case BinaryOperator.Sub => flattenBinaryOp(leftOp, rightOp, Sub.apply, KnownType.Int)
+            case BinaryOperator.Mul => flattenBinaryOp(leftOp, rightOp, Mul.apply, KnownType.Int)
+            case BinaryOperator.Div => flattenBinaryOp(leftOp, rightOp, Div.apply, KnownType.Int)
+            case BinaryOperator.Mod => flattenBinaryOp(leftOp, rightOp, Mod.apply, KnownType.Int)
             case _ => ???
         }
     }

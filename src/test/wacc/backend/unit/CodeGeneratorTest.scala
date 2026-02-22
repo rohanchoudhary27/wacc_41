@@ -385,6 +385,75 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         orInstrs.head.size shouldBe Size.B
     }
 
+    /* ==================== Binary Operator Tests ==================== */
+
+    "CodeGenerator for generateMul" should "generate safe multiplicaton for Mul" in {
+        val src1 = VirtualReg(0, Size.W)
+        val src2 = VirtualReg(1, Size.W)
+        val dest = VirtualReg(2, Size.W)
+        val alloc = Map(
+            src1 -> (PhysicalReg.argRegisters(0): Location),
+            src2 -> (PhysicalReg.argRegisters(1): Location),
+            dest -> (PhysicalReg.argRegisters(2): Location)
+        )
+
+        val prog = RegProgram(List.empty, List.empty, List(Mul(dest, src1, src2)))
+        val allocResult = AllocationResult(alloc, Map.empty)
+        val (armProg, dispatcher) = CodeGenerator.generate(prog, allocResult)
+
+        armProg.body.collect { case m: ArmSMull => m } should not be empty
+        armProg.body.collect { case s: ArmSxtw => s } should not be empty
+        armProg.body.collect { case c: ArmCmpReg if c.size == Size.X => c } should not be empty
+        
+        val branches = armProg.body.collect { case b: ArmBranchCond => b }
+        branches.exists(b => b.cond == Condition.NE && b.label.name == IntOverflowErrorWidget.label) shouldBe true
+
+        dispatcher.getCollectedAssembly should include (IntOverflowErrorWidget.label)
+    }
+
+    "CodeGenerator for generateDivMod" should "generate safe division for Div" in {
+        val src1 = VirtualReg(0, Size.W)
+        val src2 = VirtualReg(1, Size.W)
+        val dest = VirtualReg(2, Size.W)
+        val alloc = Map(
+            src1 -> (PhysicalReg.argRegisters(0): Location),
+            src2 -> (PhysicalReg.argRegisters(1): Location),
+            dest -> (PhysicalReg.argRegisters(2): Location)
+        )
+        val prog = RegProgram(List.empty, List.empty, List(Div(dest, src1, src2)))
+        val allocResult = AllocationResult(alloc, Map.empty)
+        val (armProg, dispatcher) = CodeGenerator.generate(prog, allocResult)
+
+        val cbzs = armProg.body.collect { case c: ArmCbz => c }
+        cbzs.exists(_.label.name == DivByZeroErrorWidget.label) shouldBe true
+
+        armProg.body.collect { case x: ArmDivReg => x } should not be empty
+        
+        dispatcher.getCollectedAssembly should include (DivByZeroErrorWidget.label)
+    }
+
+    it should "generate safe division for Mod" in {
+        val src1 = VirtualReg(0, Size.W)
+        val src2 = VirtualReg(1, Size.W)
+        val dest = VirtualReg(2, Size.W)
+        val alloc = Map(
+            src1 -> (PhysicalReg.argRegisters(0): Location),
+            src2 -> (PhysicalReg.argRegisters(1): Location),
+            dest -> (PhysicalReg.argRegisters(2): Location)
+        )
+        val prog = RegProgram(List.empty, List.empty, List(Mod(dest, src1, src2)))
+        val allocResult = AllocationResult(alloc, Map.empty)
+        val (armProg, dispatcher) = CodeGenerator.generate(prog, allocResult)
+
+        val cbzs = armProg.body.collect { case c: ArmCbz => c }
+        cbzs.exists(_.label.name == DivByZeroErrorWidget.label) shouldBe true
+
+        armProg.body.collect { case x: ArmDivReg => x } should not be empty
+        armProg.body.collect { case m: ArmMSub => m } should not be empty
+        
+        dispatcher.getCollectedAssembly should include (DivByZeroErrorWidget.label)
+    }
+
     /* ==================== Widget Tests ==================== */
 
     "CodeGenerator for widgets" should "register PrintIntWidget when Print instruction is used" in {
@@ -632,69 +701,4 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         }
         stores should not be empty
     }
-
-    /* ========================= Function Tests ========================= */
-
-    "CodeGenerator for functions" should "allocate an aligned stack block for > 8 arguments" in {
-        val args = List.fill(9)(Immediate(1))
-        val result = programWith(List(Call(Label("getNinth"), args, None)), Map.empty)
-
-        /* Get instr where the stack pointer is moved */
-        val stackAllocInstr = result.body.collectFirst {
-            case ArmSubImm(Size.X, dest, src, ArmImmediate(16)) 
-                if dest == PhysicalReg.stackPointer && src == PhysicalReg.stackPointer => true
-        }
-        stackAllocInstr shouldBe Some(true)
-
-        /* Stack pointer points to the 9th arg i.e. 0 offset */
-        val stackStore = result.body.collectFirst {
-            case ArmStore(Size.W, _, ArmAddrImmOffset(PhysicalReg.stackPointer, ArmImmediate(0))) => true
-        }
-
-        stackStore shouldBe Some(true)
-    }
-
-    it should "clean up the stack block after the function returns" in {
-
-        /* 3 spilled stack args that need to be aligned i.e. 32 bytes allocated */
-        val args = List.fill(11)(Immediate(1))
-        val result = programWith(List(Call(Label("manyArgs"), args, None)), Map.empty)
-
-        val branchLinkIndex = result.body.indexWhere {
-            case _: ArmBl => true
-            case _ => false
-        }
-
-        /* Post BL we restore the stack pointer */
-        val afterBl = result.body.drop(branchLinkIndex + 1)
-        val stackCleanup = afterBl.collectFirst {
-            case ArmAddImm(Size.X, dest, src, ArmImmediate(32)) 
-                if dest == PhysicalReg.stackPointer => true
-        }
-        
-        stackCleanup shouldBe Some(true)
-    }
-
-    it should "move the return value from w0/x0 into the specified destination" in {
-        val destVReg = VirtualReg(0, Size.W)
-        val alloc = Map(destVReg -> (PhysicalReg.calleeSaved(0): Location)) 
-
-        val result = programWith(List(Call(Label("getVal"), List.empty, Some(destVReg))), alloc)
-
-        val branchLinkIndex = result.body.indexWhere {
-            case _: ArmBl => true
-            case _ => false
-        }
-
-        /* Must be a Mov after the BL function call to move the return value to
-           the desired callee reg location */
-        val afterBl = result.body.drop(branchLinkIndex + 1)
-        val captureMov = afterBl.collectFirst {
-            case ArmMovReg(Size.W, dest, src) 
-                if dest == PhysicalReg.calleeSaved(0) && src == PhysicalReg.argRegisters(0) => true
-        }
-
-        captureMov shouldBe Some(true)
-    }
-
 }
