@@ -325,14 +325,22 @@ object Flattener {
       * 
       * @return The VirtualReg associated with the evaluated LValue
       */
-    private def flattenLValue(lval: LValue[SemanticData])
-                             (using funcState: FunctionState): VirtualReg = lval match {
+    private def flattenLValue(
+        lval: LValue[SemanticData]
+    )(using funcState: FunctionState, directiveState: GlobalFlattenContext): VirtualReg = lval match {
         case ident: Ident[SemanticData] =>
             val SemanticData.Var(_, varId, _) = ident.info: @unchecked 
             funcState.lookupReg(ident.name, varId)
-            
+        
+        case p: PairElem[SemanticData] =>
+            /* To write to an inner pair (lvalue means that), we must first find out where 
+                it lives in memory. If we have something like `fst fst p`, to 
+                get the address of this whole expression, we need to get the address 
+                of the inner `fst p`, and so on.  */
+            flattenPairElem(p)
+
         case _ => 
-            // we handle arrays and pairs later...
+            // we handle arrays later... (good luck saim)
             ??? 
     }
 
@@ -363,24 +371,38 @@ object Flattener {
             funcState.emitInstruction(PairStore(pairPtr, PairPos.Snd, src2))
             
             pairPtr
-        case p @ PairElem(_, _, SemanticData.Typed(_, t)) => 
-            val (pairPtr, pos) = resolvePairElem(p)
-
-            /* emit the null check when referencing a pair */
-            funcState.emitInstruction(NullCheck(pairPtr))
-
-            /* Extract the element size from its type and allocate an anonymous register
-                based on that type. */
-            val pairElemSize = Size.fromSemType(t)
-
-            val destReg = funcState.anonymousReg(pairElemSize)
-
-            /* Load the `pos`-index of the pair from pairPtr into destReg */
-            funcState.emitInstruction(PairLoad(pairPtr, pos, destReg))
-
-            destReg
+        case p: PairElem[SemanticData] => flattenPairElem(p)
         case _ => ??? // array liters and calls
     }
+
+    /**
+     * Flattens a `PairElem` AST node by emitting instructions to resolve its base pointer,
+     * perform a runtime null check, and load its contents from the heap.
+     * 
+     * @param p The `PairElem` AST node to flatten
+     * @return A `VirtualReg` containing the loaded value or resolved memory address.
+     */
+    private def flattenPairElem(
+        p: PairElem[SemanticData]
+    )(using funcState: FunctionState, directiveState: GlobalFlattenContext): VirtualReg = {
+        val PairElem(_, _, SemanticData.Typed(_, t)) = p: @unchecked
+        val (pairPtr, pos) = resolvePairElem(p)
+
+        /* emit the null check when referencing a pair */
+        funcState.emitInstruction(NullCheck(pairPtr))
+
+        /* Extract the element size from its type and allocate an anonymous register
+            based on that type. */
+        val pairElemSize = Size.fromSemType(t)
+
+        val destReg = funcState.anonymousReg(pairElemSize)
+
+        /* Load the `pos`-index of the pair from pairPtr into destReg */
+        funcState.emitInstruction(PairLoad(pairPtr, pos, destReg))
+
+        destReg
+    }
+    
 
     /**
      * Resolve the virtual register that contains the pair and the position.
@@ -390,7 +412,7 @@ object Flattener {
      */ 
     private def resolvePairElem(
         pairElem: PairElem[SemanticData]
-    )(using funcState: FunctionState): (VirtualReg, PairPos) = {
+    )(using funcState: FunctionState, directiveState: GlobalFlattenContext): (VirtualReg, PairPos) = {
         val PairElem(isFst, lval, _) = pairElem
          /* flatten the lvalue to get the pair register */
         val pairPtr = flattenLValue(lval)

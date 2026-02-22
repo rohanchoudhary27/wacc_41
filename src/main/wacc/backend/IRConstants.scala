@@ -32,7 +32,7 @@ object Size {
     /* Get the size of a semantic type */
     def fromSemType(typ: SemanticType): Size = typ match {
       case t: KnownType => fromType(t)
-      case _ => Size.X
+      case wacc.frontend.PairAny | wacc.frontend.Null | wacc.frontend.EmptyArray => Size.X
     }
 }
 
