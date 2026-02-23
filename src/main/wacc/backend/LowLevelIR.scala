@@ -76,6 +76,31 @@ case class ArmAsrImm(size: Size,
                      src1: PhysicalReg,
                      src2: ArmImmediate) extends ArmInstruction
 
+/* Overflow checking arithmetic */
+case class ArmAddsReg(size: Size,
+                      reg: PhysicalReg,
+                      src1: PhysicalReg,
+                      src2: PhysicalReg) extends ArmInstruction
+
+case class ArmSubsReg(size: Size,
+                      reg: PhysicalReg,
+                      src1: PhysicalReg,
+                      src2: PhysicalReg) extends ArmInstruction
+
+case class ArmSubsImm(size: Size,
+                      reg: PhysicalReg,
+                      src1: PhysicalReg,
+                      src2: ArmImmediate) extends ArmInstruction
+
+case class ArmAddsImm(size: Size,
+                      reg: PhysicalReg,
+                      src1: PhysicalReg,
+                      src2: ArmImmediate) extends ArmInstruction
+
+case class ArmNegs(size: Size,
+                   reg: PhysicalReg,
+                   src: PhysicalReg) extends ArmInstruction
+
 /* Register logical instructions */
 case class ArmOrReg(size: Size,
                     reg: PhysicalReg,
