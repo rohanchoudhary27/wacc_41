@@ -62,12 +62,12 @@ case class ArmAddImm(size: Size,
                      src2: ArmImmediate) extends ArmInstruction
 case class ArmSubImm(size: Size,
                      reg: PhysicalReg,
-                    src1: PhysicalReg,
-                    src2: ArmImmediate) extends ArmInstruction
+                     src1: PhysicalReg,
+                     src2: ArmImmediate) extends ArmInstruction
 case class ArmLslImm(size: Size,
-                    reg: PhysicalReg,
-                    src1: PhysicalReg,
-                    src2: ArmImmediate) extends ArmInstruction
+                     reg: PhysicalReg,
+                     src1: PhysicalReg,
+                     src2: ArmImmediate) extends ArmInstruction
 case class ArmLsrImm(size: Size,
                      reg: PhysicalReg,
                      src1: PhysicalReg, src2: ArmImmediate) extends ArmInstruction
