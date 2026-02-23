@@ -396,7 +396,7 @@ object CodeGenerator {
     }
 
     /**
-     * helper function for loading and storing for binary operations (Mul, Div, Mod)
+     * helper function for loading and storing for binary operations (Mul, Div, Mod, Add, Sub)
      */
     private def binOpRegs(dest: VirtualReg, src1: VirtualReg, src2: Operand)
                          (opBlock: (PhysicalReg, PhysicalReg, PhysicalReg) => Unit)
@@ -553,6 +553,36 @@ object CodeGenerator {
         }
     }
 
+    private def generateAdd(dest: VirtualReg, src1: VirtualReg, src2: Operand)(using st: GenState): Unit = {
+
+        useWidget(IntOverflowErrorWidget)
+
+        binOpRegs(dest, src1, src2) { (resultReg, src1Reg, src2Reg) =>
+            src2 match {
+                case _: VirtualReg => emit(ArmAddsReg(dest.size, resultReg, src1Reg, src2Reg))
+                case Immediate(v)  => emit(ArmAddsImm(dest.size, resultReg, src1Reg, ArmImmediate(v)))
+                case _ => ???
+            }
+            
+            emit(ArmBranchCond(Condition.VS, ArmAddrLabel(IntOverflowErrorWidget.label)))
+        }
+    }
+
+    private def generateSub(dest: VirtualReg, src1: VirtualReg, src2: Operand)(using st: GenState): Unit = {
+
+        useWidget(IntOverflowErrorWidget)
+
+        binOpRegs(dest, src1, src2) { (resultReg, src1Reg, src2Reg) =>
+            src2 match {
+                case _: VirtualReg => emit(ArmSubsReg(dest.size, resultReg, src1Reg, src2Reg))
+                case Immediate(v)  => emit(ArmSubsImm(dest.size, resultReg, src1Reg, ArmImmediate(v)))
+                case _ => ???
+            }
+            
+            emit(ArmBranchCond(Condition.VS, ArmAddrLabel(IntOverflowErrorWidget.label)))
+        }
+    }
+
     /**
       * Generate the low-level IR for a unary operation
       *
@@ -604,9 +634,9 @@ object CodeGenerator {
         
         /* Arithmetic operations */
         case Add(dest, src1, src2) => 
-            generateBinaryOp(dest, src1, src2, ArmAddReg.apply, ArmAddImm.apply)
+            generateAdd(dest, src1, src2)
         case Sub(dest, src1, src2) => 
-            generateBinaryOp(dest, src1, src2, ArmSubReg.apply, ArmSubImm.apply)
+            generateSub(dest, src1, src2)
         case Mul(dest, src1, src2) => generateMul(dest, src1, src2)
         case Div(dest, src1, src2) => generateDivMod(dest, src1, src2, isMod = false)
         case Mod(dest, src1, src2) => generateDivMod(dest, src1, src2, isMod = true)
@@ -1051,8 +1081,9 @@ object CodeGenerator {
       * @param src the source virtual register to not
       */
     private def generateNeg(dest: VirtualReg, src: VirtualReg)(using st: GenState): Unit = {
-        generateUnaryOp(dest, src, None, { (destReg, srcReg) =>
-            emit(ArmNeg(dest.size, destReg, srcReg))
+        generateUnaryOp(dest, src, Some(IntOverflowErrorWidget), { (destReg, srcReg) =>
+            emit(ArmNegs(dest.size, destReg, srcReg))
+            emit(ArmBranchCond(Condition.VS, ArmAddrLabel(IntOverflowErrorWidget.label)))
         })
     }
 }
