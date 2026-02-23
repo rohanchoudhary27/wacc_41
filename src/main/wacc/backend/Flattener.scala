@@ -707,10 +707,19 @@ object Flattener {
       */
     private def flattenChr(operand: Operand)
                           (using funcState: FunctionState): VirtualReg = {
-        val reg = toReg(operand)
-        val chrReg = funcState.anonymousReg(KnownType.Int)
-        funcState.emitInstruction(wacc.backend.Chr(chrReg, reg, BadCharWidgetError))
-        chrReg
+
+        /* Chr input is an int so we use KnownType.Int */
+        val srcReg = toReg(operand, KnownType.Int)
+
+        /* Emit Chr high level IR instruction with matching reg sizes (both W) */
+        val chrIntReg = funcState.anonymousReg(KnownType.Int)
+        funcState.emitInstruction(wacc.backend.Chr(chrIntReg, srcReg, BadCharWidgetError))
+
+        /* Downcast Char reg to Bool reg */
+        val chrCharReg = funcState.anonymousReg(KnownType.Char)
+        funcState.emitInstruction(SignExtend(chrCharReg, chrIntReg))
+
+        chrCharReg
     }
 
     /**
