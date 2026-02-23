@@ -715,7 +715,6 @@ object TypeChecker {
 
     val PairElem(isFst, lvalue, info) = pairElem
     val typedLVal = checkLvalue(lvalue, Constraint.IsPair)
-
     extractLValueType(lvalue) match {
 
       /* non-erased pair case */
@@ -744,7 +743,8 @@ object TypeChecker {
                 " unresolved types."
             tcState.emit(info.pos, errorMsg, errorDesc)
             PairElem(isFst, typedLVal, SemanticData.Error(info.pos))
-          case _ => PairElem(isFst, typedLVal, info)
+          case Is(t) => PairElem(isFst, typedLVal, SemanticData.Typed(info.pos, t))
+          case _ => PairElem(isFst, typedLVal, SemanticData.Typed(info.pos, ?))
         }
 
       case _ => PairElem(isFst, typedLVal, SemanticData.Error(info.pos))
