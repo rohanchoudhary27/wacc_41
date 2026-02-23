@@ -140,6 +140,50 @@ object CodeGenerator {
     }
 
     /**
+      * Generates the low level IR for an immediate move. Handles moves for immediates that
+      * don't fit in 16 bits by splitting the move in two with MOVK and MOVZ together.
+      * 
+      * This function fully replaces the old ArmMovImm low level IR so we now have no need for
+      * it we can just use this function (which only uses Movk and Movz). Note that anyway Mov
+      * in aarch64 was just an alias for Movk/Movz/Orr.
+      *
+      * @param dest The destination physical register of the move
+      * @param immValue The immediate value to move
+      * @param size The size of the destination register
+      * @param st A GenState object
+      */
+    private def generateMovImmediate(size: Size, dest: PhysicalReg, immValue: ArmImmediate)(using st: GenState): Unit = {
+
+        val numericalValue = immValue.value
+ 
+        /* If the value fits in 16 bits we can move it in one go. If it fits in 16 bits,
+           it will be positive as negative numbers require 32 bits (wacc ints are 32 bit) */
+        if (numericalValue >= 0 && numericalValue <= 65535) {
+            emit(ArmMovz(size, dest, ArmImmediate(numericalValue)))
+        } else {
+            val lower16 = numericalValue & 0xFFFF
+            val upper16 = (numericalValue >>> 16) & 0xFFFF
+
+            /* If we're moving a negative immediate, we must move to a Size.W register since
+               this means the negative bit is still the MSB. If we were to use `size`, it might
+               be Size.X which would give leading 0s (since wacc ints fit in 32 bits only) which
+               would make the value positive */
+            val negAdjustedSize = if numericalValue < 0 then Size.W else size
+            
+            /* Move in two parts, using Movk to keep the lower half when
+               moving the upper half in */
+            emit(ArmMovz(negAdjustedSize, dest, ArmImmediate(lower16)))
+            emit(ArmMovk(negAdjustedSize, dest, ArmImmediate(upper16), ShiftAmounts._16))
+
+            /* If the negative immediate's destination was Size.X, then we now need to
+               sign extend to leading 0s */
+            if (numericalValue < 0 && size == Size.X) {
+                emit(ArmSxtw(dest, dest))
+            }
+        }
+    }
+
+    /**
       * Generate Low-Level IR for the program.
       * 
       * @param regProgram the high-level IR program
@@ -178,8 +222,7 @@ object CodeGenerator {
         generateFuncPrologue(localsSize, savedRegs)
         generateInstrs(regProgram.body)
         /* main return 0 */
-        emit(ArmMovImm(Size.W, PhysicalReg.argRegisters(0),
-                       ArmImmediate(code(Success))))
+        generateMovImmediate(Size.W, PhysicalReg.argRegisters(0), ArmImmediate(code(Success)))
         generateFuncEpilogue(localsSize, savedRegs)
 
         /* Final low-level IR for the program */
@@ -352,7 +395,7 @@ object CodeGenerator {
             } else {
                 /* Large offset, so we need to load the offset into x17, then `ldr [fp, x17]` */
                 val offsetReg = PhysicalReg.ipcScratch(1) // use x17
-                emit(ArmMovImm(Size.X, offsetReg, ArmImmediate(offset)))
+                generateMovImmediate(Size.X, offsetReg, ArmImmediate(offset))
                 emit(ArmLoad(size, scratch, ArmAddrRegOffset(PhysicalReg.framePointer, offsetReg)))
             }
             scratch
@@ -387,7 +430,7 @@ object CodeGenerator {
             } else {
                 /* large offset, so we need to load the offset into x17, then `str [fp, x17]` */
                 val offsetReg = PhysicalReg.ipcScratch(1) // use x17
-                emit(ArmMovImm(Size.X, offsetReg, ArmImmediate(offset)))
+                generateMovImmediate(Size.X, offsetReg, ArmImmediate(offset))
                 emit(ArmStore(
                     size, src, ArmAddrRegOffset(PhysicalReg.framePointer, offsetReg)
                 ))
@@ -396,102 +439,125 @@ object CodeGenerator {
     }
 
     /**
-     * helper function for loading and storing for binary operations (Mul, Div, Mod)
-     */
-    private def binOpRegs(dest: VirtualReg, src1: VirtualReg, src2: Operand)
-                         (opBlock: (PhysicalReg, PhysicalReg, PhysicalReg) => Unit)
-                         (using st: GenState): Unit = {
-        
-        /* Look up in register allocator where our variables are */
+      * Helper function for binary operations that handles repeated logic of widget enabling,
+      * register loading, and the `storeToLoc` call
+      *
+      * @param dest The destionation virtual register of the binary operation
+      * @param src1 The first source register of the binary operation
+      * @param optWidget None for on widget, Some(Widget) for a widget to enable
+      * @param opBlock A function for emitting the instructions for the specific binary operation
+      * @param st A GenState object
+      */
+    private def withBinaryContext(dest: VirtualReg, 
+                                  src1: VirtualReg, 
+                                  optWidget: Option[Widget] = None)
+                                 (opBlock: (PhysicalReg, PhysicalReg) => Unit)(using st: GenState): Unit = {
+
+        /* Widget enabling */
+        optWidget.foreach(useWidget)
+
+        /* Setup registers */
         val destLoc = locOf(dest)
-
-        /* If src1 is a StackSlot then put into x16 scratch register, otherwise return curret register */
         val src1Reg = loadToReg(locOf(src1), dest.size, PhysicalReg.ipcScratch(0))
-
-        /* Load src2 into the x17 scratch register */
-        val src2Reg = src2 match {
-            /* If virtual register, just load to x17 */
-            case v: VirtualReg => loadToReg(locOf(v), dest.size, PhysicalReg.ipcScratch(1))
-            /* If immediate, then move to x17 */
-            case Immediate(v) => 
-                val temp = PhysicalReg.ipcScratch(1)
-                emit(ArmMovImm(dest.size, temp, ArmImmediate(v)))
-                temp
-            case _ => ???
-        }
-
-        /* If the dest location is a register then continue as is. 
-           If the dest location is in stack then make dest x16 scratch register. */
         val resultReg = destLoc match {
-            case r: PhysicalReg => r
+            case reg: PhysicalReg => reg
             case _ => PhysicalReg.ipcScratch(0)
         }
 
-        opBlock(resultReg, src1Reg, src2Reg)
+        /* Emit the instruction for the binary operation */
+        opBlock(resultReg, src1Reg)
 
-        /* If comparison equal then save the valid result */
+        /* Store the binary operation result in the result register */
         storeToLoc(resultReg, destLoc, dest.size)
     }
-    /**
-      * Return the `Size` of an operand
-      *
-      * @param op The operand to get the size of
-      * @return The register size of the opernad (Size.W / Size.X)
-      */
-    private def operandSize(op: Operand) = {
-        op match {
-            case v: VirtualReg => v.size
-            case _: Immediate => Size.W
-            case _: Label => Size.X
-        }
-    }
-
 
     /**
-      * Generate a binary operation (register-register or register-immediate).
-      * 
-      * This function handles loading operands from their locations, choosing the correct
-      * instruction variant (reg-reg vs reg-imm), and storing the result.
+      * Generate the low level IR for simple binary operations (Add, Sub, boolean, shifts) where
+      * simple means they either have simple VS flag overflow checks or no overflow check at all
       *
-      * @param dest the destination virtual register
-      * @param src1 the first source virtual register
-      * @param src2 the second source operand (VirtualReg or Immediate)
-      * @param regOp constructor for register-register operation
-      * @param immOp constructor for register-immediate operation
+      * @param dest The destination virtual register
+      * @param src1 The first source register
+      * @param src2 The second source register
+      * @param regOp The register to register constructor function for the binary operation
+      * @param immOp The register to register constructor function for the binary operation
+      * @param optWidget None for no widget, Some(Widget) for a widget to be enabled
+      * @param postOp A function to emit (optional) instructions after the simple binary
+      * operation constructor (e.g. used for VS overflow flag branching)
+      * @param st A GenState object
       */
-    private def generateBinaryOp(
+    private def generateStandardBinOp(
         dest: VirtualReg,
         src1: VirtualReg,
         src2: Operand,
         regOp: (Size, PhysicalReg, PhysicalReg, PhysicalReg) => ArmInstruction,
-        immOp: (Size, PhysicalReg, PhysicalReg, ArmImmediate) => ArmInstruction
+        immOp: (Size, PhysicalReg, PhysicalReg, ArmImmediate) => ArmInstruction,
+        optWidget: Option[Widget] = None,
+        postOp: => Unit = ()
     )(using st: GenState): Unit = {
-        val destLoc = locOf(dest)
-        val src1Loc = locOf(src1)
         
-        /* Load first operand */
-        val src1Reg = loadToReg(src1Loc, dest.size, PhysicalReg.ipcScratch(0))
-
-        /* Determine result register */
+        /* Enable widget */
+        optWidget.foreach(useWidget)
+        
+        /* Setup registers */
+        val destLoc = locOf(dest)
+        val src1Reg = loadToReg(locOf(src1), dest.size, PhysicalReg.ipcScratch(0))
         val resultReg = destLoc match {
             case reg: PhysicalReg => reg
             case _ => PhysicalReg.ipcScratch(0)
         }
         
+        /* Generate the register-register / register-immediate instruction */
         (src2: @unchecked) match {
-            case src2: VirtualReg =>
-                /* Register-register operation */
-                val src2Loc = locOf(src2)
-                val src2Reg = loadToReg(src2Loc, dest.size, PhysicalReg.ipcScratch(1))
+            case src2VReg: VirtualReg =>
+                val src2Reg = loadToReg(locOf(src2VReg), dest.size, PhysicalReg.ipcScratch(1))
                 emit(regOp(dest.size, resultReg, src1Reg, src2Reg))
 
             case Immediate(value) =>
-                /* Register-immediate operation */
                 emit(immOp(dest.size, resultReg, src1Reg, ArmImmediate(value)))
         }
 
-        /* Store result */
+        /* Execute any post-instruction logic */
+        postOp
+
+        /* Store final result to destination register */
         storeToLoc(resultReg, destLoc, dest.size)
+    }
+
+    /**
+      * Helper function for loading and storing to registers for complex binary operations
+      * (Mul, Div, Mod) - complex in the sense of overflow checking not via the VS flag
+      *
+      * @param dest The destination virtual register
+      * @param src1 The first source register
+      * @param src2 The second source register
+      * @param optWidget None for no widget, Some(Widget) for a widget to be enabled
+      * @param opBlock The instruction emission function
+      * @param st A GenState object
+      */
+    private def generateComplexBinOp(dest: VirtualReg, src1: VirtualReg, src2: Operand, optWidget: Option[Widget])
+                         (opBlock: (PhysicalReg, PhysicalReg, PhysicalReg) => Unit)
+                         (using st: GenState): Unit = {
+
+        /* Binary context handles  register loading, storing and widget */
+        withBinaryContext(dest, src1, optWidget) { (resultReg, src1Reg) =>
+        
+            /* Load the second register */
+            val src2Reg = src2 match {
+                case v: VirtualReg => loadToReg(locOf(v), dest.size, PhysicalReg.ipcScratch(1))
+                case Immediate(v) => 
+                    val temp = PhysicalReg.ipcScratch(1)
+                    generateMovImmediate(dest.size, temp, ArmImmediate(v))
+                    temp
+                case Label(name) => 
+                    val temp = PhysicalReg.ipcScratch(1)
+                    emit(ArmLea(temp, ArmAddrLabel(name)))
+                    temp
+            }
+
+            /* Operation specific instruction emission */
+            opBlock(resultReg, src1Reg, src2Reg)
+        }
+
     }
 
     /**
@@ -502,10 +568,9 @@ object CodeGenerator {
      * @param src1: second operand (can be an immediate  or virtual register)
      */
     private def generateMul(dest: VirtualReg, src1: VirtualReg, src2: Operand) (using st: GenState): Unit = {
-        /* Tells RuntimeLibraryDispatcher to add the integer overflow widget to .s file */
-        useWidget(IntOverflowErrorWidget)
 
-        binOpRegs(dest, src1, src2) {
+        /* Binary context handles  register loading, storing and widget */
+        generateComplexBinOp(dest, src1, src2, Some(IntOverflowErrorWidget)) {
             (resultReg, src1Reg, src2Reg) =>
 
                 /* Take two 32 bit (w) numbers and multiply, store as a 64 bit (x) register */
@@ -532,10 +597,9 @@ object CodeGenerator {
      */
     private def generateDivMod(dest: VirtualReg, src1: VirtualReg, src2: Operand, isMod: Boolean) 
         (using st: GenState): Unit = {
-        /* Tells RuntimeLibraryDispatcher to add the divisioon by zero widget to .s file */
-        useWidget(DivByZeroErrorWidget)
 
-        binOpRegs(dest, src1, src2) {
+        /* Binary context handles  register loading, storing and widget */
+        generateComplexBinOp(dest, src1, src2, Some(DivByZeroErrorWidget)) {
             (resultReg, src1Reg, src2Reg) => 
                 /* Divide by zero check, if so jump to divide by zero widget */
                 emit(ArmCbz(dest.size, src2Reg, ArmAddrLabel(DivByZeroErrorWidget.label)))
@@ -596,17 +660,24 @@ object CodeGenerator {
       * Pattern matches on all instruction types and delegates to specific handlers.
       */
     private def generateInstr(instr: Instruction)(using genState: GenState): Unit = (instr: @unchecked) match {
+
         /* Data movement */
-        
         case Mov(dest, src) => generateMov(dest, src)
         case Load(dest, addr) => ??? // TODO
         case Store(src, addr) => ??? // TODO
         
         /* Arithmetic operations */
         case Add(dest, src1, src2) => 
-            generateBinaryOp(dest, src1, src2, ArmAddReg.apply, ArmAddImm.apply)
+            generateStandardBinOp(dest, src1, src2, ArmAddsReg.apply, ArmAddsImm.apply, Some(IntOverflowErrorWidget), {
+                /* Post main operation instruction emission*/
+                emit(ArmBranchCond(Condition.VS, ArmAddrLabel(IntOverflowErrorWidget.label)))
+            })
         case Sub(dest, src1, src2) => 
-            generateBinaryOp(dest, src1, src2, ArmSubReg.apply, ArmSubImm.apply)
+            generateStandardBinOp(dest, src1, src2, ArmSubsReg.apply, ArmSubsImm.apply, Some(IntOverflowErrorWidget), {
+                /* Post main operation instruction emission*/
+                emit(ArmBranchCond(Condition.VS, ArmAddrLabel(IntOverflowErrorWidget.label)))
+            })
+
         case Mul(dest, src1, src2) => generateMul(dest, src1, src2)
         case Div(dest, src1, src2) => generateDivMod(dest, src1, src2, isMod = false)
         case Mod(dest, src1, src2) => generateDivMod(dest, src1, src2, isMod = true)
@@ -614,18 +685,18 @@ object CodeGenerator {
         
         /* Bitwise operations */
         case And(dest, src1, src2) => 
-            generateBinaryOp(dest, src1, src2, ArmAndReg.apply, ArmAndImm.apply)
+            generateStandardBinOp(dest, src1, src2, ArmAndReg.apply, ArmAndImm.apply, None)
         case Or(dest, src1, src2) => 
-            generateBinaryOp(dest, src1, src2, ArmOrReg.apply, ArmOrImm.apply)
+            generateStandardBinOp(dest, src1, src2, ArmOrReg.apply, ArmOrImm.apply, None)
         case Not(dest, src) => 
             generateNot(dest, src)
 
         case Lsl(dest, src1, src2) => 
-            generateBinaryOp(dest, src1, src2, ArmLslReg.apply, ArmLslImm.apply)
+            generateStandardBinOp(dest, src1, src2, ArmLslReg.apply, ArmLslImm.apply, None)
         case Lsr(dest, src1, src2) => 
-            generateBinaryOp(dest, src1, src2, ArmLsrReg.apply, ArmLsrImm.apply)
+            generateStandardBinOp(dest, src1, src2, ArmLsrReg.apply, ArmLsrImm.apply, None)
         case Asr(dest, src1, src2) => 
-            generateBinaryOp(dest, src1, src2, ArmAsrReg.apply, ArmAsrImm.apply)
+            generateStandardBinOp(dest, src1, src2, ArmAsrReg.apply, ArmAsrImm.apply, None)
         
         /* Comparison and conditional */
         case Cmp(src1, src2) => generateCmp(src1, src2)
@@ -787,7 +858,7 @@ object CodeGenerator {
                     scratch register. */
                 loadToReg(locOf(v), Size.X, srcScratch)
             case Immediate(value) => 
-                emit(ArmMovImm(Size.X, srcScratch, ArmImmediate(value)))
+                generateMovImmediate(Size.X, srcScratch, ArmImmediate(value))
                 srcScratch
             case Label(name) => 
                 emit(ArmLea(srcScratch, ArmAddrLabel(name)))
@@ -817,7 +888,7 @@ object CodeGenerator {
             /* Move an immediate to scratch */
             case Immediate(value) =>
                 val scratch = PhysicalReg.ipcScratch(0)
-                emit(ArmMovImm(dest.size, scratch, ArmImmediate(value))) 
+                generateMovImmediate(dest.size, scratch, ArmImmediate(value))
                 scratch
             
             /* Load the memory address into scratch using lea */
@@ -901,6 +972,20 @@ object CodeGenerator {
     }
 
     /**
+      * Return the `Size` of an operand
+      *
+      * @param op The operand to get the size of
+      * @return The register size of the opernad (Size.W / Size.X)
+      */
+    private def operandSize(op: Operand) = {
+        op match {
+            case v: VirtualReg => v.size
+            case _: Immediate => Size.W
+            case _: Label => Size.X
+        }
+    }
+
+    /**
       * Generate the low level IR for a Call high level IR instruction
       *
       * @param label The label of the function
@@ -938,7 +1023,7 @@ object CodeGenerator {
             val valReg = arg match {
                 case v: VirtualReg => loadToReg(locOf(v), size, PhysicalReg.ipcScratch(0))
                 case Immediate(value) => 
-                    emit(ArmMovImm(size, PhysicalReg.ipcScratch(0), ArmImmediate(value)))
+                    generateMovImmediate(size, PhysicalReg.ipcScratch(0), ArmImmediate(value))
                     PhysicalReg.ipcScratch(0)
                 case Label(name) => 
                     emit(ArmLea(PhysicalReg.ipcScratch(0), ArmAddrLabel(name)))
@@ -973,7 +1058,7 @@ object CodeGenerator {
                 
                 case Immediate(value) =>
                     /* Move the immediate directly to the argument register */
-                    emit(ArmMovImm(opSize, targetReg, ArmImmediate(value)))
+                    generateMovImmediate(opSize, targetReg, ArmImmediate(value))
                 
                 case Label(name) => {
                     /* Move the label (string directive in this case) to
@@ -1082,8 +1167,9 @@ object CodeGenerator {
       * @param src the source virtual register to not
       */
     private def generateNeg(dest: VirtualReg, src: VirtualReg)(using st: GenState): Unit = {
-        generateUnaryOp(dest, src, None, { (destReg, srcReg) =>
-            emit(ArmNeg(dest.size, destReg, srcReg))
+        generateUnaryOp(dest, src, Some(IntOverflowErrorWidget), { (destReg, srcReg) =>
+            emit(ArmNegs(dest.size, destReg, srcReg))
+            emit(ArmBranchCond(Condition.VS, ArmAddrLabel(IntOverflowErrorWidget.label)))
         })
     }
 }

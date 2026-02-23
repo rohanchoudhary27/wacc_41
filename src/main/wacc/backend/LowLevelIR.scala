@@ -62,12 +62,12 @@ case class ArmAddImm(size: Size,
                      src2: ArmImmediate) extends ArmInstruction
 case class ArmSubImm(size: Size,
                      reg: PhysicalReg,
-                    src1: PhysicalReg,
-                    src2: ArmImmediate) extends ArmInstruction
+                     src1: PhysicalReg,
+                     src2: ArmImmediate) extends ArmInstruction
 case class ArmLslImm(size: Size,
-                    reg: PhysicalReg,
-                    src1: PhysicalReg,
-                    src2: ArmImmediate) extends ArmInstruction
+                     reg: PhysicalReg,
+                     src1: PhysicalReg,
+                     src2: ArmImmediate) extends ArmInstruction
 case class ArmLsrImm(size: Size,
                      reg: PhysicalReg,
                      src1: PhysicalReg, src2: ArmImmediate) extends ArmInstruction
@@ -75,6 +75,31 @@ case class ArmAsrImm(size: Size,
                      reg: PhysicalReg,
                      src1: PhysicalReg,
                      src2: ArmImmediate) extends ArmInstruction
+
+/* Overflow checking arithmetic */
+case class ArmAddsReg(size: Size,
+                      reg: PhysicalReg,
+                      src1: PhysicalReg,
+                      src2: PhysicalReg) extends ArmInstruction
+
+case class ArmSubsReg(size: Size,
+                      reg: PhysicalReg,
+                      src1: PhysicalReg,
+                      src2: PhysicalReg) extends ArmInstruction
+
+case class ArmSubsImm(size: Size,
+                      reg: PhysicalReg,
+                      src1: PhysicalReg,
+                      src2: ArmImmediate) extends ArmInstruction
+
+case class ArmAddsImm(size: Size,
+                      reg: PhysicalReg,
+                      src1: PhysicalReg,
+                      src2: ArmImmediate) extends ArmInstruction
+
+case class ArmNegs(size: Size,
+                   reg: PhysicalReg,
+                   src: PhysicalReg) extends ArmInstruction
 
 /* Register logical instructions */
 case class ArmOrReg(size: Size,
@@ -98,10 +123,12 @@ case class ArmAndImm(size: Size,
 
 /* Data Movement*/
 case class ArmMovReg(size: Size, reg: PhysicalReg, src: PhysicalReg) extends ArmInstruction
-case class ArmMovImm(size: Size, reg: PhysicalReg, src: ArmImmediate) extends ArmInstruction
-case class ArmMovKeep(size: Size, reg: PhysicalReg,
-                   src: ArmImmediate,
+case class ArmMovz(size: Size, dest: PhysicalReg, imm: ArmImmediate) extends ArmInstruction
+case class ArmMovk(size: Size,
+                   dest: PhysicalReg,
+                   imm: ArmImmediate,
                    shift: ShiftAmounts.ShiftAmount) extends ArmInstruction
+
 case class ArmLoad(size: Size, reg: PhysicalReg, src: ArmAddress) extends ArmInstruction
 case class ArmStore(size: Size, reg: PhysicalReg, src: ArmAddress) extends ArmInstruction
 case class ArmLdur(size: Size, reg: PhysicalReg, src: ArmAddress) extends ArmInstruction
