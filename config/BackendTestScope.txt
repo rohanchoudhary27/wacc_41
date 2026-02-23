@@ -1,36 +1,22 @@
-examples/valid/basic
-
-examples/valid/variables
-examples/valid/sequence
-
-examples/valid/if
-examples/valid/while
-examples/valid/expressions
-examples/valid/IO/read
-
-examples/valid/IO/IOLoop.wacc
-examples/valid/IO/IOSequence.wacc
-examples/valid/IO/print/hashInProgram.wacc
-examples/valid/IO/print/multipleStringsAssignment.wacc
 examples/valid/IO/print/print-backspace.wacc
 examples/valid/IO/print/print.wacc
 examples/valid/IO/print/printBool.wacc
 examples/valid/IO/print/printChar.wacc
 examples/valid/IO/print/printEscChar.wacc
 examples/valid/IO/print/printInt.wacc
+examples/valid/IO/print/println.wacc
 
-examples/valid/scope/scopeBasic.wacc
-examples/valid/scope/scope.wacc
-examples/valid/scope/scopeIfRedefine.wacc
-examples/valid/scope/scopeRedefine.wacc
-examples/valid/scope/scopeSimpleRedefine.wacc
-examples/valid/scope/scopeVars.wacc
-examples/valid/scope/scopeWhileNested.wacc
-examples/valid/scope/scopeWhileRedefine.wacc
-examples/valid/scope/splitScope.wacc
+examples/valid/IO/read
 
-examples/valid/runtimeErr/badChar
-examples/valid/runtimeErr/divideByZero
+examples/valid/basic
+
+examples/valid/variables
+examples/valid/sequence
+
+examples/valid/if/ifTrue.wacc
+examples/valid/if/ifFalse.wacc
+
+examples/valid/while/whileFalse.wacc
 
 valid/pairs/createPair.wacc
 valid/pairs/createPair02.wacc
@@ -47,6 +33,9 @@ valid/pairs/printNullPair.wacc
 valid/pairs/printPairOfNulls.wacc
 
 examples/valid/function/nested_functions
+
+examples/valid/function/nested_functions/simpleRecursion.wacc
+examples/valid/function/simple_functions/argScopeCanBeShadowed.wacc
 examples/valid/function/simple_functions/asciiTable.wacc
 examples/valid/function/simple_functions/clashNames.wacc
 examples/valid/function/simple_functions/functionDeclaration.wacc
@@ -67,5 +56,10 @@ examples/valid/function/simple_functions/sameArgName.wacc
 examples/valid/function/simple_functions/sameArgName2.wacc
 examples/valid/function/simple_functions/sameNameAsVar.wacc
 examples/valid/function/simple_functions/usesArgumentWhilstMakingArgument.wacc
+
+examples/valid/runtimeErr/integerOverflow
+examples/valid/runtimeErr/divideByZero
+examples/valid/runtimeErr/badChar
+examples/valid/expressions
 
 custom/valid
