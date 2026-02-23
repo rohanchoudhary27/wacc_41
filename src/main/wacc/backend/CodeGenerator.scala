@@ -957,21 +957,23 @@ object CodeGenerator {
 
             /* Get the physical register of the current argument */
             val targetReg = PhysicalReg.argRegisters(index)
+
+            val opSize = operandSize(arg)
             
             /* Get the value in the target register */
             arg match {
                 case argVReg: VirtualReg =>
                     /* Move out of a stack slot into a scratch register */
-                    val valReg = loadToReg(locOf(argVReg), Size.W, PhysicalReg.ipcScratch(0))
+                    val valReg = loadToReg(locOf(argVReg), opSize, PhysicalReg.ipcScratch(0))
                     
                     /* Move the ith argument into the wi */
                     if (valReg != targetReg) {
-                        emit(ArmMovReg(Size.W, targetReg, valReg))
+                        emit(ArmMovReg(opSize, targetReg, valReg))
                     }
                 
                 case Immediate(value) =>
                     /* Move the immediate directly to the argument register */
-                    emit(ArmMovImm(Size.W, targetReg, ArmImmediate(value)))
+                    emit(ArmMovImm(opSize, targetReg, ArmImmediate(value)))
                 
                 case Label(name) => {
                     /* Move the label (string directive in this case) to
