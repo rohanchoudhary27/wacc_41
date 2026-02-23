@@ -80,18 +80,11 @@ class OutputterTest extends AnyFlatSpec with Matchers {
 
     /* ==================== MovImm Tests ==================== */
 
-    "Outputter mov imm" should "emit mov with immediate value" in {
+    "Outputter mov imm" should "emit movz with immediate value" in {
         val output = emitInstr(
             ArmMovz(Size.W, PhysicalReg.argRegisters(0), ArmImmediate(7))
         )
-        output should include ("mov w0, #7")
-    }
-
-    it should "emit mov with negative immediate" in {
-        val output = emitInstr(
-            ArmMovz(Size.W, PhysicalReg.argRegisters(0), ArmImmediate(-1))
-        )
-        output should include ("mov w0, #-1")
+        output should include ("movz w0, #7")
     }
 
     /* ==================== MovReg Tests ==================== */
@@ -331,7 +324,7 @@ class OutputterTest extends AnyFlatSpec with Matchers {
         output should include ("main:")
         output should include ("stp fp, lr, [sp, #-16]!")
         output should include ("mov fp, sp")
-        output should include ("mov w0, #7")
+        output should include ("movz w0, #7")
         output should include ("bl exit")
         output should include ("ldp fp, lr, [sp], #16")
     }

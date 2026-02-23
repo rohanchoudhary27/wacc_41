@@ -41,6 +41,51 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         bodyInstrs should contain (ArmMovz(Size.W, scratch0, ArmImmediate(42)))
     }
 
+    it should "generate ArmMovz and ArmMovk for Mov with an immediate source >16 bits" in {
+        val dest = VirtualReg(0, Size.W)
+        val destLoc = PhysicalReg.argRegisters(0)
+        val alloc = Map(dest -> (destLoc: Location))
+
+        val result = programWith(List(Mov(dest, Immediate(131071))), alloc)
+
+        /* Filter to only the body instructions (skip prologue/epilogue) */
+        val bodyInstrs = result.body.filter {
+            case _: ArmLabelDef | _: ArmStorePair | _: ArmLoadPair |
+                 ArmRet | ArmMovReg(Size.X, _, _) => false
+            case _ => true
+        }
+
+        /* 16 bits in the bottom 16 */
+        bodyInstrs should contain (ArmMovz(Size.W, scratch0, ArmImmediate(65535)))
+
+        /* 1 bit in the top 16 */
+        bodyInstrs should contain (ArmMovk(Size.W, scratch0, ArmImmediate(1), ShiftAmounts._16)) 
+    }
+
+    it should "generate ArmMovz, ArmMovk and sign extension for Mov with negative imm and >16 bits to an X reg" in {
+        val dest = VirtualReg(0, Size.X)
+        val destLoc = PhysicalReg.argRegisters(0)
+        val alloc = Map(dest -> (destLoc: Location))
+
+        val result = programWith(List(Mov(dest, Immediate(-131071))), alloc)
+
+        /* Filter to only the body instructions (skip prologue/epilogue) */
+        val bodyInstrs = result.body.filter {
+            case _: ArmLabelDef | _: ArmStorePair | _: ArmLoadPair |
+                 ArmRet | ArmMovReg(Size.X, _, _) => false
+            case _ => true
+        }
+
+        /* 16 bits in the bottom 16 to a W register importantly */
+        bodyInstrs should contain (ArmMovz(Size.W, scratch0, ArmImmediate(1)))
+
+        /* 1 bit in the top 16 to a W register importantly */
+        bodyInstrs should contain (ArmMovk(Size.W, scratch0, ArmImmediate(65534), ShiftAmounts._16)) 
+
+        /* Check for a sign extension from the W register scratch back to an X register*/
+        bodyInstrs should contain (ArmSxtw(scratch0, scratch0))
+    }
+
     it should "generate ArmMovReg when moving between registers" in {
         val src = VirtualReg(0, Size.W)
         val dest = VirtualReg(1, Size.W)
@@ -687,14 +732,21 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         
         val result = programWith(List(Mov(dest, Immediate(10))), alloc)
 
-        // Should find: mov x17, #-1024
-        val movImms = result.body.collect { 
-            case ArmMovz(Size.X, reg, ArmImmediate(`largeOffset`)) 
+        // -1024 in hex is FFFFFC00
+        // Lower 16 bits = 64512 (0xFC00), upper 16 bits = 65535 (0xFFFF)
+        
+        val movz = result.body.collect { 
+            case ArmMovz(Size.W, reg, ArmImmediate(64512)) 
                 if reg == PhysicalReg.ipcScratch(1) => true 
         }
-        movImms should not be empty
+        movz should not be empty
 
-        // Should find: str w16, [fp, x17] (ArmStore with RegOffset)
+        val movk = result.body.collect { 
+            case ArmMovk(Size.W, reg, ArmImmediate(65535), shift) 
+                if reg == PhysicalReg.ipcScratch(1) => true 
+        }
+        movk should not be empty
+
         val stores = result.body.collect { 
             case ArmStore(_, _, ArmAddrRegOffset(PhysicalReg.framePointer, offsetReg))
                 if offsetReg == PhysicalReg.ipcScratch(1) => true
