@@ -161,7 +161,14 @@ class GlobalFlattenContext(
         strMap.get(str) match
             case None => {
                 val strLabel = Label(s"string_${strCount}")
-                directives += DataDirective(strLabel, str)
+
+                /* Escape chars must be written with backslashes in the assembly */
+                val escapedStr = str
+                    .replace("\"", "\\\"")
+                    .replace("\'", "\\\'")
+                    .replace("\n", "\\n")
+
+                directives += DataDirective(strLabel, escapedStr)
                 strMap += str -> strLabel
                 strCount += 1
                 strLabel
@@ -535,8 +542,6 @@ object Flattener {
                             (using funcState: FunctionState,
                                    directiveState: GlobalFlattenContext) = {
         
-        val flatCondition = flattenExpr(cond)
-
         /* Define labels */
         val bodyLabel = directiveState.getNextLabel(".L_body")
         val condLabel = directiveState.getNextLabel(".L_cond")
@@ -550,6 +555,7 @@ object Flattener {
 
         /* Evaluate the condition and jump back if it's true */
         funcState.emitInstruction(LabelDef(condLabel))
+        val flatCondition = flattenExpr(cond)
         funcState.emitInstruction(Cmp(toReg(flatCondition), Immediate(1)))
         funcState.emitInstruction(BranchCond(Condition.EQ, bodyLabel))
     } 
@@ -607,10 +613,15 @@ object Flattener {
         val leftOp = flattenExpr(left)
         val rightOp = flattenExpr(right)
 
+        val exprType = left.expressionType match {
+            case t: KnownType => t
+            case _ => KnownType.Int
+        }
+
         op match {
             case BinaryOperator.GT | BinaryOperator.GTE | BinaryOperator.LT | 
                  BinaryOperator.LTE | BinaryOperator.EQ | BinaryOperator.NEQ =>
-                flattenComparison(op, leftOp, rightOp)
+                flattenComparison(op, leftOp, rightOp, exprType)
             case BinaryOperator.And => 
                 flattenBinaryOp(leftOp, rightOp, And.apply, KnownType.Bool)
             case BinaryOperator.Or => 
@@ -635,10 +646,11 @@ object Flattener {
       */
     private def flattenComparison(op: BinaryOperator,
                                   leftOp: Operand,
-                                  rightOp: Operand)
+                                  rightOp: Operand,
+                                  compType: KnownType)
                                   (using funcState: FunctionState): VirtualReg = {
-        val leftReg = toReg(leftOp)
-        val rightReg = toReg(rightOp)
+        val leftReg = toReg(leftOp, compType)
+        val rightReg = toReg(rightOp, compType)
 
         /* Emit the compare instruction */
         funcState.emitInstruction(Cmp(leftReg, rightReg))
@@ -695,15 +707,52 @@ object Flattener {
       */
     private def flattenChr(operand: Operand)
                           (using funcState: FunctionState): VirtualReg = {
-        val reg = toReg(operand)
-        val chrReg = funcState.anonymousReg(KnownType.Int)
-        funcState.emitInstruction(wacc.backend.Chr(chrReg, reg, BadCharWidgetError))
-        chrReg
+
+        /* Chr input is an int so we use KnownType.Int */
+        val srcReg = toReg(operand, KnownType.Int)
+
+        /* Emit Chr high level IR instruction with matching reg sizes (both W) */
+        val chrIntReg = funcState.anonymousReg(KnownType.Int)
+        funcState.emitInstruction(wacc.backend.Chr(chrIntReg, srcReg, BadCharWidgetError))
+
+        /* Downcast Char reg to Bool reg */
+        val chrCharReg = funcState.anonymousReg(KnownType.Char)
+        funcState.emitInstruction(SignExtend(chrCharReg, chrIntReg))
+
+        chrCharReg
     }
 
+    /**
+      * Flatten an `ord` instruction.
+      *
+      * @param operand The operand passed to the Ord call
+      * @param funcState The current scope function state
+      * @return The virtual register containing the ord result
+      */
     private def flattenOrd(operand: Operand)
-                          (using funcState: FunctionState): VirtualReg = toReg(operand)
+                        (using funcState: FunctionState): VirtualReg = {
 
+        /* Get the source char register (since `ord` takes chars) */
+        val srcReg = toReg(operand, KnownType.Char)
+        
+        /* Allocate a new W register for the result */
+        val destReg = funcState.anonymousReg(KnownType.Int)
+        
+        /* Sign extend to the larger register (B to W).
+           Can't do a MOV here because moves have to be between
+           registers of the same size - this is the point of sign extension */
+        funcState.emitInstruction(SignExtend(destReg, srcReg))
+        
+        destReg
+    }
+
+    /**
+      * Flatten a negation statement
+      *
+      * @param operand The operand passed to the negation statement
+      * @param funcState The current scope function state
+      * @return The virtual register with the negation result
+      */
     private def flattenNeg(operand: Operand)
                           (using funcState: FunctionState): VirtualReg = {
         val reg = toReg(operand)
