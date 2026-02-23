@@ -56,11 +56,18 @@ object Outputter {
         /* Arithmetic */
         case ArmAddReg(size, dest, src1, src2) => emitBinary("add", size, dest, src1, src2)
         case ArmAddImm(size, dest, src1, imm) => emitBinary("add", size, dest, src1, imm)
+        case ArmAddsReg(size, dest, src1, src2) => emitBinary("adds", size, dest, src1, src2)
+        case ArmAddsImm(size, dest, src1, src2) => emitBinary("adds", size, dest, src1, src2)
+
         case ArmSubReg(size, dest, src1, src2) => emitBinary("sub", size, dest, src1, src2)
         case ArmSubImm(size, dest, src1, imm) => emitBinary("sub", size, dest, src1, imm)
+        case ArmSubsReg(size, dest, src1, imm) => emitBinary("subs", size, dest, src1, imm)
+        case ArmSubsImm(size, dest, src1, imm) => emitBinary("subs", size, dest, src1, imm)
+
         case ArmMulReg(size, dest, src1, src2) => emitBinary("mul", size, dest, src1, src2)
         case ArmDivReg(size, dest, src1, src2) => emitBinary("sdiv", size, dest, src1, src2)
         case ArmNeg(size, dest, src) => emitUnary("neg", size, dest, src)
+        case ArmNegs(size, dest, src) => emitUnary("negs", size, dest, src)
         
         /* Logical */
         case ArmAndReg(size, dest, src1, src2) => emitBinary("and", size, dest, src1, src2)
@@ -79,7 +86,7 @@ object Outputter {
         /* Data Movement */
         case ArmMovReg(size, dest, src) => emitUnary("mov", size, dest, src)
         case ArmMovImm(size, dest, imm) => 
-            indented(s"mov ${formatReg(dest, size)}, ${formatImmediate(imm)}")
+            indented(s"ldr ${formatReg(dest, size)}, =${imm.value}")
         case ArmMovKeep(size, dest, imm, shift) => ???
         case ArmLoad(size, dest, addr) => emitMemOp("ldr", size, dest, addr)
         case ArmStore(size, src, addr) => emitMemOp("str", size, src, addr)
