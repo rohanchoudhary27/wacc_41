@@ -665,7 +665,7 @@ object CodeGenerator {
         
         /* Special operations */
         case Lea(dest, label) => ??? // TODO
-        case SignExtend(dest, src) => ??? // TODO
+        case SignExtend(dest, src) => generateSignExtend(dest, src)
     }
 
     /**
@@ -683,6 +683,35 @@ object CodeGenerator {
         useWidget(widget)
         /* size goes into x0, dest is returned */
         generateCall(Label(widget.label), List(size), Some(dest))
+    }
+
+    /**
+      * Generates the low-level IR for a sign extension instruction used to go from a smaller
+      * register in the high level IR to a larger one e.g. a B register to a W register.
+      *
+      * @param dest The destination register for the sign extension (larger size)
+      * @param src The source register for the sign extension (smaller size) 
+      * @param st The generator state
+      */
+    private def generateSignExtend(dest: VirtualReg, src: VirtualReg)(using st: GenState): Unit = {
+        val srcLoc = locOf(src)
+        val destLoc = locOf(dest)
+
+        /* Load smaller register (source) to scratch. Passing 'src.size' means we load
+           into a register with the smaller size */
+        val srcReg = loadToReg(srcLoc, src.size, PhysicalReg.ipcScratch(0))
+
+        val resultReg = destLoc match {
+            case reg: PhysicalReg => reg
+            case _ => PhysicalReg.ipcScratch(1)
+        }
+
+        /* Move to the larger register so we use dest.size */
+        if (srcReg != resultReg) {
+            emit(ArmMovReg(dest.size, resultReg, srcReg))
+        }
+
+        storeToLoc(resultReg, destLoc, dest.size)
     }
 
     /**
@@ -845,7 +874,7 @@ object CodeGenerator {
     private def generateChr(dest: VirtualReg, src: VirtualReg, widget: Widget)
                            (using st: GenState): Unit = {
 
-        generateUnaryOp(dest, src, Some(widget), {(s, d) => {
+        generateUnaryOp(dest, src, Some(widget), {(d, s) => {
             val maxValidChar = 127
             /* Move the operand into w0 for the error function */
             emit(ArmMovReg(Size.W, PhysicalReg.argRegisters(0), s))
@@ -928,21 +957,23 @@ object CodeGenerator {
 
             /* Get the physical register of the current argument */
             val targetReg = PhysicalReg.argRegisters(index)
+
+            val opSize = operandSize(arg)
             
             /* Get the value in the target register */
             arg match {
                 case argVReg: VirtualReg =>
                     /* Move out of a stack slot into a scratch register */
-                    val valReg = loadToReg(locOf(argVReg), Size.W, PhysicalReg.ipcScratch(0))
+                    val valReg = loadToReg(locOf(argVReg), opSize, PhysicalReg.ipcScratch(0))
                     
                     /* Move the ith argument into the wi */
                     if (valReg != targetReg) {
-                        emit(ArmMovReg(Size.W, targetReg, valReg))
+                        emit(ArmMovReg(opSize, targetReg, valReg))
                     }
                 
                 case Immediate(value) =>
                     /* Move the immediate directly to the argument register */
-                    emit(ArmMovImm(Size.W, targetReg, ArmImmediate(value)))
+                    emit(ArmMovImm(opSize, targetReg, ArmImmediate(value)))
                 
                 case Label(name) => {
                     /* Move the label (string directive in this case) to
