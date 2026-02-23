@@ -715,7 +715,21 @@ object Flattener {
     }
 
     private def flattenOrd(operand: Operand)
-                          (using funcState: FunctionState): VirtualReg = toReg(operand)
+                        (using funcState: FunctionState): VirtualReg = {
+
+        /* Get the source char register (since `ord` takes chars) */
+        val srcReg = toReg(operand, KnownType.Char)
+        
+        /* Allocate a new W register for the result */
+        val destReg = funcState.anonymousReg(KnownType.Int)
+        
+        /* Sign extend to the larger register (B to W).
+           Can't do a MOV here because moves have to be between
+           registers of the same size - this is the point of sign extension */
+        funcState.emitInstruction(SignExtend(destReg, srcReg))
+        
+        destReg
+    }
 
     private def flattenNeg(operand: Operand)
                           (using funcState: FunctionState): VirtualReg = {
