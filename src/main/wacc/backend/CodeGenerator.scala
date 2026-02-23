@@ -140,6 +140,50 @@ object CodeGenerator {
     }
 
     /**
+      * Generates the low level IR for an immediate move. Handles moves for immediates that
+      * don't fit in 16 bits by splitting the move in two with MOVK and MOVZ together.
+      * 
+      * This function fully replaces the old ArmMovImm low level IR so we now have no need for
+      * it we can just use this function (which only uses Movk and Movz). Note that anyway Mov
+      * in aarch64 was just an alias for Movk/Movz/Orr.
+      *
+      * @param dest The destination physical register of the move
+      * @param immValue The immediate value to move
+      * @param size The size of the destination register
+      * @param st A GenState object
+      */
+    private def generateMovImmediate(size: Size, dest: PhysicalReg, immValue: ArmImmediate)(using st: GenState): Unit = {
+
+        val numericalValue = immValue.value
+ 
+        /* If the value fits in 16 bits we can move it in one go. If it fits in 16 bits,
+           it will be positive as negative numbers require 32 bits (wacc ints are 32 bit) */
+        if (numericalValue >= 0 && numericalValue <= 65535) {
+            emit(ArmMovz(size, dest, ArmImmediate(numericalValue)))
+        } else {
+            val lower16 = numericalValue & 0xFFFF
+            val upper16 = (numericalValue >>> 16) & 0xFFFF
+
+            /* If we're moving a negative immediate, we must move to a Size.W register since
+               this means the negative bit is still the MSB. If we were to use `size`, it might
+               be Size.X which would give leading 0s (since wacc ints fit in 32 bits only) which
+               would make the value positive */
+            val negAdjustedSize = if numericalValue < 0 then Size.W else size
+            
+            /* Move in two parts, using Movk to keep the lower half when
+               moving the upper half in */
+            emit(ArmMovz(negAdjustedSize, dest, ArmImmediate(lower16)))
+            emit(ArmMovk(negAdjustedSize, dest, ArmImmediate(upper16), ShiftAmounts._16))
+
+            /* If the negative immediate's destination was Size.X, then we now need to
+               sign extend to leading 0s */
+            if (numericalValue < 0 && size == Size.X) {
+                emit(ArmSxtw(dest, dest))
+            }
+        }
+    }
+
+    /**
       * Generate Low-Level IR for the program.
       * 
       * @param regProgram the high-level IR program
@@ -178,8 +222,7 @@ object CodeGenerator {
         generateFuncPrologue(localsSize, savedRegs)
         generateInstrs(regProgram.body)
         /* main return 0 */
-        emit(ArmMovImm(Size.W, PhysicalReg.argRegisters(0),
-                       ArmImmediate(code(Success))))
+        generateMovImmediate(Size.W, PhysicalReg.argRegisters(0), ArmImmediate(code(Success)))
         generateFuncEpilogue(localsSize, savedRegs)
 
         /* Final low-level IR for the program */
@@ -352,7 +395,7 @@ object CodeGenerator {
             } else {
                 /* Large offset, so we need to load the offset into x17, then `ldr [fp, x17]` */
                 val offsetReg = PhysicalReg.ipcScratch(1) // use x17
-                emit(ArmMovImm(Size.X, offsetReg, ArmImmediate(offset)))
+                generateMovImmediate(Size.X, offsetReg, ArmImmediate(offset))
                 emit(ArmLoad(size, scratch, ArmAddrRegOffset(PhysicalReg.framePointer, offsetReg)))
             }
             scratch
@@ -387,7 +430,7 @@ object CodeGenerator {
             } else {
                 /* large offset, so we need to load the offset into x17, then `str [fp, x17]` */
                 val offsetReg = PhysicalReg.ipcScratch(1) // use x17
-                emit(ArmMovImm(Size.X, offsetReg, ArmImmediate(offset)))
+                generateMovImmediate(Size.X, offsetReg, ArmImmediate(offset))
                 emit(ArmStore(
                     size, src, ArmAddrRegOffset(PhysicalReg.framePointer, offsetReg)
                 ))
@@ -415,7 +458,7 @@ object CodeGenerator {
             /* If immediate, then move to x17 */
             case Immediate(v) => 
                 val temp = PhysicalReg.ipcScratch(1)
-                emit(ArmMovImm(dest.size, temp, ArmImmediate(v)))
+                generateMovImmediate(dest.size, temp, ArmImmediate(v))
                 temp
             case _ => ???
         }
@@ -817,7 +860,7 @@ object CodeGenerator {
                     scratch register. */
                 loadToReg(locOf(v), Size.X, srcScratch)
             case Immediate(value) => 
-                emit(ArmMovImm(Size.X, srcScratch, ArmImmediate(value)))
+                generateMovImmediate(Size.X, srcScratch, ArmImmediate(value))
                 srcScratch
             case Label(name) => 
                 emit(ArmLea(srcScratch, ArmAddrLabel(name)))
@@ -847,7 +890,7 @@ object CodeGenerator {
             /* Move an immediate to scratch */
             case Immediate(value) =>
                 val scratch = PhysicalReg.ipcScratch(0)
-                emit(ArmMovImm(dest.size, scratch, ArmImmediate(value))) 
+                generateMovImmediate(dest.size, scratch, ArmImmediate(value))
                 scratch
             
             /* Load the memory address into scratch using lea */
@@ -968,7 +1011,7 @@ object CodeGenerator {
             val valReg = arg match {
                 case v: VirtualReg => loadToReg(locOf(v), size, PhysicalReg.ipcScratch(0))
                 case Immediate(value) => 
-                    emit(ArmMovImm(size, PhysicalReg.ipcScratch(0), ArmImmediate(value)))
+                    generateMovImmediate(size, PhysicalReg.ipcScratch(0), ArmImmediate(value))
                     PhysicalReg.ipcScratch(0)
                 case Label(name) => 
                     emit(ArmLea(PhysicalReg.ipcScratch(0), ArmAddrLabel(name)))
@@ -1003,7 +1046,7 @@ object CodeGenerator {
                 
                 case Immediate(value) =>
                     /* Move the immediate directly to the argument register */
-                    emit(ArmMovImm(opSize, targetReg, ArmImmediate(value)))
+                    generateMovImmediate(opSize, targetReg, ArmImmediate(value))
                 
                 case Label(name) => {
                     /* Move the label (string directive in this case) to

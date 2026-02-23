@@ -85,9 +85,11 @@ object Outputter {
         
         /* Data Movement */
         case ArmMovReg(size, dest, src) => emitUnary("mov", size, dest, src)
-        case ArmMovImm(size, dest, imm) => 
-            indented(s"ldr ${formatReg(dest, size)}, =${imm.value}")
-        case ArmMovKeep(size, dest, imm, shift) => ???
+        case ArmMovz(size, dest, imm) => 
+            indented(s"movz ${formatReg(dest, size)}, ${formatImmediate(imm)}")
+        case ArmMovk(size, dest, imm, shift) => 
+            indented(s"movk ${formatReg(dest, size)}, ${formatImmediate(imm)}, lsl #${ShiftAmounts.value(shift)}")
+
         case ArmLoad(size, dest, addr) => emitMemOp("ldr", size, dest, addr)
         case ArmStore(size, src, addr) => emitMemOp("str", size, src, addr)
         case ArmLdur(size, dest, addr) => emitMemOp("ldur", size, dest, addr)

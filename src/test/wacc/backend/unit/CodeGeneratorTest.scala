@@ -24,7 +24,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
 
     /* ==================== Mov Tests ==================== */
 
-    "CodeGenerator generateMov" should "generate ArmMovImm for Mov with immediate source" in {
+    "CodeGenerator generateMov" should "generate ArmMovz for Mov with small immediate source" in {
         val dest = VirtualReg(0, Size.W)
         val destLoc = PhysicalReg.argRegisters(0)
         val alloc = Map(dest -> (destLoc: Location))
@@ -38,7 +38,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
             case _ => true
         }
 
-        bodyInstrs should contain (ArmMovImm(Size.W, scratch0, ArmImmediate(42)))
+        bodyInstrs should contain (ArmMovz(Size.W, scratch0, ArmImmediate(42)))
     }
 
     it should "generate ArmMovReg when moving between registers" in {
@@ -95,10 +95,10 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         )
 
         val movImms = result.body.collect {
-            case m @ ArmMovImm(Size.W, reg, ArmImmediate(7)) => m
+            case m @ ArmMovz(Size.W, reg, ArmImmediate(7)) => m
         }
         movImms should have length 1
-        movImms.head.reg shouldBe PhysicalReg.argRegisters(0)
+        movImms.head.dest shouldBe PhysicalReg.argRegisters(0)
     }
 
     it should "emit a branch-and-link instruction to the correct label" in {
@@ -152,8 +152,8 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
             Map.empty
         )
 
-        result.body should contain (ArmMovImm(Size.W, PhysicalReg.argRegisters(0), ArmImmediate(1)))
-        result.body should contain (ArmMovImm(Size.W, PhysicalReg.argRegisters(1), ArmImmediate(2)))
+        result.body should contain (ArmMovz(Size.W, PhysicalReg.argRegisters(0), ArmImmediate(1)))
+        result.body should contain (ArmMovz(Size.W, PhysicalReg.argRegisters(1), ArmImmediate(2)))
     }
 
     /* ==================== Function Prologue/Epilogue Tests ==================== */
@@ -205,7 +205,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
 
         /* Should contain: main label, prologue (stp, mov fp), mov w0 #7, bl exit, epilogue (ldp) */
         armProg.body should contain (ArmLabelDef(ArmAddrLabel("main")))
-        armProg.body should contain (ArmMovImm(Size.W, PhysicalReg.argRegisters(0), ArmImmediate(7)))
+        armProg.body should contain (ArmMovz(Size.W, PhysicalReg.argRegisters(0), ArmImmediate(7)))
         armProg.body should contain (ArmBl(ArmAddrLabel("exit")))
     }
 
@@ -245,7 +245,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
             case _ => false
         }
         val movIdx = instrs.indexWhere {
-            case ArmMovImm(Size.W, _, ArmImmediate(10)) => true
+            case ArmMovz(Size.W, _, ArmImmediate(10)) => true
             case _ => false
         }
 
@@ -558,7 +558,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
 
     /* ==================== Unary Operator Tests ==================== */
 
-    "CodeGenerator for negation" should "generate ArmNeg" in {
+    "CodeGenerator for negation" should "generate ArmNegs" in {
         val src = VirtualReg(0, Size.W)
         val dest = VirtualReg(1, Size.W)
         val alloc = Map(
@@ -568,7 +568,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
 
         val result = programWith(List(Neg(dest, src)), alloc)
 
-        val negInstrs = result.body.collect { case n: ArmNeg => n }
+        val negInstrs = result.body.collect { case n: ArmNegs => n }
         negInstrs should have length 1
         negInstrs.head.size shouldBe Size.W
     }
@@ -689,7 +689,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
 
         // Should find: mov x17, #-1024
         val movImms = result.body.collect { 
-            case ArmMovImm(Size.X, reg, ArmImmediate(`largeOffset`)) 
+            case ArmMovz(Size.X, reg, ArmImmediate(`largeOffset`)) 
                 if reg == PhysicalReg.ipcScratch(1) => true 
         }
         movImms should not be empty
@@ -778,8 +778,8 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         )
 
         // check we load 16 into x0
-        val movs = result.body.collect { case m: ArmMovImm => m }
-        movs.exists(m => m.reg == PhysicalReg.argRegisters(0) && m.src == ArmImmediate(16)) shouldBe true
+        val movs = result.body.collect { case m: ArmMovz => m }
+        movs.exists(m => m.dest == PhysicalReg.argRegisters(0) && m.imm == ArmImmediate(16)) shouldBe true
 
         // check we branch to _malloc
         val bls = result.body.collect { case b: ArmBl => b }

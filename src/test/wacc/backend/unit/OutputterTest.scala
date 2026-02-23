@@ -82,14 +82,14 @@ class OutputterTest extends AnyFlatSpec with Matchers {
 
     "Outputter mov imm" should "emit mov with immediate value" in {
         val output = emitInstr(
-            ArmMovImm(Size.W, PhysicalReg.argRegisters(0), ArmImmediate(7))
+            ArmMovz(Size.W, PhysicalReg.argRegisters(0), ArmImmediate(7))
         )
         output should include ("mov w0, #7")
     }
 
     it should "emit mov with negative immediate" in {
         val output = emitInstr(
-            ArmMovImm(Size.W, PhysicalReg.argRegisters(0), ArmImmediate(-1))
+            ArmMovz(Size.W, PhysicalReg.argRegisters(0), ArmImmediate(-1))
         )
         output should include ("mov w0, #-1")
     }
@@ -318,7 +318,7 @@ class OutputterTest extends AnyFlatSpec with Matchers {
                 ArmStorePair(Size.X, PhysicalReg.framePointer, PhysicalReg.linkReg,
                     ArmAddrPreIndex(PhysicalReg.stackPointer, ArmImmediate(-16))),
                 ArmMovReg(Size.X, PhysicalReg.framePointer, PhysicalReg.stackPointer),
-                ArmMovImm(Size.W, PhysicalReg.argRegisters(0), ArmImmediate(7)),
+                ArmMovz(Size.W, PhysicalReg.argRegisters(0), ArmImmediate(7)),
                 ArmBl(ArmAddrLabel("exit")),
                 ArmLoadPair(Size.X, PhysicalReg.framePointer, PhysicalReg.linkReg,
                     ArmAddrPostIndex(PhysicalReg.stackPointer, ArmImmediate(16)))
