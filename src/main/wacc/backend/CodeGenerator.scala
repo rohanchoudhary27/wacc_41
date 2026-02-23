@@ -665,7 +665,7 @@ object CodeGenerator {
         
         /* Special operations */
         case Lea(dest, label) => ??? // TODO
-        case SignExtend(dest, src) => ??? // TODO
+        case SignExtend(dest, src) => generateSignExtend(dest, src)
     }
 
     /**
@@ -683,6 +683,35 @@ object CodeGenerator {
         useWidget(widget)
         /* size goes into x0, dest is returned */
         generateCall(Label(widget.label), List(size), Some(dest))
+    }
+
+    /**
+      * Generates the low-level IR for a sign extension instruction used to go from a smaller
+      * register in the high level IR to a larger one e.g. a B register to a W register.
+      *
+      * @param dest The destination register for the sign extension (larger size)
+      * @param src The source register for the sign extension (smaller size) 
+      * @param st The generator state
+      */
+    private def generateSignExtend(dest: VirtualReg, src: VirtualReg)(using st: GenState): Unit = {
+        val srcLoc = locOf(src)
+        val destLoc = locOf(dest)
+
+        /* Load smaller register (source) to scratch. Passing 'src.size' means we load
+           into a register with the smaller size */
+        val srcReg = loadToReg(srcLoc, src.size, PhysicalReg.ipcScratch(0))
+
+        val resultReg = destLoc match {
+            case reg: PhysicalReg => reg
+            case _ => PhysicalReg.ipcScratch(1)
+        }
+
+        /* Move to the larger register so we use dest.size */
+        if (srcReg != resultReg) {
+            emit(ArmMovReg(dest.size, resultReg, srcReg))
+        }
+
+        storeToLoc(resultReg, destLoc, dest.size)
     }
 
     /**
