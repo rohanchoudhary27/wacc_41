@@ -845,7 +845,7 @@ object CodeGenerator {
     private def generateChr(dest: VirtualReg, src: VirtualReg, widget: Widget)
                            (using st: GenState): Unit = {
 
-        generateUnaryOp(dest, src, Some(widget), {(s, d) => {
+        generateUnaryOp(dest, src, Some(widget), {(d, s) => {
             val maxValidChar = 127
             /* Move the operand into w0 for the error function */
             emit(ArmMovReg(Size.W, PhysicalReg.argRegisters(0), s))
