@@ -613,7 +613,6 @@ object Flattener {
         val leftOp = flattenExpr(left)
         val rightOp = flattenExpr(right)
 
-        /* Get expression KnownType - TODO replace with Ege's helper function */
         val exprType = left.expressionType match {
             case t: KnownType => t
             case _ => KnownType.Int
@@ -714,6 +713,13 @@ object Flattener {
         chrReg
     }
 
+    /**
+      * Flatten an `ord` instruction.
+      *
+      * @param operand The operand passed to the Ord call
+      * @param funcState The current scope function state
+      * @return The virtual register containing the ord result
+      */
     private def flattenOrd(operand: Operand)
                         (using funcState: FunctionState): VirtualReg = {
 
@@ -731,6 +737,13 @@ object Flattener {
         destReg
     }
 
+    /**
+      * Flatten a negation statement
+      *
+      * @param operand The operand passed to the negation statement
+      * @param funcState The current scope function state
+      * @return The virtual register with the negation result
+      */
     private def flattenNeg(operand: Operand)
                           (using funcState: FunctionState): VirtualReg = {
         val reg = toReg(operand)
