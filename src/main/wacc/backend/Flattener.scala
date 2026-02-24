@@ -577,10 +577,12 @@ object Flattener {
                 semType
 
             case p: PairElem[SemanticData] =>
-                val PairElem(_, _, SemanticData.Typed(_, semType)) = p: @unchecked
+                val PairElem(_, _, SemanticData.Typed(_, semType, _)) = p: @unchecked
                 semType
 
-            case _ => ??? // arrays to be done later
+            case a: ArrayElem[SemanticData] =>
+                val ArrayElem(_, _, SemanticData.Typed(_, semType, _)) = a: @unchecked
+                semType
         }
         
         /* Convert SemanticType to KnownType */
@@ -613,7 +615,13 @@ object Flattener {
                 funcState.emitInstruction(Read(tempReg, readWidget))
                 funcState.emitInstruction(PairStore(pairPtr, pos, tempReg))
             
-            case _ => ??? // arrays to be done later
+            case a: ArrayElem[SemanticData] =>
+                /* array elements are also heap memory, so read into temp then store back */
+                val (arrayPtr, index) = resolveArrayElem(a)
+                
+                val tempReg = funcState.anonymousReg(knownType)
+                funcState.emitInstruction(Read(tempReg, readWidget))
+                funcState.emitInstruction(ArrayStore(arrayPtr, index, tempReg))
         }
     }
 
