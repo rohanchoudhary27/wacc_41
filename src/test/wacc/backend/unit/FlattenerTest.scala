@@ -16,6 +16,7 @@ import wacc.backend.PairPos
 import wacc.backend.NullCheck
 import wacc.backend.ArrayStore
 import wacc.backend.ArrayLoad
+import wacc.backend.ArrayLen
 import wacc.backend.Store
 import wacc.backend.AddrImmOffset
 
@@ -1143,5 +1144,98 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         val assignStore = arrayStores.last
         assignStore.index shouldBe Immediate(2)
         assignStore.src shouldBe Immediate(99)
+    }
+
+    "The flattener for len operator" should "emit ArrayLen instruction for non-empty array" in {
+        // int[] arr = [1, 2, 3]
+        // int x = len arr
+        val e1 = IntLiter(1, SemanticData.Typed(synPos.pos, KnownType.Int, None))
+        val e2 = IntLiter(2, SemanticData.Typed(synPos.pos, KnownType.Int, None))
+        val e3 = IntLiter(3, SemanticData.Typed(synPos.pos, KnownType.Int, None))
+        val arrayLit = ArrayLiter(
+            List(e1, e2, e3),
+            SemanticData.Typed(synPos.pos, KnownType.Array(KnownType.Int), Some(3))
+        )
+        val arrIdent = Ident("arr", SemanticData.Var(synPos.pos, 0, KnownType.Array(KnownType.Int)))
+        val arrDecl = Stmt.Decl(SyntaxType.Array(SyntaxType.Int), arrIdent, arrayLit, semPos)
+        
+        // len arr
+        val lenExpr = UnaryExpr(
+            UnaryOperator.Len,
+            Ident("arr", SemanticData.Var(synPos.pos, 0, KnownType.Array(KnownType.Int))),
+            SemanticData.Typed(synPos.pos, KnownType.Int, None)
+        )
+        val xIdent = Ident("x", SemanticData.Var(synPos.pos, 1, KnownType.Int))
+        val xDecl = Stmt.Decl(SyntaxType.Int, xIdent, lenExpr, semPos)
+        
+        val flatOutput = Flattener.flatten(programWith(List(arrDecl, xDecl)))
+        
+        // should see exactly one ArrayLen instruction
+        val arrayLens = flatOutput.body.collect { case a: ArrayLen => a }
+        arrayLens should have length 1
+    }
+
+    it should "emit ArrayLen instruction for empty array" in {
+        // int[] arr = []
+        // int x = len arr
+        val arrayLit = ArrayLiter(
+            List.empty,
+            SemanticData.Typed(synPos.pos, KnownType.Array(KnownType.Int), Some(0))
+        )
+        val arrIdent = Ident("arr", SemanticData.Var(synPos.pos, 0, KnownType.Array(KnownType.Int)))
+        val arrDecl = Stmt.Decl(SyntaxType.Array(SyntaxType.Int), arrIdent, arrayLit, semPos)
+        
+        // len arr
+        val lenExpr = UnaryExpr(
+            UnaryOperator.Len,
+            Ident("arr", SemanticData.Var(synPos.pos, 0, KnownType.Array(KnownType.Int))),
+            SemanticData.Typed(synPos.pos, KnownType.Int, None)
+        )
+        val xIdent = Ident("x", SemanticData.Var(synPos.pos, 1, KnownType.Int))
+        val xDecl = Stmt.Decl(SyntaxType.Int, xIdent, lenExpr, semPos)
+        
+        val flatOutput = Flattener.flatten(programWith(List(arrDecl, xDecl)))
+        
+        // should see exactly one ArrayLen instruction
+        val arrayLens = flatOutput.body.collect { case a: ArrayLen => a }
+        arrayLens should have length 1
+    }
+
+    it should "work when len is used in an expression" in {
+        // int[] arr = [10, 20]
+        // int x = len arr + 5
+        val e1 = IntLiter(10, SemanticData.Typed(synPos.pos, KnownType.Int, None))
+        val e2 = IntLiter(20, SemanticData.Typed(synPos.pos, KnownType.Int, None))
+        val arrayLit = ArrayLiter(
+            List(e1, e2),
+            SemanticData.Typed(synPos.pos, KnownType.Array(KnownType.Int), Some(2))
+        )
+        val arrIdent = Ident("arr", SemanticData.Var(synPos.pos, 0, KnownType.Array(KnownType.Int)))
+        val arrDecl = Stmt.Decl(SyntaxType.Array(SyntaxType.Int), arrIdent, arrayLit, semPos)
+        
+        // len arr + 5
+        val lenExpr = UnaryExpr(
+            UnaryOperator.Len,
+            Ident("arr", SemanticData.Var(synPos.pos, 0, KnownType.Array(KnownType.Int))),
+            SemanticData.Typed(synPos.pos, KnownType.Int, None)
+        )
+        val addExpr = BinaryExpr(
+            BinaryOperator.Add,
+            lenExpr,
+            IntLiter(5, SemanticData.Typed(synPos.pos, KnownType.Int, None)),
+            SemanticData.Typed(synPos.pos, KnownType.Int, None)
+        )
+        val xIdent = Ident("x", SemanticData.Var(synPos.pos, 1, KnownType.Int))
+        val xDecl = Stmt.Decl(SyntaxType.Int, xIdent, addExpr, semPos)
+        
+        val flatOutput = Flattener.flatten(programWith(List(arrDecl, xDecl)))
+        
+        // should see exactly one ArrayLen instruction
+        val arrayLens = flatOutput.body.collect { case a: ArrayLen => a }
+        arrayLens should have length 1
+        
+        // should also see Add instructions (at least one for the expression)
+        val adds = flatOutput.body.collect { case a: Add => a }
+        adds.length should be >= 1
     }
 }
