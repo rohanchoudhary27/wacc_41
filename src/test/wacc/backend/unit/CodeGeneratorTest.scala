@@ -818,6 +818,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         captureMov shouldBe Some(true)
     }
 
+    /* ========================= Pair Tests ========================= */
 
     "CodeGenerator for pairs" should "generate bl _malloc for HeapAlloc" in {
         val dest = VirtualReg(0, Size.X)
@@ -876,5 +877,22 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
             case x: ArmAddrImmOffset => x
         }
         memoryAddr.offset shouldBe ArmImmediate(8)
+    }
+
+    /* ========================= Free Tests ========================= */
+    "The code generator for free statements" should "generate a branch to _freepair and include its widget" in {
+        val ptrReg = VirtualReg(0, Size.X)
+        val freeInstr = wacc.backend.Free(ptrReg)
+
+        val allocMap = Map[VirtualReg, Location](
+            ptrReg -> PhysicalReg.argRegisters(0)
+        )
+        
+        // 2. Create a minimal RegProgram with just our Free instruction
+        val armProg = programWith(List(freeInstr), allocMap)
+        
+        // should emit a branch to _freepair
+        val branchInstrs = armProg.body.collect { case ArmBl(label) => label.name }
+        branchInstrs should contain ("_freepair")
     }
 }

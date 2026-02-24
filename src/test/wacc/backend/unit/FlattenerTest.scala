@@ -982,4 +982,67 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         // the temporary pointer loaded by PairLoad must be the base pointer for the PairStore
         loads.head.dest shouldBe stores.last.pair
     }
+
+    "The flattener for free statements" should "emit a Free instruction for a pair variable" in {
+        // pair(int, int) p = null
+        // free p
+        val pairType = KnownType.Pair(KnownType.Int, KnownType.Int)
+        val pIdent = Ident("p", SemanticData.Var(synPos.pos, 0, pairType))
+        
+        val decl = Stmt.Decl(
+            SyntaxType.Pair(SyntaxType.Int, SyntaxType.Int), 
+            pIdent, 
+            PairLiter(SemanticData.Typed(synPos.pos, Null)), 
+            semPos
+        )
+        val freeStmt = Stmt.Free(pIdent, semPos)
+        
+        val flatOutput = Flattener.flatten(programWith(List(decl, freeStmt)))
+        
+        // we should see exactly one free instruction
+        val frees = flatOutput.body.collect { case f: wacc.backend.Free => f }
+        frees should have length 1
+    }
+
+    it should "emit a Free instruction for a nested pair variable" in {
+        // pair(pair, int) p = newpair(null, 4)
+        // free p
+        val e1 = PairLiter(SemanticData.Typed(synPos.pos, Null))
+        val e2 = IntLiter(4, SemanticData.Typed(synPos.pos, KnownType.Int))
+        val newPair = NewPair(e1, e2, SemanticData.Typed(synPos.pos, KnownType.Pair(Null, KnownType.Int)))
+        val pairIdent = Ident("p", SemanticData.Var(synPos.pos, 0, KnownType.Pair(PairAny, KnownType.Int)))
+        val declP = Stmt.Decl(
+            SyntaxType.Pair(SyntaxType.ErasedPair, SyntaxType.Int),
+            pairIdent,
+            newPair,
+            semPos
+        )
+        val freeStmt = Stmt.Free(pairIdent, semPos)
+        
+        val flatOutput = Flattener.flatten(programWith(List(declP, freeStmt)))
+        
+        // we should see exactly one free instruction
+        val frees = flatOutput.body.collect { case f: wacc.backend.Free => f }
+        frees should have length 1
+    }
+
+    it should "throw an IllegalArgumentException if attempting to free an invalid type like Int" in {
+        // int x = 5
+        // free x
+        val pIdent = Ident("x", SemanticData.Var(synPos.pos, 0, KnownType.Int))
+        
+        val decl = Stmt.Decl(
+            SyntaxType.Int, 
+            pIdent, 
+            IntLiter(5, SemanticData.Typed(synPos.pos, KnownType.Int)),
+            semPos
+        )
+        val freeStmt = Stmt.Free(pIdent, semPos)
+        
+        // `require` statement in flattenExpr should throw
+        val exception = intercept[IllegalArgumentException] {
+            Flattener.flatten(programWith(List(decl, freeStmt)))
+        }
+        exception.getMessage should include ("Backend Error: 'free' statement received invalid type")
+    }
 }

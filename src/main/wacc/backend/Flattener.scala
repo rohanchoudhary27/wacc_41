@@ -211,16 +211,14 @@ object Flattener {
 
     /**
       * Converts an operand to a virtual register by making an anonymous register
-      * if the operand is an immeidate
+      * if the operand is an immediate
       *
       * @param op The operand to convert to a register
-      * @param funcState The FunctionState context
+      * @param targetType The type of the operand
+      * 
       * @return The virtual register for the operand
       */
-    private def toReg(op: Operand)(using funcState: FunctionState): VirtualReg = 
-        toReg(op, KnownType.Int)
-    
-    private def toReg(op: Operand, targetType: KnownType)
+    private def toReg(op: Operand, targetType: KnownType = KnownType.Int)
                      (using funcState: FunctionState): VirtualReg = op match {
         case reg: VirtualReg => reg
         case imm: Immediate => 
@@ -229,6 +227,26 @@ object Flattener {
             newReg
         case label: Label => ???
     }
+    
+    /**
+      * Converts an operand to a virtual register by making an anonymous register
+      * if the operand is an immediate
+      *
+      * @param op The operand to convert to a register
+      * @param size The size of the operand
+      * 
+      * @return The virtual register for the operand
+      */
+    private def toReg(op: Operand, size: Size)
+                     (using funcState: FunctionState): VirtualReg = op match {
+        case reg: VirtualReg => reg
+        case imm: Immediate => 
+            val newReg = funcState.anonymousReg(size)
+            funcState.emitInstruction(Mov(newReg, imm))
+            newReg
+        case label: Label => ???
+    }
+
 
     /**
       * Flattens a statment into a list of high level IR instructions. Uses the buffer passed
@@ -247,6 +265,7 @@ object Flattener {
         case Stmt.Skip(_) => () /* do nothing on skip */
         case Stmt.Exit(expr, _) => flattenExit(expr)
         case Stmt.Read(lval, _) => flattenRead(lval)
+        case Stmt.Free(expr, _) => flattenFree(expr)
         case Stmt.Print(expr, _) => flattenPrint(expr)
         case Stmt.Println(expr, _) => flattenPrintln(expr)
         case Stmt.Return(expr, _) => flattenReturn(expr)
@@ -502,6 +521,32 @@ object Flattener {
             
             case _ => ??? // arrays to be done later
         }
+    }
+
+    /**
+     * Flattens an expression. 
+     * 
+     * From the type checker output, we know that the expr's type is either a
+     * Pair or an Array.
+     * 
+     * @param expr the expression to free up. This is the pointer we want to free
+     */
+    private def flattenFree(expr: Expr[SemanticData])
+                           (using funcState: FunctionState,
+                                  directiveState: GlobalFlattenContext) : Unit = {
+        require(
+            expr.expressionType match {
+                /* null has type pair */
+                case KnownType.Pair(_, _) | KnownType.Array(_) | PairAny | Null => true
+                case _ => false
+            },
+            "Backend Error: 'free' statement received " +
+              s"invalid type ${expr.expressionType}. Must be an array or pair."
+        )
+        /* evaluate the expression to get the pointer. Since it's a pointer, we can
+            use `Size.X` */
+        val ptrReg = toReg(flattenExpr(expr), Size.X) 
+        funcState.emitInstruction(wacc.backend.Free(ptrReg))
     }
 
     /**
