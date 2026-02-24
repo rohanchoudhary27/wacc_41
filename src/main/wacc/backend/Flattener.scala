@@ -184,6 +184,7 @@ class GlobalFlattenContext(
 object Flattener {
 
     private val PAIR_HEAP_SIZE_B = 16
+    private val ARRAY_LEN_HEADER_SIZE_B = 4
 
     /**
       * The main function of the Flattener. Inputs a typed AST (Program[SemanticData]) from the
@@ -381,8 +382,8 @@ object Flattener {
             funcState.emitInstruction(PairStore(pairPtr, PairPos.Snd, src2))
             
             pairPtr
+        case a: ArrayLiter[SemanticData] => flattenArrayLiter(a)
         case p: PairElem[SemanticData] => flattenPairElem(p)
-        case _ => ??? // array liters and calls
     }
 
     /**
@@ -411,6 +412,52 @@ object Flattener {
         funcState.emitInstruction(PairLoad(pairPtr, pos, destReg))
 
         destReg
+    }
+
+    /**
+     * Flattens an `ArrayLiter` AST node by allocating heap memory with a length header,
+     * storing each element, and returning the pointer to the first element.
+     * 
+     * @param a The `ArrayLiter` AST node to flatten
+     * @return A `VirtualReg` containing the pointer to the first array element
+     */
+    private def flattenArrayLiter(
+        a: ArrayLiter[SemanticData]
+    )(using funcState: FunctionState, directiveState: GlobalFlattenContext): VirtualReg = {
+        val ArrayLiter(elements, info) = a
+        val SemanticData.Typed(_, arrayType, Some(length)) = info: @unchecked
+        
+        /* extract element type - handle both Array and String types */
+        val elemType = arrayType match {
+            case KnownType.Array(et) => et
+            case KnownType.String => KnownType.Char
+            case _ => ??? /* unreachable for well-typed programs */
+        }
+        
+        /* determine element size and total heap allocation needed */
+        val elemSize = Size.fromSemType(elemType)
+        val totalSize = ARRAY_LEN_HEADER_SIZE_B + length * Size.bytes(elemSize)
+        
+        /* allocate heap memory */
+        val arrayBase = funcState.anonymousReg(Size.X)
+        funcState.emitInstruction(HeapAlloc(arrayBase, Immediate(totalSize)))
+        
+        /* store length header at offset 0 */
+        val lengthReg = funcState.anonymousReg(Size.W)
+        funcState.emitInstruction(Mov(lengthReg, Immediate(length)))
+        funcState.emitInstruction(Store(lengthReg, AddrImmOffset(arrayBase, Immediate(0))))
+        
+        /* calculate pointer to first element (base + 4) */
+        val arrayPtr = funcState.anonymousReg(Size.X)
+        funcState.emitInstruction(Add(arrayPtr, arrayBase, Immediate(ARRAY_LEN_HEADER_SIZE_B)))
+        
+        /* flatten and store each element */
+        elements.zipWithIndex.foreach { case (elem, idx) =>
+            val elemValue = flattenExpr(elem)
+            funcState.emitInstruction(ArrayStore(arrayPtr, Immediate(idx), elemValue))
+        }
+        
+        arrayPtr
     }
     
 
