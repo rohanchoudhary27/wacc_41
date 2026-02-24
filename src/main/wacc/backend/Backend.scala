@@ -1,15 +1,18 @@
 package wacc.backend
 
 import wacc.ExitCodes.*
+import wacc.ExitCodes
 import wacc.frontend.{Program, SemanticData}
-import java.io.{File, PrintWriter}
+import java.nio.file.{Files, Paths, StandardOpenOption}
+import scala.util.{Try, Success, Failure}
 
 case class BackendCompilationResult(
     exitCode: ExitCode,
-    outputFile: Option[String] = None
+    outputFile: Option[String] = None,
+    error: Option[String] = None
 )
 
-object WaccBackend {
+object WaccBackend{
 
     /**
       * Runs the backend part of the compiler on the AST from the frontend
@@ -19,33 +22,31 @@ object WaccBackend {
       * @return BackendCompilationResult: Compilation result
       */
     def run(ast: Program[SemanticData], outputFilename: String): BackendCompilationResult = {
-        try {
+        val pipeline = for {
 
             /* Phase 1 - Flatten*/
-            val highLevelIR: RegProgram = Flattener.flatten(ast)
+            highLevelIR <- Try(Flattener.flatten(ast))
 
             /* Phase 2 - Register Allocation*/
-            val registerAllocation: RegisterAllocator.AllocationResult = 
-                RegisterAllocator.allocate(highLevelIR)
+            registerAllocation <- Try(RegisterAllocator.allocate(highLevelIR))
 
             /* Phase 3 - Code Generation */
-            val (lowLevelIR, runtimeDispatcher) =
-                CodeGenerator.generate(highLevelIR, registerAllocation)
+            (lowLevelIR, runtimeDispatcher) <- Try(CodeGenerator.generate(highLevelIR, registerAllocation))
 
             /* Phase 4 - Printer */
-            val assemblyMain: String = Outputter.emit(lowLevelIR)
-            val assemblyWidgets: String = runtimeDispatcher.getCollectedAssembly
+            assemblyMain <- Try(Outputter.emit(lowLevelIR))
+            assemblyWidgets <- Try(runtimeDispatcher.getCollectedAssembly)
 
-            val assemblyFinal: String = s"$assemblyMain\n\n$assemblyWidgets\n"
-            writeToFile(outputFilename, assemblyFinal)
-            BackendCompilationResult(Success, Some(outputFilename))
+            assemblyFinal = s"$assemblyMain\n\n$assemblyWidgets\n"
+            _ <- writeToFile(outputFilename, assemblyFinal)
+        } yield outputFilename
 
-        } catch {
-            case e: Exception => Console.err.println(
-                s"Internal compiler failure during backend code generation: ${e.getMessage}"
-                )
-            BackendCompilationResult(BackendFailure, None)
-        }
+        pipeline match
+            case Success(filename) =>
+                BackendCompilationResult(ExitCodes.Success, Some(filename))
+            case Failure(e) =>
+                Console.err.println(s"Backend Error: ${e.getMessage}")
+                BackendCompilationResult(BackendFailure, None, Some(e.getMessage))
     }
 
     /**
@@ -54,13 +55,14 @@ object WaccBackend {
       * @param filename The output file path
       * @param content The string content to write
       */
-    private def writeToFile(fileName: String, content: String): Unit = {
-        val file = new File(fileName)
-        val writer = new PrintWriter(file)
-        try {
-            writer.write(content)
-        } finally {
-            writer.close()
-        }
+    private def writeToFile(path: String, content: String): Try[Unit] = Try {
+        val filePath = Paths.get(path)
+        Option(filePath.getParent).foreach(Files.createDirectories(_))
+        Files.writeString(
+            filePath,
+            content,
+            StandardOpenOption.CREATE,
+            StandardOpenOption.TRUNCATE_EXISTING
+        )
     }
 }
