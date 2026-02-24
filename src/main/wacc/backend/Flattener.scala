@@ -518,7 +518,7 @@ object Flattener {
                 case KnownType.Pair(_, _) | KnownType.Array(_) | PairAny | Null => true
                 case _ => false
             },
-            s"Backend Error: 'free' statement received " +
+            "Backend Error: 'free' statement received " +
               s"invalid type ${expr.expressionType}. Must be an array or pair."
         )
         /* evaluate the expression to get the pointer. Since it's a pointer, we can
