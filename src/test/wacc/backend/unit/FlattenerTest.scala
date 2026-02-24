@@ -14,6 +14,9 @@ import wacc.backend.PairStore
 import wacc.backend.PairLoad
 import wacc.backend.PairPos
 import wacc.backend.NullCheck
+import wacc.backend.ArrayStore
+import wacc.backend.Store
+import wacc.backend.AddrImmOffset
 
 /**
   * Unit tests for the Flattener
@@ -981,5 +984,102 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         
         // the temporary pointer loaded by PairLoad must be the base pointer for the PairStore
         loads.head.dest shouldBe stores.last.pair
+    }
+
+    "The flattener for arrays" should "flatten an integer array literal into HeapAlloc, Store (for length), and ArrayStores" in {
+        // int[] arr = [1, 2, 3]
+        val e1 = IntLiter(1, SemanticData.Typed(synPos.pos, KnownType.Int, None))
+        val e2 = IntLiter(2, SemanticData.Typed(synPos.pos, KnownType.Int, None))
+        val e3 = IntLiter(3, SemanticData.Typed(synPos.pos, KnownType.Int, None))
+        val arrayLit = ArrayLiter(
+            List(e1, e2, e3),
+            SemanticData.Typed(synPos.pos, KnownType.Array(KnownType.Int), Some(3))
+        )
+        
+        val decl = Stmt.Decl(
+            SyntaxType.Array(SyntaxType.Int),
+            Ident("arr", SemanticData.Var(synPos.pos, 0, KnownType.Array(KnownType.Int))),
+            arrayLit,
+            semPos
+        )
+        
+        val flatOutput = Flattener.flatten(programWith(decl))
+
+        // should see a HeapAlloc of 16 bytes (4 for length + 3 * 4 for ints)
+        val allocs = flatOutput.body.collect { case h: HeapAlloc => h }
+        allocs should have length 1
+        allocs.head.size shouldBe Immediate(16)
+
+        // should see a Store for the length header
+        val stores = flatOutput.body.collect { case s: Store => s }
+        stores should have length 1
+        stores.head.source match {
+            case addr: AddrImmOffset => addr.offset shouldBe Immediate(0)
+            case _ => fail("Expected AddrImmOffset")
+        }
+
+        // should see exactly 3 ArrayStores (one for each element)
+        val arrayStores = flatOutput.body.collect { case a: ArrayStore => a }
+        arrayStores should have length 3
+    }
+
+    it should "flatten an empty array literal into HeapAlloc and Store with length 0" in {
+        // int[] arr = []
+        val arrayLit = ArrayLiter(
+            List.empty,
+            SemanticData.Typed(synPos.pos, KnownType.Array(KnownType.Int), Some(0))
+        )
+        
+        val decl = Stmt.Decl(
+            SyntaxType.Array(SyntaxType.Int),
+            Ident("arr", SemanticData.Var(synPos.pos, 0, KnownType.Array(KnownType.Int))),
+            arrayLit,
+            semPos
+        )
+        
+        val flatOutput = Flattener.flatten(programWith(decl))
+
+        // should see a HeapAlloc of 4 bytes (just the length header)
+        val allocs = flatOutput.body.collect { case h: HeapAlloc => h }
+        allocs should have length 1
+        allocs.head.size shouldBe Immediate(4)
+
+        // should see a Store for the length header
+        val stores = flatOutput.body.collect { case s: Store => s }
+        stores should have length 1
+
+        // should see no ArrayStores (empty array)
+        val arrayStores = flatOutput.body.collect { case a: ArrayStore => a }
+        arrayStores should have length 0
+    }
+
+    it should "flatten a char array literal with correct size calculation" in {
+        // char[] arr = ['a', 'b', 'c', 'd']
+        val e1 = CharLiter('a', SemanticData.Typed(synPos.pos, KnownType.Char, None))
+        val e2 = CharLiter('b', SemanticData.Typed(synPos.pos, KnownType.Char, None))
+        val e3 = CharLiter('c', SemanticData.Typed(synPos.pos, KnownType.Char, None))
+        val e4 = CharLiter('d', SemanticData.Typed(synPos.pos, KnownType.Char, None))
+        val arrayLit = ArrayLiter(
+            List(e1, e2, e3, e4),
+            SemanticData.Typed(synPos.pos, KnownType.Array(KnownType.Char), Some(4))
+        )
+        
+        val decl = Stmt.Decl(
+            SyntaxType.Array(SyntaxType.Char),
+            Ident("arr", SemanticData.Var(synPos.pos, 0, KnownType.Array(KnownType.Char))),
+            arrayLit,
+            semPos
+        )
+        
+        val flatOutput = Flattener.flatten(programWith(decl))
+
+        // should see a HeapAlloc of 8 bytes (4 for length + 4 * 1 for chars)
+        val allocs = flatOutput.body.collect { case h: HeapAlloc => h }
+        allocs should have length 1
+        allocs.head.size shouldBe Immediate(8)
+
+        // should see exactly 4 ArrayStores (one for each character)
+        val arrayStores = flatOutput.body.collect { case a: ArrayStore => a }
+        arrayStores should have length 4
     }
 }
