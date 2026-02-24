@@ -456,14 +456,18 @@ object Flattener {
     private def flattenRead(lval: LValue[SemanticData])
                            (using funcState: FunctionState,
                                   directiveState: GlobalFlattenContext): Unit = {
-        val destReg = flattenLValue(lval)
         
-        /* Extract type from lvalue */
+        /* Extract type from lvalue to determine which read widget to use */
         val readType = lval match {
             case ident: Ident[SemanticData] =>
                 val SemanticData.Var(_, _, semType) = ident.info: @unchecked
                 semType
-            case _ => ??? // arrays and pairs to be done later
+
+            case p: PairElem[SemanticData] =>
+                val PairElem(_, _, SemanticData.Typed(_, semType)) = p: @unchecked
+                semType
+
+            case _ => ??? // arrays to be done later
         }
         
         /* Convert SemanticType to KnownType */
@@ -479,7 +483,25 @@ object Flattener {
             case _ => ???
         }
         
-        funcState.emitInstruction(Read(destReg, readWidget))
+        /* Determine how to store the read value */
+        lval match {
+            case _: Ident[SemanticData] =>
+                /* For simple identifiers, read directly into the variable's register */
+                val destReg = flattenLValue(lval)
+                funcState.emitInstruction(Read(destReg, readWidget))
+            
+            case p: PairElem[SemanticData] =>
+                /* pair elements are heap memory, so read into temp then store back */
+                val (pairPtr, pos) = resolvePairElem(p)
+                funcState.emitInstruction(NullCheck(pairPtr))
+                
+                val tempReg = funcState.anonymousReg(knownType)
+                funcState.emitInstruction(PairLoad(pairPtr, pos, tempReg))
+                funcState.emitInstruction(Read(tempReg, readWidget))
+                funcState.emitInstruction(PairStore(pairPtr, pos, tempReg))
+            
+            case _ => ??? // arrays to be done later
+        }
     }
 
     /**
