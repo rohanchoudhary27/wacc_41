@@ -131,7 +131,7 @@ object WaccCompiler {
         // Run the ast through the backend of the compiler
         val backendResult = WaccBackend.run(ast, outFilename)
 
-        if (backendResult.exitCode == ExitCodes.Success) {
+        if (backendResult.exitCode == CompilerSuccess) {
             println(s"Success - finished with exit code ${backendResult.exitCode}")
         } 
         

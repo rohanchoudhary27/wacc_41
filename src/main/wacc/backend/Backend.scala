@@ -12,7 +12,7 @@ case class BackendCompilationResult(
     error: Option[String] = None
 )
 
-object WaccBackend{
+object WaccBackend:
 
     /**
       * Runs the backend part of the compiler on the AST from the frontend
@@ -43,7 +43,7 @@ object WaccBackend{
 
         pipeline match
             case Success(filename) =>
-                BackendCompilationResult(ExitCodes.Success, Some(filename))
+                BackendCompilationResult(CompilerSuccess, Some(filename))
             case Failure(e) =>
                 Console.err.println(s"Backend Error: ${e.getMessage}")
                 BackendCompilationResult(BackendFailure, None, Some(e.getMessage))
@@ -65,4 +65,4 @@ object WaccBackend{
             StandardOpenOption.TRUNCATE_EXISTING
         )
     }
-}
+end WaccBackend

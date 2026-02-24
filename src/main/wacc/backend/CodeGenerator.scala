@@ -222,7 +222,7 @@ object CodeGenerator {
         generateFuncPrologue(localsSize, savedRegs)
         generateInstrs(regProgram.body)
         /* main return 0 */
-        generateMovImmediate(Size.W, PhysicalReg.argRegisters(0), ArmImmediate(code(Success)))
+        generateMovImmediate(Size.W, PhysicalReg.argRegisters(0), ArmImmediate(code(CompilerSuccess)))
         generateFuncEpilogue(localsSize, savedRegs)
 
         /* Final low-level IR for the program */

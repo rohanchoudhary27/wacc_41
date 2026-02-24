@@ -67,7 +67,7 @@ abstract class WaccIntegrationTestBase(
         /* Make the file relative to examples root to get the scope */
         val rel = rootTestPath.relativize(file).toString 
 
-        if (rel.startsWith("examples/valid/") || rel.startsWith("custom/valid/")) code(Success)
+        if (rel.startsWith("examples/valid/") || rel.startsWith("custom/valid/")) code(CompilerSuccess)
         else if (rel.startsWith("examples/invalid/syntaxErr/") ||
                  rel.startsWith("examples/invalid/whack/")) code(SyntaxError)
         else if (rel.startsWith("examples/invalid/semanticErr/")) code(SemanticError)

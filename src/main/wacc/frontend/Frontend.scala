@@ -103,7 +103,7 @@ object WaccFrontend {
             /* Log any semantic errors */
             if (semanticErrors.hasErrors())
               FrontendCompilationResult(SemanticError, Some(semanticErrors), None)
-            else FrontendCompilationResult(Success, None, typedAST)
+            else FrontendCompilationResult(CompilerSuccess, None, typedAST)
           }
       }
     }
