@@ -395,7 +395,7 @@ object Flattener {
     private def flattenPairElem(
         p: PairElem[SemanticData]
     )(using funcState: FunctionState, directiveState: GlobalFlattenContext): VirtualReg = {
-        val PairElem(_, _, SemanticData.Typed(_, t)) = p: @unchecked
+        val PairElem(_, _, SemanticData.Typed(_, t, _)) = p: @unchecked
         val (pairPtr, pos) = resolvePairElem(p)
 
         /* emit the null check when referencing a pair */

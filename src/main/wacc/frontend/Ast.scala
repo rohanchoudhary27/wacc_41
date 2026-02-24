@@ -21,9 +21,9 @@ sealed trait Expr[A] extends RValue[A] {
      */
     def expressionType: SemanticType =
         info match {
-            case SemanticData.Var(_, _, t) => t
-            case SemanticData.Typed(_, t)  => t
-            case _                         => ?
+            case SemanticData.Var(_, _, t)   => t
+            case SemanticData.Typed(_, t, _) => t
+            case _                           => ?
         }
 }
 
