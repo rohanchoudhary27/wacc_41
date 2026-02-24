@@ -324,6 +324,9 @@ object Flattener {
                 /* null check when accessing the pair p */
                 funcState.emitInstruction(NullCheck(pairPtr))
                 funcState.emitInstruction(PairStore(pairPtr, pos, srcOperand))
+            case a: ArrayElem[SemanticData] =>
+                val (arrayPtr, index) = resolveArrayElem(a)
+                funcState.emitInstruction(ArrayStore(arrayPtr, index, srcOperand))
             case _ => ???
         }
     }
@@ -459,6 +462,40 @@ object Flattener {
         
         arrayPtr
     }
+
+    /**
+     * Flattens an `ArrayElem` AST node by loading the array element from the heap.
+     * Handles multi-dimensional arrays by progressively indexing through each dimension.
+     * 
+     * @param a The `ArrayElem` AST node to flatten
+     * @return A `VirtualReg` containing the loaded array element value
+     */
+    private def flattenArrayElem(
+        a: ArrayElem[SemanticData]
+    )(using funcState: FunctionState, directiveState: GlobalFlattenContext): VirtualReg = {
+        val ArrayElem(ident, indices, info) = a
+        val SemanticData.Typed(_, elemType, _) = info: @unchecked
+        
+        /* start with the base array pointer */
+        val SemanticData.Var(_, varId, _) = ident.info: @unchecked
+        var arrayPtr = funcState.lookupReg(ident.name, varId)
+        
+        /* apply each index, loading the intermediate results */
+        indices.init.foreach { indexExpr =>
+            val indexOp = flattenExpr(indexExpr)
+            val nextPtr = funcState.anonymousReg(Size.X)
+            funcState.emitInstruction(ArrayLoad(arrayPtr, indexOp, nextPtr))
+            arrayPtr = nextPtr
+        }
+        
+        /* final index loads the actual element value */
+        val finalIndex = flattenExpr(indices.last)
+        val elemSize = Size.fromSemType(elemType)
+        val resultReg = funcState.anonymousReg(elemSize)
+        funcState.emitInstruction(ArrayLoad(arrayPtr, finalIndex, resultReg))
+        
+        resultReg
+    }
     
 
     /**
@@ -476,6 +513,35 @@ object Flattener {
 
         val pos = if isFst then PairPos.Fst else PairPos.Snd
         (pairPtr, pos)
+    }
+
+    /**
+     * Resolve the array pointer and final index for an `ArrayElem`.
+     * Handles multi-dimensional arrays by applying all but the last index.
+     * 
+     * @param arrayElem The `ArrayElem` to resolve
+     * @return `(VirtualReg, Operand)` the array pointer and final index
+     */ 
+    private def resolveArrayElem(
+        arrayElem: ArrayElem[SemanticData]
+    )(using funcState: FunctionState, directiveState: GlobalFlattenContext): (VirtualReg, Operand) = {
+        val ArrayElem(ident, indices, _) = arrayElem
+        
+        /* start with the base array pointer */
+        val SemanticData.Var(_, varId, _) = ident.info: @unchecked
+        var arrayPtr = funcState.lookupReg(ident.name, varId)
+        
+        /* apply all indices except the last, loading intermediate array pointers */
+        indices.init.foreach { indexExpr =>
+            val indexOp = flattenExpr(indexExpr)
+            val nextPtr = funcState.anonymousReg(Size.X)
+            funcState.emitInstruction(ArrayLoad(arrayPtr, indexOp, nextPtr))
+            arrayPtr = nextPtr
+        }
+        
+        /* return the final array pointer and last index */
+        val finalIndex = flattenExpr(indices.last)
+        (arrayPtr, finalIndex)
     }
         
     /**
@@ -640,6 +706,7 @@ object Flattener {
         case Ident(name, SemanticData.Var(_, renameId, _)) => funcState.lookupReg(name, renameId)
         case BinaryExpr(op, left, right, _) => flattenBinaryExpr(op, left, right)
         case UnaryExpr(op, expr, _) => flattenUnaryExpr(op, expr)
+        case a: ArrayElem[SemanticData] => flattenArrayElem(a)
         case _ => ???
     
     /**
