@@ -6,11 +6,11 @@ import java.nio.file.{Files, Path, Paths}
 
 import scala.sys.process.stringSeqToProcess
 import wacc.*
-import wacc.ExitCodes._
+import wacc.ExitCodes.*
 import wacc.integration.WaccIntegrationTestBase
 import scala.sys.process.*
 import wacc.backend.WaccBackend
-import scala.sys.process._
+import scala.sys.process.*
 
 /**
  * Represents test metadata extracted from test files 

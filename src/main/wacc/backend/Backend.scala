@@ -1,6 +1,6 @@
 package wacc.backend
 
-import wacc.ExitCodes._
+import wacc.ExitCodes.*
 import wacc.frontend.{Program, SemanticData}
 import java.io.{File, PrintWriter}
 

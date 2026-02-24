@@ -2,7 +2,7 @@ package wacc.backend
 
 import scala.collection.mutable.ListBuffer
 import wacc.backend.RegisterAllocator.AllocationResult
-import wacc.ExitCodes._
+import wacc.ExitCodes.*
 
 /**
   * Global context shared across all function code generation.

@@ -1,8 +1,7 @@
 package wacc.backend
 
 import wacc.frontend.*
-import scala.collection.mutable.ListBuffer
-import scala.collection.mutable.Map
+import scala.collection.mutable.{ListBuffer, Map}
 import wacc.ExitCodes.*
 
 /**

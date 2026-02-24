@@ -3,7 +3,7 @@ package wacc
 import java.nio.file.{Files, Path, Paths}
 import wacc.frontend.*
 import wacc.backend.*
-import wacc.ExitCodes._
+import wacc.ExitCodes.*
 
 /** 
 * Main entry point for the WACC compiler which runs the frontend and backend.
