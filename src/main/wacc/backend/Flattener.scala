@@ -806,8 +806,34 @@ object Flattener {
             case UnaryOperator.Chr => flattenChr(operand)
             case UnaryOperator.Ord => flattenOrd(operand)
             case UnaryOperator.Neg => flattenNeg(operand)
-            case UnaryOperator.Len => ??? /* TODO: requires arrays */
+            case UnaryOperator.Len => flattenLen(operand)
         }
+    }
+
+    /**
+      * Flatten a `len` unary operator. Loads the length header from array memory.
+      *
+      * @param arrayOp The array operand (pointer to first element)
+      * @param funcState The current scope function state
+      * @return The virtual register containing the array length
+      */
+    private def flattenLen(arrayOp: Operand)
+                          (using funcState: FunctionState): VirtualReg = {
+        /* convert operand to register if it's not already */
+        val arrayPtr = arrayOp match {
+            case reg: VirtualReg => reg
+            case imm: Immediate =>
+                val tempReg = funcState.anonymousReg(Size.X)
+                funcState.emitInstruction(Mov(tempReg, imm))
+                tempReg
+            case _ => ???
+        }
+        
+        /* emit ArrayLen instruction to load length from array header */
+        val lengthReg = funcState.anonymousReg(Size.W)
+        funcState.emitInstruction(ArrayLen(arrayPtr, lengthReg))
+        
+        lengthReg
     }
 
     /**

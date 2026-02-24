@@ -116,13 +116,14 @@ case class Read(dest: VirtualReg, widget: Widget) extends Instruction
 case class Push(sourceReg: VirtualReg) extends Instruction
 case class Pop(destReg: VirtualReg) extends Instruction
 
-/* Array put/get instructions */
+/* Array instructions */
 case class ArrayLoad(array: VirtualReg,
                      index: Operand,
                      dest: VirtualReg) extends ArrayInstr(array, index)
 case class ArrayStore(array: VirtualReg,
                       index: Operand,
                       src: Operand) extends ArrayInstr(array, index)
+case class ArrayLen(array: VirtualReg, dest: VirtualReg) extends PtrInstr(array)
 
 /* Pair put/get instructions */
 case class PairLoad(pair: VirtualReg, index: PairPos, dest: VirtualReg) extends PtrInstr(pair)

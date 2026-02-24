@@ -725,6 +725,7 @@ object CodeGenerator {
         /* Array operations */
         case ArrayLoad(array, index, dest) => ??? // TODO
         case ArrayStore(array, index, src) => ??? // TODO
+        case ArrayLen(array, dest) => generateArrayLen(array, dest)
         
         /* Pair operations */
         case PairLoad(pair, index, dest) => generatePairLoad(pair, index, dest)
@@ -867,6 +868,28 @@ object CodeGenerator {
         
         /* Store the 8 byte scrath register into heap memory */
         emit(ArmStore(Size.X, finalSrcReg, ArmAddrImmOffset(ptrReg, ArmImmediate(offset))))
+    }
+
+    /**
+      * Generates low level IR to load array length from header.
+      * 
+      * Loads the array pointer, then loads the 4-byte length field from offset -4
+      * (the array pointer points to the first element, length is stored before it).
+      *
+      * @param arrayPtr the virtual register holding the pointer to first array element
+      * @param dest the destination virtual register to store the length
+      */
+    private def generateArrayLen(arrayPtr: VirtualReg, dest: VirtualReg)
+                                (using st: GenState): Unit = {
+        /* load the array pointer into scratch register x16 */
+        val ptrReg = loadToReg(locOf(arrayPtr), Size.X, PhysicalReg.ipcScratch(0))
+        
+        /* load the length from offset -4 */
+        val destScratch = PhysicalReg.ipcScratch(1)
+        emit(ArmLdur(Size.W, destScratch, ArmAddrImmOffset(ptrReg, ArmImmediate(-4))))
+        
+        /* store to destination location */
+        storeToLoc(destScratch, locOf(dest), dest.size)
     }
 
     /**
