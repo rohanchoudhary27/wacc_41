@@ -35,8 +35,6 @@ examples/valid/pairs/printNull.wacc
 examples/valid/pairs/printNullPair.wacc
 examples/valid/pairs/printPairOfNulls.wacc
 
-examples/valid/runtimeErr/nullDereference
-
 examples/valid/function/nested_functions
 
 examples/valid/function/nested_functions/simpleRecursion.wacc
@@ -65,8 +63,8 @@ examples/valid/function/simple_functions/usesArgumentWhilstMakingArgument.wacc
 examples/valid/runtimeErr/integerOverflow
 examples/valid/runtimeErr/divideByZero
 examples/valid/runtimeErr/badChar
-examples/valid/expressions
+examples/valid/runtimeErr/nullDereference
 
-examples/valid/
+examples/valid/expressions
 
 custom/valid
