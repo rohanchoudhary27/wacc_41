@@ -1238,4 +1238,69 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         val adds = flatOutput.body.collect { case a: Add => a }
         adds.length should be >= 1
     }
+
+    "The flattener for read into array elements" should "read an int into an array element" in {
+        // int[] arr = [1, 2, 3]
+        // read arr[0]
+        val e1 = IntLiter(1, SemanticData.Typed(synPos.pos, KnownType.Int, None))
+        val e2 = IntLiter(2, SemanticData.Typed(synPos.pos, KnownType.Int, None))
+        val e3 = IntLiter(3, SemanticData.Typed(synPos.pos, KnownType.Int, None))
+        val arrayLit = ArrayLiter(
+            List(e1, e2, e3),
+            SemanticData.Typed(synPos.pos, KnownType.Array(KnownType.Int), Some(3))
+        )
+        val arrIdent = Ident("arr", SemanticData.Var(synPos.pos, 0, KnownType.Array(KnownType.Int)))
+        val arrDecl = Stmt.Decl(SyntaxType.Array(SyntaxType.Int), arrIdent, arrayLit, semPos)
+        
+        val arrayElem = ArrayElem(
+            Ident("arr", SemanticData.Var(synPos.pos, 0, KnownType.Array(KnownType.Int))),
+            List(IntLiter(0, SemanticData.Typed(synPos.pos, KnownType.Int, None))),
+            SemanticData.Typed(synPos.pos, KnownType.Int, None)
+        )
+        val readStmt = Stmt.Read(arrayElem, semPos)
+        
+        val flatOutput = Flattener.flatten(programWith(List(arrDecl, readStmt)))
+        
+        // should see a Read with ReadIntegerWidget
+        val reads = flatOutput.body.collect { case r: IRRead => r }
+        reads should have length 1
+        reads.head.widget shouldBe ReadIntegerWidget
+        
+        // should see an ArrayStore after the read (to write back into the array)
+        val arrayStores = flatOutput.body.collect { case a: ArrayStore => a }
+        // 3 from init + 1 from read writeback
+        arrayStores should have length 4
+    }
+
+    it should "read a char into an array element" in {
+        // char[] arr = ['a', 'b']
+        // read arr[1]
+        val c1 = CharLiter('a', SemanticData.Typed(synPos.pos, KnownType.Char, None))
+        val c2 = CharLiter('b', SemanticData.Typed(synPos.pos, KnownType.Char, None))
+        val arrayLit = ArrayLiter(
+            List(c1, c2),
+            SemanticData.Typed(synPos.pos, KnownType.Array(KnownType.Char), Some(2))
+        )
+        val arrIdent = Ident("arr", SemanticData.Var(synPos.pos, 0, KnownType.Array(KnownType.Char)))
+        val arrDecl = Stmt.Decl(SyntaxType.Array(SyntaxType.Char), arrIdent, arrayLit, semPos)
+        
+        val arrayElem = ArrayElem(
+            Ident("arr", SemanticData.Var(synPos.pos, 0, KnownType.Array(KnownType.Char))),
+            List(IntLiter(1, SemanticData.Typed(synPos.pos, KnownType.Int, None))),
+            SemanticData.Typed(synPos.pos, KnownType.Char, None)
+        )
+        val readStmt = Stmt.Read(arrayElem, semPos)
+        
+        val flatOutput = Flattener.flatten(programWith(List(arrDecl, readStmt)))
+        
+        // should see a Read with ReadCharWidget
+        val reads = flatOutput.body.collect { case r: IRRead => r }
+        reads should have length 1
+        reads.head.widget shouldBe ReadCharWidget
+        
+        // should see an ArrayStore after the read (to write back into the array)
+        val arrayStores = flatOutput.body.collect { case a: ArrayStore => a }
+        // 2 from init + 1 from read writeback
+        arrayStores should have length 3
+    }
 }
