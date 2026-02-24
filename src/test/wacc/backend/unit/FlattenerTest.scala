@@ -11,9 +11,9 @@ import wacc.backend.VirtualReg
 import wacc.backend.Size
 import wacc.backend.HeapAlloc
 import wacc.backend.PairStore
+import wacc.backend.PairLoad
 import wacc.backend.PairPos
 import wacc.backend.NullCheck
-import wacc.backend.PairLoad
 
 /**
   * Unit tests for the Flattener
@@ -283,6 +283,81 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
 
         read.widget shouldBe ReadCharWidget
         read.dest should matchPattern { case VirtualReg(0, Size.B) => }
+    }
+
+    it should "flatten a read into pair fst element" in {
+        // pair(int, int) p = newpair(10, 20)
+        // read fst p
+        val e1 = IntLiter(10, SemanticData.Typed(synPos.pos, KnownType.Int))
+        val e2 = IntLiter(20, SemanticData.Typed(synPos.pos, KnownType.Int))
+        val newPair = NewPair(e1, e2, SemanticData.Typed(synPos.pos, KnownType.Pair(KnownType.Int, KnownType.Int)))
+        
+        val declP = Stmt.Decl(
+            SyntaxType.Pair(SyntaxType.Int, SyntaxType.Int),
+            Ident("p", SemanticData.Var(synPos.pos, 0, KnownType.Pair(KnownType.Int, KnownType.Int))),
+            newPair,
+            semPos
+        )
+        
+        val pairIdent = Ident("p", SemanticData.Var(synPos.pos, 0, KnownType.Pair(KnownType.Int, KnownType.Int)))
+        val fstElem = PairElem(isFst = true, pairIdent, SemanticData.Typed(synPos.pos, KnownType.Int))
+        val readStmt = Stmt.Read(fstElem, semPos)
+        
+        val flatOutput = Flattener.flatten(programWith(List(declP, readStmt)))
+
+        // Should explicitly emit a NullCheck before accessing
+        val nullChecks = flatOutput.body.collect { case n: NullCheck => n }
+        nullChecks should have length 1
+
+        // Should emit a PairLoad to load current value, then Read, then PairStore
+        val loads = flatOutput.body.collect { case p: PairLoad => p }
+        loads should have length 1
+        loads.head.index shouldBe PairPos.Fst
+        
+        val reads = flatOutput.body.collect { case r: IRRead => r }
+        reads should have length 1
+        reads.head.widget shouldBe ReadIntegerWidget
+        
+        val stores = flatOutput.body.collect { case p: PairStore => p }
+        stores should have length 3  // 2 from newpair init + 1 from read
+        stores.last.index shouldBe PairPos.Fst  // The read's store should be last
+    }
+
+    it should "flatten a read into pair snd element with char" in {
+        // pair(int, char) p = newpair(10, 'a')
+        // read snd p
+        val e1 = IntLiter(10, SemanticData.Typed(synPos.pos, KnownType.Int))
+        val e2 = CharLiter('a', SemanticData.Typed(synPos.pos, KnownType.Char))
+        val pairType = KnownType.Pair(KnownType.Int, KnownType.Char)
+        val newPair = NewPair(e1, e2, SemanticData.Typed(synPos.pos, pairType))
+        
+        val declP = Stmt.Decl(
+            SyntaxType.Pair(SyntaxType.Int, SyntaxType.Char),
+            Ident("p", SemanticData.Var(synPos.pos, 0, pairType)),
+            newPair,
+            semPos
+        )
+        
+        val pairIdent = Ident("p", SemanticData.Var(synPos.pos, 0, pairType))
+        val sndElem = PairElem(isFst = false, pairIdent, SemanticData.Typed(synPos.pos, KnownType.Char))
+        val readStmt = Stmt.Read(sndElem, semPos)
+        
+        val flatOutput = Flattener.flatten(programWith(List(declP, readStmt)))
+
+        val nullChecks = flatOutput.body.collect { case n: NullCheck => n }
+        nullChecks should have length 1
+
+        val loads = flatOutput.body.collect { case p: PairLoad => p }
+        loads should have length 1
+        loads.head.index shouldBe PairPos.Snd
+        
+        val reads = flatOutput.body.collect { case r: IRRead => r }
+        reads should have length 1
+        reads.head.widget shouldBe ReadCharWidget
+        
+        val stores = flatOutput.body.collect { case p: PairStore => p }
+        stores should have length 3
+        stores.last.index shouldBe PairPos.Snd
     }
 
     "The flattener for declarations" should "flatten a simple int declaration to a Mov" in {
