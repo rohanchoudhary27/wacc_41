@@ -15,6 +15,7 @@ import wacc.backend.PairLoad
 import wacc.backend.PairPos
 import wacc.backend.NullCheck
 import wacc.backend.ArrayStore
+import wacc.backend.ArrayLoad
 import wacc.backend.Store
 import wacc.backend.AddrImmOffset
 
@@ -1081,5 +1082,66 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         // should see exactly 4 ArrayStores (one for each character)
         val arrayStores = flatOutput.body.collect { case a: ArrayStore => a }
         arrayStores should have length 4
+    }
+
+    "The flattener for array element access" should "read from a 1D array using ArrayLoad" in {
+        // int[] arr = [10, 20, 30]
+        // int x = arr[1]
+        val e1 = IntLiter(10, SemanticData.Typed(synPos.pos, KnownType.Int, None))
+        val e2 = IntLiter(20, SemanticData.Typed(synPos.pos, KnownType.Int, None))
+        val e3 = IntLiter(30, SemanticData.Typed(synPos.pos, KnownType.Int, None))
+        val arrayLit = ArrayLiter(
+            List(e1, e2, e3),
+            SemanticData.Typed(synPos.pos, KnownType.Array(KnownType.Int), Some(3))
+        )
+        val arrIdent = Ident("arr", SemanticData.Var(synPos.pos, 0, KnownType.Array(KnownType.Int)))
+        val arrDecl = Stmt.Decl(SyntaxType.Array(SyntaxType.Int), arrIdent, arrayLit, semPos)
+        
+        val arrayElem = ArrayElem(
+            Ident("arr", SemanticData.Var(synPos.pos, 0, KnownType.Array(KnownType.Int))),
+            List(IntLiter(1, SemanticData.Typed(synPos.pos, KnownType.Int, None))),
+            SemanticData.Typed(synPos.pos, KnownType.Int, None)
+        )
+        val xIdent = Ident("x", SemanticData.Var(synPos.pos, 1, KnownType.Int))
+        val xDecl = Stmt.Decl(SyntaxType.Int, xIdent, arrayElem, semPos)
+        
+        val flatOutput = Flattener.flatten(programWith(List(arrDecl, xDecl)))
+        
+        // should see ArrayLoad for reading arr[1]
+        val arrayLoads = flatOutput.body.collect { case a: ArrayLoad => a }
+        arrayLoads should have length 1
+        arrayLoads.head.index shouldBe Immediate(1)
+    }
+
+    it should "write to a 1D array using ArrayStore" in {
+        // int[] arr = [10, 20, 30]
+        // arr[2] = 99
+        val e1 = IntLiter(10, SemanticData.Typed(synPos.pos, KnownType.Int, None))
+        val e2 = IntLiter(20, SemanticData.Typed(synPos.pos, KnownType.Int, None))
+        val e3 = IntLiter(30, SemanticData.Typed(synPos.pos, KnownType.Int, None))
+        val arrayLit = ArrayLiter(
+            List(e1, e2, e3),
+            SemanticData.Typed(synPos.pos, KnownType.Array(KnownType.Int), Some(3))
+        )
+        val arrIdent = Ident("arr", SemanticData.Var(synPos.pos, 0, KnownType.Array(KnownType.Int)))
+        val arrDecl = Stmt.Decl(SyntaxType.Array(SyntaxType.Int), arrIdent, arrayLit, semPos)
+        
+        val arrayElem = ArrayElem(
+            Ident("arr", SemanticData.Var(synPos.pos, 0, KnownType.Array(KnownType.Int))),
+            List(IntLiter(2, SemanticData.Typed(synPos.pos, KnownType.Int, None))),
+            SemanticData.Typed(synPos.pos, KnownType.Int, None)
+        )
+        val assign = Stmt.Asgn(arrayElem, IntLiter(99, SemanticData.Typed(synPos.pos, KnownType.Int, None)), semPos)
+        
+        val flatOutput = Flattener.flatten(programWith(List(arrDecl, assign)))
+        
+        // should see ArrayStores: 3 for initialization + 1 for assignment
+        val arrayStores = flatOutput.body.collect { case a: ArrayStore => a }
+        arrayStores.length should be > 3
+        
+        // the last ArrayStore should be the assignment with index 2 and value 99
+        val assignStore = arrayStores.last
+        assignStore.index shouldBe Immediate(2)
+        assignStore.src shouldBe Immediate(99)
     }
 }
