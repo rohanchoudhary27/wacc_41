@@ -880,9 +880,9 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
     }
 
     /* ========================= Free Tests ========================= */
-    "The code generator for free statements" should "generate a branch to _freepair and include its widget" in {
+    "The code generator for free statements" should "generate a branch to _freepair for pairs" in {
         val ptrReg = VirtualReg(0, Size.X)
-        val freeInstr = wacc.backend.Free(ptrReg)
+        val freeInstr = wacc.backend.Free(ptrReg, FreeType.Pair)
 
         val allocMap = Map[VirtualReg, Location](
             ptrReg -> PhysicalReg.argRegisters(0)
@@ -894,5 +894,19 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         // should emit a branch to _freepair
         val branchInstrs = armProg.body.collect { case ArmBl(label) => label.name }
         branchInstrs should contain ("_freepair")
+    }
+
+    it should "generate a branch to _freearray for arrays" in {
+        val ptrReg = VirtualReg(0, Size.X)
+        val freeInstr = wacc.backend.Free(ptrReg, FreeType.Array)
+
+        val allocMap = Map[VirtualReg, Location](
+            ptrReg -> PhysicalReg.argRegisters(0)
+        )
+        
+        val armProg = programWith(List(freeInstr), allocMap)
+        
+        val branchInstrs = armProg.body.collect { case ArmBl(label) => label.name }
+        branchInstrs should contain ("_freearray")
     }
 }

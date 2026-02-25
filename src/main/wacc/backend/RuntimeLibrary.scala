@@ -438,6 +438,28 @@ object FreePairWidget extends Widget {
     override val dependencies: Set[Widget] = Set(NullDerefErrorWidget)
 }
 
+/** Runtime widget that implements `_freearray`, freeing an array pointer.
+  * The array pointer points to element 0, but the malloced block starts 4 bytes
+  * before (at the length header), so we subtract 4 before calling free. */
+object FreeArrayWidget extends Widget {
+    override val label: String = "_freearray"
+
+    override val description: String = "free an array by adjusting pointer past length header"
+
+    override val source: String =
+        s"""// ${description}
+            |_freearray:
+            |    // push {lr}
+            |    stp lr, xzr, [sp, #-16]!
+            |    sub x0, x0, #4
+            |    bl free
+            |    // pop {lr}
+            |    ldp lr, xzr, [sp], #16
+            |    ret""".stripMargin
+
+    override val dependencies: Set[Widget] = Set()
+}
+
 /** Runtime widget that implements `_arrLoad1`, bounds-checked load of 1-byte array elements. */
 object ArrayLoad1Widget extends Widget {
     override val label: String = "_arrLoad1"

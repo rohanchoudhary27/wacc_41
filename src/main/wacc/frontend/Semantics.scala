@@ -91,8 +91,10 @@ enum SemanticData {
     *   A (row, column) tuple in the program where the AST node is located
     * @param semType:
     *   The semantic type of the expression
+    * @param arrayLength:
+    *   Optional array length for array literals
     */
-  case Typed(pos: SourcePos, semType: SemanticType)
+  case Typed(pos: SourcePos, semType: SemanticType, arrayLength: Option[Int] = None)
 
   /** Annotating the top-level Program() AST node.
     *
@@ -122,7 +124,7 @@ object SemanticData {
       case SemanticData.Pos(p)           => p
       case SemanticData.Var(p, _, _)     => p
       case SemanticData.Func(p, _, _, _) => p
-      case SemanticData.Typed(p, _)      => p
+      case SemanticData.Typed(p, _, _)   => p
       case SemanticData.Error(p)         => p
       case SemanticData.TopLevel(_)      =>
         (0, 0) /* TopLevel has initial position */
@@ -130,7 +132,7 @@ object SemanticData {
 
     /** Update the semantic type while preserving position and other data */
     def withType(newType: SemanticType): SemanticData = data match {
-      case SemanticData.Typed(pos, _)   => SemanticData.Typed(pos, newType)
+      case SemanticData.Typed(pos, _, arrLen)   => SemanticData.Typed(pos, newType, arrLen)
       case SemanticData.Var(pos, id, _) => SemanticData.Var(pos, id, newType)
 
       /* Pos, Func, Error, TopLevel don't have updatable types */
