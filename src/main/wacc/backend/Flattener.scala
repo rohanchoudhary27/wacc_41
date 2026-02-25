@@ -3,6 +3,7 @@ package wacc.backend
 import wacc.frontend.*
 import scala.collection.mutable.{ListBuffer, Map}
 import wacc.ExitCodes.*
+import wacc.backend.IR
 
 /**
   * A state class managing the virtual register allocation and instructions that make up
@@ -16,11 +17,11 @@ class FunctionState(
     case class QualifiedName(varName: String, varId: Int)
 
     /* Map of variables to their virtual registers */
-    private val virtualRegMap = Map[QualifiedName, VirtualReg]()
+    private val virtualRegMap = Map[QualifiedName, IR.VirtualReg]()
     private var nextVirtualId = 0
 
     /* The list of instructions for the function */
-    private val instructions = ListBuffer[Instruction]()
+    private val instructions = ListBuffer[IR.Instruction]()
 
     /**
       * Look up the virtual register of a given variable. A precondition is that the variable
@@ -30,7 +31,7 @@ class FunctionState(
       * @param renameId the renamed ID from the frontend of the variable
       * @return the VirtualReg assigned to the variable from a prevoius `defineReg` call
       */
-    def lookupReg(varName: String, renameId: Int): VirtualReg = {
+    def lookupReg(varName: String, renameId: Int): IR.VirtualReg = {
         virtualRegMap.get(QualifiedName(varName, renameId)) match
             case None => {
                 Console.err.println("Internal compiler failure: attempted to lookup a virtual" +
@@ -48,8 +49,8 @@ class FunctionState(
       * @param typ the `KnownType` of the variable
       * @return a new virtual register
       */
-    def defineReg(varName: String, renameId: Int, typ: KnownType): VirtualReg = {
-        val nextReg = VirtualReg(nextVirtualId, Size.fromType(typ))
+    def defineReg(varName: String, renameId: Int, typ: KnownType): IR.VirtualReg = {
+        val nextReg = IR.VirtualReg(nextVirtualId, Size.fromType(typ))
         virtualRegMap +=
             QualifiedName(varName, renameId) -> nextReg
         nextVirtualId += 1
@@ -64,8 +65,8 @@ class FunctionState(
       * @param size the `Size` of the variable
       * @return a new virtual register
       */
-    def defineReg(varName: String, renameId: Int, size: Size): VirtualReg = {
-        val nextReg = VirtualReg(nextVirtualId, size)
+    def defineReg(varName: String, renameId: Int, size: Size): IR.VirtualReg = {
+        val nextReg = IR.VirtualReg(nextVirtualId, size)
         virtualRegMap +=
             QualifiedName(varName, renameId) -> nextReg
         nextVirtualId += 1
@@ -79,8 +80,8 @@ class FunctionState(
       * @param typ the `KnownType` of the variable
       * @return
       */
-    def anonymousReg(typ: KnownType): VirtualReg = {
-        val nextReg = VirtualReg(nextVirtualId, Size.fromType(typ))
+    def anonymousReg(typ: KnownType): IR.VirtualReg = {
+        val nextReg = IR.VirtualReg(nextVirtualId, Size.fromType(typ))
         nextVirtualId += 1
         nextReg
     }
@@ -92,8 +93,8 @@ class FunctionState(
       * @param size the `Size` of the variable
       * @return
       */
-    def anonymousReg(size: Size): VirtualReg = {
-        val nextReg = VirtualReg(nextVirtualId, size)
+    def anonymousReg(size: Size): IR.VirtualReg = {
+        val nextReg = IR.VirtualReg(nextVirtualId, size)
         nextVirtualId += 1
         nextReg
     }
@@ -103,7 +104,7 @@ class FunctionState(
       *
       * @param instr
       */
-    def emitInstruction(instr: Instruction): Unit = instructions += instr
+    def emitInstruction(instr: IR.Instruction): Unit = instructions += instr
 
     /**
       * Returns an immutable list of the function's instructions
@@ -118,7 +119,7 @@ class FunctionState(
   */
 class GlobalFlattenContext(
 ) {
-    private val directives = ListBuffer[DataDirective]()
+    private val directives = ListBuffer[IR.DataDirective]()
 
     /* Next available label ID for e.g. "${prefix}_0" */
     private var nextLabelId = 0
@@ -132,14 +133,14 @@ class GlobalFlattenContext(
       * @param prefix the label prefix string
       * @return a `Label` object
       */
-    def getNextLabel(prefix: String): Label = {
-        val label = Label(s"${prefix}_${nextLabelId}")
+    def getNextLabel(prefix: String): IR.Label = {
+        val label = IR.Label(s"${prefix}_${nextLabelId}")
         nextLabelId += 1
         label
     }
 
     /* Mapping strings to their memory address locations (labels) */
-    private val strMap = Map[String, Label]()
+    private val strMap = Map[String, IR.Label]()
     private var strCount = 0
 
     /**
@@ -156,10 +157,10 @@ class GlobalFlattenContext(
       * @return the label of the string (either from a map if already added or a
       * newly created label)
       */
-    def addString(str: String): Label = {
+    def addString(str: String): IR.Label = {
         strMap.get(str) match
             case None => {
-                val strLabel = Label(s"string_${strCount}")
+                val strLabel = IR.Label(s"string_${strCount}")
 
                 /* Escape chars must be written with backslashes in the assembly */
                 val escapedStr = str
@@ -167,7 +168,7 @@ class GlobalFlattenContext(
                     .replace("\'", "\\\'")
                     .replace("\n", "\\n")
 
-                directives += DataDirective(strLabel, escapedStr)
+                directives += IR.DataDirective(strLabel, escapedStr)
                 strMap += str -> strLabel
                 strCount += 1
                 strLabel
@@ -192,7 +193,7 @@ object Flattener {
       * @param typedAST the type checker AST output from the frontend
       * @return a `RegProgram` 3-register assembley IR
       */
-    def flatten(typedAST: Program[SemanticData]): RegProgram = {
+    def flatten(typedAST: Program[SemanticData]): IR.RegProgram = {
         val Program(funcs, stmt, _) = typedAST
 
         /* Initialise contexts */
@@ -203,7 +204,7 @@ object Flattener {
            instructions buffer */
         flattenStmt(stmt)
 
-        RegProgram(funcs.map(flattenFunc),
+        IR.RegProgram(funcs.map(flattenFunc),
                    directiveState.getAllDirectives,
                    funcState.getAllInstructions)
     }
@@ -217,14 +218,14 @@ object Flattener {
       * 
       * @return The virtual register for the operand
       */
-    private def toReg(op: Operand, targetType: KnownType = KnownType.Int)
-                     (using funcState: FunctionState): VirtualReg = op match {
-        case reg: VirtualReg => reg
-        case imm: Immediate => 
+    private def toReg(op: IR.Operand, targetType: KnownType = KnownType.Int)
+                     (using funcState: FunctionState): IR.VirtualReg = op match {
+        case reg: IR.VirtualReg => reg
+        case imm: IR.Immediate => 
             val newReg = funcState.anonymousReg(targetType)
-            funcState.emitInstruction(Mov(newReg, imm))
+            funcState.emitInstruction(IR.Mov(newReg, imm))
             newReg
-        case label: Label => ???
+        case label: IR.Label => ???
     }
     
     /**
@@ -236,14 +237,14 @@ object Flattener {
       * 
       * @return The virtual register for the operand
       */
-    private def toReg(op: Operand, size: Size)
-                     (using funcState: FunctionState): VirtualReg = op match {
-        case reg: VirtualReg => reg
-        case imm: Immediate => 
+    private def toReg(op: IR.Operand, size: Size)
+                     (using funcState: FunctionState): IR.VirtualReg = op match {
+        case reg: IR.VirtualReg => reg
+        case imm: IR.Immediate => 
             val newReg = funcState.anonymousReg(size)
-            funcState.emitInstruction(Mov(newReg, imm))
+            funcState.emitInstruction(IR.Mov(newReg, imm))
             newReg
-        case label: Label => ???
+        case label: IR.Label => ???
     }
 
 
@@ -305,12 +306,12 @@ object Flattener {
             // case _:  /* error!!!!!! should not happen in a declaration */
         }
         
-        val destReg: VirtualReg = funcState.defineReg(ident.name, varId, kty)
-        val srcOperand: Operand = flattenRValue(rval)
+        val destReg: IR.VirtualReg = funcState.defineReg(ident.name, varId, kty)
+        val srcOperand: IR.Operand = flattenRValue(rval)
 
         /* what if destReg's size and srcOperand's size are different? */
 
-        funcState.emitInstruction(Mov(destReg, srcOperand))
+        funcState.emitInstruction(IR.Mov(destReg, srcOperand))
     }
 
     /**
@@ -328,19 +329,19 @@ object Flattener {
     )(using funcState: FunctionState, directiveState: GlobalFlattenContext) = {
         /* assignments update existing state, and flattenLValue handles looking up
             the previously allocated VirtualReg for identifiers or memory for heap objects */
-        val srcOperand: Operand = flattenRValue(rval)
+        val srcOperand: IR.Operand = flattenRValue(rval)
         
         /* We need to generate different high level IR based on the lvalue. If it's a pair access
             we have to use PairStore instead of a simple Mov, so we pattern match lval */
         lval match {
             case _: Ident[SemanticData] =>
-                val destReg: VirtualReg = flattenLValue(lval)
-                funcState.emitInstruction(Mov(destReg, srcOperand))
+                val destReg: IR.VirtualReg = flattenLValue(lval)
+                funcState.emitInstruction(IR.Mov(destReg, srcOperand))
             case p: PairElem[SemanticData] => 
                 val (pairPtr, pos) = resolvePairElem(p) /* get the base pointer and index */
                 /* null check when accessing the pair p */
-                funcState.emitInstruction(NullCheck(pairPtr))
-                funcState.emitInstruction(PairStore(pairPtr, pos, srcOperand))
+                funcState.emitInstruction(IR.NullCheck(pairPtr))
+                funcState.emitInstruction(IR.PairStore(pairPtr, pos, srcOperand))
             case _ => ???
         }
     }
@@ -354,7 +355,7 @@ object Flattener {
       */
     private def flattenLValue(
         lval: LValue[SemanticData]
-    )(using funcState: FunctionState, directiveState: GlobalFlattenContext): VirtualReg = lval match {
+    )(using funcState: FunctionState, directiveState: GlobalFlattenContext): IR.VirtualReg = lval match {
         case ident: Ident[SemanticData] =>
             val SemanticData.Var(_, varId, _) = ident.info: @unchecked 
             funcState.lookupReg(ident.name, varId)
@@ -380,7 +381,7 @@ object Flattener {
       */
     private def flattenRValue(
         rval: RValue[SemanticData]
-    )(using funcState: FunctionState, directiveState: GlobalFlattenContext): Operand = rval match {
+    )(using funcState: FunctionState, directiveState: GlobalFlattenContext): IR.Operand = rval match {
         case expr: Expr[SemanticData] => flattenExpr(expr)
         case wacc.frontend.Call(ident, argList, info) => flattenCall(ident, argList)
         case NewPair(e1, e2, _) => 
@@ -393,10 +394,10 @@ object Flattener {
                 the pointer that corresponds to the first element. this is simialr to C arrays
                 where int *p = {1, 2, 3} the pointer p refers to the first element. */
             val pairPtr = funcState.anonymousReg(Size.X) 
-            funcState.emitInstruction(HeapAlloc(pairPtr, Immediate(PAIR_HEAP_SIZE_B)))
+            funcState.emitInstruction(IR.HeapAlloc(pairPtr, IR.Immediate(PAIR_HEAP_SIZE_B)))
 
-            funcState.emitInstruction(PairStore(pairPtr, PairPos.Fst, src1))
-            funcState.emitInstruction(PairStore(pairPtr, PairPos.Snd, src2))
+            funcState.emitInstruction(IR.PairStore(pairPtr, PairPos.Fst, src1))
+            funcState.emitInstruction(IR.PairStore(pairPtr, PairPos.Snd, src2))
             
             pairPtr
         case p: PairElem[SemanticData] => flattenPairElem(p)
@@ -412,12 +413,12 @@ object Flattener {
      */
     private def flattenPairElem(
         p: PairElem[SemanticData]
-    )(using funcState: FunctionState, directiveState: GlobalFlattenContext): VirtualReg = {
+    )(using funcState: FunctionState, directiveState: GlobalFlattenContext): IR.VirtualReg = {
         val PairElem(_, _, SemanticData.Typed(_, t)) = p: @unchecked
         val (pairPtr, pos) = resolvePairElem(p)
 
         /* emit the null check when referencing a pair */
-        funcState.emitInstruction(NullCheck(pairPtr))
+        funcState.emitInstruction(IR.NullCheck(pairPtr))
 
         /* Extract the element size from its type and allocate an anonymous register
             based on that type. */
@@ -426,7 +427,7 @@ object Flattener {
         val destReg = funcState.anonymousReg(pairElemSize)
 
         /* Load the `pos`-index of the pair from pairPtr into destReg */
-        funcState.emitInstruction(PairLoad(pairPtr, pos, destReg))
+        funcState.emitInstruction(IR.PairLoad(pairPtr, pos, destReg))
 
         destReg
     }
@@ -440,7 +441,7 @@ object Flattener {
      */ 
     private def resolvePairElem(
         pairElem: PairElem[SemanticData]
-    )(using funcState: FunctionState, directiveState: GlobalFlattenContext): (VirtualReg, PairPos) = {
+    )(using funcState: FunctionState, directiveState: GlobalFlattenContext): (IR.VirtualReg, PairPos) = {
         val PairElem(isFst, lval, _) = pairElem
          /* flatten the lvalue to get the pair register */
         val pairPtr = flattenLValue(lval)
@@ -460,7 +461,7 @@ object Flattener {
                            (using funcState: FunctionState,
                                   directiveState: GlobalFlattenContext) = {
         val exitCode = flattenExpr(expr)
-        val callInstr = wacc.backend.Call(Label("exit"), List(exitCode), None)
+        val callInstr = IR.Call(IR.Label("exit"), List(exitCode), None)
         funcState.emitInstruction(callInstr)
     }
 
@@ -506,17 +507,17 @@ object Flattener {
             case _: Ident[SemanticData] =>
                 /* For simple identifiers, read directly into the variable's register */
                 val destReg = flattenLValue(lval)
-                funcState.emitInstruction(Read(destReg, readWidget))
+                funcState.emitInstruction(IR.Read(destReg, readWidget))
             
             case p: PairElem[SemanticData] =>
                 /* pair elements are heap memory, so read into temp then store back */
                 val (pairPtr, pos) = resolvePairElem(p)
-                funcState.emitInstruction(NullCheck(pairPtr))
+                funcState.emitInstruction(IR.NullCheck(pairPtr))
                 
                 val tempReg = funcState.anonymousReg(knownType)
-                funcState.emitInstruction(PairLoad(pairPtr, pos, tempReg))
-                funcState.emitInstruction(Read(tempReg, readWidget))
-                funcState.emitInstruction(PairStore(pairPtr, pos, tempReg))
+                funcState.emitInstruction(IR.PairLoad(pairPtr, pos, tempReg))
+                funcState.emitInstruction(IR.Read(tempReg, readWidget))
+                funcState.emitInstruction(IR.PairStore(pairPtr, pos, tempReg))
             
             case _ => ??? // arrays to be done later
         }
@@ -545,7 +546,7 @@ object Flattener {
         /* evaluate the expression to get the pointer. Since it's a pointer, we can
             use `Size.X` */
         val ptrReg = toReg(flattenExpr(expr), Size.X) 
-        funcState.emitInstruction(wacc.backend.Free(ptrReg))
+        funcState.emitInstruction(IR.Free(ptrReg))
     }
 
     /**
@@ -572,7 +573,7 @@ object Flattener {
             case wacc.frontend.Null => PrintPointerWidget
         
 
-        funcState.emitInstruction(wacc.backend.Print(printVal, printWidget, newline))
+        funcState.emitInstruction(IR.Print(printVal, printWidget, newline))
     }
 
     private def flattenIf(cond: Expr[SemanticData],
@@ -588,19 +589,19 @@ object Flattener {
         val endLabel = directiveState.getNextLabel(".L_end")
 
         /* If the condition is false, jump to the else case*/
-        funcState.emitInstruction(Cmp(toReg(flatCondition), Immediate(0)))
-        funcState.emitInstruction(BranchCond(Condition.EQ, elseLabel))
+        funcState.emitInstruction(IR.Cmp(toReg(flatCondition), IR.Immediate(0)))
+        funcState.emitInstruction(IR.BranchCond(Condition.EQ, elseLabel))
 
         /* Fall through to the true case and then jump to the end */
         flattenStmt(ifBlock)
-        funcState.emitInstruction(BranchUncond(endLabel))
+        funcState.emitInstruction(IR.BranchUncond(endLabel))
 
         /* Define the else section */
-        funcState.emitInstruction(LabelDef(elseLabel))
+        funcState.emitInstruction(IR.LabelDef(elseLabel))
         flattenStmt(elseBlock)
 
         /* End of if statement label */
-        funcState.emitInstruction(LabelDef(endLabel))
+        funcState.emitInstruction(IR.LabelDef(endLabel))
     }
 
     private def flattenWhile(cond: Expr[SemanticData],
@@ -613,17 +614,17 @@ object Flattener {
         val condLabel = directiveState.getNextLabel(".L_cond")
 
         /* Jump to the condition */
-        funcState.emitInstruction(BranchUncond(condLabel))
+        funcState.emitInstruction(IR.BranchUncond(condLabel))
 
         /* Loop body */
-        funcState.emitInstruction(LabelDef(bodyLabel))
+        funcState.emitInstruction(IR.LabelDef(bodyLabel))
         flattenStmt(body)
 
         /* Evaluate the condition and jump back if it's true */
-        funcState.emitInstruction(LabelDef(condLabel))
+        funcState.emitInstruction(IR.LabelDef(condLabel))
         val flatCondition = flattenExpr(cond)
-        funcState.emitInstruction(Cmp(toReg(flatCondition), Immediate(1)))
-        funcState.emitInstruction(BranchCond(Condition.EQ, bodyLabel))
+        funcState.emitInstruction(IR.Cmp(toReg(flatCondition), IR.Immediate(1)))
+        funcState.emitInstruction(IR.BranchCond(Condition.EQ, bodyLabel))
     } 
 
     /**
@@ -650,12 +651,12 @@ object Flattener {
       */
     private def flattenExpr(typedExpr: Expr[SemanticData])
                            (using funcState: FunctionState,
-                                  directiveState: GlobalFlattenContext): Operand = typedExpr match
-        case IntLiter(value, _) => Immediate(value)
-        case BoolLiter(value, _) => Immediate(if value then 1 else 0)
-        case CharLiter(value, _) => Immediate(value)
+                                  directiveState: GlobalFlattenContext): IR.Operand = typedExpr match
+        case IntLiter(value, _) => IR.Immediate(value)
+        case BoolLiter(value, _) => IR.Immediate(if value then 1 else 0)
+        case CharLiter(value, _) => IR.Immediate(value)
         case StrLiter(value, _) => directiveState.addString(value)
-        case PairLiter(_) => Immediate(0) /* reference compiler uses 0 to represent `null` */
+        case PairLiter(_) => IR.Immediate(0) /* reference compiler uses 0 to represent `null` */
         case Ident(name, SemanticData.Var(_, renameId, _)) => funcState.lookupReg(name, renameId)
         case BinaryExpr(op, left, right, _) => flattenBinaryExpr(op, left, right)
         case UnaryExpr(op, expr, _) => flattenUnaryExpr(op, expr)
@@ -675,7 +676,7 @@ object Flattener {
                                   left: Expr[SemanticData],
                                   right: Expr[SemanticData])
                                   (using funcState: FunctionState,
-                                         directiveState: GlobalFlattenContext): VirtualReg = {
+                                         directiveState: GlobalFlattenContext): IR.VirtualReg = {
         val leftOp = flattenExpr(left)
         val rightOp = flattenExpr(right)
 
@@ -689,14 +690,14 @@ object Flattener {
                  BinaryOperator.LTE | BinaryOperator.EQ | BinaryOperator.NEQ =>
                 flattenComparison(op, leftOp, rightOp, exprType)
             case BinaryOperator.And => 
-                flattenBinaryOp(leftOp, rightOp, And.apply, KnownType.Bool)
+                flattenBinaryOp(leftOp, rightOp, IR.And.apply, KnownType.Bool)
             case BinaryOperator.Or => 
-                flattenBinaryOp(leftOp, rightOp, Or.apply, KnownType.Bool)
-            case BinaryOperator.Add => flattenBinaryOp(leftOp, rightOp, Add.apply, KnownType.Int)
-            case BinaryOperator.Sub => flattenBinaryOp(leftOp, rightOp, Sub.apply, KnownType.Int)
-            case BinaryOperator.Mul => flattenBinaryOp(leftOp, rightOp, Mul.apply, KnownType.Int)
-            case BinaryOperator.Div => flattenBinaryOp(leftOp, rightOp, Div.apply, KnownType.Int)
-            case BinaryOperator.Mod => flattenBinaryOp(leftOp, rightOp, Mod.apply, KnownType.Int)
+                flattenBinaryOp(leftOp, rightOp, IR.Or.apply, KnownType.Bool)
+            case BinaryOperator.Add => flattenBinaryOp(leftOp, rightOp, IR.Add.apply, KnownType.Int)
+            case BinaryOperator.Sub => flattenBinaryOp(leftOp, rightOp, IR.Sub.apply, KnownType.Int)
+            case BinaryOperator.Mul => flattenBinaryOp(leftOp, rightOp, IR.Mul.apply, KnownType.Int)
+            case BinaryOperator.Div => flattenBinaryOp(leftOp, rightOp, IR.Div.apply, KnownType.Int)
+            case BinaryOperator.Mod => flattenBinaryOp(leftOp, rightOp, IR.Mod.apply, KnownType.Int)
             case _ => ???
         }
     }
@@ -711,15 +712,15 @@ object Flattener {
       * @return The virtual register containing the comparison result (0 or 1)
       */
     private def flattenComparison(op: BinaryOperator,
-                                  leftOp: Operand,
-                                  rightOp: Operand,
+                                  leftOp: IR.Operand,
+                                  rightOp: IR.Operand,
                                   compType: KnownType)
-                                  (using funcState: FunctionState): VirtualReg = {
+                                  (using funcState: FunctionState): IR.VirtualReg = {
         val leftReg = toReg(leftOp, compType)
         val rightReg = toReg(rightOp, compType)
 
         /* Emit the compare instruction */
-        funcState.emitInstruction(Cmp(leftReg, rightReg))
+        funcState.emitInstruction(IR.Cmp(leftReg, rightReg))
 
         /* Map frontend operator to backend condition */
         val condition = op match {
@@ -733,7 +734,7 @@ object Flattener {
 
         /* Create result register and emit SetCond instruction */
         val resultReg = funcState.anonymousReg(KnownType.Bool)
-        funcState.emitInstruction(SetCond(resultReg, condition))
+        funcState.emitInstruction(IR.SetCond(resultReg, condition))
 
         resultReg
     }
@@ -750,7 +751,7 @@ object Flattener {
     private def flattenUnaryExpr(op: UnaryOperator,
                                  expr: Expr[SemanticData])
                                  (using funcState: FunctionState,
-                                        directiveState: GlobalFlattenContext): VirtualReg = {
+                                        directiveState: GlobalFlattenContext): IR.VirtualReg = {
         val operand = flattenExpr(expr)
 
         op match {
@@ -771,19 +772,19 @@ object Flattener {
       * @param funcState The current scope function state
       * @return The virtual register containing the result
       */
-    private def flattenChr(operand: Operand)
-                          (using funcState: FunctionState): VirtualReg = {
+    private def flattenChr(operand: IR.Operand)
+                          (using funcState: FunctionState): IR.VirtualReg = {
 
         /* Chr input is an int so we use KnownType.Int */
         val srcReg = toReg(operand, KnownType.Int)
 
         /* Emit Chr high level IR instruction with matching reg sizes (both W) */
         val chrIntReg = funcState.anonymousReg(KnownType.Int)
-        funcState.emitInstruction(wacc.backend.Chr(chrIntReg, srcReg, BadCharWidgetError))
+        funcState.emitInstruction(IR.Chr(chrIntReg, srcReg, BadCharWidgetError))
 
         /* Downcast Char reg to Bool reg */
         val chrCharReg = funcState.anonymousReg(KnownType.Char)
-        funcState.emitInstruction(SignExtend(chrCharReg, chrIntReg))
+        funcState.emitInstruction(IR.SignExtend(chrCharReg, chrIntReg))
 
         chrCharReg
     }
@@ -795,8 +796,8 @@ object Flattener {
       * @param funcState The current scope function state
       * @return The virtual register containing the ord result
       */
-    private def flattenOrd(operand: Operand)
-                        (using funcState: FunctionState): VirtualReg = {
+    private def flattenOrd(operand: IR.Operand)
+                        (using funcState: FunctionState): IR.VirtualReg = {
 
         /* Get the source char register (since `ord` takes chars) */
         val srcReg = toReg(operand, KnownType.Char)
@@ -807,7 +808,7 @@ object Flattener {
         /* Sign extend to the larger register (B to W).
            Can't do a MOV here because moves have to be between
            registers of the same size - this is the point of sign extension */
-        funcState.emitInstruction(SignExtend(destReg, srcReg))
+        funcState.emitInstruction(IR.SignExtend(destReg, srcReg))
         
         destReg
     }
@@ -819,11 +820,11 @@ object Flattener {
       * @param funcState The current scope function state
       * @return The virtual register with the negation result
       */
-    private def flattenNeg(operand: Operand)
-                          (using funcState: FunctionState): VirtualReg = {
+    private def flattenNeg(operand: IR.Operand)
+                          (using funcState: FunctionState): IR.VirtualReg = {
         val reg = toReg(operand)
         val negReg = funcState.anonymousReg(KnownType.Int)
-        funcState.emitInstruction(Neg(negReg, reg))
+        funcState.emitInstruction(IR.Neg(negReg, reg))
         negReg
     }
 
@@ -834,12 +835,12 @@ object Flattener {
       * @param funcState The current scope function state
       * @return The virtual register containing the negated result
       */
-    private def flattenNot(operand: Operand)
-                          (using funcState: FunctionState): VirtualReg = {
+    private def flattenNot(operand: IR.Operand)
+                          (using funcState: FunctionState): IR.VirtualReg = {
         val srcReg = toReg(operand, KnownType.Bool)
         val resultReg = funcState.anonymousReg(KnownType.Bool)
 
-        funcState.emitInstruction(Not(resultReg, srcReg))
+        funcState.emitInstruction(IR.Not(resultReg, srcReg))
         
         resultReg
     }
@@ -854,11 +855,11 @@ object Flattener {
       * @param funcState The current scope function state
       * @return The virtual register containing the result
       */
-    private def flattenBinaryOp(leftOp: Operand,
-                                rightOp: Operand,
-                                makeInstr: (VirtualReg, VirtualReg, VirtualReg) => Instruction,
+    private def flattenBinaryOp(leftOp: IR.Operand,
+                                rightOp: IR.Operand,
+                                makeInstr: (IR.VirtualReg, IR.VirtualReg, IR.VirtualReg) => IR.Instruction,
                                 operandType: KnownType = KnownType.Int)
-                               (using funcState: FunctionState): VirtualReg = {
+                               (using funcState: FunctionState): IR.VirtualReg = {
         val leftReg = toReg(leftOp, operandType)
         val rightReg = toReg(rightOp, operandType)
         val resultReg = funcState.anonymousReg(operandType)
@@ -876,7 +877,7 @@ object Flattener {
       * @return a `FunctionDef` high level IR object
       */
     private def flattenFunc(typedFunc: Func[SemanticData])
-                           (using directiveState: GlobalFlattenContext): FunctionDef = {
+                           (using directiveState: GlobalFlattenContext): IR.FunctionDef = {
 
         /* Create a fresh function state */
         given funcState: FunctionState = FunctionState()
@@ -884,12 +885,12 @@ object Flattener {
         val Func(typ, ident, params, stmt, _) = typedFunc
 
         /* Function label */
-        val funcLabel = Label(s"f_${ident.name}")
+        val funcLabel = IR.Label(s"f_${ident.name}")
 
         val flatParams = params.map(flattenParam)
         flattenStmt(stmt)
 
-        FunctionDef(funcLabel.name, flatParams, funcState.getAllInstructions)
+        IR.FunctionDef(funcLabel.name, flatParams, funcState.getAllInstructions)
     }
 
     /**
@@ -900,7 +901,7 @@ object Flattener {
       * @return The virtual register containing the flattened param
       */
     private def flattenParam(param: Param[SemanticData])
-                            (using funcState: FunctionState): VirtualReg = {
+                            (using funcState: FunctionState): IR.VirtualReg = {
 
         
         val SemanticData.Var(_, varId, typ) = param.ident.info: @unchecked 
@@ -925,11 +926,11 @@ object Flattener {
                                    globalContext: GlobalFlattenContext): Unit = {
  
         val flatExprReg = toReg(flattenExpr(expr))
-        val returnReg = VirtualReg(-1, flatExprReg.size)
+        val returnReg = IR.VirtualReg(-1, flatExprReg.size)
         
         /* Move return value to register -1 (return reg) */
-        funcState.emitInstruction(Mov(returnReg, flatExprReg))
-        funcState.emitInstruction(Ret)
+        funcState.emitInstruction(IR.Mov(returnReg, flatExprReg))
+        funcState.emitInstruction(IR.Ret)
     }
 
     /**
@@ -942,10 +943,10 @@ object Flattener {
     private def flattenCall(ident: Ident[SemanticData],
                             argList: List[Expr[SemanticData]])
                             (using funcState: FunctionState,
-                                   globalContext: GlobalFlattenContext): Operand = {
+                                   globalContext: GlobalFlattenContext): IR.Operand = {
         
         /* Flatten function arguments */
-        val flatArgs: List[Operand] = argList.map(arg => flattenExpr(arg))
+        val flatArgs: List[IR.Operand] = argList.map(arg => flattenExpr(arg))
 
         /* Extract KnownType of function return */
         val returnType = ident.info match {
@@ -959,8 +960,8 @@ object Flattener {
         val resultReg = funcState.anonymousReg(knownReturnType)
 
         /* Emit call instruction */
-        val funcLabel = Label(s"f_${ident.name}")
-        funcState.emitInstruction(wacc.backend.Call(funcLabel, flatArgs, Some(resultReg)))
+        val funcLabel = IR.Label(s"f_${ident.name}")
+        funcState.emitInstruction(IR.Call(funcLabel, flatArgs, Some(resultReg)))
 
         resultReg
     }
