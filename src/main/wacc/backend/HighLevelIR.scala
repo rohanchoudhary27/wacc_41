@@ -122,7 +122,8 @@ case class ArrayLoad(array: VirtualReg,
                      dest: VirtualReg) extends ArrayInstr(array, index)
 case class ArrayStore(array: VirtualReg,
                       index: Operand,
-                      src: Operand) extends ArrayInstr(array, index)
+                      src: Operand,
+                      elemSize: Size) extends ArrayInstr(array, index)
 case class ArrayLen(array: VirtualReg, dest: VirtualReg) extends PtrInstr(array)
 
 /* Pair put/get instructions */

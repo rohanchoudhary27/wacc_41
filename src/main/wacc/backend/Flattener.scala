@@ -326,7 +326,8 @@ object Flattener {
                 funcState.emitInstruction(PairStore(pairPtr, pos, srcOperand))
             case a: ArrayElem[SemanticData] =>
                 val (arrayPtr, index) = resolveArrayElem(a)
-                funcState.emitInstruction(ArrayStore(arrayPtr, index, srcOperand))
+                val SemanticData.Typed(_, aElemType, _) = a.info: @unchecked
+                funcState.emitInstruction(ArrayStore(arrayPtr, index, srcOperand, Size.fromSemType(aElemType)))
             case _ => ???
         }
     }
@@ -457,7 +458,7 @@ object Flattener {
         /* flatten and store each element */
         elements.zipWithIndex.foreach { case (elem, idx) =>
             val elemValue = flattenExpr(elem)
-            funcState.emitInstruction(ArrayStore(arrayPtr, Immediate(idx), elemValue))
+            funcState.emitInstruction(ArrayStore(arrayPtr, Immediate(idx), elemValue, elemSize))
         }
         
         arrayPtr
@@ -621,7 +622,7 @@ object Flattener {
                 
                 val tempReg = funcState.anonymousReg(knownType)
                 funcState.emitInstruction(Read(tempReg, readWidget))
-                funcState.emitInstruction(ArrayStore(arrayPtr, index, tempReg))
+                funcState.emitInstruction(ArrayStore(arrayPtr, index, tempReg, Size.fromSemType(knownType)))
         }
     }
 
@@ -645,6 +646,7 @@ object Flattener {
             case wacc.frontend.KnownType.Char => PrintCharWidget
             case wacc.frontend.KnownType.String => PrintStringWidget
             case wacc.frontend.KnownType.Pair(_, _) => PrintPointerWidget
+            case wacc.frontend.KnownType.Array(KnownType.Char) => PrintStringWidget
             case wacc.frontend.KnownType.Array(_) => PrintPointerWidget
             case wacc.frontend.Null => PrintPointerWidget
         
