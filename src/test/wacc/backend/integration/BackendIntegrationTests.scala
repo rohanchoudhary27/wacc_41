@@ -9,8 +9,6 @@ import wacc.*
 import wacc.ExitCodes.*
 import wacc.integration.WaccIntegrationTestBase
 import scala.sys.process.*
-import wacc.backend.WaccBackend
-import scala.sys.process.*
 
 /**
  * Represents test metadata extracted from test files 
