@@ -65,3 +65,11 @@ enum PairPos {
     case Fst
     case Snd
 }
+
+/**
+  * The type of heap object being freed
+  */
+enum FreeType {
+    case Pair
+    case Array
+}

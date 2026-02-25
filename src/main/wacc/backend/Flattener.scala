@@ -184,6 +184,7 @@ class GlobalFlattenContext(
 object Flattener {
 
     private val PAIR_HEAP_SIZE_B = 16
+    private val ARRAY_LEN_HEADER_SIZE_B = 4
 
     /**
       * The main function of the Flattener. Inputs a typed AST (Program[SemanticData]) from the
@@ -342,6 +343,10 @@ object Flattener {
                 /* null check when accessing the pair p */
                 funcState.emitInstruction(IR.NullCheck(pairPtr))
                 funcState.emitInstruction(IR.PairStore(pairPtr, pos, srcOperand))
+            case a: ArrayElem[SemanticData] =>
+                val (arrayPtr, index) = resolveArrayElem(a)
+                val SemanticData.Typed(_, aElemType, _) = a.info: @unchecked
+                funcState.emitInstruction(IR.ArrayStore(arrayPtr, index, srcOperand, Size.fromSemType(aElemType)))
             case _ => ???
         }
     }
@@ -367,9 +372,8 @@ object Flattener {
                 of the inner `fst p`, and so on.  */
             flattenPairElem(p)
 
-        case _ => 
-            // we handle arrays later... (good luck saim)
-            ??? 
+        case a: ArrayElem[SemanticData] =>
+            flattenArrayElem(a)
     }
 
     /**
@@ -400,8 +404,8 @@ object Flattener {
             funcState.emitInstruction(IR.PairStore(pairPtr, PairPos.Snd, src2))
             
             pairPtr
+        case a: ArrayLiter[SemanticData] => flattenArrayLiter(a)
         case p: PairElem[SemanticData] => flattenPairElem(p)
-        case _ => ??? // array liters and calls
     }
 
     /**
@@ -414,7 +418,7 @@ object Flattener {
     private def flattenPairElem(
         p: PairElem[SemanticData]
     )(using funcState: FunctionState, directiveState: GlobalFlattenContext): IR.VirtualReg = {
-        val PairElem(_, _, SemanticData.Typed(_, t)) = p: @unchecked
+        val PairElem(_, _, SemanticData.Typed(_, t, _)) = p: @unchecked
         val (pairPtr, pos) = resolvePairElem(p)
 
         /* emit the null check when referencing a pair */
@@ -430,6 +434,86 @@ object Flattener {
         funcState.emitInstruction(IR.PairLoad(pairPtr, pos, destReg))
 
         destReg
+    }
+
+    /**
+     * Flattens an `ArrayLiter` AST node by allocating heap memory with a length header,
+     * storing each element, and returning the pointer to the first element.
+     * 
+     * @param a The `ArrayLiter` AST node to flatten
+     * @return A `VirtualReg` containing the pointer to the first array element
+     */
+    private def flattenArrayLiter(
+        a: ArrayLiter[SemanticData]
+    )(using funcState: FunctionState, directiveState: GlobalFlattenContext): IR.VirtualReg = {
+        val ArrayLiter(elements, info) = a
+        val SemanticData.Typed(_, arrayType, Some(length)) = info: @unchecked
+        
+        /* extract element type - handle both Array and String types */
+        val elemType = arrayType match {
+            case KnownType.Array(et) => et
+            case KnownType.String => KnownType.Char
+            case _ => ??? /* unreachable for well-typed programs */
+        }
+        
+        /* determine element size and total heap allocation needed */
+        val elemSize = Size.fromSemType(elemType)
+        val totalSize = ARRAY_LEN_HEADER_SIZE_B + length * Size.bytes(elemSize)
+        
+        /* allocate heap memory */
+        val arrayBase = funcState.anonymousReg(Size.X)
+        funcState.emitInstruction(IR.HeapAlloc(arrayBase, IR.Immediate(totalSize)))
+        
+        /* store length header at offset 0 */
+        val lengthReg = funcState.anonymousReg(Size.W)
+        funcState.emitInstruction(IR.Mov(lengthReg, IR.Immediate(length)))
+        funcState.emitInstruction(IR.Store(lengthReg, IR.AddrImmOffset(arrayBase, IR.Immediate(0))))
+        
+        /* calculate pointer to first element (base + 4) */
+        val arrayPtr = funcState.anonymousReg(Size.X)
+        funcState.emitInstruction(IR.Add(arrayPtr, arrayBase, IR.Immediate(ARRAY_LEN_HEADER_SIZE_B)))
+        
+        /* flatten and store each element */
+        elements.zipWithIndex.foreach { case (elem, idx) =>
+            val elemValue = flattenExpr(elem)
+            funcState.emitInstruction(IR.ArrayStore(arrayPtr, IR.Immediate(idx), elemValue, elemSize))
+        }
+        
+        arrayPtr
+    }
+
+    /**
+     * Flattens an `ArrayElem` AST node by loading the array element from the heap.
+     * Handles multi-dimensional arrays by progressively indexing through each dimension.
+     * 
+     * @param a The `ArrayElem` AST node to flatten
+     * @return A `VirtualReg` containing the loaded array element value
+     */
+    private def flattenArrayElem(
+        a: ArrayElem[SemanticData]
+    )(using funcState: FunctionState, directiveState: GlobalFlattenContext): IR.VirtualReg = {
+        val ArrayElem(ident, indices, info) = a
+        val SemanticData.Typed(_, elemType, _) = info: @unchecked
+        
+        /* start with the base array pointer */
+        val SemanticData.Var(_, varId, _) = ident.info: @unchecked
+        var arrayPtr = funcState.lookupReg(ident.name, varId)
+        
+        /* apply each index, loading the intermediate results */
+        indices.init.foreach { indexExpr =>
+            val indexOp = flattenExpr(indexExpr)
+            val nextPtr = funcState.anonymousReg(Size.X)
+            funcState.emitInstruction(IR.ArrayLoad(arrayPtr, indexOp, nextPtr))
+            arrayPtr = nextPtr
+        }
+        
+        /* final index loads the actual element value */
+        val finalIndex = flattenExpr(indices.last)
+        val elemSize = Size.fromSemType(elemType)
+        val resultReg = funcState.anonymousReg(elemSize)
+        funcState.emitInstruction(IR.ArrayLoad(arrayPtr, finalIndex, resultReg))
+        
+        resultReg
     }
     
 
@@ -448,6 +532,35 @@ object Flattener {
 
         val pos = if isFst then PairPos.Fst else PairPos.Snd
         (pairPtr, pos)
+    }
+
+    /**
+     * Resolve the array pointer and final index for an `ArrayElem`.
+     * Handles multi-dimensional arrays by applying all but the last index.
+     * 
+     * @param arrayElem The `ArrayElem` to resolve
+     * @return `(VirtualReg, Operand)` the array pointer and final index
+     */ 
+    private def resolveArrayElem(
+        arrayElem: ArrayElem[SemanticData]
+    )(using funcState: FunctionState, directiveState: GlobalFlattenContext): (IR.VirtualReg, IR.Operand) = {
+        val ArrayElem(ident, indices, _) = arrayElem
+        
+        /* start with the base array pointer */
+        val SemanticData.Var(_, varId, _) = ident.info: @unchecked
+        var arrayPtr = funcState.lookupReg(ident.name, varId)
+        
+        /* apply all indices except the last, loading intermediate array pointers */
+        indices.init.foreach { indexExpr =>
+            val indexOp = flattenExpr(indexExpr)
+            val nextPtr = funcState.anonymousReg(Size.X)
+            funcState.emitInstruction(IR.ArrayLoad(arrayPtr, indexOp, nextPtr))
+            arrayPtr = nextPtr
+        }
+        
+        /* return the final array pointer and last index */
+        val finalIndex = flattenExpr(indices.last)
+        (arrayPtr, finalIndex)
     }
         
     /**
@@ -483,10 +596,12 @@ object Flattener {
                 semType
 
             case p: PairElem[SemanticData] =>
-                val PairElem(_, _, SemanticData.Typed(_, semType)) = p: @unchecked
+                val PairElem(_, _, SemanticData.Typed(_, semType, _)) = p: @unchecked
                 semType
 
-            case _ => ??? // arrays to be done later
+            case a: ArrayElem[SemanticData] =>
+                val ArrayElem(_, _, SemanticData.Typed(_, semType, _)) = a: @unchecked
+                semType
         }
         
         /* Convert SemanticType to KnownType */
@@ -519,7 +634,13 @@ object Flattener {
                 funcState.emitInstruction(IR.Read(tempReg, readWidget))
                 funcState.emitInstruction(IR.PairStore(pairPtr, pos, tempReg))
             
-            case _ => ??? // arrays to be done later
+            case a: ArrayElem[SemanticData] =>
+                /* array elements are also heap memory, so read into temp then store back */
+                val (arrayPtr, index) = resolveArrayElem(a)
+                
+                val tempReg = funcState.anonymousReg(knownType)
+                funcState.emitInstruction(IR.Read(tempReg, readWidget))
+                funcState.emitInstruction(IR.ArrayStore(arrayPtr, index, tempReg, Size.fromSemType(knownType)))
         }
     }
 
@@ -543,10 +664,14 @@ object Flattener {
             "Backend Error: 'free' statement received " +
               s"invalid type ${expr.expressionType}. Must be an array or pair."
         )
+        val freeType = expr.expressionType match {
+            case KnownType.Array(_) => FreeType.Array
+            case _ => FreeType.Pair
+        }
         /* evaluate the expression to get the pointer. Since it's a pointer, we can
             use `Size.X` */
         val ptrReg = toReg(flattenExpr(expr), Size.X) 
-        funcState.emitInstruction(IR.Free(ptrReg))
+        funcState.emitInstruction(IR.Free(ptrReg, freeType))
     }
 
     /**
@@ -569,6 +694,7 @@ object Flattener {
             case wacc.frontend.KnownType.Char => PrintCharWidget
             case wacc.frontend.KnownType.String => PrintStringWidget
             case wacc.frontend.KnownType.Pair(_, _) => PrintPointerWidget
+            case wacc.frontend.KnownType.Array(KnownType.Char) => PrintStringWidget
             case wacc.frontend.KnownType.Array(_) => PrintPointerWidget
             case wacc.frontend.Null => PrintPointerWidget
         
@@ -660,6 +786,7 @@ object Flattener {
         case Ident(name, SemanticData.Var(_, renameId, _)) => funcState.lookupReg(name, renameId)
         case BinaryExpr(op, left, right, _) => flattenBinaryExpr(op, left, right)
         case UnaryExpr(op, expr, _) => flattenUnaryExpr(op, expr)
+        case a: ArrayElem[SemanticData] => flattenArrayElem(a)
         case _ => ???
     
     /**
@@ -759,8 +886,34 @@ object Flattener {
             case UnaryOperator.Chr => flattenChr(operand)
             case UnaryOperator.Ord => flattenOrd(operand)
             case UnaryOperator.Neg => flattenNeg(operand)
-            case UnaryOperator.Len => ??? /* TODO: requires arrays */
+            case UnaryOperator.Len => flattenLen(operand)
         }
+    }
+
+    /**
+      * Flatten a `len` unary operator. Loads the length header from array memory.
+      *
+      * @param arrayOp The array operand (pointer to first element)
+      * @param funcState The current scope function state
+      * @return The virtual register containing the array length
+      */
+    private def flattenLen(arrayOp: IR.Operand)
+                          (using funcState: FunctionState): IR.VirtualReg = {
+        /* convert operand to register if it's not already */
+        val arrayPtr = arrayOp match {
+            case reg: IR.VirtualReg => reg
+            case imm: IR.Immediate =>
+                val tempReg = funcState.anonymousReg(Size.X)
+                funcState.emitInstruction(IR.Mov(tempReg, imm))
+                tempReg
+            case _ => ???
+        }
+        
+        /* emit ArrayLen instruction to load length from array header */
+        val lengthReg = funcState.anonymousReg(Size.W)
+        funcState.emitInstruction(IR.ArrayLen(arrayPtr, lengthReg))
+        
+        lengthReg
     }
 
     /**

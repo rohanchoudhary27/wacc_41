@@ -664,8 +664,15 @@ object CodeGenerator {
 
         /* Data movement */
         case IR.Mov(dest, src) => generateMov(dest, src)
-        case IR.Load(dest, addr) => ??? // TODO
-        case IR.Store(src, addr) => ??? // TODO
+        case IR.Load(dest, addr) =>
+            generateMemOp(dest, addr, ArmLdur.apply, ArmLoad.apply) {
+                /* afterwards, store the loaded value into the destination register */
+                storeToLoc(PhysicalReg.ipcScratch(0), locOf(dest), dest.size)
+            }
+        case IR.Store(src, addr) =>
+            /* pre-load src into scratch0 */
+            loadToReg(locOf(src), src.size, PhysicalReg.ipcScratch(0))
+            generateMemOp(src, addr, ArmStur.apply, ArmStore.apply)()
         
         /* Arithmetic operations */
         case IR.Add(dest, src1, src2) => 
@@ -724,8 +731,11 @@ object CodeGenerator {
         case IR.Pop(dest) => ??? // TODO
         
         /* Array operations */
-        case IR.ArrayLoad(array, index, dest) => ??? // TODO
-        case IR.ArrayStore(array, index, src) => ??? // TODO
+        case IR.ArrayLoad(array, index, dest) => 
+            generateArrayLoad(array, index, dest)
+        case IR.ArrayStore(array, index, src, elemSize) => 
+            generateArrayStore(array, index, src, elemSize)
+        case IR.ArrayLen(array, dest) => generateArrayLen(array, dest)
         
         /* Pair operations */
         case IR.PairLoad(pair, index, dest) => generatePairLoad(pair, index, dest)
@@ -734,7 +744,7 @@ object CodeGenerator {
         
         /* Memory management */
         case IR.HeapAlloc(dest, size) => generateHeapAlloc(dest, size)
-        case IR.Free(ptr) => generateFree(ptr)
+        case IR.Free(ptr, freeType) => generateFree(ptr, freeType)
         
         /* Special operations */
         case IR.Lea(dest, label) => ??? // TODO
@@ -770,8 +780,11 @@ object CodeGenerator {
       *
       * @param ptr The virtual register containing the 64 bit pointer to be freed.
       */
-    private def generateFree(ptr: IR.VirtualReg)(using st: GenState): Unit = {
-        val widget = FreePairWidget
+    private def generateFree(ptr: IR.VirtualReg, freeType: FreeType)(using st: GenState): Unit = {
+        val widget = freeType match {
+            case FreeType.Pair => FreePairWidget
+            case FreeType.Array => FreeArrayWidget
+        }
         useWidget(widget)
         generateCall(IR.Label(widget.label), List(ptr), None)
     }
@@ -887,6 +900,159 @@ object CodeGenerator {
         
         /* Store the 8 byte scrath register into heap memory */
         emit(ArmStore(Size.X, finalSrcReg, ArmAddrImmOffset(ptrReg, ArmImmediate(offset))))
+    }
+
+    /**
+      * Generates low level IR for a generic memory operation (Load or Store).
+      * Handles address resolution and base register loading.
+      *
+      * @param reg the virtual register to load into or store from
+      * @param addr the memory address
+      * @param immOp constructor for immediate-offset memory op
+      * @param regOp constructor for register-offset memory op
+      * @param postOp logic to run after the memory operation
+      */
+    private def generateMemOp(
+        reg: IR.VirtualReg,
+        addr: IR.Address,
+        immOp: (Size, PhysicalReg, ArmAddress) => ArmInstruction,
+        regOp: (Size, PhysicalReg, ArmAddress) => ArmInstruction,
+    )(postOp: => Unit = ())(using st: GenState): Unit = {
+        val scratch0 = PhysicalReg.ipcScratch(0)
+
+        addr match {
+            case IR.AddrImmOffset(base, IR.Immediate(offset)) =>
+                val baseReg = loadToReg(locOf(base), Size.X, PhysicalReg.ipcScratch(1))
+                emit(immOp(reg.size, scratch0, ArmAddrImmOffset(baseReg, ArmImmediate(offset))))
+            case IR.AddrRegOffset(base, offsetReg) =>
+                val baseReg = loadToReg(locOf(base), Size.X, PhysicalReg.ipcScratch(1))
+                val offReg = loadToReg(locOf(offsetReg), Size.X, PhysicalReg.ipcScratch(1))
+                emit(regOp(reg.size, scratch0, ArmAddrRegOffset(baseReg, offReg)))
+            case _ => ???
+        }
+
+        postOp
+    }
+
+    /**
+      * Generates low level IR for an ArrayLoad instruction.
+      * Uses the appropriate runtime widget based on the destination register size.
+      *
+      * Calling convention: array ptr in X7, index in X17, result returned in X7.
+      * 
+      * @param array the virtual register holding the array pointer
+      * @param index the operand specifying the index to load from
+      * @param dest the destination virtual register to store the loaded value
+      */
+    private def generateArrayLoad(array: IR.VirtualReg, index: IR.Operand, dest: IR.VirtualReg)
+                                 (using st: GenState): Unit = {
+        val arrayPtrReg = PhysicalReg.argRegisters(7)  // X7
+        val indexReg = PhysicalReg.ipcScratch(1)       // X17
+        
+        /* Load array pointer into X7 */
+        val ptrReg = loadToReg(locOf(array), Size.X, PhysicalReg.ipcScratch(0))
+        if (ptrReg != arrayPtrReg) {
+            emit(ArmMovReg(Size.X, arrayPtrReg, ptrReg))
+        }
+        
+        /* Load index into X17 */
+        index match {
+            case v: IR.VirtualReg =>
+                val idxReg = loadToReg(locOf(v), Size.W, indexReg)
+                if (idxReg != indexReg) {
+                    emit(ArmMovReg(Size.W, indexReg, idxReg))
+                }
+            case IR.Immediate(value) =>
+                generateMovImmediate(Size.W, indexReg, ArmImmediate(value))
+            case _ => ???
+        }
+        
+        /* Select and call the appropriate widget based on element size */
+        val widget = dest.size match {
+            case Size.B => ArrayLoad1Widget
+            case Size.W => ArrayLoad4Widget
+            case Size.X => ArrayLoad8Widget
+        }
+        useWidget(widget)
+        emit(ArmBl(ArmAddrLabel(widget.label)))
+        
+        /* Result is in X7, move to destination */
+        storeToLoc(arrayPtrReg, locOf(dest), dest.size)
+    }
+
+    /**
+      * Generates low level IR for an ArrayStore instruction.
+      * Uses the appropriate runtime widget based on the element size.
+      *
+      * Calling convention: array ptr in X7, index in X17, value in X8.
+      */
+    private def generateArrayStore(array: IR.VirtualReg, index: IR.Operand, src: IR.Operand, elemSize: Size)
+                                  (using st: GenState): Unit = {
+        val arrayPtrReg = PhysicalReg.argRegisters(7)  // X7
+        val indexReg = PhysicalReg.ipcScratch(1)       // X17
+        val valueReg = PhysicalReg.mathScratch         // X8
+        
+        /* Load array pointer into X7 */
+        val ptrReg = loadToReg(locOf(array), Size.X, PhysicalReg.ipcScratch(0))
+        if (ptrReg != arrayPtrReg) {
+            emit(ArmMovReg(Size.X, arrayPtrReg, ptrReg))
+        }
+        
+        /* Load index into X17 */
+        index match {
+            case v: IR.VirtualReg =>
+                val idxReg = loadToReg(locOf(v), Size.W, indexReg)
+                if (idxReg != indexReg) {
+                    emit(ArmMovReg(Size.W, indexReg, idxReg))
+                }
+            case IR.Immediate(value) =>
+                generateMovImmediate(Size.W, indexReg, ArmImmediate(value))
+            case _ => ???
+        }
+        
+        /* Load value into X8 */
+        src match {
+            case v: IR.VirtualReg =>
+                val srcReg = loadToReg(locOf(v), elemSize, valueReg)
+                if (srcReg != valueReg) {
+                    emit(ArmMovReg(elemSize, valueReg, srcReg))
+                }
+            case IR.Immediate(value) =>
+                generateMovImmediate(elemSize, valueReg, ArmImmediate(value))
+            case IR.Label(name) =>
+                emit(ArmLea(valueReg, ArmAddrLabel(name)))
+        }
+        
+        /* Select and call the appropriate widget based on element size */
+        val widget = elemSize match {
+            case Size.B => ArrayStore1Widget
+            case Size.W => ArrayStore4Widget
+            case Size.X => ArrayStore8Widget
+        }
+        useWidget(widget)
+        emit(ArmBl(ArmAddrLabel(widget.label)))
+    }
+
+    /**
+      * Generates low level IR to load array length from header.
+      * 
+      * Loads the array pointer, then loads the 4-byte length field from offset -4
+      * (the array pointer points to the first element, length is stored before it).
+      *
+      * @param arrayPtr the virtual register holding the pointer to first array element
+      * @param dest the destination virtual register to store the length
+      */
+    private def generateArrayLen(arrayPtr: IR.VirtualReg, dest: IR.VirtualReg)
+                                (using st: GenState): Unit = {
+        /* load the array pointer into scratch register x16 */
+        val ptrReg = loadToReg(locOf(arrayPtr), Size.X, PhysicalReg.ipcScratch(0))
+        
+        /* load the length from offset -4 */
+        val destScratch = PhysicalReg.ipcScratch(1)
+        emit(ArmLdur(Size.W, destScratch, ArmAddrImmOffset(ptrReg, ArmImmediate(-4))))
+        
+        /* store to destination location */
+        storeToLoc(destScratch, locOf(dest), dest.size)
     }
 
     /**

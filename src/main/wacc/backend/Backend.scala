@@ -1,7 +1,6 @@
 package wacc.backend
 
 import wacc.ExitCodes.*
-import wacc.ExitCodes
 import wacc.frontend.{Program, SemanticData}
 import java.nio.file.{Files, Paths, StandardOpenOption}
 import scala.util.{Try, Success, Failure}

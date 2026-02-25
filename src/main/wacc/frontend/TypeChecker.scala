@@ -586,21 +586,21 @@ object TypeChecker {
         } else {
           /* all elements compatible - recheck with constraint to apply weakening */
           val retypedElems = elems.map(e => checkExpr(e, Is(elemType)))
-          ArrayLiter(retypedElems, SemanticData.Typed(info.pos, arrType))
+          ArrayLiter(retypedElems, SemanticData.Typed(info.pos, arrType, Some(elems.length)))
         }
       }
 
       /* type weakening: char[] can be used where string is expected */
       case Constraint.Is(KnownType.String) => {
         val typedElems = elems.map(e => checkExpr(e, Is(KnownType.Char)))
-        ArrayLiter(typedElems, SemanticData.Typed(info.pos, KnownType.String))
+        ArrayLiter(typedElems, SemanticData.Typed(info.pos, KnownType.String, Some(elems.length)))
       }
 
       case Constraint.Is(?) => {
 
         /* find the Lowest Common Ancestor of all element types */
         if (elems.isEmpty) {
-          ArrayLiter(Nil, SemanticData.Typed(info.pos, KnownType.Array(?)))
+          ArrayLiter(Nil, SemanticData.Typed(info.pos, KnownType.Array(?), Some(0)))
         } else {
           /* first pass: infer types of all elements */
           val typedElems = elems.map(e => checkExpr(e, Constraint.Infer))
@@ -619,7 +619,7 @@ object TypeChecker {
               val retypedElems = elems.map(e => checkExpr(e, Is(lcaType)))
               ArrayLiter(
                 retypedElems,
-                SemanticData.Typed(info.pos, KnownType.Array(lcaType))
+                SemanticData.Typed(info.pos, KnownType.Array(lcaType), Some(elems.length))
               )
 
             case None =>
@@ -875,7 +875,7 @@ object TypeChecker {
       constructor: (A, SemanticData) => Expr[SemanticData],
       c: Constraint
   )(using tcState: TCState): Expr[SemanticData] = {
-    val SemanticData.Typed(pos, actualType) = info
+    val SemanticData.Typed(pos, actualType, _) = info
     val ty = actualType.satisfies(c, pos, tcState.errorLogger).getOrElse(?)
     constructor(value, info.withType(ty))
   }
@@ -1028,7 +1028,7 @@ object TypeChecker {
 
         /* Semantic type of the right expression */
         val rightEnforcedType = typedLExpr.info match {
-          case SemanticData.Typed(_, t)  => t
+          case SemanticData.Typed(_, t, _)  => t
           case SemanticData.Var(_, _, t) => t
           case _                         => ?
         }
