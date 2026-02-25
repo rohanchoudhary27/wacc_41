@@ -6,11 +6,9 @@ import java.nio.file.{Files, Path, Paths}
 
 import scala.sys.process.stringSeqToProcess
 import wacc.*
-import wacc.ExitCodes._
+import wacc.ExitCodes.*
 import wacc.integration.WaccIntegrationTestBase
 import scala.sys.process.*
-import wacc.backend.WaccBackend
-import scala.sys.process._
 
 /**
  * Represents test metadata extracted from test files 
@@ -83,7 +81,7 @@ object BackendAdapter extends AnyFlatSpec {
         val frontendRes = wacc.frontend.WaccFrontend.run(source)
 
         frontendRes.exitCode match {
-            case ExitCodes.Success =>
+            case CompilerSuccess =>
                 val backendRes = wacc.backend.WaccBackend.run(
                     frontendRes.typedAST.get,
                     destination.toString

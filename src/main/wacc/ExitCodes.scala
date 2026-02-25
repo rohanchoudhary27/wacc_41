@@ -5,7 +5,7 @@ package wacc
 */
 object ExitCodes {
   opaque type ExitCode = Int
-  val Success: ExitCode = 0
+  val CompilerSuccess: ExitCode = 0
   val SyntaxError: ExitCode = 100
   val SemanticError: ExitCode = 200
   val BackendFailure: ExitCode = 300

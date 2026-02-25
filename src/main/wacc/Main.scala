@@ -3,7 +3,7 @@ package wacc
 import java.nio.file.{Files, Path, Paths}
 import wacc.frontend.*
 import wacc.backend.*
-import wacc.ExitCodes._
+import wacc.ExitCodes.*
 
 /** 
 * Main entry point for the WACC compiler which runs the frontend and backend.
@@ -131,7 +131,7 @@ object WaccCompiler {
         // Run the ast through the backend of the compiler
         val backendResult = WaccBackend.run(ast, outFilename)
 
-        if (backendResult.exitCode == ExitCodes.Success) {
+        if (backendResult.exitCode == CompilerSuccess) {
             println(s"Success - finished with exit code ${backendResult.exitCode}")
         } 
         
