@@ -76,12 +76,12 @@ object Outputter {
         case ArmOrImm(size, dest, src1, imm) => emitBinary("orr", size, dest, src1, imm)
         
         /* Shifts */
-        case ArmLslReg(size, dest, src1, src2) => ???
-        case ArmLslImm(size, dest, src1, imm) => ???
-        case ArmLsrReg(size, dest, src1, src2) => ???
-        case ArmLsrImm(size, dest, src1, imm) => ???
-        case ArmAsrReg(size, dest, src1, src2) => ???
-        case ArmAsrImm(size, dest, src1, imm) => ???
+        case ArmLslReg(size, dest, src1, src2) => emitBinary("lsl", size, dest, src1, src2)
+        case ArmLslImm(size, dest, src1, imm) => emitBinary("lsl", size, dest, src1, imm)
+        case ArmLsrReg(size, dest, src1, src2) => emitBinary("lsr", size, dest, src1, src2)
+        case ArmLsrImm(size, dest, src1, imm) => emitBinary("lsr", size, dest, src1, imm)
+        case ArmAsrReg(size, dest, src1, src2) => emitBinary("asr", size, dest, src1, src2)
+        case ArmAsrImm(size, dest, src1, imm) => emitBinary("asr", size, dest, src1, imm)
         
         /* Data Movement */
         case ArmMovReg(size, dest, src) => emitUnary("mov", size, dest, src)
