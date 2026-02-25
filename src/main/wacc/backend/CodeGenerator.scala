@@ -428,15 +428,22 @@ object CodeGenerator {
                     ))
                 }
             } else {
-                /* large offset, so we need to load the offset into x17, then `str [fp, x17]` */
-                val offsetReg = PhysicalReg.ipcScratch(1) // use x17
+                /* Large offset so scratch register needed but it must not be the
+                   same as the source register else we will destroy it before it
+                   can be stored on the stack. */
+                val offsetReg = if (src == PhysicalReg.ipcScratch(1)) {
+                    PhysicalReg.ipcScratch(0)
+                } else {
+                    PhysicalReg.ipcScratch(1)
+                }
+                
                 generateMovImmediate(Size.X, offsetReg, ArmImmediate(offset))
                 emit(ArmStore(
                     size, src, ArmAddrRegOffset(PhysicalReg.framePointer, offsetReg)
                 ))
-            }
-            
-    }
+            } 
+
+      }
 
     /**
       * Helper function for binary operations that handles repeated logic of widget enabling,
