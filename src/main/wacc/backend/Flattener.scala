@@ -183,8 +183,11 @@ class GlobalFlattenContext(
   */
 object Flattener {
 
+    /* Pairs are always stored in 16 bytes in heap, each pair slot is allocated 8 bytes. */
     private val PAIR_HEAP_SIZE_B = 16
     private val ARRAY_LEN_HEADER_SIZE_B = 4
+
+    private val RETURN_REG_ID = -1
 
     /**
       * The main function of the Flattener. Inputs a typed AST (Program[SemanticData]) from the
@@ -211,8 +214,9 @@ object Flattener {
     }
 
     /**
-      * Converts an operand to a virtual register by making an anonymous register
-      * if the operand is an immediate
+      * Converts an operand to a virtual register by returning the register if the operand
+      * is a register, making an anonymous register if the operand is an immediate, or making
+      * an anonymous register with size `Size.X` if the operand is a label
       *
       * @param op The operand to convert to a register
       * @param targetType The type of the operand
@@ -226,12 +230,18 @@ object Flattener {
             val newReg = funcState.anonymousReg(targetType)
             funcState.emitInstruction(Mov(newReg, imm))
             newReg
-        case label: Label => ???
+        case label: Label => 
+            /* Labels are memory addresses so they must go into a 64-bit 
+               register (Size.X) regardless of the targetType parameter */
+            val newReg = funcState.anonymousReg(Size.X)
+            funcState.emitInstruction(Mov(newReg, label))
+            newReg
     }
     
     /**
-      * Converts an operand to a virtual register by making an anonymous register
-      * if the operand is an immediate
+      * Converts an operand to a virtual register by returning the register if the operand
+      * is a register, making an anonymous register if the operand is an immediate, or making
+      * an anonymous register with size `Size.X` if the operand is a label
       *
       * @param op The operand to convert to a register
       * @param size The size of the operand
@@ -245,7 +255,12 @@ object Flattener {
             val newReg = funcState.anonymousReg(size)
             funcState.emitInstruction(Mov(newReg, imm))
             newReg
-        case label: Label => ???
+        case label: Label => 
+            /* Labels are memory addresses so they must go into a 64-bit 
+               register (Size.X) regardless of the targetType parameter */
+            val newReg = funcState.anonymousReg(Size.X)
+            funcState.emitInstruction(Mov(newReg, label))
+            newReg
     }
 
 
@@ -274,10 +289,6 @@ object Flattener {
         case Stmt.Asgn(lval, rval, _) => flattenAsgn(lval, rval)
         case Stmt.If(cond, ifBlock, elseBlock, _) => flattenIf(cond, ifBlock, elseBlock)
         case Stmt.While(cond, body, _) => flattenWhile(cond, body)
-        case _ => {
-            println(typedStmt)
-            ???
-        }
     }
 
     /**
@@ -294,23 +305,16 @@ object Flattener {
         ident: Ident[SemanticData], 
         rval: RValue[SemanticData]
     )(using funcState: FunctionState, directiveState: GlobalFlattenContext): Unit = { 
-        val SemanticData.Var(_, varId, typ) = ident.info: @unchecked 
-
         /* unlike assignments, declarations create a new variable binding, so we must call 
             defineReg to allocate a fresh `VirtualReg` and store it in the environment so 
             future lookups (eg `lvalue` or `expr` lookups) can find it */
         /* funcState's `defineReg` expects a `KnownType` but the type extracted from the
             `ident` is a `SemanticType`. But we know from type checker that it's always going
              to be a `KnownType`, so just convert it to a `KnownType`. */
-        val kty: KnownType = (typ: @unchecked) match {
-            case t: KnownType => t
-            // case _:  /* error!!!!!! should not happen in a declaration */
-        }
+        val kty: KnownType = ident.info.knownType
         
-        val destReg: VirtualReg = funcState.defineReg(ident.name, varId, kty)
+        val destReg: VirtualReg = funcState.defineReg(ident.name, ident.renameId, kty)
         val srcOperand: Operand = flattenRValue(rval)
-
-        /* what if destReg's size and srcOperand's size are different? */
 
         funcState.emitInstruction(Mov(destReg, srcOperand))
     }
@@ -345,9 +349,9 @@ object Flattener {
                 funcState.emitInstruction(PairStore(pairPtr, pos, srcOperand))
             case a: ArrayElem[SemanticData] =>
                 val (arrayPtr, index) = resolveArrayElem(a)
-                val SemanticData.Typed(_, aElemType, _) = a.info: @unchecked
-                funcState.emitInstruction(ArrayStore(arrayPtr, index, srcOperand, Size.fromSemType(aElemType)))
-            case _ => ???
+                funcState.emitInstruction(
+                    ArrayStore(arrayPtr, index, srcOperand, Size.fromSemType(a.info.semanticType))
+                )
         }
     }
 
@@ -361,10 +365,8 @@ object Flattener {
     private def flattenLValue(
         lval: LValue[SemanticData]
     )(using funcState: FunctionState, directiveState: GlobalFlattenContext): VirtualReg = lval match {
-        case ident: Ident[SemanticData] =>
-            val SemanticData.Var(_, varId, _) = ident.info: @unchecked 
-            funcState.lookupReg(ident.name, varId)
-        
+        case ident: Ident[SemanticData] => funcState.lookupReg(ident.name, ident.renameId)
+
         case p: PairElem[SemanticData] =>
             /* To write to an inner pair (lvalue means that), we must first find out where 
                 it lives in memory. If we have something like `fst fst p`, to 
@@ -418,7 +420,6 @@ object Flattener {
     private def flattenPairElem(
         p: PairElem[SemanticData]
     )(using funcState: FunctionState, directiveState: GlobalFlattenContext): VirtualReg = {
-        val PairElem(_, _, SemanticData.Typed(_, t, _)) = p: @unchecked
         val (pairPtr, pos) = resolvePairElem(p)
 
         /* emit the null check when referencing a pair */
@@ -426,7 +427,7 @@ object Flattener {
 
         /* Extract the element size from its type and allocate an anonymous register
             based on that type. */
-        val pairElemSize = Size.fromSemType(t)
+        val pairElemSize = Size.fromSemType(p.info.semanticType)
 
         val destReg = funcState.anonymousReg(pairElemSize)
 
@@ -453,7 +454,6 @@ object Flattener {
         val elemType = arrayType match {
             case KnownType.Array(et) => et
             case KnownType.String => KnownType.Char
-            case _ => ??? /* unreachable for well-typed programs */
         }
         
         /* determine element size and total heap allocation needed */
@@ -493,11 +493,10 @@ object Flattener {
         a: ArrayElem[SemanticData]
     )(using funcState: FunctionState, directiveState: GlobalFlattenContext): VirtualReg = {
         val ArrayElem(ident, indices, info) = a
-        val SemanticData.Typed(_, elemType, _) = info: @unchecked
+        val elemType = info.semanticType
         
         /* start with the base array pointer */
-        val SemanticData.Var(_, varId, _) = ident.info: @unchecked
-        var arrayPtr = funcState.lookupReg(ident.name, varId)
+        var arrayPtr = funcState.lookupReg(ident.name, ident.renameId)
         
         /* apply each index, loading the intermediate results */
         indices.init.foreach { indexExpr =>
@@ -547,8 +546,7 @@ object Flattener {
         val ArrayElem(ident, indices, _) = arrayElem
         
         /* start with the base array pointer */
-        val SemanticData.Var(_, varId, _) = ident.info: @unchecked
-        var arrayPtr = funcState.lookupReg(ident.name, varId)
+        var arrayPtr = funcState.lookupReg(ident.name, ident.renameId)
         
         /* apply all indices except the last, loading intermediate array pointers */
         indices.init.foreach { indexExpr =>
@@ -590,31 +588,19 @@ object Flattener {
                                   directiveState: GlobalFlattenContext): Unit = {
         
         /* Extract type from lvalue to determine which read widget to use */
-        val readType = lval match {
-            case ident: Ident[SemanticData] =>
-                val SemanticData.Var(_, _, semType) = ident.info: @unchecked
-                semType
-
-            case p: PairElem[SemanticData] =>
-                val PairElem(_, _, SemanticData.Typed(_, semType, _)) = p: @unchecked
-                semType
-
-            case a: ArrayElem[SemanticData] =>
-                val ArrayElem(_, _, SemanticData.Typed(_, semType, _)) = a: @unchecked
-                semType
+        val knownType = lval match {
+            case ident: Ident[SemanticData] => ident.info.knownType
+            case p: PairElem[SemanticData] => p.info.knownType
+            case a: ArrayElem[SemanticData] => a.info.knownType
         }
+
+        /* Read ONLY supports int and char */
+        require(knownType == KnownType.Int || knownType == KnownType.Char)
         
-        /* Convert SemanticType to KnownType */
-        val knownType = readType match {
-            case kt: KnownType => kt
-            case _ => ??? // shouldn't happen after type checking
-        }
-        
-        /* Select widget based on type - read only supports int and char */
-        val readWidget = knownType match {
+        /* Select widget based on type */
+        val readWidget = (knownType: @unchecked) match {
             case KnownType.Int => ReadIntegerWidget
             case KnownType.Char => ReadCharWidget
-            case _ => ???
         }
         
         /* Determine how to store the read value */
@@ -640,7 +626,9 @@ object Flattener {
                 
                 val tempReg = funcState.anonymousReg(knownType)
                 funcState.emitInstruction(Read(tempReg, readWidget))
-                funcState.emitInstruction(ArrayStore(arrayPtr, index, tempReg, Size.fromSemType(knownType)))
+                funcState.emitInstruction(
+                    ArrayStore(arrayPtr, index, tempReg, Size.fromSemType(knownType))
+                )
         }
     }
 
@@ -688,6 +676,10 @@ object Flattener {
         val printVal = flattenExpr(expr)
         val semType = expr.expressionType
 
+        /* the semantic type cannot be `PairAny` or `?` because every expression's type is 
+            known. */
+        require(semType != PairAny && semType != ?)
+
         val printWidget: Widget = semType match
             case wacc.frontend.KnownType.Int =>  PrintIntWidget
             case KnownType.Bool => PrintBoolWidget
@@ -696,7 +688,7 @@ object Flattener {
             case wacc.frontend.KnownType.Pair(_, _) => PrintPointerWidget
             case wacc.frontend.KnownType.Array(KnownType.Char) => PrintStringWidget
             case wacc.frontend.KnownType.Array(_) => PrintPointerWidget
-            case wacc.frontend.Null => PrintPointerWidget
+            case wacc.frontend.Null | wacc.frontend.EmptyArray => PrintPointerWidget
         
 
         funcState.emitInstruction(wacc.backend.Print(printVal, printWidget, newline))
@@ -782,12 +774,11 @@ object Flattener {
         case BoolLiter(value, _) => Immediate(if value then 1 else 0)
         case CharLiter(value, _) => Immediate(value)
         case StrLiter(value, _) => directiveState.addString(value)
-        case PairLiter(_) => Immediate(0) /* reference compiler uses 0 to represent `null` */
-        case Ident(name, SemanticData.Var(_, renameId, _)) => funcState.lookupReg(name, renameId)
+        case PairLiter(_) => Immediate(NULL_PTR) /* reference compiler uses 0 to represent `null` */
+        case i: Ident[SemanticData] => funcState.lookupReg(i.name, i.renameId)
         case BinaryExpr(op, left, right, _) => flattenBinaryExpr(op, left, right)
         case UnaryExpr(op, expr, _) => flattenUnaryExpr(op, expr)
         case a: ArrayElem[SemanticData] => flattenArrayElem(a)
-        case _ => ???
     
     /**
       * Flatten a binary expression
@@ -825,7 +816,6 @@ object Flattener {
             case BinaryOperator.Mul => flattenBinaryOp(leftOp, rightOp, Mul.apply, KnownType.Int)
             case BinaryOperator.Div => flattenBinaryOp(leftOp, rightOp, Div.apply, KnownType.Int)
             case BinaryOperator.Mod => flattenBinaryOp(leftOp, rightOp, Mod.apply, KnownType.Int)
-            case _ => ???
         }
     }
 
@@ -900,14 +890,7 @@ object Flattener {
     private def flattenLen(arrayOp: Operand)
                           (using funcState: FunctionState): VirtualReg = {
         /* convert operand to register if it's not already */
-        val arrayPtr = arrayOp match {
-            case reg: VirtualReg => reg
-            case imm: Immediate =>
-                val tempReg = funcState.anonymousReg(Size.X)
-                funcState.emitInstruction(Mov(tempReg, imm))
-                tempReg
-            case _ => ???
-        }
+        val arrayPtr = toReg(arrayOp, Size.X)
         
         /* emit ArrayLen instruction to load length from array header */
         val lengthReg = funcState.anonymousReg(Size.W)
@@ -1055,16 +1038,8 @@ object Flattener {
       */
     private def flattenParam(param: Param[SemanticData])
                             (using funcState: FunctionState): VirtualReg = {
-
-        
-        val SemanticData.Var(_, varId, typ) = param.ident.info: @unchecked 
-
-        /* Convert SemanticType to KnownType*/
-        val kty: KnownType = (typ: @unchecked) match {
-            case t: KnownType => t
-        }
-
-        funcState.defineReg(param.ident.name, varId, kty)
+        val ident = param.ident
+        funcState.defineReg(ident.name, ident.renameId, ident.info.knownType)
     }
 
     /**
@@ -1079,7 +1054,7 @@ object Flattener {
                                    globalContext: GlobalFlattenContext): Unit = {
  
         val flatExprReg = toReg(flattenExpr(expr))
-        val returnReg = VirtualReg(-1, flatExprReg.size)
+        val returnReg = VirtualReg(RETURN_REG_ID, flatExprReg.size)
         
         /* Move return value to register -1 (return reg) */
         funcState.emitInstruction(Mov(returnReg, flatExprReg))
@@ -1102,12 +1077,7 @@ object Flattener {
         val flatArgs: List[Operand] = argList.map(arg => flattenExpr(arg))
 
         /* Extract KnownType of function return */
-        val returnType = ident.info match {
-            case SemanticData.Func(_, _, typ, _) => typ
-            case _ => ???
-        }
-        val knownReturnType = returnType match
-            case typ: KnownType => typ
+        val knownReturnType = ident.info.knownType
         
         /* Allocate return register */
         val resultReg = funcState.anonymousReg(knownReturnType)
@@ -1117,5 +1087,64 @@ object Flattener {
         funcState.emitInstruction(wacc.backend.Call(funcLabel, flatArgs, Some(resultReg)))
 
         resultReg
+    }
+}
+
+/**
+ * Extension methods for SemanticType
+ */
+extension (typ: SemanticType) {
+    /**
+     * Enforces downcast from a SemanticType to a KnownType.
+     * 
+     * @throws IllegalStateException if the typechecker allowed an unkown type to leak
+     */
+    def asKnownType: KnownType = typ match {
+        case kt: KnownType => kt
+        case _ => throw new IllegalStateException(
+            s"Backend Error: Variable declaration requires a KnownType, but received $typ"
+        )
+    }
+}
+
+/**
+ * Extension methods for SemanticData
+ */
+extension (info: SemanticData) {
+    /**
+     * Extracts the SemanticType from any SemanticData node.
+     * @throws IllegalStateException if the AST node unexpectedly lacks type information.
+     */
+    def semanticType: SemanticType = info match {
+        case SemanticData.Typed(_, t, _)    => t 
+        case SemanticData.Var(_, _, t)   => t
+        case SemanticData.Func(_, _, t, _) => t
+        case _ => throw new IllegalStateException(
+            s"Backend Error: Expected type information in AST node, but found: $info"
+        )
+    }
+
+    /**
+     * Extracts the KnownType from any SemanticData node.
+     * @throws IllegalStateException if the AST node unexpectedly lacks type information or
+     *                               cannot be converted to a `KnownType`
+     */
+    def knownType: KnownType = info.semanticType.asKnownType
+}
+
+/**
+ * Extension methods for Ident
+ */
+extension (ident: Ident[SemanticData]) {
+    /**
+     * Get the renameId from an identifier
+     * 
+     * @return the renameId from the type information stored inside `info` parameter
+     */
+    def renameId: Int = ident.info match {
+        case SemanticData.Var(_, renameId, _) => renameId
+        case _ => throw new IllegalStateException(
+            s"Backend Error: Expected renameId information in Identifier node $ident, but found: $ident.info"
+        )
     }
 }

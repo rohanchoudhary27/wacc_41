@@ -3,6 +3,9 @@ package wacc.backend
 import wacc.frontend.KnownType
 import wacc.frontend.SemanticType
 
+
+val NULL_PTR = 0
+
 /**
   * Size in bytes for registers/memory operations
   */
