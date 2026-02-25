@@ -67,4 +67,6 @@ examples/valid/runtimeErr/nullDereference
 
 examples/valid/expressions
 
+examples/valid/arrays
+
 custom/valid
