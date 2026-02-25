@@ -4,6 +4,7 @@ import scala.collection.mutable.ListBuffer
 import wacc.backend.RegisterAllocator.AllocationResult
 import wacc.ExitCodes.*
 import wacc.backend.TAC
+import wacc.backend.Arm
 
 /**
   * Global context shared across all function code generation.
@@ -11,19 +12,19 @@ import wacc.backend.TAC
   */
 class GlobalGenContext {
     private var labelCounter = 0
-    private val dataDirectives = ListBuffer[ArmDataDirective]()
+    private val dataDirectives = ListBuffer[Arm.DataDirective]()
     
     /** Get the final directive list */
-    def finalDirectives: List[ArmDataDirective] = dataDirectives.toList
+    def finalDirectives: List[Arm.DataDirective] = dataDirectives.toList
 
     /** Widget management */
     val dispatcher = RuntimeLibraryDispatcher()
 
     /** Generate a fresh unique label for compiler-generated code */
-    def freshLabel(): ArmAddrLabel = {
+    def freshLabel(): Arm.AddrLabel = {
         val l = s".L$labelCounter"
         labelCounter += 1
-        ArmAddrLabel(l)
+        Arm.AddrLabel(l)
     }
 
     /**
@@ -31,12 +32,12 @@ class GlobalGenContext {
       *
       * @param labelName The name of the label for the string to be stored
       * @param str The string to store
-      * @return An `ArmAddrLabel` to the directive
+      * @return An `Arm.AddrLabel` to the directive
       */
-    def addStringConstant(labelName: String, str: String): ArmAddrLabel = {
+    def addStringConstant(labelName: String, str: String): Arm.AddrLabel = {
         labelCounter += 1
-        val label = ArmAddrLabel(labelName)
-        dataDirectives += ArmDataDirective(label, str)
+        val label = Arm.AddrLabel(labelName)
+        dataDirectives += Arm.DataDirective(label, str)
         label
     }
 }
@@ -51,19 +52,19 @@ class GlobalGenContext {
 class GenState(val global: GlobalGenContext, val alloc: Map[TAC.VirtualReg, Location]) {
 
     /* The current return label to branch to at the end of the current function */
-    var currEpilogueLabel: Option[ArmAddrLabel] = None
+    var currEpilogueLabel: Option[Arm.AddrLabel] = None
 
     /* Program instructions (.text) */
-    private val instrs = ListBuffer[ArmInstruction]()
+    private val instrs = ListBuffer[Arm.Instruction]()
     
     /** Get the final instruction list */
-    def finalInstrs: List[ArmInstruction] = instrs.toList
+    def finalInstrs: List[Arm.Instruction] = instrs.toList
 
     /** Add an instruction to the output */
-    def +=(instr: ArmInstruction): Unit = instrs += instr
+    def +=(instr: Arm.Instruction): Unit = instrs += instr
 
     /** Generate a fresh unique label */
-    def freshLabel(): ArmAddrLabel = global.freshLabel()
+    def freshLabel(): Arm.AddrLabel = global.freshLabel()
 }
 
 /**
@@ -74,7 +75,7 @@ class GenState(val global: GlobalGenContext, val alloc: Map[TAC.VirtualReg, Loca
 object CodeGenerator {
 
     /** Emit a single instruction to the output */
-    private def emit(instr: ArmInstruction)(using st: GenState): Unit = 
+    private def emit(instr: Arm.Instruction)(using st: GenState): Unit = 
         st += instr
     
     /** Look up the location of a virtual register */
@@ -136,15 +137,15 @@ object CodeGenerator {
 	        b.eq ${NullDerefErrorWidget.label}
             ```
             to check that the ptrReg is null or not */
-        emit(ArmCmpImm(Size.X, ptrReg, ArmImmediate(0)))
-        emit(ArmBranchCond(Condition.EQ, ArmAddrLabel(NullDerefErrorWidget.label)))
+        emit(Arm.CmpImm(Size.X, ptrReg, Arm.Immediate(0)))
+        emit(Arm.BranchCond(Condition.EQ, Arm.AddrLabel(NullDerefErrorWidget.label)))
     }
 
     /**
       * Generates the low level IR for an immediate move. Handles moves for immediates that
       * don't fit in 16 bits by splitting the move in two with MOVK and MOVZ together.
       * 
-      * This function fully replaces the old ArmMovImm low level IR so we now have no need for
+      * This function fully replaces the old Arm.MovImm low level IR so we now have no need for
       * it we can just use this function (which only uses Movk and Movz). Note that anyway Mov
       * in aarch64 was just an alias for Movk/Movz/Orr.
       *
@@ -153,14 +154,14 @@ object CodeGenerator {
       * @param size The size of the destination register
       * @param st A GenState object
       */
-    private def generateMovImmediate(size: Size, dest: PhysicalReg, immValue: ArmImmediate)(using st: GenState): Unit = {
+    private def generateMovImmediate(size: Size, dest: PhysicalReg, immValue: Arm.Immediate)(using st: GenState): Unit = {
 
         val numericalValue = immValue.value
  
         /* If the value fits in 16 bits we can move it in one go. If it fits in 16 bits,
            it will be positive as negative numbers require 32 bits (wacc ints are 32 bit) */
         if (numericalValue >= 0 && numericalValue <= 65535) {
-            emit(ArmMovz(size, dest, ArmImmediate(numericalValue)))
+            emit(Arm.Movz(size, dest, Arm.Immediate(numericalValue)))
         } else {
             val lower16 = numericalValue & 0xFFFF
             val upper16 = (numericalValue >>> 16) & 0xFFFF
@@ -173,13 +174,13 @@ object CodeGenerator {
             
             /* Move in two parts, using Movk to keep the lower half when
                moving the upper half in */
-            emit(ArmMovz(negAdjustedSize, dest, ArmImmediate(lower16)))
-            emit(ArmMovk(negAdjustedSize, dest, ArmImmediate(upper16), ShiftAmounts._16))
+            emit(Arm.Movz(negAdjustedSize, dest, Arm.Immediate(lower16)))
+            emit(Arm.Movk(negAdjustedSize, dest, Arm.Immediate(upper16), ShiftAmounts._16))
 
             /* If the negative immediate's destination was Size.X, then we now need to
                sign extend to leading 0s */
             if (numericalValue < 0 && size == Size.X) {
-                emit(ArmSxtw(dest, dest))
+                emit(Arm.Sxtw(dest, dest))
             }
         }
     }
@@ -192,7 +193,7 @@ object CodeGenerator {
       * @return the complete ARM program with data section and text section
       */
     def generate(regProgram: TAC.RegProgram,
-                 allocs: AllocationResult): (ArmProgram, RuntimeLibraryDispatcher) = {
+                 allocs: AllocationResult): (Arm.Program, RuntimeLibraryDispatcher) = {
 
         /* Init global context for directives and labels and populate directives */
         val globalCtx = new GlobalGenContext()
@@ -207,7 +208,7 @@ object CodeGenerator {
         }
 
         /* Emit code for the main function */
-        emit(ArmLabelDef(ArmAddrLabel("main")))
+        emit(Arm.LabelDef(Arm.AddrLabel("main")))
 
         /* Calculate local variables size needed to put onto stack 
             and the calle-saved registers used */
@@ -223,11 +224,11 @@ object CodeGenerator {
         generateFuncPrologue(localsSize, savedRegs)
         generateInstrs(regProgram.body)
         /* main return 0 */
-        generateMovImmediate(Size.W, PhysicalReg.argRegisters(0), ArmImmediate(code(CompilerSuccess)))
+        generateMovImmediate(Size.W, PhysicalReg.argRegisters(0), Arm.Immediate(code(CompilerSuccess)))
         generateFuncEpilogue(localsSize, savedRegs)
 
         /* Final low-level IR for the program */
-        val program = ArmProgram(globalCtx.finalDirectives, st.finalInstrs)
+        val program = Arm.Program(globalCtx.finalDirectives, st.finalInstrs)
 
         (program, globalCtx.dispatcher)
     }
@@ -249,31 +250,31 @@ object CodeGenerator {
         localsSize: Int, savedRegs: List[PhysicalReg]
     )(using GenState) = {
         /* save FP and LR */
-        emit(ArmStorePair(Size.X,
+        emit(Arm.StorePair(Size.X,
                          PhysicalReg.framePointer,
                          PhysicalReg.linkReg,
-                         ArmAddrPreIndex(PhysicalReg.stackPointer, ArmImmediate(-16))))
+                         Arm.AddrPreIndex(PhysicalReg.stackPointer, Arm.Immediate(-16))))
 
         /* set FP to be SP */
-        emit(ArmMovReg(Size.X, PhysicalReg.framePointer, PhysicalReg.stackPointer))
+        emit(Arm.MovReg(Size.X, PhysicalReg.framePointer, PhysicalReg.stackPointer))
 
         /* reserve space for locals (stack slots) */
         if (localsSize > 0) {
             /* sub sp, sp, <localsSize> */
-            emit(ArmSubImm(
-                Size.X, PhysicalReg.stackPointer, PhysicalReg.stackPointer, ArmImmediate(localsSize)
+            emit(Arm.SubImm(
+                Size.X, PhysicalReg.stackPointer, PhysicalReg.stackPointer, Arm.Immediate(localsSize)
             ))
         }
 
         /* push callee-saved registers in pairs */
         savedRegs.grouped(2).foreach {
             case List(r1, r2) => /* do stp xi, x(i+1), [sp, #-16]! */
-                emit(ArmStorePair(
-                    Size.X, r1, r2, ArmAddrPreIndex(PhysicalReg.stackPointer, ArmImmediate(-16))
+                emit(Arm.StorePair(
+                    Size.X, r1, r2, Arm.AddrPreIndex(PhysicalReg.stackPointer, Arm.Immediate(-16))
                 ))
             case List(r1) => /* push 16 bytes for alignment */
-                emit(ArmStore(
-                    Size.X, r1, ArmAddrPreIndex(PhysicalReg.stackPointer, ArmImmediate(-16))
+                emit(Arm.Store(
+                    Size.X, r1, Arm.AddrPreIndex(PhysicalReg.stackPointer, Arm.Immediate(-16))
                 ))
             case _ => ()
         }
@@ -300,24 +301,24 @@ object CodeGenerator {
                     addr. LDP loads low addr into first register, high into second, so we load 
                     into r1, r2 */
                 /* do ldp r1, r2, [sp], #16 */
-                emit(ArmLoadPair(Size.X, r1, r2, 
-                                 ArmAddrPostIndex(PhysicalReg.stackPointer, ArmImmediate(16))))
+                emit(Arm.LoadPair(Size.X, r1, r2, 
+                                 Arm.AddrPostIndex(PhysicalReg.stackPointer, Arm.Immediate(16))))
             case List(r1) =>
-                emit(ArmLoad(Size.X, r1, 
-                             ArmAddrPostIndex(PhysicalReg.stackPointer, ArmImmediate(16))))
+                emit(Arm.Load(Size.X, r1, 
+                             Arm.AddrPostIndex(PhysicalReg.stackPointer, Arm.Immediate(16))))
             case _ =>
         }
         /* we have to free local variable space too */
         if (localsSize > 0) {
-            emit(ArmAddImm(Size.X, PhysicalReg.stackPointer, PhysicalReg.stackPointer, 
-                           ArmImmediate(localsSize)))
+            emit(Arm.AddImm(Size.X, PhysicalReg.stackPointer, PhysicalReg.stackPointer, 
+                           Arm.Immediate(localsSize)))
         }
         /* restore FP and LR */
-        emit(ArmLoadPair(Size.X,
+        emit(Arm.LoadPair(Size.X,
                           PhysicalReg.framePointer,
                           PhysicalReg.linkReg, 
-                          ArmAddrPostIndex(PhysicalReg.stackPointer, ArmImmediate(16))))
-        emit(ArmRet)
+                          Arm.AddrPostIndex(PhysicalReg.stackPointer, Arm.Immediate(16))))
+        emit(Arm.Ret)
     }
 
     /**
@@ -328,11 +329,11 @@ object CodeGenerator {
       * @param ctx the global context for labels and data directives
       * @return the low-level ARM instruction list
       */
-    def generateFunc(func: TAC.FunctionDef, alloc: Map[TAC.VirtualReg, Location], ctx: GlobalGenContext): List[ArmInstruction] = {
+    def generateFunc(func: TAC.FunctionDef, alloc: Map[TAC.VirtualReg, Location], ctx: GlobalGenContext): List[Arm.Instruction] = {
         given st: GenState = GenState(ctx, alloc)
         
         /* Function label */
-        emit(ArmLabelDef(ArmAddrLabel(func.name)))
+        emit(Arm.LabelDef(Arm.AddrLabel(func.name)))
 
         /* calculate requirements for prologue/epilogue */
         val localsSize = getLocalsSize(alloc)
@@ -351,11 +352,11 @@ object CodeGenerator {
             }
         }
 
-        val epilogueLabel = ArmAddrLabel(s".L_${func.name}_epilogue")
+        val epilogueLabel = Arm.AddrLabel(s".L_${func.name}_epilogue")
         st.currEpilogueLabel = Some(epilogueLabel)
         generateInstrs(func.body)
 
-        emit(ArmLabelDef(epilogueLabel))
+        emit(Arm.LabelDef(epilogueLabel))
         generateFuncEpilogue(localsSize, savedRegs)
         
         st.finalInstrs
@@ -386,18 +387,17 @@ object CodeGenerator {
         case StackSlot(offset) =>
             if (isSafeSignedOffset(offset)) {
                 if (offset < 0) /* negative offset, use LDUR */ {
-                    emit(ArmLdur(size, scratch, ArmAddrImmOffset(PhysicalReg.framePointer, ArmImmediate(offset))))  
+                    emit(Arm.Ldur(size, scratch, Arm.AddrImmOffset(PhysicalReg.framePointer, Arm.Immediate(offset))))  
                 } else { /* positive offset, use LDR */
-                    emit(ArmLoad(
-                        size, scratch, ArmAddrImmOffset(PhysicalReg.framePointer, ArmImmediate(offset))
-                    ))
+                    emit(Arm.Load(size, scratch, Arm.AddrImmOffset(PhysicalReg.framePointer, Arm.Immediate(offset))
+))
                 }
                 
             } else {
                 /* Large offset, so we need to load the offset into x17, then `ldr [fp, x17]` */
                 val offsetReg = PhysicalReg.ipcScratch(1) // use x17
-                generateMovImmediate(Size.X, offsetReg, ArmImmediate(offset))
-                emit(ArmLoad(size, scratch, ArmAddrRegOffset(PhysicalReg.framePointer, offsetReg)))
+                generateMovImmediate(Size.X, offsetReg, Arm.Immediate(offset))
+                emit(Arm.Load(size, scratch, Arm.AddrRegOffset(PhysicalReg.framePointer, offsetReg)))
             }
             scratch
     }
@@ -416,16 +416,16 @@ object CodeGenerator {
         src: PhysicalReg, loc: Location, size: Size
     )(using st: GenState): Unit = loc match {
         case dest: PhysicalReg =>
-            if (src != dest) emit(ArmMovReg(size, dest, src))
+            if (src != dest) emit(Arm.MovReg(size, dest, src))
         case StackSlot(offset) =>
             if (isSafeSignedOffset(offset)) {
                 if (offset < 0) { /* negative offset, use STUR */
-                    emit(ArmStur(
-                        size, src, ArmAddrImmOffset(PhysicalReg.framePointer, ArmImmediate(offset))
+                    emit(Arm.Stur(
+                        size, src, Arm.AddrImmOffset(PhysicalReg.framePointer, Arm.Immediate(offset))
                     ))
                 } else { /* positive offset, use STR */
-                    emit(ArmStore(
-                        size, src, ArmAddrImmOffset(PhysicalReg.framePointer, ArmImmediate(offset))
+                    emit(Arm.Store(
+                        size, src, Arm.AddrImmOffset(PhysicalReg.framePointer, Arm.Immediate(offset))
                     ))
                 }
             } else {
@@ -438,9 +438,9 @@ object CodeGenerator {
                     PhysicalReg.ipcScratch(1)
                 }
                 
-                generateMovImmediate(Size.X, offsetReg, ArmImmediate(offset))
-                emit(ArmStore(
-                    size, src, ArmAddrRegOffset(PhysicalReg.framePointer, offsetReg)
+                generateMovImmediate(Size.X, offsetReg, Arm.Immediate(offset))
+                emit(Arm.Store(
+                    size, src, Arm.AddrRegOffset(PhysicalReg.framePointer, offsetReg)
                 ))
             } 
 
@@ -497,8 +497,8 @@ object CodeGenerator {
         dest: TAC.VirtualReg,
         src1: TAC.VirtualReg,
         src2: TAC.Operand,
-        regOp: (Size, PhysicalReg, PhysicalReg, PhysicalReg) => ArmInstruction,
-        immOp: (Size, PhysicalReg, PhysicalReg, ArmImmediate) => ArmInstruction,
+        regOp: (Size, PhysicalReg, PhysicalReg, PhysicalReg) => Arm.Instruction,
+        immOp: (Size, PhysicalReg, PhysicalReg, Arm.Immediate) => Arm.Instruction,
         optWidget: Option[Widget] = None,
         postOp: => Unit = ()
     )(using st: GenState): Unit = {
@@ -521,7 +521,7 @@ object CodeGenerator {
                 emit(regOp(dest.size, resultReg, src1Reg, src2Reg))
 
             case TAC.Immediate(value) =>
-                emit(immOp(dest.size, resultReg, src1Reg, ArmImmediate(value)))
+                emit(immOp(dest.size, resultReg, src1Reg, Arm.Immediate(value)))
         }
 
         /* Execute any post-instruction logic */
@@ -554,11 +554,11 @@ object CodeGenerator {
                 case v: TAC.VirtualReg => loadToReg(locOf(v), dest.size, PhysicalReg.ipcScratch(1))
                 case TAC.Immediate(v) => 
                     val temp = PhysicalReg.ipcScratch(1)
-                    generateMovImmediate(dest.size, temp, ArmImmediate(v))
+                    generateMovImmediate(dest.size, temp, Arm.Immediate(v))
                     temp
                 case TAC.Label(name) => 
                     val temp = PhysicalReg.ipcScratch(1)
-                    emit(ArmLea(temp, ArmAddrLabel(name)))
+                    emit(Arm.Lea(temp, Arm.AddrLabel(name)))
                     temp
             }
 
@@ -582,16 +582,16 @@ object CodeGenerator {
             (resultReg, src1Reg, src2Reg) =>
 
                 /* Take two 32 bit (w) numbers and multiply, store as a 64 bit (x) register */
-                emit(ArmSMull(resultReg, src1Reg, src2Reg))
+                emit(Arm.SMull(resultReg, src1Reg, src2Reg))
 
                 /* Take lower 32 bits of result and sign extend to 64 into x8.
                    If no overflow then the 32-bit version will be identical to the 64bit SMULL result. */
                 val scratch3 = PhysicalReg.mathScratch
-                emit(ArmSxtw(scratch3, resultReg))
-                emit(ArmCmpReg(Size.X, resultReg, scratch3))
+                emit(Arm.Sxtw(scratch3, resultReg))
+                emit(Arm.CmpReg(Size.X, resultReg, scratch3))
 
                 /* If comparison not equal then an overflow occured, so branch to error widget */
-                emit(ArmBranchCond(Condition.NE, ArmAddrLabel(IntOverflowErrorWidget.label)))
+                emit(Arm.BranchCond(Condition.NE, Arm.AddrLabel(IntOverflowErrorWidget.label)))
         }
     }
 
@@ -610,17 +610,17 @@ object CodeGenerator {
         generateComplexBinOp(dest, src1, src2, Some(DivByZeroErrorWidget)) {
             (resultReg, src1Reg, src2Reg) => 
                 /* Divide by zero check, if so jump to divide by zero widget */
-                emit(ArmCbz(dest.size, src2Reg, ArmAddrLabel(DivByZeroErrorWidget.label)))
+                emit(Arm.Cbz(dest.size, src2Reg, Arm.AddrLabel(DivByZeroErrorWidget.label)))
 
                 /* Use flag to pick either integer division or modulo */
                 if (isMod) {
                     /* Calculate modulo using integer division */
                     val scratch3 = PhysicalReg.mathScratch
-                    emit(ArmDivReg(dest.size, scratch3, src1Reg, src2Reg))
-                    emit(ArmMSub(dest.size, resultReg, scratch3, src2Reg, src1Reg))
+                    emit(Arm.DivReg(dest.size, scratch3, src1Reg, src2Reg))
+                    emit(Arm.MSub(dest.size, resultReg, scratch3, src2Reg, src1Reg))
                     /* Calculate integer division */
                 } else {
-                    emit(ArmDivReg(dest.size, resultReg, src1Reg, src2Reg))
+                    emit(Arm.DivReg(dest.size, resultReg, src1Reg, src2Reg))
                 }
         }
     }
@@ -672,25 +672,25 @@ object CodeGenerator {
         /* Data movement */
         case TAC.Mov(dest, src) => generateMov(dest, src)
         case TAC.Load(dest, addr) =>
-            generateMemOp(dest, addr, ArmLdur.apply, ArmLoad.apply) {
+            generateMemOp(dest, addr, Arm.Ldur.apply, Arm.Load.apply) {
                 /* afterwards, store the loaded value into the destination register */
                 storeToLoc(PhysicalReg.ipcScratch(0), locOf(dest), dest.size)
             }
         case TAC.Store(src, addr) =>
             /* pre-load src into scratch0 */
             loadToReg(locOf(src), src.size, PhysicalReg.ipcScratch(0))
-            generateMemOp(src, addr, ArmStur.apply, ArmStore.apply)()
+            generateMemOp(src, addr, Arm.Stur.apply, Arm.Store.apply)()
         
         /* Arithmetic operations */
         case TAC.Add(dest, src1, src2) => 
-            generateStandardBinOp(dest, src1, src2, ArmAddsReg.apply, ArmAddsImm.apply, Some(IntOverflowErrorWidget), {
+            generateStandardBinOp(dest, src1, src2, Arm.AddsReg.apply, Arm.AddsImm.apply, Some(IntOverflowErrorWidget), {
                 /* Post main operation instruction emission*/
-                emit(ArmBranchCond(Condition.VS, ArmAddrLabel(IntOverflowErrorWidget.label)))
+                emit(Arm.BranchCond(Condition.VS, Arm.AddrLabel(IntOverflowErrorWidget.label)))
             })
         case TAC.Sub(dest, src1, src2) => 
-            generateStandardBinOp(dest, src1, src2, ArmSubsReg.apply, ArmSubsImm.apply, Some(IntOverflowErrorWidget), {
+            generateStandardBinOp(dest, src1, src2, Arm.SubsReg.apply, Arm.SubsImm.apply, Some(IntOverflowErrorWidget), {
                 /* Post main operation instruction emission*/
-                emit(ArmBranchCond(Condition.VS, ArmAddrLabel(IntOverflowErrorWidget.label)))
+                emit(Arm.BranchCond(Condition.VS, Arm.AddrLabel(IntOverflowErrorWidget.label)))
             })
 
         case TAC.Mul(dest, src1, src2) => generateMul(dest, src1, src2)
@@ -700,27 +700,27 @@ object CodeGenerator {
         
         /* Bitwise operations */
         case TAC.And(dest, src1, src2) => 
-            generateStandardBinOp(dest, src1, src2, ArmAndReg.apply, ArmAndImm.apply, None)
+            generateStandardBinOp(dest, src1, src2, Arm.AndReg.apply, Arm.AndImm.apply, None)
         case TAC.Or(dest, src1, src2) => 
-            generateStandardBinOp(dest, src1, src2, ArmOrReg.apply, ArmOrImm.apply, None)
+            generateStandardBinOp(dest, src1, src2, Arm.OrReg.apply, Arm.OrImm.apply, None)
         case TAC.Not(dest, src) => 
             generateNot(dest, src)
 
         case TAC.Lsl(dest, src1, src2) => 
-            generateStandardBinOp(dest, src1, src2, ArmLslReg.apply, ArmLslImm.apply, None)
+            generateStandardBinOp(dest, src1, src2, Arm.LslReg.apply, Arm.LslImm.apply, None)
         case TAC.Lsr(dest, src1, src2) => 
-            generateStandardBinOp(dest, src1, src2, ArmLsrReg.apply, ArmLsrImm.apply, None)
+            generateStandardBinOp(dest, src1, src2, Arm.LsrReg.apply, Arm.LsrImm.apply, None)
         case TAC.Asr(dest, src1, src2) => 
-            generateStandardBinOp(dest, src1, src2, ArmAsrReg.apply, ArmAsrImm.apply, None)
+            generateStandardBinOp(dest, src1, src2, Arm.AsrReg.apply, Arm.AsrImm.apply, None)
         
         /* Comparison and conditional */
         case TAC.Cmp(src1, src2) => generateCmp(src1, src2)
         case TAC.SetCond(dest, cond) => generateSetCond(dest, cond)
         
         /* Control flow */
-        case TAC.BranchUncond(label) => emit(ArmBranchUncond(ArmAddrLabel(label.name)))
-        case TAC.BranchCond(cond, label) => emit(ArmBranchCond(cond, ArmAddrLabel(label.name)))
-        case TAC.LabelDef(label) => emit(ArmLabelDef(ArmAddrLabel(label.name)))
+        case TAC.BranchUncond(label) => emit(Arm.BranchUncond(Arm.AddrLabel(label.name)))
+        case TAC.BranchCond(cond, label) => emit(Arm.BranchCond(cond, Arm.AddrLabel(label.name)))
+        case TAC.LabelDef(label) => emit(Arm.LabelDef(Arm.AddrLabel(label.name)))
         
         /* Function calls */
         case TAC.Call(label, args, destOpt) => generateCall(label, args, destOpt)
@@ -819,7 +819,7 @@ object CodeGenerator {
 
         /* Move to the larger register so we use dest.size */
         if (srcReg != resultReg) {
-            emit(ArmMovReg(dest.size, resultReg, srcReg))
+            emit(Arm.MovReg(dest.size, resultReg, srcReg))
         }
 
         storeToLoc(resultReg, destLoc, dest.size)
@@ -852,7 +852,7 @@ object CodeGenerator {
         /* also note that we load the full 8-byte pair slot (pair slots are always 8 bytes) from
             the heap into the 64 bit (corrsponds to Size.X) scratch register */
         val destScratch = PhysicalReg.ipcScratch(1)
-        emit(ArmLoad(Size.X, destScratch, ArmAddrImmOffset(ptrReg, ArmImmediate(offset))))
+        emit(Arm.Load(Size.X, destScratch, Arm.AddrImmOffset(ptrReg, Arm.Immediate(offset))))
         storeToLoc(destScratch, locOf(dest), dest.size)
     }
 
@@ -898,15 +898,15 @@ object CodeGenerator {
                     scratch register. */
                 loadToReg(locOf(v), Size.X, srcScratch)
             case TAC.Immediate(value) => 
-                generateMovImmediate(Size.X, srcScratch, ArmImmediate(value))
+                generateMovImmediate(Size.X, srcScratch, Arm.Immediate(value))
                 srcScratch
             case TAC.Label(name) => 
-                emit(ArmLea(srcScratch, ArmAddrLabel(name)))
+                emit(Arm.Lea(srcScratch, Arm.AddrLabel(name)))
                 srcScratch
         }
         
         /* Store the 8 byte scrath register into heap memory */
-        emit(ArmStore(Size.X, finalSrcReg, ArmAddrImmOffset(ptrReg, ArmImmediate(offset))))
+        emit(Arm.Store(Size.X, finalSrcReg, Arm.AddrImmOffset(ptrReg, Arm.Immediate(offset))))
     }
 
     /**
@@ -922,19 +922,19 @@ object CodeGenerator {
     private def generateMemOp(
         reg: TAC.VirtualReg,
         addr: TAC.Address,
-        immOp: (Size, PhysicalReg, ArmAddress) => ArmInstruction,
-        regOp: (Size, PhysicalReg, ArmAddress) => ArmInstruction,
+        immOp: (Size, PhysicalReg, Arm.Address) => Arm.Instruction,
+        regOp: (Size, PhysicalReg, Arm.Address) => Arm.Instruction,
     )(postOp: => Unit = ())(using st: GenState): Unit = {
         val scratch0 = PhysicalReg.ipcScratch(0)
 
         addr match {
             case TAC.AddrImmOffset(base, TAC.Immediate(offset)) =>
                 val baseReg = loadToReg(locOf(base), Size.X, PhysicalReg.ipcScratch(1))
-                emit(immOp(reg.size, scratch0, ArmAddrImmOffset(baseReg, ArmImmediate(offset))))
+                emit(immOp(reg.size, scratch0, Arm.AddrImmOffset(baseReg, Arm.Immediate(offset))))
             case TAC.AddrRegOffset(base, offsetReg) =>
                 val baseReg = loadToReg(locOf(base), Size.X, PhysicalReg.ipcScratch(1))
                 val offReg = loadToReg(locOf(offsetReg), Size.X, PhysicalReg.ipcScratch(1))
-                emit(regOp(reg.size, scratch0, ArmAddrRegOffset(baseReg, offReg)))
+                emit(regOp(reg.size, scratch0, Arm.AddrRegOffset(baseReg, offReg)))
             case _ => ???
         }
 
@@ -959,7 +959,7 @@ object CodeGenerator {
         /* Load array pointer into X7 */
         val ptrReg = loadToReg(locOf(array), Size.X, PhysicalReg.ipcScratch(0))
         if (ptrReg != arrayPtrReg) {
-            emit(ArmMovReg(Size.X, arrayPtrReg, ptrReg))
+            emit(Arm.MovReg(Size.X, arrayPtrReg, ptrReg))
         }
         
         /* Load index into X17 */
@@ -967,10 +967,10 @@ object CodeGenerator {
             case v: TAC.VirtualReg =>
                 val idxReg = loadToReg(locOf(v), Size.W, indexReg)
                 if (idxReg != indexReg) {
-                    emit(ArmMovReg(Size.W, indexReg, idxReg))
+                    emit(Arm.MovReg(Size.W, indexReg, idxReg))
                 }
             case TAC.Immediate(value) =>
-                generateMovImmediate(Size.W, indexReg, ArmImmediate(value))
+                generateMovImmediate(Size.W, indexReg, Arm.Immediate(value))
             case _ => ???
         }
         
@@ -981,7 +981,7 @@ object CodeGenerator {
             case Size.X => ArrayLoad8Widget
         }
         useWidget(widget)
-        emit(ArmBl(ArmAddrLabel(widget.label)))
+        emit(Arm.Bl(Arm.AddrLabel(widget.label)))
         
         /* Result is in X7, move to destination */
         storeToLoc(arrayPtrReg, locOf(dest), dest.size)
@@ -1002,7 +1002,7 @@ object CodeGenerator {
         /* Load array pointer into X7 */
         val ptrReg = loadToReg(locOf(array), Size.X, PhysicalReg.ipcScratch(0))
         if (ptrReg != arrayPtrReg) {
-            emit(ArmMovReg(Size.X, arrayPtrReg, ptrReg))
+            emit(Arm.MovReg(Size.X, arrayPtrReg, ptrReg))
         }
         
         /* Load index into X17 */
@@ -1010,10 +1010,10 @@ object CodeGenerator {
             case v: TAC.VirtualReg =>
                 val idxReg = loadToReg(locOf(v), Size.W, indexReg)
                 if (idxReg != indexReg) {
-                    emit(ArmMovReg(Size.W, indexReg, idxReg))
+                    emit(Arm.MovReg(Size.W, indexReg, idxReg))
                 }
             case TAC.Immediate(value) =>
-                generateMovImmediate(Size.W, indexReg, ArmImmediate(value))
+                generateMovImmediate(Size.W, indexReg, Arm.Immediate(value))
             case _ => ???
         }
         
@@ -1022,12 +1022,12 @@ object CodeGenerator {
             case v: TAC.VirtualReg =>
                 val srcReg = loadToReg(locOf(v), elemSize, valueReg)
                 if (srcReg != valueReg) {
-                    emit(ArmMovReg(elemSize, valueReg, srcReg))
+                    emit(Arm.MovReg(elemSize, valueReg, srcReg))
                 }
             case TAC.Immediate(value) =>
-                generateMovImmediate(elemSize, valueReg, ArmImmediate(value))
+                generateMovImmediate(elemSize, valueReg, Arm.Immediate(value))
             case TAC.Label(name) =>
-                emit(ArmLea(valueReg, ArmAddrLabel(name)))
+                emit(Arm.Lea(valueReg, Arm.AddrLabel(name)))
         }
         
         /* Select and call the appropriate widget based on element size */
@@ -1037,7 +1037,7 @@ object CodeGenerator {
             case Size.X => ArrayStore8Widget
         }
         useWidget(widget)
-        emit(ArmBl(ArmAddrLabel(widget.label)))
+        emit(Arm.Bl(Arm.AddrLabel(widget.label)))
     }
 
     /**
@@ -1056,7 +1056,7 @@ object CodeGenerator {
         
         /* load the length from offset -4 */
         val destScratch = PhysicalReg.ipcScratch(1)
-        emit(ArmLdur(Size.W, destScratch, ArmAddrImmOffset(ptrReg, ArmImmediate(-4))))
+        emit(Arm.Ldur(Size.W, destScratch, Arm.AddrImmOffset(ptrReg, Arm.Immediate(-4))))
         
         /* store to destination location */
         storeToLoc(destScratch, locOf(dest), dest.size)
@@ -1081,13 +1081,13 @@ object CodeGenerator {
             /* Move an immediate to scratch */
             case TAC.Immediate(value) =>
                 val scratch = PhysicalReg.ipcScratch(0)
-                generateMovImmediate(dest.size, scratch, ArmImmediate(value))
+                generateMovImmediate(dest.size, scratch, Arm.Immediate(value))
                 scratch
             
             /* Load the memory address into scratch using lea */
             case TAC.Label(name) =>
                 val scratch = PhysicalReg.ipcScratch(0)
-                emit(ArmLea(scratch, ArmAddrLabel(name)))
+                emit(Arm.Lea(scratch, Arm.AddrLabel(name)))
                 scratch
         }
 
@@ -1141,14 +1141,14 @@ object CodeGenerator {
         generateUnaryOp(dest, src, Some(widget), {(d, s) => {
             val maxValidChar = 127
             /* Move the operand into w0 for the error function */
-            emit(ArmMovReg(Size.W, PhysicalReg.argRegisters(0), s))
+            emit(Arm.MovReg(Size.W, PhysicalReg.argRegisters(0), s))
 
             /* If the int value is not 0-127 inclusive, runtime error */
-            emit(ArmCmpImm(Size.W, s, ArmImmediate(maxValidChar)))
-            emit(ArmBranchCond(Condition.HI, ArmAddrLabel(widget.label)))
+            emit(Arm.CmpImm(Size.W, s, Arm.Immediate(maxValidChar)))
+            emit(Arm.BranchCond(Condition.HI, Arm.AddrLabel(widget.label)))
 
             if (d != s) {
-                emit(ArmMovReg(Size.W, d, s))
+                emit(Arm.MovReg(Size.W, d, s))
             }
         }})
     }
@@ -1201,10 +1201,10 @@ object CodeGenerator {
         */
         val unalignedStackBytes = stackArgs.length * 8 
         val stackBytesAdded = alignBytes(unalignedStackBytes)
-        emit(ArmSubImm(Size.X,
+        emit(Arm.SubImm(Size.X,
                         PhysicalReg.stackPointer,
                         PhysicalReg.stackPointer,
-                        ArmImmediate(stackBytesAdded)))
+                        Arm.Immediate(stackBytesAdded)))
 
         /* Space is now allocated, so store excess arguments on the stack */
         stackArgs.zipWithIndex.foreach { (arg, i) =>
@@ -1216,18 +1216,18 @@ object CodeGenerator {
             val valReg = arg match {
                 case v: TAC.VirtualReg => loadToReg(locOf(v), size, PhysicalReg.ipcScratch(0))
                 case TAC.Immediate(value) => 
-                    generateMovImmediate(size, PhysicalReg.ipcScratch(0), ArmImmediate(value))
+                    generateMovImmediate(size, PhysicalReg.ipcScratch(0), Arm.Immediate(value))
                     PhysicalReg.ipcScratch(0)
                 case TAC.Label(name) => 
-                    emit(ArmLea(PhysicalReg.ipcScratch(0), ArmAddrLabel(name)))
+                    emit(Arm.Lea(PhysicalReg.ipcScratch(0), Arm.AddrLabel(name)))
                     PhysicalReg.ipcScratch(0)
             }
 
             /* Store the argument (in scratch) on the stack */
-            emit(ArmStore(size,
+            emit(Arm.Store(size,
                           valReg, 
-                          ArmAddrImmOffset(PhysicalReg.stackPointer,
-                                           ArmImmediate(offset))))
+                          Arm.AddrImmOffset(PhysicalReg.stackPointer,
+                                           Arm.Immediate(offset))))
         }
 
         /* For each function of the register arguments */
@@ -1246,30 +1246,30 @@ object CodeGenerator {
                     
                     /* Move the ith argument into the wi */
                     if (valReg != targetReg) {
-                        emit(ArmMovReg(opSize, targetReg, valReg))
+                        emit(Arm.MovReg(opSize, targetReg, valReg))
                     }
                 
                 case TAC.Immediate(value) =>
                     /* Move the immediate directly to the argument register */
-                    generateMovImmediate(opSize, targetReg, ArmImmediate(value))
+                    generateMovImmediate(opSize, targetReg, Arm.Immediate(value))
                 
                 case TAC.Label(name) => {
                     /* Move the label (string directive in this case) to
                        the argument register */
-                    emit(ArmLea(targetReg, ArmAddrLabel(name)))
+                    emit(Arm.Lea(targetReg, Arm.AddrLabel(name)))
                 }
             }
         }
 
         /* Branch to the function */
-        emit(ArmBl(ArmAddrLabel(label.name)))
+        emit(Arm.Bl(Arm.AddrLabel(label.name)))
 
         /* Post function call, we restore the stack pointer (collapse the frame) */
         if (stackBytesAdded > 0) {
-            emit(ArmAddImm(Size.X, 
+            emit(Arm.AddImm(Size.X, 
                            PhysicalReg.stackPointer, 
                            PhysicalReg.stackPointer, 
-                           ArmImmediate(stackBytesAdded)))
+                           Arm.Immediate(stackBytesAdded)))
         }
 
         /* Move the function return value to the expected register */
@@ -1286,12 +1286,12 @@ object CodeGenerator {
       */
     private def generateReturn()(using genState: GenState) = {
         val optEpilogueLabel = genState.currEpilogueLabel
-        optEpilogueLabel.foreach(l => emit(ArmBranchUncond(l)))
+        optEpilogueLabel.foreach(l => emit(Arm.BranchUncond(l)))
     }
 
     /**
       * Generate low-level IR for a Cmp instruction.
-      * Compares two operands by loading them into registers and emitting ArmCmpReg or ArmCmpImm.
+      * Compares two operands by loading them into registers and emitting Arm.CmpReg or Arm.CmpImm.
       * 
       * @param src1 the first source operand (left side of comparison)
       * @param src2 the second source operand (right side of comparison)
@@ -1308,11 +1308,11 @@ object CodeGenerator {
                 /* Register-register comparison */
                 val src2Loc = locOf(src2VReg)
                 val src2Reg = loadToReg(src2Loc, src1.size, PhysicalReg.ipcScratch(1))
-                emit(ArmCmpReg(src1.size, src1Reg, src2Reg))
+                emit(Arm.CmpReg(src1.size, src1Reg, src2Reg))
 
             case TAC.Immediate(value) =>
                 /* Register-immediate comparison */
-                emit(ArmCmpImm(src1.size, src1Reg, ArmImmediate(value)))
+                emit(Arm.CmpImm(src1.size, src1Reg, Arm.Immediate(value)))
         }
     }
 
@@ -1332,7 +1332,7 @@ object CodeGenerator {
         }
         
         /* Emit conditional set instruction */
-        emit(ArmCSet(dest.size, resultReg, cond))
+        emit(Arm.CSet(dest.size, resultReg, cond))
         
         /* Store result */
         storeToLoc(resultReg, destLoc, dest.size)
@@ -1348,8 +1348,8 @@ object CodeGenerator {
         generateUnaryOp(dest, src, None, { (destReg, srcReg) =>
 
             /* Compare with 0 and set to 1 if equal (i.e. invert the boolean) */
-            emit(ArmCmpImm(src.size, srcReg, ArmImmediate(0)))
-            emit(ArmCSet(dest.size, destReg, Condition.EQ))
+            emit(Arm.CmpImm(src.size, srcReg, Arm.Immediate(0)))
+            emit(Arm.CSet(dest.size, destReg, Condition.EQ))
         })
     }
 
@@ -1361,8 +1361,8 @@ object CodeGenerator {
       */
     private def generateNeg(dest: TAC.VirtualReg, src: TAC.VirtualReg)(using st: GenState): Unit = {
         generateUnaryOp(dest, src, Some(IntOverflowErrorWidget), { (destReg, srcReg) =>
-            emit(ArmNegs(dest.size, destReg, srcReg))
-            emit(ArmBranchCond(Condition.VS, ArmAddrLabel(IntOverflowErrorWidget.label)))
+            emit(Arm.Negs(dest.size, destReg, srcReg))
+            emit(Arm.BranchCond(Condition.VS, Arm.AddrLabel(IntOverflowErrorWidget.label)))
         })
     }
 }

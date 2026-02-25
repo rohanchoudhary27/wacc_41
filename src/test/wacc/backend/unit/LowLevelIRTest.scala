@@ -11,113 +11,113 @@ class LowLevelIRTest extends AnyFlatSpec with Matchers {
 
     /* ==================== Address Mode Tests ==================== */
 
-    "ArmAddrPreIndex" should "store base register and offset" in {
-        val addr = ArmAddrPreIndex(PhysicalReg.stackPointer, ArmImmediate(-16))
+    "Arm.AddrPreIndex" should "store base register and offset" in {
+        val addr = Arm.AddrPreIndex(PhysicalReg.stackPointer, Arm.Immediate(-16))
         addr.baseAddr shouldBe PhysicalReg.stackPointer
-        addr.offset shouldBe ArmImmediate(-16)
+        addr.offset shouldBe Arm.Immediate(-16)
     }
 
-    it should "be an ArmAddress" in {
-        val addr: ArmAddress = ArmAddrPreIndex(PhysicalReg.stackPointer, ArmImmediate(-16))
-        addr shouldBe a [ArmAddrPreIndex]
+    it should "be an Arm.Address" in {
+        val addr: Arm.Address = Arm.AddrPreIndex(PhysicalReg.stackPointer, Arm.Immediate(-16))
+        addr shouldBe a [Arm.AddrPreIndex]
     }
 
-    "ArmAddrPostIndex" should "store base register and offset" in {
-        val addr = ArmAddrPostIndex(PhysicalReg.stackPointer, ArmImmediate(16))
+    "Arm.AddrPostIndex" should "store base register and offset" in {
+        val addr = Arm.AddrPostIndex(PhysicalReg.stackPointer, Arm.Immediate(16))
         addr.baseAddr shouldBe PhysicalReg.stackPointer
-        addr.offset shouldBe ArmImmediate(16)
+        addr.offset shouldBe Arm.Immediate(16)
     }
 
-    it should "be an ArmAddress" in {
-        val addr: ArmAddress = ArmAddrPostIndex(PhysicalReg.stackPointer, ArmImmediate(16))
-        addr shouldBe a [ArmAddrPostIndex]
+    it should "be an Arm.Address" in {
+        val addr: Arm.Address = Arm.AddrPostIndex(PhysicalReg.stackPointer, Arm.Immediate(16))
+        addr shouldBe a [Arm.AddrPostIndex]
     }
 
     /* ==================== Store/Load Pair Tests ==================== */
 
-    "ArmStorePair" should "store size, two source registers, and address" in {
-        val instr = ArmStorePair(
+    "Arm.StorePair" should "store size, two source registers, and address" in {
+        val instr = Arm.StorePair(
             Size.X,
             PhysicalReg.framePointer,
             PhysicalReg.linkReg,
-            ArmAddrPreIndex(PhysicalReg.stackPointer, ArmImmediate(-16))
+            Arm.AddrPreIndex(PhysicalReg.stackPointer, Arm.Immediate(-16))
         )
         instr.size shouldBe Size.X
         instr.src1 shouldBe PhysicalReg.framePointer
         instr.src2 shouldBe PhysicalReg.linkReg
-        instr.addr shouldBe ArmAddrPreIndex(PhysicalReg.stackPointer, ArmImmediate(-16))
+        instr.addr shouldBe Arm.AddrPreIndex(PhysicalReg.stackPointer, Arm.Immediate(-16))
     }
 
-    it should "be an ArmInstruction" in {
-        val instr: ArmInstruction = ArmStorePair(
+    it should "be an Arm.Instruction" in {
+        val instr: Arm.Instruction = Arm.StorePair(
             Size.X,
             PhysicalReg.framePointer,
             PhysicalReg.linkReg,
-            ArmAddrPreIndex(PhysicalReg.stackPointer, ArmImmediate(-16))
+            Arm.AddrPreIndex(PhysicalReg.stackPointer, Arm.Immediate(-16))
         )
-        instr shouldBe a [ArmStorePair]
+        instr shouldBe a [Arm.StorePair]
     }
 
-    "ArmLoadPair" should "store size, two destination registers, and address" in {
-        val instr = ArmLoadPair(
+    "Arm.LoadPair" should "store size, two destination registers, and address" in {
+        val instr = Arm.LoadPair(
             Size.X,
             PhysicalReg.framePointer,
             PhysicalReg.linkReg,
-            ArmAddrPostIndex(PhysicalReg.stackPointer, ArmImmediate(16))
+            Arm.AddrPostIndex(PhysicalReg.stackPointer, Arm.Immediate(16))
         )
         instr.size shouldBe Size.X
         instr.dest1 shouldBe PhysicalReg.framePointer
         instr.dest2 shouldBe PhysicalReg.linkReg
-        instr.addr shouldBe ArmAddrPostIndex(PhysicalReg.stackPointer, ArmImmediate(16))
+        instr.addr shouldBe Arm.AddrPostIndex(PhysicalReg.stackPointer, Arm.Immediate(16))
     }
 
-    it should "be an ArmInstruction" in {
-        val instr: ArmInstruction = ArmLoadPair(
+    it should "be an Arm.Instruction" in {
+        val instr: Arm.Instruction = Arm.LoadPair(
             Size.X,
             PhysicalReg.framePointer,
             PhysicalReg.linkReg,
-            ArmAddrPostIndex(PhysicalReg.stackPointer, ArmImmediate(16))
+            Arm.AddrPostIndex(PhysicalReg.stackPointer, Arm.Immediate(16))
         )
-        instr shouldBe a [ArmLoadPair]
+        instr shouldBe a [Arm.LoadPair]
     }
 
     /* ==================== Equality Tests ==================== */
 
-    "ArmStorePair" should "equal another with the same fields" in {
-        val a = ArmStorePair(Size.X, PhysicalReg.framePointer, PhysicalReg.linkReg,
-            ArmAddrPreIndex(PhysicalReg.stackPointer, ArmImmediate(-16)))
-        val b = ArmStorePair(Size.X, PhysicalReg.framePointer, PhysicalReg.linkReg,
-            ArmAddrPreIndex(PhysicalReg.stackPointer, ArmImmediate(-16)))
+    "Arm.StorePair" should "equal another with the same fields" in {
+        val a = Arm.StorePair(Size.X, PhysicalReg.framePointer, PhysicalReg.linkReg,
+            Arm.AddrPreIndex(PhysicalReg.stackPointer, Arm.Immediate(-16)))
+        val b = Arm.StorePair(Size.X, PhysicalReg.framePointer, PhysicalReg.linkReg,
+            Arm.AddrPreIndex(PhysicalReg.stackPointer, Arm.Immediate(-16)))
         a shouldBe b
     }
 
     it should "not equal one with different address" in {
-        val a = ArmStorePair(Size.X, PhysicalReg.framePointer, PhysicalReg.linkReg,
-            ArmAddrPreIndex(PhysicalReg.stackPointer, ArmImmediate(-16)))
-        val b = ArmStorePair(Size.X, PhysicalReg.framePointer, PhysicalReg.linkReg,
-            ArmAddrPostIndex(PhysicalReg.stackPointer, ArmImmediate(16)))
+        val a = Arm.StorePair(Size.X, PhysicalReg.framePointer, PhysicalReg.linkReg,
+            Arm.AddrPreIndex(PhysicalReg.stackPointer, Arm.Immediate(-16)))
+        val b = Arm.StorePair(Size.X, PhysicalReg.framePointer, PhysicalReg.linkReg,
+            Arm.AddrPostIndex(PhysicalReg.stackPointer, Arm.Immediate(16)))
         a should not be b
     }
 
-    "ArmLoadPair" should "equal another with the same fields" in {
-        val a = ArmLoadPair(Size.X, PhysicalReg.framePointer, PhysicalReg.linkReg,
-            ArmAddrPostIndex(PhysicalReg.stackPointer, ArmImmediate(16)))
-        val b = ArmLoadPair(Size.X, PhysicalReg.framePointer, PhysicalReg.linkReg,
-            ArmAddrPostIndex(PhysicalReg.stackPointer, ArmImmediate(16)))
+    "Arm.LoadPair" should "equal another with the same fields" in {
+        val a = Arm.LoadPair(Size.X, PhysicalReg.framePointer, PhysicalReg.linkReg,
+            Arm.AddrPostIndex(PhysicalReg.stackPointer, Arm.Immediate(16)))
+        val b = Arm.LoadPair(Size.X, PhysicalReg.framePointer, PhysicalReg.linkReg,
+            Arm.AddrPostIndex(PhysicalReg.stackPointer, Arm.Immediate(16)))
         a shouldBe b
     }
 
-    /* ==================== ArmProgram Tests ==================== */
+    /* ==================== Arm.Program Tests ==================== */
 
-    "ArmProgram" should "hold data directives and body instructions" in {
-        val dir = ArmDataDirective(ArmAddrLabel(".msg_0"), "hello")
+    "Arm.Program" should "hold data directives and body instructions" in {
+        val dir = Arm.DataDirective(Arm.AddrLabel(".msg_0"), "hello")
         val body = List(
-            ArmLabelDef(ArmAddrLabel("main")),
-            ArmStorePair(Size.X, PhysicalReg.framePointer, PhysicalReg.linkReg,
-                ArmAddrPreIndex(PhysicalReg.stackPointer, ArmImmediate(-16))),
-            ArmRet
+            Arm.LabelDef(Arm.AddrLabel("main")),
+            Arm.StorePair(Size.X, PhysicalReg.framePointer, PhysicalReg.linkReg,
+                Arm.AddrPreIndex(PhysicalReg.stackPointer, Arm.Immediate(-16))),
+            Arm.Ret
         )
-        val prog = ArmProgram(List(dir), body)
+        val prog = Arm.Program(List(dir), body)
         prog.data should have length 1
         prog.body should have length 3
     }
