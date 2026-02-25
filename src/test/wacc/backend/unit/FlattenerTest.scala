@@ -238,11 +238,11 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         // Should generate: Mov(VirtualReg(0, W), Immediate(0)), Read(VirtualReg(0, W), ReadIntegerWidget)
         result.body should have length 2
         
-        val decl: IR.Mov = (result.body(0): @unchecked) match {
-            case m: IR.Mov => m
+        val decl: TAC.Mov = (result.body(0): @unchecked) match {
+            case m: TAC.Mov => m
         }
-        val read: IR.Read = (result.body(1): @unchecked) match {
-            case r: IR.Read => r
+        val read: TAC.Read = (result.body(1): @unchecked) match {
+            case r: TAC.Read => r
         }
 
         decl.reg should matchPattern { case TAC.VirtualReg(0, Size.W) => }
@@ -269,8 +269,8 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         // Should generate: Mov(VirtualReg(0, B), Immediate(97)), Read(VirtualReg(0, B), ReadCharWidget)
         result.body should have length 2
         
-        val read: IR.Read = (result.body(1): @unchecked) match {
-            case r: IR.Read => r
+        val read: TAC.Read = (result.body(1): @unchecked) match {
+            case r: TAC.Read => r
         }
 
         read.widget shouldBe ReadCharWidget
@@ -367,8 +367,8 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         result.body should have length 1
         result.body.head shouldBe a [TAC.Mov]
         
-        val mov: IR.Mov = (result.body.head: @unchecked) match {
-            case m: IR.Mov => m
+        val mov: TAC.Mov = (result.body.head: @unchecked) match {
+            case m: TAC.Mov => m
         }
         mov.src shouldBe TAC.Immediate(5)
         mov.reg should matchPattern { case TAC.VirtualReg(0, Size.W) => }
@@ -401,11 +401,11 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         // 2. Mov(v1, v0)
         result.body should have length 2
         
-        val instr1: IR.Mov = (result.body(0): @unchecked) match {
-            case m: IR.Mov => m
+        val instr1: TAC.Mov = (result.body(0): @unchecked) match {
+            case m: TAC.Mov => m
         }
-        val instr2: IR.Mov = (result.body(1): @unchecked) match {
-            case m: IR.Mov => m
+        val instr2: TAC.Mov = (result.body(1): @unchecked) match {
+            case m: TAC.Mov => m
         }
 
         instr1.src shouldBe TAC.Immediate(5)
@@ -436,11 +436,11 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         val result = Flattener.flatten(programWith(block))
 
         result.body should have length 2
-        val declMov: IR.Mov = (result.body(0): @unchecked) match {
-            case m: IR.Mov => m
+        val declMov: TAC.Mov = (result.body(0): @unchecked) match {
+            case m: TAC.Mov => m
         }
-        val asgnMov: IR.Mov = (result.body(1): @unchecked) match {
-            case m: IR.Mov => m
+        val asgnMov: TAC.Mov = (result.body(1): @unchecked) match {
+            case m: TAC.Mov => m
         }
 
         // Both instructions should target the same register
