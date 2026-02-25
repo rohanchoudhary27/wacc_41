@@ -1,6 +1,6 @@
 package wacc.backend
 
-object IR {
+object TAC {
 
     /* Operands */
     sealed trait Operand

@@ -3,7 +3,7 @@ package wacc.backend
 import scala.collection.mutable.ListBuffer
 import wacc.backend.RegisterAllocator.AllocationResult
 import wacc.ExitCodes.*
-import wacc.backend.IR
+import wacc.backend.TAC
 
 /**
   * Global context shared across all function code generation.
@@ -48,7 +48,7 @@ class GlobalGenContext {
   * @param global the global context for labels and data directives
   * @param alloc the register allocation map (VirtualReg -> Location)
   */
-class GenState(val global: GlobalGenContext, val alloc: Map[IR.VirtualReg, Location]) {
+class GenState(val global: GlobalGenContext, val alloc: Map[TAC.VirtualReg, Location]) {
 
     /* The current return label to branch to at the end of the current function */
     var currEpilogueLabel: Option[ArmAddrLabel] = None
@@ -78,7 +78,7 @@ object CodeGenerator {
         st += instr
     
     /** Look up the location of a virtual register */
-    private def locOf(vReg: IR.VirtualReg)(using st: GenState): Location = 
+    private def locOf(vReg: TAC.VirtualReg)(using st: GenState): Location = 
         st.alloc(vReg)
     
     /** Mark a widget as used (will be included in final assembly) */
@@ -99,7 +99,7 @@ object CodeGenerator {
       * Helper to get the set of callee-saved registers (x19-x28) used in a function.
       * We only need to save the ones we actually assign
       */
-    private def getUsedCalleeSaved(alloc: Map[IR.VirtualReg, Location]): List[PhysicalReg] = {
+    private def getUsedCalleeSaved(alloc: Map[TAC.VirtualReg, Location]): List[PhysicalReg] = {
         val used = alloc.values.collect { 
             case r: PhysicalReg if PhysicalReg.calleeSaved.contains(r) => r 
         }.toSet
@@ -111,7 +111,7 @@ object CodeGenerator {
       * Helper to calculate the size of the local variables area.
       * Scans for the lowest StackSlot offset and aligns the size to 16 bytes.
       */
-    private def getLocalsSize(alloc: Map[IR.VirtualReg, Location]): Int = {
+    private def getLocalsSize(alloc: Map[TAC.VirtualReg, Location]): Int = {
         val minOffset = alloc.values.collect { 
             case StackSlot(offset) => offset 
         }.minOption.getOrElse(0)
@@ -191,7 +191,7 @@ object CodeGenerator {
       * @param allocs the register allocation result containing maps for main and all functions
       * @return the complete ARM program with data section and text section
       */
-    def generate(regProgram: IR.RegProgram,
+    def generate(regProgram: TAC.RegProgram,
                  allocs: AllocationResult): (ArmProgram, RuntimeLibraryDispatcher) = {
 
         /* Init global context for directives and labels and populate directives */
@@ -328,7 +328,7 @@ object CodeGenerator {
       * @param ctx the global context for labels and data directives
       * @return the low-level ARM instruction list
       */
-    def generateFunc(func: IR.FunctionDef, alloc: Map[IR.VirtualReg, Location], ctx: GlobalGenContext): List[ArmInstruction] = {
+    def generateFunc(func: TAC.FunctionDef, alloc: Map[TAC.VirtualReg, Location], ctx: GlobalGenContext): List[ArmInstruction] = {
         given st: GenState = GenState(ctx, alloc)
         
         /* Function label */
@@ -365,7 +365,7 @@ object CodeGenerator {
       * Generate ARM instructions for a list of high-level instructions.
       * Wrapper that dispatches each instruction to generateInstr.
       */
-    private def generateInstrs(instrs: List[IR.Instruction])(using st: GenState): Unit =
+    private def generateInstrs(instrs: List[TAC.Instruction])(using st: GenState): Unit =
         instrs.foreach(generateInstr)
 
     
@@ -456,8 +456,8 @@ object CodeGenerator {
       * @param opBlock A function for emitting the instructions for the specific binary operation
       * @param st A GenState object
       */
-    private def withBinaryContext(dest: IR.VirtualReg, 
-                                  src1: IR.VirtualReg, 
+    private def withBinaryContext(dest: TAC.VirtualReg, 
+                                  src1: TAC.VirtualReg, 
                                   optWidget: Option[Widget] = None)
                                  (opBlock: (PhysicalReg, PhysicalReg) => Unit)(using st: GenState): Unit = {
 
@@ -494,9 +494,9 @@ object CodeGenerator {
       * @param st A GenState object
       */
     private def generateStandardBinOp(
-        dest: IR.VirtualReg,
-        src1: IR.VirtualReg,
-        src2: IR.Operand,
+        dest: TAC.VirtualReg,
+        src1: TAC.VirtualReg,
+        src2: TAC.Operand,
         regOp: (Size, PhysicalReg, PhysicalReg, PhysicalReg) => ArmInstruction,
         immOp: (Size, PhysicalReg, PhysicalReg, ArmImmediate) => ArmInstruction,
         optWidget: Option[Widget] = None,
@@ -516,11 +516,11 @@ object CodeGenerator {
         
         /* Generate the register-register / register-immediate instruction */
         (src2: @unchecked) match {
-            case src2VReg: IR.VirtualReg =>
+            case src2VReg: TAC.VirtualReg =>
                 val src2Reg = loadToReg(locOf(src2VReg), dest.size, PhysicalReg.ipcScratch(1))
                 emit(regOp(dest.size, resultReg, src1Reg, src2Reg))
 
-            case IR.Immediate(value) =>
+            case TAC.Immediate(value) =>
                 emit(immOp(dest.size, resultReg, src1Reg, ArmImmediate(value)))
         }
 
@@ -542,7 +542,7 @@ object CodeGenerator {
       * @param opBlock The instruction emission function
       * @param st A GenState object
       */
-    private def generateComplexBinOp(dest: IR.VirtualReg, src1: IR.VirtualReg, src2: IR.Operand, optWidget: Option[Widget])
+    private def generateComplexBinOp(dest: TAC.VirtualReg, src1: TAC.VirtualReg, src2: TAC.Operand, optWidget: Option[Widget])
                          (opBlock: (PhysicalReg, PhysicalReg, PhysicalReg) => Unit)
                          (using st: GenState): Unit = {
 
@@ -551,12 +551,12 @@ object CodeGenerator {
         
             /* Load the second register */
             val src2Reg = src2 match {
-                case v: IR.VirtualReg => loadToReg(locOf(v), dest.size, PhysicalReg.ipcScratch(1))
-                case IR.Immediate(v) => 
+                case v: TAC.VirtualReg => loadToReg(locOf(v), dest.size, PhysicalReg.ipcScratch(1))
+                case TAC.Immediate(v) => 
                     val temp = PhysicalReg.ipcScratch(1)
                     generateMovImmediate(dest.size, temp, ArmImmediate(v))
                     temp
-                case IR.Label(name) => 
+                case TAC.Label(name) => 
                     val temp = PhysicalReg.ipcScratch(1)
                     emit(ArmLea(temp, ArmAddrLabel(name)))
                     temp
@@ -575,7 +575,7 @@ object CodeGenerator {
      * @param src1: first source virtual register
      * @param src1: second operand (can be an immediate  or virtual register)
      */
-    private def generateMul(dest: IR.VirtualReg, src1: IR.VirtualReg, src2: IR.Operand) (using st: GenState): Unit = {
+    private def generateMul(dest: TAC.VirtualReg, src1: TAC.VirtualReg, src2: TAC.Operand) (using st: GenState): Unit = {
 
         /* Binary context handles  register loading, storing and widget */
         generateComplexBinOp(dest, src1, src2, Some(IntOverflowErrorWidget)) {
@@ -603,7 +603,7 @@ object CodeGenerator {
      * @param src1: second operand (can be an immediate  or virtual register)
      * @param isMod: flag to indicate whether integer division or modulo is to be carried out
      */
-    private def generateDivMod(dest: IR.VirtualReg, src1: IR.VirtualReg, src2: IR.Operand, isMod: Boolean) 
+    private def generateDivMod(dest: TAC.VirtualReg, src1: TAC.VirtualReg, src2: TAC.Operand, isMod: Boolean) 
         (using st: GenState): Unit = {
 
         /* Binary context handles  register loading, storing and widget */
@@ -634,8 +634,8 @@ object CodeGenerator {
       * @param emitFunc A function that emits the low-level IR
       * @param st A GenState object
       */
-    private def generateUnaryOp(dest: IR.VirtualReg,
-                                src: IR.VirtualReg,
+    private def generateUnaryOp(dest: TAC.VirtualReg,
+                                src: TAC.VirtualReg,
                                 optWidget: Option[Widget],
                                 emitFunc: (PhysicalReg, PhysicalReg) => Unit)
                                (using st: GenState): Unit = {
@@ -667,95 +667,95 @@ object CodeGenerator {
       * Generate ARM instructions for a single high-level instruction.
       * Pattern matches on all instruction types and delegates to specific handlers.
       */
-    private def generateInstr(instr: IR.Instruction)(using genState: GenState): Unit = (instr: @unchecked) match {
+    private def generateInstr(instr: TAC.Instruction)(using genState: GenState): Unit = (instr: @unchecked) match {
 
         /* Data movement */
-        case IR.Mov(dest, src) => generateMov(dest, src)
-        case IR.Load(dest, addr) =>
+        case TAC.Mov(dest, src) => generateMov(dest, src)
+        case TAC.Load(dest, addr) =>
             generateMemOp(dest, addr, ArmLdur.apply, ArmLoad.apply) {
                 /* afterwards, store the loaded value into the destination register */
                 storeToLoc(PhysicalReg.ipcScratch(0), locOf(dest), dest.size)
             }
-        case IR.Store(src, addr) =>
+        case TAC.Store(src, addr) =>
             /* pre-load src into scratch0 */
             loadToReg(locOf(src), src.size, PhysicalReg.ipcScratch(0))
             generateMemOp(src, addr, ArmStur.apply, ArmStore.apply)()
         
         /* Arithmetic operations */
-        case IR.Add(dest, src1, src2) => 
+        case TAC.Add(dest, src1, src2) => 
             generateStandardBinOp(dest, src1, src2, ArmAddsReg.apply, ArmAddsImm.apply, Some(IntOverflowErrorWidget), {
                 /* Post main operation instruction emission*/
                 emit(ArmBranchCond(Condition.VS, ArmAddrLabel(IntOverflowErrorWidget.label)))
             })
-        case IR.Sub(dest, src1, src2) => 
+        case TAC.Sub(dest, src1, src2) => 
             generateStandardBinOp(dest, src1, src2, ArmSubsReg.apply, ArmSubsImm.apply, Some(IntOverflowErrorWidget), {
                 /* Post main operation instruction emission*/
                 emit(ArmBranchCond(Condition.VS, ArmAddrLabel(IntOverflowErrorWidget.label)))
             })
 
-        case IR.Mul(dest, src1, src2) => generateMul(dest, src1, src2)
-        case IR.Div(dest, src1, src2) => generateDivMod(dest, src1, src2, isMod = false)
-        case IR.Mod(dest, src1, src2) => generateDivMod(dest, src1, src2, isMod = true)
-        case IR.Neg(dest, src) => generateNeg(dest, src)
+        case TAC.Mul(dest, src1, src2) => generateMul(dest, src1, src2)
+        case TAC.Div(dest, src1, src2) => generateDivMod(dest, src1, src2, isMod = false)
+        case TAC.Mod(dest, src1, src2) => generateDivMod(dest, src1, src2, isMod = true)
+        case TAC.Neg(dest, src) => generateNeg(dest, src)
         
         /* Bitwise operations */
-        case IR.And(dest, src1, src2) => 
+        case TAC.And(dest, src1, src2) => 
             generateStandardBinOp(dest, src1, src2, ArmAndReg.apply, ArmAndImm.apply, None)
-        case IR.Or(dest, src1, src2) => 
+        case TAC.Or(dest, src1, src2) => 
             generateStandardBinOp(dest, src1, src2, ArmOrReg.apply, ArmOrImm.apply, None)
-        case IR.Not(dest, src) => 
+        case TAC.Not(dest, src) => 
             generateNot(dest, src)
 
-        case IR.Lsl(dest, src1, src2) => 
+        case TAC.Lsl(dest, src1, src2) => 
             generateStandardBinOp(dest, src1, src2, ArmLslReg.apply, ArmLslImm.apply, None)
-        case IR.Lsr(dest, src1, src2) => 
+        case TAC.Lsr(dest, src1, src2) => 
             generateStandardBinOp(dest, src1, src2, ArmLsrReg.apply, ArmLsrImm.apply, None)
-        case IR.Asr(dest, src1, src2) => 
+        case TAC.Asr(dest, src1, src2) => 
             generateStandardBinOp(dest, src1, src2, ArmAsrReg.apply, ArmAsrImm.apply, None)
         
         /* Comparison and conditional */
-        case IR.Cmp(src1, src2) => generateCmp(src1, src2)
-        case IR.SetCond(dest, cond) => generateSetCond(dest, cond)
+        case TAC.Cmp(src1, src2) => generateCmp(src1, src2)
+        case TAC.SetCond(dest, cond) => generateSetCond(dest, cond)
         
         /* Control flow */
-        case IR.BranchUncond(label) => emit(ArmBranchUncond(ArmAddrLabel(label.name)))
-        case IR.BranchCond(cond, label) => emit(ArmBranchCond(cond, ArmAddrLabel(label.name)))
-        case IR.LabelDef(label) => emit(ArmLabelDef(ArmAddrLabel(label.name)))
+        case TAC.BranchUncond(label) => emit(ArmBranchUncond(ArmAddrLabel(label.name)))
+        case TAC.BranchCond(cond, label) => emit(ArmBranchCond(cond, ArmAddrLabel(label.name)))
+        case TAC.LabelDef(label) => emit(ArmLabelDef(ArmAddrLabel(label.name)))
         
         /* Function calls */
-        case IR.Call(label, args, destOpt) => generateCall(label, args, destOpt)
-        case IR.Ret => generateReturn()
+        case TAC.Call(label, args, destOpt) => generateCall(label, args, destOpt)
+        case TAC.Ret => generateReturn()
         
         /* I/O operations */
-        case IR.Print(src, widget, newline) => generatePrint(src, widget, newline)
-        case IR.Read(dest, widget) => generateRead(dest, widget)
+        case TAC.Print(src, widget, newline) => generatePrint(src, widget, newline)
+        case TAC.Read(dest, widget) => generateRead(dest, widget)
 
         /* Character functions */
-        case IR.Chr(dest, src, widget) => generateChr(dest, src, widget)
+        case TAC.Chr(dest, src, widget) => generateChr(dest, src, widget)
 
         /* Stack operations */
-        case IR.Push(src) => ??? // TODO
-        case IR.Pop(dest) => ??? // TODO
+        case TAC.Push(src) => ??? // TODO
+        case TAC.Pop(dest) => ??? // TODO
         
         /* Array operations */
-        case IR.ArrayLoad(array, index, dest) => 
+        case TAC.ArrayLoad(array, index, dest) => 
             generateArrayLoad(array, index, dest)
-        case IR.ArrayStore(array, index, src, elemSize) => 
+        case TAC.ArrayStore(array, index, src, elemSize) => 
             generateArrayStore(array, index, src, elemSize)
-        case IR.ArrayLen(array, dest) => generateArrayLen(array, dest)
+        case TAC.ArrayLen(array, dest) => generateArrayLen(array, dest)
         
         /* Pair operations */
-        case IR.PairLoad(pair, index, dest) => generatePairLoad(pair, index, dest)
-        case IR.PairStore(pair, index, src) => generatePairStore(pair, index, src)
-        case IR.NullCheck(ptr) => generateNullCheck(ptr)
+        case TAC.PairLoad(pair, index, dest) => generatePairLoad(pair, index, dest)
+        case TAC.PairStore(pair, index, src) => generatePairStore(pair, index, src)
+        case TAC.NullCheck(ptr) => generateNullCheck(ptr)
         
         /* Memory management */
-        case IR.HeapAlloc(dest, size) => generateHeapAlloc(dest, size)
-        case IR.Free(ptr, freeType) => generateFree(ptr, freeType)
+        case TAC.HeapAlloc(dest, size) => generateHeapAlloc(dest, size)
+        case TAC.Free(ptr, freeType) => generateFree(ptr, freeType)
         
         /* Special operations */
-        case IR.Lea(dest, label) => ??? // TODO
-        case IR.SignExtend(dest, src) => generateSignExtend(dest, src)
+        case TAC.Lea(dest, label) => ??? // TODO
+        case TAC.SignExtend(dest, src) => generateSignExtend(dest, src)
     }
 
     /**
@@ -768,11 +768,11 @@ object CodeGenerator {
       * @param dest the destination virtual register to store the allocated heap pointer
       * @param size the operand specifying the number of bytes to allocate
       */
-    private def generateHeapAlloc(dest: IR.VirtualReg, size: IR.Operand)(using st: GenState): Unit = {
+    private def generateHeapAlloc(dest: TAC.VirtualReg, size: TAC.Operand)(using st: GenState): Unit = {
         val widget = MallocWidget
         useWidget(widget)
         /* size goes into x0, dest is returned */
-        generateCall(IR.Label(widget.label), List(size), Some(dest))
+        generateCall(TAC.Label(widget.label), List(size), Some(dest))
     }
 
     /**
@@ -787,13 +787,13 @@ object CodeGenerator {
       *
       * @param ptr The virtual register containing the 64 bit pointer to be freed.
       */
-    private def generateFree(ptr: IR.VirtualReg, freeType: FreeType)(using st: GenState): Unit = {
+    private def generateFree(ptr: TAC.VirtualReg, freeType: FreeType)(using st: GenState): Unit = {
         val widget = freeType match {
             case FreeType.Pair => FreePairWidget
             case FreeType.Array => FreeArrayWidget
         }
         useWidget(widget)
-        generateCall(IR.Label(widget.label), List(ptr), None)
+        generateCall(TAC.Label(widget.label), List(ptr), None)
     }
 
     /**
@@ -804,7 +804,7 @@ object CodeGenerator {
       * @param src The source register for the sign extension (smaller size) 
       * @param st The generator state
       */
-    private def generateSignExtend(dest: IR.VirtualReg, src: IR.VirtualReg)(using st: GenState): Unit = {
+    private def generateSignExtend(dest: TAC.VirtualReg, src: TAC.VirtualReg)(using st: GenState): Unit = {
         val srcLoc = locOf(src)
         val destLoc = locOf(dest)
 
@@ -836,7 +836,7 @@ object CodeGenerator {
       * @param pos the position within the pair (`fst` or `snd`) to read from
       * @param dest the destination virtual register to store the loaded value
       */
-    private def generatePairLoad(pairPtr: IR.VirtualReg, pos: PairPos, dest: IR.VirtualReg)
+    private def generatePairLoad(pairPtr: TAC.VirtualReg, pos: PairPos, dest: TAC.VirtualReg)
                                 (using st: GenState): Unit = {
         /* load the base pointer into strach register x16 */
         val ptrReg = loadToReg(locOf(pairPtr), Size.X, PhysicalReg.ipcScratch(0))
@@ -859,7 +859,7 @@ object CodeGenerator {
     /**
       * Generates low level IR to check if a pointer is null
       */
-    private def generateNullCheck(ptr: IR.VirtualReg)(using st: GenState): Unit = {
+    private def generateNullCheck(ptr: TAC.VirtualReg)(using st: GenState): Unit = {
         // Load the pointer into a scratch register
         val ptrReg = loadToReg(locOf(ptr), Size.X, PhysicalReg.ipcScratch(0))
         
@@ -878,7 +878,7 @@ object CodeGenerator {
       * @param pos the position within the pair (`Fst` or `Snd`) to write to
       * @param src the source operand containing the value to store
       */
-    private def generatePairStore(pairPtr: IR.VirtualReg, pos: PairPos, src: IR.Operand)
+    private def generatePairStore(pairPtr: TAC.VirtualReg, pos: PairPos, src: TAC.Operand)
                                  (using st: GenState): Unit = {
         /* load the base pointer into strach register x16 */
         val ptrReg = loadToReg(locOf(pairPtr), Size.X, PhysicalReg.ipcScratch(0))
@@ -892,15 +892,15 @@ object CodeGenerator {
             about why we store this in a scratch register first. */
         val srcScratch = PhysicalReg.ipcScratch(1)
         val finalSrcReg = src match {
-            case v: IR.VirtualReg => 
+            case v: TAC.VirtualReg => 
                 /* capture the returned register (we don't want to simply reuse x17 defined above,
                     but to see if a register exists (and in that case use that) or else use the
                     scratch register. */
                 loadToReg(locOf(v), Size.X, srcScratch)
-            case IR.Immediate(value) => 
+            case TAC.Immediate(value) => 
                 generateMovImmediate(Size.X, srcScratch, ArmImmediate(value))
                 srcScratch
-            case IR.Label(name) => 
+            case TAC.Label(name) => 
                 emit(ArmLea(srcScratch, ArmAddrLabel(name)))
                 srcScratch
         }
@@ -920,18 +920,18 @@ object CodeGenerator {
       * @param postOp logic to run after the memory operation
       */
     private def generateMemOp(
-        reg: IR.VirtualReg,
-        addr: IR.Address,
+        reg: TAC.VirtualReg,
+        addr: TAC.Address,
         immOp: (Size, PhysicalReg, ArmAddress) => ArmInstruction,
         regOp: (Size, PhysicalReg, ArmAddress) => ArmInstruction,
     )(postOp: => Unit = ())(using st: GenState): Unit = {
         val scratch0 = PhysicalReg.ipcScratch(0)
 
         addr match {
-            case IR.AddrImmOffset(base, IR.Immediate(offset)) =>
+            case TAC.AddrImmOffset(base, TAC.Immediate(offset)) =>
                 val baseReg = loadToReg(locOf(base), Size.X, PhysicalReg.ipcScratch(1))
                 emit(immOp(reg.size, scratch0, ArmAddrImmOffset(baseReg, ArmImmediate(offset))))
-            case IR.AddrRegOffset(base, offsetReg) =>
+            case TAC.AddrRegOffset(base, offsetReg) =>
                 val baseReg = loadToReg(locOf(base), Size.X, PhysicalReg.ipcScratch(1))
                 val offReg = loadToReg(locOf(offsetReg), Size.X, PhysicalReg.ipcScratch(1))
                 emit(regOp(reg.size, scratch0, ArmAddrRegOffset(baseReg, offReg)))
@@ -951,7 +951,7 @@ object CodeGenerator {
       * @param index the operand specifying the index to load from
       * @param dest the destination virtual register to store the loaded value
       */
-    private def generateArrayLoad(array: IR.VirtualReg, index: IR.Operand, dest: IR.VirtualReg)
+    private def generateArrayLoad(array: TAC.VirtualReg, index: TAC.Operand, dest: TAC.VirtualReg)
                                  (using st: GenState): Unit = {
         val arrayPtrReg = PhysicalReg.argRegisters(7)  // X7
         val indexReg = PhysicalReg.ipcScratch(1)       // X17
@@ -964,12 +964,12 @@ object CodeGenerator {
         
         /* Load index into X17 */
         index match {
-            case v: IR.VirtualReg =>
+            case v: TAC.VirtualReg =>
                 val idxReg = loadToReg(locOf(v), Size.W, indexReg)
                 if (idxReg != indexReg) {
                     emit(ArmMovReg(Size.W, indexReg, idxReg))
                 }
-            case IR.Immediate(value) =>
+            case TAC.Immediate(value) =>
                 generateMovImmediate(Size.W, indexReg, ArmImmediate(value))
             case _ => ???
         }
@@ -993,7 +993,7 @@ object CodeGenerator {
       *
       * Calling convention: array ptr in X7, index in X17, value in X8.
       */
-    private def generateArrayStore(array: IR.VirtualReg, index: IR.Operand, src: IR.Operand, elemSize: Size)
+    private def generateArrayStore(array: TAC.VirtualReg, index: TAC.Operand, src: TAC.Operand, elemSize: Size)
                                   (using st: GenState): Unit = {
         val arrayPtrReg = PhysicalReg.argRegisters(7)  // X7
         val indexReg = PhysicalReg.ipcScratch(1)       // X17
@@ -1007,26 +1007,26 @@ object CodeGenerator {
         
         /* Load index into X17 */
         index match {
-            case v: IR.VirtualReg =>
+            case v: TAC.VirtualReg =>
                 val idxReg = loadToReg(locOf(v), Size.W, indexReg)
                 if (idxReg != indexReg) {
                     emit(ArmMovReg(Size.W, indexReg, idxReg))
                 }
-            case IR.Immediate(value) =>
+            case TAC.Immediate(value) =>
                 generateMovImmediate(Size.W, indexReg, ArmImmediate(value))
             case _ => ???
         }
         
         /* Load value into X8 */
         src match {
-            case v: IR.VirtualReg =>
+            case v: TAC.VirtualReg =>
                 val srcReg = loadToReg(locOf(v), elemSize, valueReg)
                 if (srcReg != valueReg) {
                     emit(ArmMovReg(elemSize, valueReg, srcReg))
                 }
-            case IR.Immediate(value) =>
+            case TAC.Immediate(value) =>
                 generateMovImmediate(elemSize, valueReg, ArmImmediate(value))
-            case IR.Label(name) =>
+            case TAC.Label(name) =>
                 emit(ArmLea(valueReg, ArmAddrLabel(name)))
         }
         
@@ -1049,7 +1049,7 @@ object CodeGenerator {
       * @param arrayPtr the virtual register holding the pointer to first array element
       * @param dest the destination virtual register to store the length
       */
-    private def generateArrayLen(arrayPtr: IR.VirtualReg, dest: IR.VirtualReg)
+    private def generateArrayLen(arrayPtr: TAC.VirtualReg, dest: TAC.VirtualReg)
                                 (using st: GenState): Unit = {
         /* load the array pointer into scratch register x16 */
         val ptrReg = loadToReg(locOf(arrayPtr), Size.X, PhysicalReg.ipcScratch(0))
@@ -1068,24 +1068,24 @@ object CodeGenerator {
       * @param dest The destination virtual address of the MOV
       * @param src The source virtual address of the MOV
       */
-    private def generateMov(dest: IR.VirtualReg, src: IR.Operand)(using GenState) = {
+    private def generateMov(dest: TAC.VirtualReg, src: TAC.Operand)(using GenState) = {
 
         /* Get the source value in a scratch register to avoid memory to memory moves */
         val tempReg = src match {
 
             /* Move from stack to scratch register (or return the physical register if it
                is already in one) */
-            case srcVReg: IR.VirtualReg =>
+            case srcVReg: TAC.VirtualReg =>
                 loadToReg(locOf(srcVReg), dest.size, PhysicalReg.ipcScratch(0))
 
             /* Move an immediate to scratch */
-            case IR.Immediate(value) =>
+            case TAC.Immediate(value) =>
                 val scratch = PhysicalReg.ipcScratch(0)
                 generateMovImmediate(dest.size, scratch, ArmImmediate(value))
                 scratch
             
             /* Load the memory address into scratch using lea */
-            case IR.Label(name) =>
+            case TAC.Label(name) =>
                 val scratch = PhysicalReg.ipcScratch(0)
                 emit(ArmLea(scratch, ArmAddrLabel(name)))
                 scratch
@@ -1104,14 +1104,14 @@ object CodeGenerator {
       * @param widget the print widget for the appropriate type
       * @param newline whether to also emit a newline after printing
       */
-    private def generatePrint(src: IR.Operand, widget: Widget, newline: Boolean)
+    private def generatePrint(src: TAC.Operand, widget: Widget, newline: Boolean)
                              (using st: GenState): Unit = {
         useWidget(widget)
-        generateCall(IR.Label(widget.label), List(src), None)
+        generateCall(TAC.Label(widget.label), List(src), None)
 
         if (newline) {
             useWidget(PrintlnWidget)
-            generateCall(IR.Label(PrintlnWidget.label), List(), None)
+            generateCall(TAC.Label(PrintlnWidget.label), List(), None)
         }
     }
 
@@ -1122,10 +1122,10 @@ object CodeGenerator {
       * @param widget The read widget to use
       * @param st The generator state
       */
-    private def generateRead(dest: IR.VirtualReg, widget: Widget)
+    private def generateRead(dest: TAC.VirtualReg, widget: Widget)
                             (using st: GenState): Unit = {
         useWidget(widget)
-        generateCall(IR.Label(widget.label), List(dest), Some(dest))
+        generateCall(TAC.Label(widget.label), List(dest), Some(dest))
     }
 
     /**
@@ -1135,7 +1135,7 @@ object CodeGenerator {
       * @param widget
       * @param st
       */
-    private def generateChr(dest: IR.VirtualReg, src: IR.VirtualReg, widget: Widget)
+    private def generateChr(dest: TAC.VirtualReg, src: TAC.VirtualReg, widget: Widget)
                            (using st: GenState): Unit = {
 
         generateUnaryOp(dest, src, Some(widget), {(d, s) => {
@@ -1170,11 +1170,11 @@ object CodeGenerator {
       * @param op The operand to get the size of
       * @return The register size of the opernad (Size.W / Size.X)
       */
-    private def operandSize(op: IR.Operand) = {
+    private def operandSize(op: TAC.Operand) = {
         op match {
-            case v: IR.VirtualReg => v.size
-            case _: IR.Immediate => Size.W
-            case _: IR.Label => Size.X
+            case v: TAC.VirtualReg => v.size
+            case _: TAC.Immediate => Size.W
+            case _: TAC.Label => Size.X
         }
     }
 
@@ -1185,9 +1185,9 @@ object CodeGenerator {
       * @param args The argument operands to the function
       * @param destOpt The register that the return value is expected
       */
-    private def generateCall(label: IR.Label,
-                             args: List[IR.Operand],
-                             destOpt: Option[IR.VirtualReg])
+    private def generateCall(label: TAC.Label,
+                             args: List[TAC.Operand],
+                             destOpt: Option[TAC.VirtualReg])
                              (using GenState) = {
 
         val stackArgs = args.drop(8)
@@ -1214,11 +1214,11 @@ object CodeGenerator {
 
             /* Put the argument in a scratch register */
             val valReg = arg match {
-                case v: IR.VirtualReg => loadToReg(locOf(v), size, PhysicalReg.ipcScratch(0))
-                case IR.Immediate(value) => 
+                case v: TAC.VirtualReg => loadToReg(locOf(v), size, PhysicalReg.ipcScratch(0))
+                case TAC.Immediate(value) => 
                     generateMovImmediate(size, PhysicalReg.ipcScratch(0), ArmImmediate(value))
                     PhysicalReg.ipcScratch(0)
-                case IR.Label(name) => 
+                case TAC.Label(name) => 
                     emit(ArmLea(PhysicalReg.ipcScratch(0), ArmAddrLabel(name)))
                     PhysicalReg.ipcScratch(0)
             }
@@ -1240,7 +1240,7 @@ object CodeGenerator {
             
             /* Get the value in the target register */
             arg match {
-                case argVReg: IR.VirtualReg =>
+                case argVReg: TAC.VirtualReg =>
                     /* Move out of a stack slot into a scratch register */
                     val valReg = loadToReg(locOf(argVReg), opSize, PhysicalReg.ipcScratch(0))
                     
@@ -1249,11 +1249,11 @@ object CodeGenerator {
                         emit(ArmMovReg(opSize, targetReg, valReg))
                     }
                 
-                case IR.Immediate(value) =>
+                case TAC.Immediate(value) =>
                     /* Move the immediate directly to the argument register */
                     generateMovImmediate(opSize, targetReg, ArmImmediate(value))
                 
-                case IR.Label(name) => {
+                case TAC.Label(name) => {
                     /* Move the label (string directive in this case) to
                        the argument register */
                     emit(ArmLea(targetReg, ArmAddrLabel(name)))
@@ -1296,7 +1296,7 @@ object CodeGenerator {
       * @param src1 the first source operand (left side of comparison)
       * @param src2 the second source operand (right side of comparison)
       */
-    private def generateCmp(src1: IR.VirtualReg, src2: IR.Operand)(using st: GenState): Unit = {
+    private def generateCmp(src1: TAC.VirtualReg, src2: TAC.Operand)(using st: GenState): Unit = {
         val src1Loc = locOf(src1)
         
         /* Load first operand into a register */
@@ -1304,13 +1304,13 @@ object CodeGenerator {
 
         /* Handle second operand and emit comparison */
         (src2: @unchecked) match {
-            case src2VReg: IR.VirtualReg =>
+            case src2VReg: TAC.VirtualReg =>
                 /* Register-register comparison */
                 val src2Loc = locOf(src2VReg)
                 val src2Reg = loadToReg(src2Loc, src1.size, PhysicalReg.ipcScratch(1))
                 emit(ArmCmpReg(src1.size, src1Reg, src2Reg))
 
-            case IR.Immediate(value) =>
+            case TAC.Immediate(value) =>
                 /* Register-immediate comparison */
                 emit(ArmCmpImm(src1.size, src1Reg, ArmImmediate(value)))
         }
@@ -1322,7 +1322,7 @@ object CodeGenerator {
       * @param dest the destination virtual register
       * @param cond the condition to test
       */
-    private def generateSetCond(dest: IR.VirtualReg, cond: Condition)(using st: GenState): Unit = {
+    private def generateSetCond(dest: TAC.VirtualReg, cond: Condition)(using st: GenState): Unit = {
         val destLoc = locOf(dest)
         
         /* Determine result register */
@@ -1344,7 +1344,7 @@ object CodeGenerator {
       * @param dest the destination virtual register
       * @param src the source virtual register to not
       */
-    private def generateNot(dest: IR.VirtualReg, src: IR.VirtualReg)(using st: GenState): Unit = {
+    private def generateNot(dest: TAC.VirtualReg, src: TAC.VirtualReg)(using st: GenState): Unit = {
         generateUnaryOp(dest, src, None, { (destReg, srcReg) =>
 
             /* Compare with 0 and set to 1 if equal (i.e. invert the boolean) */
@@ -1359,7 +1359,7 @@ object CodeGenerator {
       * @param dest the destination virtual register
       * @param src the source virtual register to not
       */
-    private def generateNeg(dest: IR.VirtualReg, src: IR.VirtualReg)(using st: GenState): Unit = {
+    private def generateNeg(dest: TAC.VirtualReg, src: TAC.VirtualReg)(using st: GenState): Unit = {
         generateUnaryOp(dest, src, Some(IntOverflowErrorWidget), { (destReg, srcReg) =>
             emit(ArmNegs(dest.size, destReg, srcReg))
             emit(ArmBranchCond(Condition.VS, ArmAddrLabel(IntOverflowErrorWidget.label)))

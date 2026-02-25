@@ -4,7 +4,7 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.flatspec.AnyFlatSpec
 import wacc.backend.{Flattener}
 import wacc.frontend.*
-import wacc.backend.IR
+import wacc.backend.TAC
 import wacc.backend.*
 
 /**
@@ -30,13 +30,13 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         val result = Flattener.flatten(ast)
 
         result.body should have length 1
-        result.body.head shouldBe a [IR.Call]
+        result.body.head shouldBe a [TAC.Call]
 
         result.body.head match {
-            case call: IR.Call =>
-                call.label shouldBe IR.Label("exit")
+            case call: TAC.Call =>
+                call.label shouldBe TAC.Label("exit")
                 call.args should have length 1
-                call.args.head shouldBe IR.Immediate(7)
+                call.args.head shouldBe TAC.Immediate(7)
                 call.dest shouldBe None
             case _ => fail("Expected Call instruction")
         }
@@ -50,7 +50,7 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
 
         result.body should have length 1
         result.body.head match {
-            case call: IR.Call => call.args.head shouldBe IR.Immediate(0)
+            case call: TAC.Call => call.args.head shouldBe TAC.Immediate(0)
             case _ => fail("Expected Call instruction")
         }
     }
@@ -63,7 +63,7 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
 
         result.body should have length 1
         result.body.head match {
-            case call: IR.Call => call.args.head shouldBe IR.Immediate(-1)
+            case call: TAC.Call => call.args.head shouldBe TAC.Immediate(-1)
             case _ => fail("Expected Call instruction")
         }
     }
@@ -76,7 +76,7 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
 
         result.body should have length 1
         result.body.head match {
-            case call: IR.Call => call.args.head shouldBe IR.Immediate(256)
+            case call: TAC.Call => call.args.head shouldBe TAC.Immediate(256)
             case _ => fail("Expected Call instruction")
         }
     }
@@ -91,9 +91,9 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
 
         result.body should have length 1
         result.body.head match {
-            case call: IR.Call =>
-                call.label shouldBe IR.Label("exit")
-                call.args.head shouldBe IR.Immediate(42)
+            case call: TAC.Call =>
+                call.label shouldBe TAC.Label("exit")
+                call.args.head shouldBe TAC.Immediate(42)
             case _ => fail("Expected Call instruction")
         }
     }
@@ -110,7 +110,7 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
 
         result.body should have length 1
         result.body.head match {
-            case call: IR.Call => call.args.head shouldBe IR.Immediate(99)
+            case call: TAC.Call => call.args.head shouldBe TAC.Immediate(99)
             case _ => fail("Expected Call instruction")
         }
     }
@@ -141,8 +141,8 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
 
         /* There should be exactly 1 instruction (the Call), no Mov instructions */
         result.body should have length 1
-        result.body.head shouldBe a [IR.Call]
-        result.body.exists { case IR.Mov(_, _) => true; case _ => false } shouldBe false
+        result.body.head shouldBe a [TAC.Call]
+        result.body.exists { case TAC.Mov(_, _) => true; case _ => false } shouldBe false
     }
 
     "The flattener for prints" should "flatten a simple print statement for a char" in {
@@ -158,7 +158,7 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         flatOutput.funcs shouldBe Nil
 
         val charVal = 97
-        flatOutput.body shouldBe List(IR.Print(IR.Immediate(charVal), PrintCharWidget, false))
+        flatOutput.body shouldBe List(TAC.Print(TAC.Immediate(charVal), PrintCharWidget, false))
     }
 
     it should "flatten a simple print statment for an int" in {
@@ -173,7 +173,7 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         flatOutput.data shouldBe Nil
         flatOutput.funcs shouldBe Nil
 
-        flatOutput.body shouldBe List(IR.Print(IR.Immediate(2), PrintIntWidget, false))
+        flatOutput.body shouldBe List(TAC.Print(TAC.Immediate(2), PrintIntWidget, false))
     }
 
     it should "flatten a simple print statment for a bool" in {
@@ -188,7 +188,7 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         flatOutput.data shouldBe Nil
         flatOutput.funcs shouldBe Nil
 
-        flatOutput.body shouldBe List(IR.Print(IR.Immediate(0), PrintBoolWidget, false))
+        flatOutput.body shouldBe List(TAC.Print(TAC.Immediate(0), PrintBoolWidget, false))
     }
 
     it should "flatten a simple print statment for a string" in {
@@ -200,9 +200,9 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
 
         val flatOutput = Flattener.flatten(inputAST) 
 
-        flatOutput.data shouldBe List(IR.DataDirective(IR.Label("string_0"), "hello"))
+        flatOutput.data shouldBe List(TAC.DataDirective(TAC.Label("string_0"), "hello"))
         flatOutput.funcs shouldBe Nil
-        flatOutput.body shouldBe List(IR.Print(IR.Label("string_0"), PrintStringWidget, false))
+        flatOutput.body shouldBe List(TAC.Print(TAC.Label("string_0"), PrintStringWidget, false))
     }
 
     it should "flatten a simple println statment" in {
@@ -216,7 +216,7 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         flatOutput.data shouldBe Nil
         flatOutput.funcs shouldBe Nil
 
-        flatOutput.body shouldBe List(IR.Print(IR.Immediate(2), PrintIntWidget, true))
+        flatOutput.body shouldBe List(TAC.Print(TAC.Immediate(2), PrintIntWidget, true))
     }
 
     "The flattener for read statements" should "flatten a read int statement" in {
@@ -245,7 +245,7 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
             case r: IR.Read => r
         }
 
-        decl.reg should matchPattern { case IR.VirtualReg(0, Size.W) => }
+        decl.reg should matchPattern { case TAC.VirtualReg(0, Size.W) => }
         read.dest shouldBe decl.reg
         read.widget shouldBe ReadIntegerWidget
     }
@@ -274,7 +274,7 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         }
 
         read.widget shouldBe ReadCharWidget
-        read.dest should matchPattern { case IR.VirtualReg(0, Size.B) => }
+        read.dest should matchPattern { case TAC.VirtualReg(0, Size.B) => }
     }
 
     it should "flatten a read into pair fst element" in {
@@ -298,19 +298,19 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         val flatOutput = Flattener.flatten(programWith(List(declP, readStmt)))
 
         // Should explicitly emit a NullCheck before accessing
-        val nullChecks = flatOutput.body.collect { case n: IR.NullCheck => n }
+        val nullChecks = flatOutput.body.collect { case n: TAC.NullCheck => n }
         nullChecks should have length 1
 
         // Should emit a PairLoad to load current value, then Read, then PairStore
-        val loads = flatOutput.body.collect { case p: IR.PairLoad => p }
+        val loads = flatOutput.body.collect { case p: TAC.PairLoad => p }
         loads should have length 1
         loads.head.index shouldBe PairPos.Fst
         
-        val reads = flatOutput.body.collect { case r: IR.Read => r }
+        val reads = flatOutput.body.collect { case r: TAC.Read => r }
         reads should have length 1
         reads.head.widget shouldBe ReadIntegerWidget
         
-        val stores = flatOutput.body.collect { case p: IR.PairStore => p }
+        val stores = flatOutput.body.collect { case p: TAC.PairStore => p }
         stores should have length 3  // 2 from newpair init + 1 from read
         stores.last.index shouldBe PairPos.Fst  // The read's store should be last
     }
@@ -336,18 +336,18 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         
         val flatOutput = Flattener.flatten(programWith(List(declP, readStmt)))
 
-        val nullChecks = flatOutput.body.collect { case n: IR.NullCheck => n }
+        val nullChecks = flatOutput.body.collect { case n: TAC.NullCheck => n }
         nullChecks should have length 1
 
-        val loads = flatOutput.body.collect { case p: IR.PairLoad => p }
+        val loads = flatOutput.body.collect { case p: TAC.PairLoad => p }
         loads should have length 1
         loads.head.index shouldBe PairPos.Snd
         
-        val reads = flatOutput.body.collect { case r: IR.Read => r }
+        val reads = flatOutput.body.collect { case r: TAC.Read => r }
         reads should have length 1
         reads.head.widget shouldBe ReadCharWidget
         
-        val stores = flatOutput.body.collect { case p: IR.PairStore => p }
+        val stores = flatOutput.body.collect { case p: TAC.PairStore => p }
         stores should have length 3
         stores.last.index shouldBe PairPos.Snd
     }
@@ -365,13 +365,13 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         
         // Should generate: Mov(VirtualReg(0, W), Immediate(5))
         result.body should have length 1
-        result.body.head shouldBe a [IR.Mov]
+        result.body.head shouldBe a [TAC.Mov]
         
         val mov: IR.Mov = (result.body.head: @unchecked) match {
             case m: IR.Mov => m
         }
-        mov.src shouldBe IR.Immediate(5)
-        mov.reg should matchPattern { case IR.VirtualReg(0, Size.W) => }
+        mov.src shouldBe TAC.Immediate(5)
+        mov.reg should matchPattern { case TAC.VirtualReg(0, Size.W) => }
     }
 
     it should "flatten a variable usage correctly" in {
@@ -408,10 +408,10 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
             case m: IR.Mov => m
         }
 
-        instr1.src shouldBe IR.Immediate(5)
+        instr1.src shouldBe TAC.Immediate(5)
         val xReg = instr1.reg
 
-        instr2.reg should matchPattern { case IR.VirtualReg(1, Size.W) => }
+        instr2.reg should matchPattern { case TAC.VirtualReg(1, Size.W) => }
         instr2.src shouldBe xReg // The source of y's assignment should be x's register
     }
 
@@ -445,7 +445,7 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
 
         // Both instructions should target the same register
         declMov.reg shouldBe asgnMov.reg
-        asgnMov.src shouldBe IR.Immediate(10)
+        asgnMov.src shouldBe TAC.Immediate(10)
     }
 
     "The flattener for maths expressions" should "flatten addition" in {
@@ -458,9 +458,9 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
 
         val flatOutput = Flattener.flatten(inputAST)
 
-        val addInstrs = flatOutput.body.collect { case a: IR.Add => a }
+        val addInstrs = flatOutput.body.collect { case a: TAC.Add => a }
         addInstrs should have length 1
-        addInstrs.head.src1 shouldBe a [IR.VirtualReg]
+        addInstrs.head.src1 shouldBe a [TAC.VirtualReg]
     }
 
     it should "flatten subtraction" in {
@@ -473,7 +473,7 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
 
         val flatOutput = Flattener.flatten(inputAST)
 
-        val subInstrs = flatOutput.body.collect { case s: IR.Sub => s }
+        val subInstrs = flatOutput.body.collect { case s: TAC.Sub => s }
         subInstrs should have length 1
     }
 
@@ -487,7 +487,7 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
 
         val flatOutput = Flattener.flatten(inputAST)
 
-        val mulInstrs = flatOutput.body.collect { case m: IR.Mul => m }
+        val mulInstrs = flatOutput.body.collect { case m: TAC.Mul => m }
         mulInstrs should have length 1
     }
 
@@ -501,7 +501,7 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
 
         val flatOutput = Flattener.flatten(inputAST)
 
-        val divInstrs = flatOutput.body.collect { case x: IR.Div => x }
+        val divInstrs = flatOutput.body.collect { case x: TAC.Div => x }
         divInstrs should have length 1
     }
 
@@ -515,7 +515,7 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
 
         val flatOutput = Flattener.flatten(inputAST)
 
-        val modInstrs = flatOutput.body.collect { case x: IR.Mod => x }
+        val modInstrs = flatOutput.body.collect { case x: TAC.Mod => x }
         modInstrs should have length 1
     }
 
@@ -534,8 +534,8 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         flatOutput.body.length should be >= 3
         
         /* Find the Cmp and SetCond instructions */
-        val cmpInstrs = flatOutput.body.collect { case c: IR.Cmp => c }
-        val setCondInstrs = flatOutput.body.collect { case s: IR.SetCond => s }
+        val cmpInstrs = flatOutput.body.collect { case c: TAC.Cmp => c }
+        val setCondInstrs = flatOutput.body.collect { case s: TAC.SetCond => s }
         
         cmpInstrs should have length 1
         setCondInstrs should have length 1
@@ -553,7 +553,7 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
 
         val flatOutput = Flattener.flatten(inputAST)
 
-        val setCondInstrs = flatOutput.body.collect { case s: IR.SetCond => s }
+        val setCondInstrs = flatOutput.body.collect { case s: TAC.SetCond => s }
         setCondInstrs should have length 1
         setCondInstrs.head.cond shouldBe Condition.LE
     }
@@ -569,7 +569,7 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
 
         val flatOutput = Flattener.flatten(inputAST)
 
-        val setCondInstrs = flatOutput.body.collect { case s: IR.SetCond => s }
+        val setCondInstrs = flatOutput.body.collect { case s: TAC.SetCond => s }
         setCondInstrs.head.cond shouldBe wacc.backend.Condition.EQ
     }
 
@@ -584,7 +584,7 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
 
         val flatOutput = Flattener.flatten(inputAST)
 
-        val setCondInstrs = flatOutput.body.collect { case s: IR.SetCond => s }
+        val setCondInstrs = flatOutput.body.collect { case s: TAC.SetCond => s }
         setCondInstrs.head.cond shouldBe Condition.NE
     }
 
@@ -599,12 +599,12 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
 
         val flatOutput = Flattener.flatten(inputAST)
 
-        val cmpInstrs = flatOutput.body.collect { case c: IR.Cmp => c }
+        val cmpInstrs = flatOutput.body.collect { case c: TAC.Cmp => c }
         cmpInstrs should have length 1
         
         /* Both operands should be virtual registers */
-        cmpInstrs.head.src1 shouldBe a [IR.VirtualReg]
-        cmpInstrs.head.src2 shouldBe a [IR.VirtualReg]
+        cmpInstrs.head.src1 shouldBe a [TAC.VirtualReg]
+        cmpInstrs.head.src2 shouldBe a [TAC.VirtualReg]
     }
 
     "The flattener for boolean operators" should "flatten NOT operator" in {
@@ -618,7 +618,7 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         val flatOutput = Flattener.flatten(inputAST)
 
         /* Should contain Not instruction */
-        val notInstrs = flatOutput.body.collect { case n: IR.Not => n }
+        val notInstrs = flatOutput.body.collect { case n: TAC.Not => n }
         notInstrs should have length 1
     }
 
@@ -634,7 +634,7 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         val flatOutput = Flattener.flatten(inputAST)
 
         /* Should contain And instruction */
-        val andInstrs = flatOutput.body.collect { case a: IR.And => a }
+        val andInstrs = flatOutput.body.collect { case a: TAC.And => a }
         andInstrs should have length 1
     }
 
@@ -650,7 +650,7 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         val flatOutput = Flattener.flatten(inputAST)
 
         /* Should contain Or instruction */
-        val orInstrs = flatOutput.body.collect { case o: IR.Or => o }
+        val orInstrs = flatOutput.body.collect { case o: TAC.Or => o }
         orInstrs should have length 1
     }
 
@@ -672,23 +672,23 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
 
         val instrs = Flattener.flatten(inputAST).body
 
-        val elseBranch = instrs.collectFirst { case IR.BranchCond(_, label) => label }
+        val elseBranch = instrs.collectFirst { case TAC.BranchCond(_, label) => label }
         elseBranch should be (defined)
         val elseLabel = elseBranch.get
 
-        val endBranch = instrs.collectFirst { case IR.BranchUncond(label) => label }
+        val endBranch = instrs.collectFirst { case TAC.BranchUncond(label) => label }
         endBranch should be (defined)
         val endLabel = endBranch.get
 
         /* Label defs should exist */
-        instrs should contain (IR.LabelDef(elseLabel))
-        instrs should contain (IR.LabelDef(endLabel))
+        instrs should contain (TAC.LabelDef(elseLabel))
+        instrs should contain (TAC.LabelDef(endLabel))
 
         /* else label branching should be before its definition */
-        instrs.indexOf(IR.BranchCond(Condition.EQ, elseLabel)) should be < instrs.indexOf(IR.LabelDef(elseLabel))
+        instrs.indexOf(TAC.BranchCond(Condition.EQ, elseLabel)) should be < instrs.indexOf(TAC.LabelDef(elseLabel))
         
         /* end label branching should be before its definition */
-        instrs.indexOf(IR.BranchUncond(endLabel)) should be < instrs.indexOf(IR.LabelDef(endLabel))
+        instrs.indexOf(TAC.BranchUncond(endLabel)) should be < instrs.indexOf(TAC.LabelDef(endLabel))
     }
 
     "The flattener for while statements" should "flatten a while statement" in {
@@ -706,23 +706,23 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         val inputAST = programWith(whileStmt)
         val instrs = Flattener.flatten(inputAST).body
 
-        val condBranch = instrs.collectFirst { case IR.BranchUncond(label) => label }
+        val condBranch = instrs.collectFirst { case TAC.BranchUncond(label) => label }
         condBranch should be (defined)
         val condLabel = condBranch.get
 
-        val bodyBranch = instrs.collectFirst { case IR.BranchCond(_, label) => label }
+        val bodyBranch = instrs.collectFirst { case TAC.BranchCond(_, label) => label }
         bodyBranch should be (defined)
         val bodyLabel = bodyBranch.get
 
         /* Label defs should exist */
-        instrs should contain (IR.LabelDef(condLabel))
-        instrs should contain (IR.LabelDef(bodyLabel))
+        instrs should contain (TAC.LabelDef(condLabel))
+        instrs should contain (TAC.LabelDef(bodyLabel))
 
         /* cond label branching should be before its definition */
-        instrs.indexOf(IR.BranchUncond(condLabel)) should be < instrs.indexOf(IR.LabelDef(condLabel))
+        instrs.indexOf(TAC.BranchUncond(condLabel)) should be < instrs.indexOf(TAC.LabelDef(condLabel))
         
         /* body label branching should be after its definition */
-        instrs.indexOf(IR.BranchCond(Condition.EQ, bodyLabel)) should be > instrs.indexOf(IR.LabelDef(bodyLabel))
+        instrs.indexOf(TAC.BranchCond(Condition.EQ, bodyLabel)) should be > instrs.indexOf(TAC.LabelDef(bodyLabel))
     }
 
     "The flattener for unary operators" should "flatten the neg operator" in {
@@ -735,12 +735,12 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
 
         val flatOutput = Flattener.flatten(inputAST)
 
-        val negInstrs = flatOutput.body.collect { case n: IR.Neg => n }
+        val negInstrs = flatOutput.body.collect { case n: TAC.Neg => n }
         negInstrs should have length 1
         
         /* Check that dest and src are different */
         negInstrs.head match {
-            case IR.Neg(dest, src) => dest should not be src
+            case TAC.Neg(dest, src) => dest should not be src
         }
     }
 
@@ -754,7 +754,7 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
 
         val flatOutput = Flattener.flatten(inputAST)
 
-        val chrInstrs = flatOutput.body.collect { case c: IR.Chr => c }
+        val chrInstrs = flatOutput.body.collect { case c: TAC.Chr => c }
         chrInstrs should have length 1
         
         /* Needs the error widget */
@@ -793,8 +793,8 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         val flatFuncs = Flattener.flatten(inputAST).funcs
 
         flatFuncs.length shouldBe 1
-        flatFuncs.head.args shouldBe List(IR.VirtualReg(0, Size.W))
-        flatFuncs.head.body shouldBe List(IR.Mov(IR.VirtualReg(-1, Size.W), IR.VirtualReg(0, Size.W)), IR.Ret)
+        flatFuncs.head.args shouldBe List(TAC.VirtualReg(0, Size.W))
+        flatFuncs.head.body shouldBe List(TAC.Mov(TAC.VirtualReg(-1, Size.W), TAC.VirtualReg(0, Size.W)), TAC.Ret)
     }
 
     "The flattener for pairs" should "flatten a newpair expression into a HeapAlloc and PairStores" in {
@@ -813,12 +813,12 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         val flatOutput = Flattener.flatten(programWith(decl))
 
         // should see a HeapAlloc of 16 bytes
-        val allocs = flatOutput.body.collect { case h: IR.HeapAlloc => h }
+        val allocs = flatOutput.body.collect { case h: TAC.HeapAlloc => h }
         allocs should have length 1
-        allocs.head.size shouldBe IR.Immediate(16) // PAIR_HEAP_SIZE_B
+        allocs.head.size shouldBe TAC.Immediate(16) // PAIR_HEAP_SIZE_B
 
         // should see exactly two PairStores (for fst and snd)
-        val stores = flatOutput.body.collect { case p: IR.PairStore => p }
+        val stores = flatOutput.body.collect { case p: TAC.PairStore => p }
         stores should have length 2
         
         // Ensure Fst and Snd are both stored
@@ -846,11 +846,11 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         val flatOutput = Flattener.flatten(programWith(List(declP, decl)))
 
         // should explicitly emit a NullCheck before loading
-        val nullChecks = flatOutput.body.collect { case n: IR.NullCheck => n }
+        val nullChecks = flatOutput.body.collect { case n: TAC.NullCheck => n }
         nullChecks should have length 1
 
         // should emit a PairLoad with Fst
-        val loads = flatOutput.body.collect { case p: IR.PairLoad => p }
+        val loads = flatOutput.body.collect { case p: TAC.PairLoad => p }
         loads should have length 1
         loads.head.index shouldBe PairPos.Fst
     }
@@ -878,11 +878,11 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         val flatOutput = Flattener.flatten(programWith(List(declP, asgn)))
 
         // Should explicitly emit a NullCheck before storing
-        val nullChecks = flatOutput.body.collect { case n: IR.NullCheck => n }
+        val nullChecks = flatOutput.body.collect { case n: TAC.NullCheck => n }
         nullChecks should have length 1
 
         // Should emit a PairStore with Fst
-        val stores = flatOutput.body.collect { case p: IR.PairStore => p }
+        val stores = flatOutput.body.collect { case p: TAC.PairStore => p }
         stores should have length 3
         stores.head.index shouldBe PairPos.Fst
     }
@@ -917,10 +917,10 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         val flatOutput = Flattener.flatten(programWith(List(declP, decl)))
         
         // We should see a sequence of: NullCheck -> PairLoad -> NullCheck -> PairLoad
-        val nullChecks = flatOutput.body.collect { case n: IR.NullCheck => n }
+        val nullChecks = flatOutput.body.collect { case n: TAC.NullCheck => n }
         nullChecks should have length 2
         
-        val loads = flatOutput.body.collect { case p: IR.PairLoad => p }
+        val loads = flatOutput.body.collect { case p: TAC.PairLoad => p }
         loads should have length 2
         
         // Check the traversal order: first load Fst, then load Snd
@@ -958,16 +958,16 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         val flatOutput = Flattener.flatten(programWith(List(declP, asgn)))
         
         // we should see NullCheck -> PairLoad (to traverse) -> NullCheck -> PairStore (to write)
-        val nullChecks = flatOutput.body.collect { case n: IR.NullCheck => n }
+        val nullChecks = flatOutput.body.collect { case n: TAC.NullCheck => n }
         nullChecks should have length 2
         
         // there should be exactly one load (to find the inner pair)
-        val loads = flatOutput.body.collect { case p: IR.PairLoad => p }
+        val loads = flatOutput.body.collect { case p: TAC.PairLoad => p }
         loads should have length 1
         loads.head.index shouldBe PairPos.Fst
 
         // there should be exactly 3 stores (two for the newpair and one to write the 5)
-        val stores = flatOutput.body.collect { case p: IR.PairStore => p }
+        val stores = flatOutput.body.collect { case p: TAC.PairStore => p }
         stores should have length 3
         stores.head.index shouldBe PairPos.Fst
         
@@ -995,20 +995,20 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         val flatOutput = Flattener.flatten(programWith(decl))
 
         // should see a HeapAlloc of 16 bytes (4 for length + 3 * 4 for ints)
-        val allocs = flatOutput.body.collect { case h: IR.HeapAlloc => h }
+        val allocs = flatOutput.body.collect { case h: TAC.HeapAlloc => h }
         allocs should have length 1
-        allocs.head.size shouldBe IR.Immediate(16)
+        allocs.head.size shouldBe TAC.Immediate(16)
 
         // should see a Store for the length header
-        val stores = flatOutput.body.collect { case s: IR.Store => s }
+        val stores = flatOutput.body.collect { case s: TAC.Store => s }
         stores should have length 1
         stores.head.source match {
-            case addr: IR.AddrImmOffset => addr.offset shouldBe IR.Immediate(0)
+            case addr: TAC.AddrImmOffset => addr.offset shouldBe TAC.Immediate(0)
             case _ => fail("Expected AddrImmOffset")
         }
 
         // should see exactly 3 ArrayStores (one for each element)
-        val arrayStores = flatOutput.body.collect { case a: IR.ArrayStore => a }
+        val arrayStores = flatOutput.body.collect { case a: TAC.ArrayStore => a }
         arrayStores should have length 3
     }
 
@@ -1029,16 +1029,16 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         val flatOutput = Flattener.flatten(programWith(decl))
 
         // should see a HeapAlloc of 4 bytes (just the length header)
-        val allocs = flatOutput.body.collect { case h: IR.HeapAlloc => h }
+        val allocs = flatOutput.body.collect { case h: TAC.HeapAlloc => h }
         allocs should have length 1
-        allocs.head.size shouldBe IR.Immediate(4)
+        allocs.head.size shouldBe TAC.Immediate(4)
 
         // should see a Store for the length header
-        val stores = flatOutput.body.collect { case s: IR.Store => s }
+        val stores = flatOutput.body.collect { case s: TAC.Store => s }
         stores should have length 1
 
         // should see no ArrayStores (empty array)
-        val arrayStores = flatOutput.body.collect { case a: IR.ArrayStore => a }
+        val arrayStores = flatOutput.body.collect { case a: TAC.ArrayStore => a }
         arrayStores should have length 0
     }
 
@@ -1063,12 +1063,12 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         val flatOutput = Flattener.flatten(programWith(decl))
 
         // should see a HeapAlloc of 8 bytes (4 for length + 4 * 1 for chars)
-        val allocs = flatOutput.body.collect { case h: IR.HeapAlloc => h }
+        val allocs = flatOutput.body.collect { case h: TAC.HeapAlloc => h }
         allocs should have length 1
-        allocs.head.size shouldBe IR.Immediate(8)
+        allocs.head.size shouldBe TAC.Immediate(8)
 
         // should see exactly 4 ArrayStores (one for each character)
-        val arrayStores = flatOutput.body.collect { case a: IR.ArrayStore => a }
+        val arrayStores = flatOutput.body.collect { case a: TAC.ArrayStore => a }
         arrayStores should have length 4
     }
 
@@ -1096,9 +1096,9 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         val flatOutput = Flattener.flatten(programWith(List(arrDecl, xDecl)))
         
         // should see ArrayLoad for reading arr[1]
-        val arrayLoads = flatOutput.body.collect { case a: IR.ArrayLoad => a }
+        val arrayLoads = flatOutput.body.collect { case a: TAC.ArrayLoad => a }
         arrayLoads should have length 1
-        arrayLoads.head.index shouldBe IR.Immediate(1)
+        arrayLoads.head.index shouldBe TAC.Immediate(1)
     }
 
     it should "write to a 1D array using ArrayStore" in {
@@ -1124,13 +1124,13 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         val flatOutput = Flattener.flatten(programWith(List(arrDecl, assign)))
         
         // should see ArrayStores: 3 for initialization + 1 for assignment
-        val arrayStores = flatOutput.body.collect { case a: IR.ArrayStore => a }
+        val arrayStores = flatOutput.body.collect { case a: TAC.ArrayStore => a }
         arrayStores.length should be > 3
         
         // the last ArrayStore should be the assignment with index 2 and value 99
         val assignStore = arrayStores.last
-        assignStore.index shouldBe IR.Immediate(2)
-        assignStore.src shouldBe IR.Immediate(99)
+        assignStore.index shouldBe TAC.Immediate(2)
+        assignStore.src shouldBe TAC.Immediate(99)
     }
 
     "The flattener for len operator" should "emit ArrayLen instruction for non-empty array" in {
@@ -1158,7 +1158,7 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         val flatOutput = Flattener.flatten(programWith(List(arrDecl, xDecl)))
         
         // should see exactly one ArrayLen instruction
-        val arrayLens = flatOutput.body.collect { case a: IR.ArrayLen => a }
+        val arrayLens = flatOutput.body.collect { case a: TAC.ArrayLen => a }
         arrayLens should have length 1
     }
 
@@ -1184,7 +1184,7 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         val flatOutput = Flattener.flatten(programWith(List(arrDecl, xDecl)))
         
         // should see exactly one ArrayLen instruction
-        val arrayLens = flatOutput.body.collect { case a: IR.ArrayLen => a }
+        val arrayLens = flatOutput.body.collect { case a: TAC.ArrayLen => a }
         arrayLens should have length 1
     }
 
@@ -1218,11 +1218,11 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         val flatOutput = Flattener.flatten(programWith(List(arrDecl, xDecl)))
         
         // should see exactly one ArrayLen instruction
-        val arrayLens = flatOutput.body.collect { case a: IR.ArrayLen => a }
+        val arrayLens = flatOutput.body.collect { case a: TAC.ArrayLen => a }
         arrayLens should have length 1
         
         // should also see Add instructions (at least one for the expression)
-        val adds = flatOutput.body.collect { case a: IR.Add => a }
+        val adds = flatOutput.body.collect { case a: TAC.Add => a }
         adds.length should be >= 1
     }
 
@@ -1249,12 +1249,12 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         val flatOutput = Flattener.flatten(programWith(List(arrDecl, readStmt)))
         
         // should see a Read with ReadIntegerWidget
-        val reads = flatOutput.body.collect { case r: IR.Read => r }
+        val reads = flatOutput.body.collect { case r: TAC.Read => r }
         reads should have length 1
         reads.head.widget shouldBe ReadIntegerWidget
         
         // should see an ArrayStore after the read (to write back into the array)
-        val arrayStores = flatOutput.body.collect { case a: IR.ArrayStore => a }
+        val arrayStores = flatOutput.body.collect { case a: TAC.ArrayStore => a }
         // 3 from init + 1 from read writeback
         arrayStores should have length 4
     }
@@ -1281,12 +1281,12 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         val flatOutput = Flattener.flatten(programWith(List(arrDecl, readStmt)))
         
         // should see a Read with ReadCharWidget
-        val reads = flatOutput.body.collect { case r: IR.Read => r }
+        val reads = flatOutput.body.collect { case r: TAC.Read => r }
         reads should have length 1
         reads.head.widget shouldBe ReadCharWidget
         
         // should see an ArrayStore after the read (to write back into the array)
-        val arrayStores = flatOutput.body.collect { case a: IR.ArrayStore => a }
+        val arrayStores = flatOutput.body.collect { case a: TAC.ArrayStore => a }
         // 2 from init + 1 from read writeback
         arrayStores should have length 3
     }
@@ -1308,7 +1308,7 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         val flatOutput = Flattener.flatten(programWith(List(decl, freeStmt)))
         
         // we should see exactly one free instruction
-        val frees = flatOutput.body.collect { case f: IR.Free => f }
+        val frees = flatOutput.body.collect { case f: TAC.Free => f }
         frees should have length 1
     }
 
@@ -1330,7 +1330,7 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         val flatOutput = Flattener.flatten(programWith(List(declP, freeStmt)))
         
         // we should see exactly one free instruction
-        val frees = flatOutput.body.collect { case f: IR.Free => f }
+        val frees = flatOutput.body.collect { case f: TAC.Free => f }
         frees should have length 1
     }
 

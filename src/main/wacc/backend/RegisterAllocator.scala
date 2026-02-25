@@ -1,7 +1,7 @@
 package wacc.backend
 
 import scala.collection.mutable
-import wacc.backend.IR
+import wacc.backend.TAC
 
 /**
   * The register allocator which allocates physical registers to the virtual
@@ -15,8 +15,8 @@ object RegisterAllocator {
       * @param mainAlloc allocation map for the main program body
       * @param funcAllocs allocation maps for each function, by function name
       */
-    case class AllocationResult(mainAlloc: Map[IR.VirtualReg, Location],
-                                funcAllocs: Map[String, Map[IR.VirtualReg, Location]])
+    case class AllocationResult(mainAlloc: Map[TAC.VirtualReg, Location],
+                                funcAllocs: Map[String, Map[TAC.VirtualReg, Location]])
 
     /**
       * Perform the register allocation
@@ -24,7 +24,7 @@ object RegisterAllocator {
       * @param prog the high level IR `RegProgram``
       * @return the register allocation map
       */
-    def allocate(prog: IR.RegProgram): AllocationResult = {
+    def allocate(prog: TAC.RegProgram): AllocationResult = {
         val funcMaps = prog.funcs.map { f => 
             f.name -> allocateBlock(f.body, f.args) 
         }.toMap
@@ -53,15 +53,15 @@ object RegisterAllocator {
       * is treated as a "main" function
       * @return the register allocation map
       */
-    private def allocateBlock(instrs: List[IR.Instruction],
-                      args: List[IR.VirtualReg]): Map[IR.VirtualReg, Location] = {
+    private def allocateBlock(instrs: List[TAC.Instruction],
+                      args: List[TAC.VirtualReg]): Map[TAC.VirtualReg, Location] = {
     
-        val allocationMap = mutable.Map[IR.VirtualReg, Location]()
+        val allocationMap = mutable.Map[TAC.VirtualReg, Location]()
 
         /* Allocate the return register */
-        allocationMap(IR.VirtualReg(-1, Size.B)) = PhysicalReg.argRegisters(0)
-        allocationMap(IR.VirtualReg(-1, Size.W)) = PhysicalReg.argRegisters(0)
-        allocationMap(IR.VirtualReg(-1, Size.X)) = PhysicalReg.argRegisters(0)
+        allocationMap(TAC.VirtualReg(-1, Size.B)) = PhysicalReg.argRegisters(0)
+        allocationMap(TAC.VirtualReg(-1, Size.W)) = PhysicalReg.argRegisters(0)
+        allocationMap(TAC.VirtualReg(-1, Size.X)) = PhysicalReg.argRegisters(0)
         
         /* Allocating only callee saved registers until the WACC extension */
         val freeRegs = mutable.Queue.from(PhysicalReg.getAllocatable)
@@ -88,7 +88,7 @@ object RegisterAllocator {
           * @param obj IR structure to scan for VirtualRegs
           */
         def scan(obj: Any): Unit = obj match {
-            case v: IR.VirtualReg =>
+            case v: TAC.VirtualReg =>
                 /* allocate only if not already assigned */
                 if (!allocationMap.contains(v)) {
                     if (freeRegs.nonEmpty) {
