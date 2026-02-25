@@ -64,6 +64,7 @@ examples/valid/runtimeErr/integerOverflow
 examples/valid/runtimeErr/divideByZero
 examples/valid/runtimeErr/badChar
 examples/valid/runtimeErr/nullDereference
+examples/valid/runtimeErr/arrayOutOfBounds
 
 examples/valid/expressions
 
