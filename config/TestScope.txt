@@ -1,2 +1,3 @@
-valid
-invalid
+examples/valid
+examples/invalid
+custom/valid

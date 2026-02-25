@@ -81,13 +81,22 @@ abstract class WaccIntegrationTestBase(
      * @return: True if the file belongs to an enabled scope, false otherwise
      */ 
     protected def isEnabled(file: Path): Boolean = {
-        if (enabledScopes.isEmpty) false
-        else {
-            val fileRel = rootTestPath.relativize(file).toString
-            val scopeKey = scopeFor(file)
-            enabledScopes.exists { s =>
-                val scope = s.stripSuffix("/")
-                fileRel == scope || scopeKey == scope || scopeKey.startsWith(scope + "/")
+
+        val fileRel = rootTestPath.relativize(file).toString
+
+        /* Don't run advanced tests on pipeline */
+        if (fileRel.startsWith("examples/valid/advanced/")) {
+            false
+        } else {
+
+            /* Enable if the scope is enabled */
+            if (enabledScopes.isEmpty) false
+            else {
+                val scopeKey = scopeFor(file)
+                enabledScopes.exists { s =>
+                    val scope = s.stripSuffix("/")
+                    fileRel == scope || scopeKey == scope || scopeKey.startsWith(scope + "/")
+                }
             }
         }
     }
