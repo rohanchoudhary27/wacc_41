@@ -743,6 +743,7 @@ object CodeGenerator {
         
         /* Memory management */
         case HeapAlloc(dest, size) => generateHeapAlloc(dest, size)
+        case Free(ptr) => generateFree(ptr)
         
         /* Special operations */
         case Lea(dest, label) => ??? // TODO
@@ -764,6 +765,24 @@ object CodeGenerator {
         useWidget(widget)
         /* size goes into x0, dest is returned */
         generateCall(Label(widget.label), List(size), Some(dest))
+    }
+
+    /**
+      * Generates the low-level IR for a `Free` instruction to deallocate heap memory.
+      *
+      * This method uses the memory freeing widget `FreePairWidget` and emits a call to 
+      * it, passing the target pointer in the first argument register. The widget itself is 
+      * responsible for triggering a runtime error (`_errNull`) if the pointer is null, and 
+      * calling the C standard library `free` function to deallocate the memory.
+      * 
+      * Only deallocates the outermost pointer, inner nested structures are not recursively freed.
+      *
+      * @param ptr The virtual register containing the 64 bit pointer to be freed.
+      */
+    private def generateFree(ptr: VirtualReg)(using st: GenState): Unit = {
+        val widget = FreePairWidget
+        useWidget(widget)
+        generateCall(Label(widget.label), List(ptr), None)
     }
 
     /**

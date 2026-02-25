@@ -135,6 +135,8 @@ case class NullCheck(ptr: VirtualReg) extends PtrInstr(ptr)
 
 /* Heap allocation instruction for arrays/pairs */
 case class HeapAlloc(dest: VirtualReg, size: Operand) extends PtrInstr(dest)
+/* Heap deallocation (freeing) of the pointer, for arrays and pairs */
+case class Free(ptr: VirtualReg) extends PtrInstr(ptr)
 
 /* Load the address of a label into a register (no memory access) */
 case class Lea(dest: VirtualReg, label: Label) extends PtrInstr(dest)
