@@ -372,9 +372,8 @@ object Flattener {
                 of the inner `fst p`, and so on.  */
             flattenPairElem(p)
 
-        case _ => 
-            // we handle arrays later... (good luck saim)
-            ??? 
+        case a: ArrayElem[SemanticData] =>
+            flattenArrayElem(a)
     }
 
     /**
@@ -665,10 +664,14 @@ object Flattener {
             "Backend Error: 'free' statement received " +
               s"invalid type ${expr.expressionType}. Must be an array or pair."
         )
+        val freeType = expr.expressionType match {
+            case KnownType.Array(_) => FreeType.Array
+            case _ => FreeType.Pair
+        }
         /* evaluate the expression to get the pointer. Since it's a pointer, we can
             use `Size.X` */
         val ptrReg = toReg(flattenExpr(expr), Size.X) 
-        funcState.emitInstruction(wacc.backend.Free(ptrReg))
+        funcState.emitInstruction(wacc.backend.Free(ptrReg, freeType))
     }
 
     /**

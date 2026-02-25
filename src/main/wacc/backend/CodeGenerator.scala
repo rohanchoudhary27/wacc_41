@@ -743,7 +743,7 @@ object CodeGenerator {
         
         /* Memory management */
         case HeapAlloc(dest, size) => generateHeapAlloc(dest, size)
-        case Free(ptr) => generateFree(ptr)
+        case Free(ptr, freeType) => generateFree(ptr, freeType)
         
         /* Special operations */
         case Lea(dest, label) => ??? // TODO
@@ -779,8 +779,11 @@ object CodeGenerator {
       *
       * @param ptr The virtual register containing the 64 bit pointer to be freed.
       */
-    private def generateFree(ptr: VirtualReg)(using st: GenState): Unit = {
-        val widget = FreePairWidget
+    private def generateFree(ptr: VirtualReg, freeType: FreeType)(using st: GenState): Unit = {
+        val widget = freeType match {
+            case FreeType.Pair => FreePairWidget
+            case FreeType.Array => FreeArrayWidget
+        }
         useWidget(widget)
         generateCall(Label(widget.label), List(ptr), None)
     }
