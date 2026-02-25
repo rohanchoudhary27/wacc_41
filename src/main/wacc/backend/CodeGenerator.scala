@@ -663,8 +663,15 @@ object CodeGenerator {
 
         /* Data movement */
         case Mov(dest, src) => generateMov(dest, src)
-        case Load(dest, addr) => ??? // TODO
-        case Store(src, addr) => ??? // TODO
+        case Load(dest, addr) =>
+            generateMemOp(dest, addr, ArmLdur.apply, ArmLoad.apply) {
+                /* afterwards, store the loaded value into the destination register */
+                storeToLoc(PhysicalReg.ipcScratch(0), locOf(dest), dest.size)
+            }
+        case Store(src, addr) =>
+            /* pre-load src into scratch0 */
+            loadToReg(locOf(src), src.size, PhysicalReg.ipcScratch(0))
+            generateMemOp(src, addr, ArmStur.apply, ArmStore.apply)()
         
         /* Arithmetic operations */
         case Add(dest, src1, src2) => 
@@ -723,8 +730,10 @@ object CodeGenerator {
         case Pop(dest) => ??? // TODO
         
         /* Array operations */
-        case ArrayLoad(array, index, dest) => ??? // TODO
-        case ArrayStore(array, index, src) => ??? // TODO
+        case ArrayLoad(array, index, dest) => 
+            generateArrayLoad(array, index, dest)
+        case ArrayStore(array, index, src, elemSize) => 
+            generateArrayStore(array, index, src, elemSize)
         case ArrayLen(array, dest) => generateArrayLen(array, dest)
         
         /* Pair operations */
@@ -868,6 +877,137 @@ object CodeGenerator {
         
         /* Store the 8 byte scrath register into heap memory */
         emit(ArmStore(Size.X, finalSrcReg, ArmAddrImmOffset(ptrReg, ArmImmediate(offset))))
+    }
+
+    /**
+      * Generates low level IR for a generic memory operation (Load or Store).
+      * Handles address resolution and base register loading.
+      *
+      * @param reg the virtual register to load into or store from
+      * @param addr the memory address
+      * @param immOp constructor for immediate-offset memory op
+      * @param regOp constructor for register-offset memory op
+      * @param postOp logic to run after the memory operation
+      */
+    private def generateMemOp(
+        reg: VirtualReg,
+        addr: Address,
+        immOp: (Size, PhysicalReg, ArmAddress) => ArmInstruction,
+        regOp: (Size, PhysicalReg, ArmAddress) => ArmInstruction,
+    )(postOp: => Unit = ())(using st: GenState): Unit = {
+        val scratch0 = PhysicalReg.ipcScratch(0)
+
+        addr match {
+            case AddrImmOffset(base, Immediate(offset)) =>
+                val baseReg = loadToReg(locOf(base), Size.X, PhysicalReg.ipcScratch(1))
+                emit(immOp(reg.size, scratch0, ArmAddrImmOffset(baseReg, ArmImmediate(offset))))
+            case AddrRegOffset(base, offsetReg) =>
+                val baseReg = loadToReg(locOf(base), Size.X, PhysicalReg.ipcScratch(1))
+                val offReg = loadToReg(locOf(offsetReg), Size.X, PhysicalReg.ipcScratch(1))
+                emit(regOp(reg.size, scratch0, ArmAddrRegOffset(baseReg, offReg)))
+            case _ => ???
+        }
+
+        postOp
+    }
+
+    /**
+      * Generates low level IR for an ArrayLoad instruction.
+      * Uses the appropriate runtime widget based on the destination register size.
+      *
+      * Calling convention: array ptr in X7, index in X17, result returned in X7.
+      * 
+      * @param array the virtual register holding the array pointer
+      * @param index the operand specifying the index to load from
+      * @param dest the destination virtual register to store the loaded value
+      */
+    private def generateArrayLoad(array: VirtualReg, index: Operand, dest: VirtualReg)
+                                 (using st: GenState): Unit = {
+        val arrayPtrReg = PhysicalReg.argRegisters(7)  // X7
+        val indexReg = PhysicalReg.ipcScratch(1)       // X17
+        
+        /* Load array pointer into X7 */
+        val ptrReg = loadToReg(locOf(array), Size.X, PhysicalReg.ipcScratch(0))
+        if (ptrReg != arrayPtrReg) {
+            emit(ArmMovReg(Size.X, arrayPtrReg, ptrReg))
+        }
+        
+        /* Load index into X17 */
+        index match {
+            case v: VirtualReg =>
+                val idxReg = loadToReg(locOf(v), Size.W, indexReg)
+                if (idxReg != indexReg) {
+                    emit(ArmMovReg(Size.W, indexReg, idxReg))
+                }
+            case Immediate(value) =>
+                generateMovImmediate(Size.W, indexReg, ArmImmediate(value))
+            case _ => ???
+        }
+        
+        /* Select and call the appropriate widget based on element size */
+        val widget = dest.size match {
+            case Size.B => ArrayLoad1Widget
+            case Size.W => ArrayLoad4Widget
+            case Size.X => ArrayLoad8Widget
+        }
+        useWidget(widget)
+        emit(ArmBl(ArmAddrLabel(widget.label)))
+        
+        /* Result is in X7, move to destination */
+        storeToLoc(arrayPtrReg, locOf(dest), dest.size)
+    }
+
+    /**
+      * Generates low level IR for an ArrayStore instruction.
+      * Uses the appropriate runtime widget based on the element size.
+      *
+      * Calling convention: array ptr in X7, index in X17, value in X8.
+      */
+    private def generateArrayStore(array: VirtualReg, index: Operand, src: Operand, elemSize: Size)
+                                  (using st: GenState): Unit = {
+        val arrayPtrReg = PhysicalReg.argRegisters(7)  // X7
+        val indexReg = PhysicalReg.ipcScratch(1)       // X17
+        val valueReg = PhysicalReg.mathScratch         // X8
+        
+        /* Load array pointer into X7 */
+        val ptrReg = loadToReg(locOf(array), Size.X, PhysicalReg.ipcScratch(0))
+        if (ptrReg != arrayPtrReg) {
+            emit(ArmMovReg(Size.X, arrayPtrReg, ptrReg))
+        }
+        
+        /* Load index into X17 */
+        index match {
+            case v: VirtualReg =>
+                val idxReg = loadToReg(locOf(v), Size.W, indexReg)
+                if (idxReg != indexReg) {
+                    emit(ArmMovReg(Size.W, indexReg, idxReg))
+                }
+            case Immediate(value) =>
+                generateMovImmediate(Size.W, indexReg, ArmImmediate(value))
+            case _ => ???
+        }
+        
+        /* Load value into X8 */
+        src match {
+            case v: VirtualReg =>
+                val srcReg = loadToReg(locOf(v), elemSize, valueReg)
+                if (srcReg != valueReg) {
+                    emit(ArmMovReg(elemSize, valueReg, srcReg))
+                }
+            case Immediate(value) =>
+                generateMovImmediate(elemSize, valueReg, ArmImmediate(value))
+            case Label(name) =>
+                emit(ArmLea(valueReg, ArmAddrLabel(name)))
+        }
+        
+        /* Select and call the appropriate widget based on element size */
+        val widget = elemSize match {
+            case Size.B => ArrayStore1Widget
+            case Size.W => ArrayStore4Widget
+            case Size.X => ArrayStore8Widget
+        }
+        useWidget(widget)
+        emit(ArmBl(ArmAddrLabel(widget.label)))
     }
 
     /**
