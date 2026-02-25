@@ -105,7 +105,7 @@ abstract class WaccIntegrationTestBase(
     * Parses the scope config file to find the tests to run.
     * Filters commented lines (beginning with a '#')
     * 
-    * @param path: The path to the TestScope.txt config file
+    * @param path: The path to the FrontendTestScope.txt config file
     * 
     * @return A set of strings representing the active test scopes
     */
