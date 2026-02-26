@@ -299,7 +299,8 @@ object CodeGenerator {
     private def withBinaryContext(dest: TAC.VirtualReg, 
                                   src1: TAC.VirtualReg, 
                                   optWidget: Option[Widget] = None)
-                                 (opBlock: (PhysicalReg, PhysicalReg) => Unit)(using st: GenState): Unit = {
+                                 (opBlock: (PhysicalReg, PhysicalReg) => Unit)
+                                 (using st: GenState): Unit = {
 
         /* Widget enabling */
         optWidget.foreach(useWidget)
@@ -389,7 +390,7 @@ object CodeGenerator {
                          PhysicalReg.linkReg,
                          Arm.AddrPreIndex(
                             PhysicalReg.stackPointer, 
-                            Arm.Immediate(-1 * AARch64Limits.ARM_STACK_ALIGNMENT_BYTES)
+                            Arm.Immediate(-AARch64Limits.ARM_STACK_ALIGNMENT_BYTES)
                         )))
 
         /* set FP to be SP */
@@ -404,7 +405,7 @@ object CodeGenerator {
         }
 
         /* push callee-saved registers in pairs */
-        savedRegs.grouped(2).foreach {
+        savedRegs.grouped(AARch64Limits.ARM_STACK_REG_PER_PUSH).foreach {
             case List(r1, r2) => /* do stp xi, x(i+1), [sp, #-16]! */
                 emit(Arm.StorePair(
                     Size.X, r1, r2, Arm.AddrPreIndex(
@@ -438,7 +439,7 @@ object CodeGenerator {
     private def generateFuncEpilogue(
         localsSize: Int, savedRegs: List[PhysicalReg]
     )(using GenState) = {
-        savedRegs.grouped(2).toList.reverse.foreach {
+        savedRegs.grouped(AARch64Limits.ARM_STACK_REG_PER_PUSH).toList.reverse.foreach {
             case List(r1, r2) => 
                 /* (r1, r2) was pushed in prologue, and stack top has r1 at low addr, r2 at high 
                     addr. LDP loads low addr into first register, high into second, so we load 
@@ -487,7 +488,10 @@ object CodeGenerator {
       * @param ctx the global context for labels and data directives
       * @return the low-level ARM instruction list
       */
-    def generateFunc(func: TAC.FunctionDef, alloc: Map[TAC.VirtualReg, Location], ctx: GlobalGenContext): List[Arm.Instruction] = {
+    def generateFunc(func: TAC.FunctionDef,
+                     alloc: Map[TAC.VirtualReg, Location],
+                     ctx: GlobalGenContext): List[Arm.Instruction] = {
+
         given st: GenState = GenState(ctx, alloc)
         
         /* Function label */
@@ -510,10 +514,14 @@ object CodeGenerator {
             }
         }
 
+        /* Register the epilogue label */
         val epilogueLabel = Arm.AddrLabel(s".L_${func.name}_epilogue")
         st.currEpilogueLabel = Some(epilogueLabel)
+
+        /* Generate function body */
         generateInstrs(func.body)
 
+        /* Generate function eiplogue */
         emit(Arm.LabelDef(epilogueLabel))
         generateFuncEpilogue(localsSize, savedRegs)
         
@@ -531,7 +539,8 @@ object CodeGenerator {
       * Generate ARM instructions for a single high-level instruction.
       * Pattern matches on all instruction types and delegates to specific handlers.
       */
-    private def generateInstr(instr: TAC.Instruction)(using genState: GenState): Unit = (instr: @unchecked) match {
+    private def generateInstr(instr: TAC.Instruction)
+                             (using genState: GenState): Unit = (instr: @unchecked) match {
 
         /* Data movement */
         case TAC.Mov(dest, src) => generateMov(dest, src)
@@ -570,6 +579,7 @@ object CodeGenerator {
         case TAC.Not(dest, src) => 
             generateNot(dest, src)
 
+        /* Shifts */
         case TAC.Lsl(dest, src1, src2) => 
             generateStandardBinOp(dest, src1, src2, Arm.LslReg.apply, Arm.LslImm.apply, None)
         case TAC.Lsr(dest, src1, src2) => 
@@ -680,9 +690,12 @@ object CodeGenerator {
       * @param opBlock The instruction emission function
       * @param st A GenState object
       */
-    private def generateComplexBinOp(dest: TAC.VirtualReg, src1: TAC.VirtualReg, src2: TAC.Operand, optWidget: Option[Widget])
-                         (opBlock: (PhysicalReg, PhysicalReg, PhysicalReg) => Unit)
-                         (using st: GenState): Unit = {
+    private def generateComplexBinOp(dest: TAC.VirtualReg,
+                                     src1: TAC.VirtualReg,
+                                     src2: TAC.Operand,
+                                     optWidget: Option[Widget])
+                                    (opBlock: (PhysicalReg, PhysicalReg, PhysicalReg) => Unit)
+                                    (using st: GenState): Unit = {
 
         /* Binary context handles  register loading, storing and widget */
         withBinaryContext(dest, src1, optWidget) { (resultReg, src1Reg) =>
@@ -713,7 +726,10 @@ object CodeGenerator {
      * @param src1: first source virtual register
      * @param src1: second operand (can be an immediate  or virtual register)
      */
-    private def generateMul(dest: TAC.VirtualReg, src1: TAC.VirtualReg, src2: TAC.Operand) (using st: GenState): Unit = {
+    private def generateMul(dest: TAC.VirtualReg,
+                            src1: TAC.VirtualReg,
+                            src2: TAC.Operand)
+                           (using st: GenState): Unit = {
 
         /* Binary context handles  register loading, storing and widget */
         generateComplexBinOp(dest, src1, src2, Some(IntOverflowErrorWidget)) {
@@ -723,7 +739,8 @@ object CodeGenerator {
                 emit(Arm.SMull(resultReg, src1Reg, src2Reg))
 
                 /* Take lower 32 bits of result and sign extend to 64 into x8.
-                   If no overflow then the 32-bit version will be identical to the 64bit SMULL result. */
+                   If no overflow then the 32-bit version will be identical
+                   to the 64bit SMULL result. */
                 val scratch3 = PhysicalReg.mathScratch
                 emit(Arm.Sxtw(scratch3, resultReg))
                 emit(Arm.CmpReg(Size.X, resultReg, scratch3))
@@ -741,8 +758,11 @@ object CodeGenerator {
      * @param src1: second operand (can be an immediate  or virtual register)
      * @param isMod: flag to indicate whether integer division or modulo is to be carried out
      */
-    private def generateDivMod(dest: TAC.VirtualReg, src1: TAC.VirtualReg, src2: TAC.Operand, isMod: Boolean) 
-        (using st: GenState): Unit = {
+    private def generateDivMod(dest: TAC.VirtualReg,
+                               src1: TAC.VirtualReg,
+                               src2: TAC.Operand,
+                               isMod: Boolean)
+                              (using st: GenState): Unit = {
 
         /* Binary context handles  register loading, storing and widget */
         generateComplexBinOp(dest, src1, src2, Some(DivByZeroErrorWidget)) {
@@ -811,7 +831,9 @@ object CodeGenerator {
       * @param dest the destination virtual register to store the allocated heap pointer
       * @param size the operand specifying the number of bytes to allocate
       */
-    private def generateHeapAlloc(dest: TAC.VirtualReg, size: TAC.Operand)(using st: GenState): Unit = {
+    private def generateHeapAlloc(dest: TAC.VirtualReg,
+                                  size: TAC.Operand)
+                                 (using st: GenState): Unit = {
         val widget = MallocWidget
         useWidget(widget)
         /* size goes into x0, dest is returned */
@@ -847,7 +869,9 @@ object CodeGenerator {
       * @param src The source register for the sign extension (smaller size) 
       * @param st The generator state
       */
-    private def generateSignExtend(dest: TAC.VirtualReg, src: TAC.VirtualReg)(using st: GenState): Unit = {
+    private def generateSignExtend(dest: TAC.VirtualReg,
+                                   src: TAC.VirtualReg)
+                                  (using st: GenState): Unit = {
         val srcLoc = locOf(src)
         val destLoc = locOf(dest)
 
@@ -891,8 +915,9 @@ object CodeGenerator {
         
         /* we first load the memory address (ptrReg + offset) into a scratch register x17, then
             load that to the destination location because AArch64 forbids direct memory to memory 
-            transfers (if dest is a memory location on the stack). */
-        /* also note that we load the full 8-byte pair slot (pair slots are always 8 bytes) from
+            transfers (if dest is a memory location on the stack).
+
+            also note that we load the full 8-byte pair slot (pair slots are always 8 bytes) from
             the heap into the 64 bit (corrsponds to Size.X) scratch register */
         val destScratch = PhysicalReg.ipcScratch(1)
         emit(Arm.Load(Size.X, destScratch, Arm.AddrImmOffset(ptrReg, Arm.Immediate(offset))))
@@ -1093,8 +1118,9 @@ object CodeGenerator {
         if (numericalValue >= 0 && numericalValue <= AARch64Limits.ARM_IMMEDIATE_UNSIGNED_HIGH) {
             emit(Arm.Movz(size, dest, Arm.Immediate(numericalValue)))
         } else {
-            val lower16 = numericalValue & 0xFFFF
-            val upper16 = (numericalValue >>> 16) & 0xFFFF
+            val lower16 = numericalValue & AARch64Limits.ARM_IMMEDIATE_UNSIGNED_HIGH
+            val upper16 = (numericalValue >>> ShiftAmounts.value(ShiftAmounts._16)) &
+                                              AARch64Limits.ARM_IMMEDIATE_UNSIGNED_HIGH
 
             /* If we're moving a negative immediate, we must move to a Size.W register since
                this means the negative bit is still the MSB. If we were to use `size`, it might
@@ -1159,12 +1185,12 @@ object CodeGenerator {
                            (using st: GenState): Unit = {
 
         generateUnaryOp(dest, src, Some(widget), {(d, s) => {
-            val maxValidChar = 127
+
             /* Move the operand into w0 for the error function */
             emit(Arm.MovReg(Size.W, PhysicalReg.argRegisters(0), s))
 
             /* If the int value is not 0-127 inclusive, runtime error */
-            emit(Arm.CmpImm(Size.W, s, Arm.Immediate(maxValidChar)))
+            emit(Arm.CmpImm(Size.W, s, Arm.Immediate(Constants.ASCII_MAX)))
             emit(Arm.BranchCond(Condition.HI, Arm.AddrLabel(widget.label)))
 
             if (d != s) {
@@ -1194,7 +1220,7 @@ object CodeGenerator {
             we use a byte per arg because when calling CLib funcs this is a requirement
             and also byte alignment is faster for hardware.
         */
-        val unalignedStackBytes = stackArgs.length * 8
+        val unalignedStackBytes = stackArgs.length * MemoryLayout.BYTES_PER_STACK_ARG
         val stackBytesAdded = alignBytes(unalignedStackBytes)
         emit(Arm.SubImm(Size.X,
                         PhysicalReg.stackPointer,
@@ -1205,7 +1231,7 @@ object CodeGenerator {
         stackArgs.zipWithIndex.foreach { (arg, i) =>
 
             val size = operandSize(arg)
-            val offset = i * 8 /* offset from the stack pointer */
+            val offset = i * MemoryLayout.BYTES_PER_STACK_ARG /* offset from the stack pointer */
 
             /* Put the argument in a scratch register */
             val scratch = PhysicalReg.ipcScratch(0)

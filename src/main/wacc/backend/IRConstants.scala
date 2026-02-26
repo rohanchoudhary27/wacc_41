@@ -9,16 +9,19 @@ object MemoryLayout {
     val PAIR_HEAP_SIZE_B = 16 /* Pairs are always stored in 16 bytes in heap (each slot 8 bytes) */
     val ARRAY_LEN_HEADER_SIZE_B = 4 /* Size of the integer length header preceding array elements. */
     val RETURN_REG_ID = -1 /* Identifier for the return register */
+    val BYTES_PER_STACK_ARG = 8
 }
 
 object Constants {
     val TRUE = 1
     val FALSE = 0
+    val ASCII_MAX = 127
 }
 
 object AARch64Limits {
     val ARM_NUM_REGS_FOR_FUNC_ARGS = 8 /* Arm allocates parameters into registers for the first 8 arguments */
     val ARM_STACK_ALIGNMENT_BYTES = 16 /* ARM requires that the stack MUST be aligned to 16 bytes */
+    val ARM_STACK_REG_PER_PUSH = 2 /* We push two registers to maintain stack alignment */
 
     /* ARM immediate signed offset bounds allowed by the STR/LDR/STUR/LDUR instructions */
     val ARM_IMMEDIATE_SIGNED_OFFSET_LOW = -256
