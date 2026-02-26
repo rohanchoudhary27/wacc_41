@@ -11,13 +11,13 @@ object TAC {
     /* Addresses */
     sealed trait Address
     case class AddrRegOffset(baseAddr: VirtualReg, offset: VirtualReg) extends  Address {
-        require(baseAddr.size == Size.X, 
-                s"AddrRegOffset Mismatch: Base address must be 64-bit (X), got ${baseAddr.size}")
+        require(baseAddr.size == Size.X, InternalCompilerError.sizeMismatch("AddrRegOffset", Size.X, baseAddr.size))
     }
+
     case class AddrImmOffset(baseAddr: VirtualReg, offset: Immediate) extends Address {
-        require(baseAddr.size == Size.X, 
-                s"AddrRegOffset Mismatch: Base address must be 64-bit (X), got ${baseAddr.size}")
+        require(baseAddr.size == Size.X, InternalCompilerError.sizeMismatch("AddrRegOffset", Size.X, baseAddr.size))
     }
+
     case class AddrLabel(name: String) extends Address
     case class AddrStack(offset: Int) extends Address
 
@@ -29,12 +29,10 @@ object TAC {
 
     /* Enforcing all the same register sizes */
     abstract class BinOp(dest: VirtualReg, src1: VirtualReg, src2: Operand) extends Instruction {
-        require(dest.size == src1.size, 
-            s"BinOp Size Mismatch: Dest ${dest.size} != Src1 ${src1.size}")
+        require(dest.size == src1.size, InternalCompilerError.sizeMismatch("BinOp", dest.size, src1.size))
         
         src2 match {
-            case v: VirtualReg => require(dest.size == v.size, 
-                s"BinOp Size Mismatch: Dest ${dest.size} != Src2 ${v.size}")
+            case v: VirtualReg => require(dest.size == v.size, InternalCompilerError.sizeMismatch("BinOp Src2", dest.size, v.size))
             case _ =>
         }
     }
@@ -42,9 +40,9 @@ object TAC {
     /* Enforcing both the same register sizes */
     abstract class UnOp(dest: VirtualReg, src: Operand) extends Instruction {
         src match {
-            case v: VirtualReg => require(dest.size == v.size, 
-                s"UnOp Size Mismatch: Dest ${dest.size} != Src ${v.size}")
+            case v: VirtualReg => require(dest.size == v.size, InternalCompilerError.sizeMismatch("UnOp", dest.size, v.size))
             case _ => 
+
         }
     }
 
@@ -52,22 +50,21 @@ object TAC {
     abstract class CmpOp(src1: VirtualReg, src2: Operand) extends Instruction {
         src2 match {
             case v: VirtualReg => require(src1.size == v.size, 
-                s"Cmp Size Mismatch: Src1 ${src1.size} != Src2 ${v.size}")
+                InternalCompilerError.sizeMismatch("Cmp", src1.size, v.size))
             case _ =>
         }
     }
 
     /* Enforcing 64 bit pointer size */
     abstract class PtrInstr(ptr: VirtualReg) extends Instruction {
-        require(ptr.size == Size.X, s"Pointer Source must be 64-bit, got ${ptr.size}")
+        require(ptr.size == Size.X, InternalCompilerError.sizeMismatch("Pointer",  Size.X, ptr.size))
     }
 
     /* Enforcing 32-bit integer index and 64 bit pointer size */
     abstract class ArrayInstr(array: VirtualReg, index: Operand) extends PtrInstr(array) {
         index match {
-            case v: VirtualReg => 
-                require(v.size == Size.W, 
-                    s"Array Error: Index must be 32-bit (W), got ${v.size}")
+            case v: VirtualReg if v.size != Size.W => require(v.size == Size.W, 
+                InternalCompilerError.sizeMismatch("ArrayInstr", Size.W, v.size))
             case _ => 
         }
     }
@@ -113,19 +110,15 @@ object TAC {
     case class Print(src: Operand, widget: Widget, newline: Boolean) extends Instruction
     case class Read(dest: VirtualReg, widget: Widget) extends Instruction
 
-    /* Stack instructions */
-    case class Push(sourceReg: VirtualReg) extends Instruction
-    case class Pop(destReg: VirtualReg) extends Instruction
-
-/* Array instructions */
-case class ArrayLoad(array: VirtualReg,
-                     index: Operand,
-                     dest: VirtualReg) extends ArrayInstr(array, index)
-case class ArrayStore(array: VirtualReg,
-                      index: Operand,
-                      src: Operand,
-                      elemSize: Size) extends ArrayInstr(array, index)
-case class ArrayLen(array: VirtualReg, dest: VirtualReg) extends PtrInstr(array)
+    /* Array instructions */
+    case class ArrayLoad(array: VirtualReg,
+                        index: Operand,
+                        dest: VirtualReg) extends ArrayInstr(array, index)
+    case class ArrayStore(array: VirtualReg,
+                        index: Operand,
+                        src: Operand,
+                        elemSize: Size) extends ArrayInstr(array, index)
+    case class ArrayLen(array: VirtualReg, dest: VirtualReg) extends PtrInstr(array)
 
     /* Pair put/get instructions */
     case class PairLoad(pair: VirtualReg, index: PairPos, dest: VirtualReg) extends PtrInstr(pair)
@@ -134,13 +127,10 @@ case class ArrayLen(array: VirtualReg, dest: VirtualReg) extends PtrInstr(array)
     /* Check if a pointer is null, throwing a runtime error if so */
     case class NullCheck(ptr: VirtualReg) extends PtrInstr(ptr)
 
-/* Heap allocation instruction for arrays/pairs */
-case class HeapAlloc(dest: VirtualReg, size: Operand) extends PtrInstr(dest)
-/* Heap deallocation (freeing) of the pointer, for arrays and pairs */
-case class Free(ptr: VirtualReg, freeType: FreeType) extends PtrInstr(ptr)
-
-    /* Load the address of a label into a register (no memory access) */
-    case class Lea(dest: VirtualReg, label: Label) extends PtrInstr(dest)
+    /* Heap allocation instruction for arrays/pairs */
+    case class HeapAlloc(dest: VirtualReg, size: Operand) extends PtrInstr(dest)
+    /* Heap deallocation (freeing) of the pointer, for arrays and pairs */
+    case class Free(ptr: VirtualReg, freeType: FreeType) extends PtrInstr(ptr)
 
     /* Sign extend a register to be a bigger size */
     case class SignExtend(dest: VirtualReg, src: VirtualReg) extends Instruction
