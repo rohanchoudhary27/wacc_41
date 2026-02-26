@@ -1,5 +1,6 @@
 package wacc.backend
 
+import wacc.ExitCodes
 /**
  * Represents a snippet of AArch64 assembly that provides common functionality
  * Each widget contains its own assembly definition and may depend on other widgets
@@ -73,13 +74,13 @@ object PrintlnWidget extends Widget {
             |    .align 4
             |_println:
             |     // push {lr}
-            |     stp lr, xzr, [sp, #-16]!
+            |     stp lr, xzr, [sp, #-${AARch64Limits.ARM_STACK_ALIGNMENT_BYTES}]!
             |     adr x0, .L._println_str0
             |     bl puts
             |     mov x0, #0
             |     bl fflush
             |     // pop {lr}
-            |     ldp lr, xzr, [sp], #16
+            |     ldp lr, xzr, [sp], #${AARch64Limits.ARM_STACK_ALIGNMENT_BYTES}
             |     ret""".stripMargin
 }
 
@@ -99,14 +100,14 @@ object PrintIntWidget extends Widget {
             |    .align 4
             |_printi:
             |    // push {lr}
-            |    stp lr, xzr, [sp, #-16]!
+            |    stp lr, xzr, [sp, #-${AARch64Limits.ARM_STACK_ALIGNMENT_BYTES}]!
             |    mov x1, x0
             |    adr x0, .L._printi_str0
             |    bl printf
             |    mov x0, #0
             |    bl fflush
             |    // pop {lr}
-            |    ldp lr, xzr, [sp], #16
+            |    ldp lr, xzr, [sp], #${AARch64Limits.ARM_STACK_ALIGNMENT_BYTES}
             |    ret""".stripMargin
 }
 
@@ -125,7 +126,7 @@ object PrintStringWidget extends Widget {
             |    .align 4
             |_prints:
             |    // push {lr}
-            |    stp lr, xzr, [sp, #-16]!
+            |    stp lr, xzr, [sp, #-${AARch64Limits.ARM_STACK_ALIGNMENT_BYTES}]!
             |    mov x2, x0
             |    ldur w1, [x0, #-4]
             |    adr x0, .L._prints_str0
@@ -133,7 +134,7 @@ object PrintStringWidget extends Widget {
             |    mov x0, #0
             |    bl fflush
             |    // pop {lr}
-            |    ldp lr, xzr, [sp], #16
+            |    ldp lr, xzr, [sp], #${AARch64Limits.ARM_STACK_ALIGNMENT_BYTES}
             |    ret""".stripMargin
 }
 
@@ -160,7 +161,7 @@ object PrintBoolWidget extends Widget {
             |    .align 4
             |_printb:
             |    // push {lr}
-            |    stp lr, xzr, [sp, #-16]!
+            |    stp lr, xzr, [sp, #-${AARch64Limits.ARM_STACK_ALIGNMENT_BYTES}]!
             |    cmp w0, #0
             |    b.ne .L_printb0
             |    adr x2, .L._printb_str0
@@ -174,7 +175,7 @@ object PrintBoolWidget extends Widget {
             |    mov x0, #0
             |    bl fflush
             |    // pop {lr}
-            |    ldp lr, xzr, [sp], #16
+            |    ldp lr, xzr, [sp], #${AARch64Limits.ARM_STACK_ALIGNMENT_BYTES}
             |    ret""".stripMargin
 }
 
@@ -193,14 +194,14 @@ object PrintCharWidget extends Widget {
             |    .align 4
             |_printc:
             |    // push {lr}
-            |    stp lr, xzr, [sp, #-16]!
+            |    stp lr, xzr, [sp, #-${AARch64Limits.ARM_STACK_ALIGNMENT_BYTES}]!
             |    mov x1, x0
             |    adr x0, .L._printc_str0
             |    bl printf
             |    mov x0, #0
             |    bl fflush
             |    // pop {lr}
-            |    ldp lr, xzr, [sp], #16
+            |    ldp lr, xzr, [sp], #${AARch64Limits.ARM_STACK_ALIGNMENT_BYTES}
             |    ret""".stripMargin
 }
 
@@ -220,14 +221,14 @@ object PrintPointerWidget extends Widget {
             |    .align 4
             |_printp:
             |    // push {lr}
-            |    stp lr, xzr, [sp, #-16]!
+            |    stp lr, xzr, [sp, #-${AARch64Limits.ARM_STACK_ALIGNMENT_BYTES}]!
             |    mov x1, x0
             |    adr x0, .L._printp_str0
             |    bl printf
             |    mov x0, #0
             |    bl fflush
             |    // pop {lr}
-            |    ldp lr, xzr, [sp], #16
+            |    ldp lr, xzr, [sp], #${AARch64Limits.ARM_STACK_ALIGNMENT_BYTES}
             |    ret""".stripMargin
 }
 
@@ -248,14 +249,15 @@ object ReadIntegerWidget extends Widget {
             |    // X0 contains the "original" value of the destination of the read
             |    // allocate space on the stack to store the read: preserve alignment!
             |    // the passed default argument should be stored in case of EOF
-            |    // aarch64 mandates 16-byte SP alignment at all times, might as well merge the stores
+            |    // aarch64 mandates ${AARch64Limits.ARM_STACK_ALIGNMENT_BYTES}-byte SP alignment
+            |       // at all times, might as well merge the stores
             |    // push {x0, lr}
-            |    stp x0, lr, [sp, #-16]!
+            |    stp x0, lr, [sp, #-${AARch64Limits.ARM_STACK_ALIGNMENT_BYTES}]!
             |    mov x1, sp
             |    adr x0, .L._readi_str0
             |    bl scanf
             |    // pop {x0, lr}
-            |    ldp x0, lr, [sp], #16
+            |    ldp x0, lr, [sp], #${AARch64Limits.ARM_STACK_ALIGNMENT_BYTES}
             |    ret""".stripMargin
 }
 
@@ -276,14 +278,15 @@ object ReadCharWidget extends Widget {
             |    // X0 contains the "original" value of the destination of the read
             |    // allocate space on the stack to store the read: preserve alignment!
             |    // the passed default argument should be stored in case of EOF
-            |    // aarch64 mandates 16-byte SP alignment at all times, might as well merge the stores
+            |    // aarch64 mandates ${AARch64Limits.ARM_STACK_ALIGNMENT_BYTES}-byte SP alignment
+            |       // at all times, might as well merge the stores
             |    // push {x0, lr}
-            |    stp x0, lr, [sp, #-16]!
+            |    stp x0, lr, [sp, #-${AARch64Limits.ARM_STACK_ALIGNMENT_BYTES}]!
             |    mov x1, sp
             |    adr x0, .L._readc_str0
             |    bl scanf
             |    // pop {x0, lr}
-            |    ldp x0, lr, [sp], #16
+            |    ldp x0, lr, [sp], #${AARch64Limits.ARM_STACK_ALIGNMENT_BYTES}
             |    ret""".stripMargin
 }
 
@@ -303,7 +306,7 @@ object DivByZeroErrorWidget extends Widget {
             |_errDivZero:
             |    adr x0, .L._errDivZero_str0
             |    bl _prints
-            |    mov w0, #-1
+            |    mov w0, #${ExitCodes.code(ExitCodes.RuntimeErrorCode)}
             |    bl exit""".stripMargin
 
     override val dependencies: Set[Widget] = Set(PrintStringWidget)
@@ -325,7 +328,7 @@ object IntOverflowErrorWidget extends Widget {
             |_errOverflow:
             |    adr x0, .L._errOverflow_str0
             |    bl _prints
-            |    mov w0, #-1
+            |    mov w0, #${ExitCodes.code(ExitCodes.RuntimeErrorCode)}
             |    bl exit""".stripMargin
 
     override val dependencies: Set[Widget] = Set(PrintStringWidget)
@@ -348,7 +351,7 @@ object NullDerefErrorWidget extends Widget {
             |_errNull:
             |    adr x0, .L._errNull_str0
             |    bl _prints
-            |    mov w0, #-1
+            |    mov w0, #${ExitCodes.code(ExitCodes.RuntimeErrorCode)}
             |    bl exit""".stripMargin
 
     override val dependencies: Set[Widget] = Set(PrintStringWidget)
@@ -370,7 +373,7 @@ object OutOfMemoryErrorWidget extends Widget {
             |_errOutOfMemory:
             |    adr x0, .L._errOutOfMemory_str0
             |    bl _prints
-            |    mov w0, #-1
+            |    mov w0, #${ExitCodes.code(ExitCodes.RuntimeErrorCode)}
             |    bl exit""".stripMargin
 
     override val dependencies: Set[Widget] = Set(PrintStringWidget)
@@ -394,7 +397,7 @@ object ArrayBoundsErrorWidget extends Widget {
             |    bl printf
             |    mov x0, #0
             |    bl fflush
-            |    mov w0, #-1
+            |    mov w0, #${ExitCodes.code(ExitCodes.RuntimeErrorCode)}
             |    bl exit""".stripMargin
 }
 
@@ -408,11 +411,11 @@ object MallocWidget extends Widget {
         s"""// ${description}
             |_malloc:
             |    // push {lr}
-            |    stp lr, xzr, [sp, #-16]!
+            |    stp lr, xzr, [sp, #-${AARch64Limits.ARM_STACK_ALIGNMENT_BYTES}]!
             |    bl malloc
             |    cbz x0, _errOutOfMemory
             |    // pop {lr}
-            |    ldp lr, xzr, [sp], #16
+            |    ldp lr, xzr, [sp], #${AARch64Limits.ARM_STACK_ALIGNMENT_BYTES}
             |    ret""".stripMargin
 
     override val dependencies: Set[Widget] = Set(OutOfMemoryErrorWidget)
@@ -428,11 +431,11 @@ object FreePairWidget extends Widget {
         s"""// ${description}
             |_freepair:
             |    // push {lr}
-            |    stp lr, xzr, [sp, #-16]!
+            |    stp lr, xzr, [sp, #-${AARch64Limits.ARM_STACK_ALIGNMENT_BYTES}]!
             |    cbz x0, _errNull
             |    bl free
             |    // pop {lr}
-            |    ldp lr, xzr, [sp], #16
+            |    ldp lr, xzr, [sp], #${AARch64Limits.ARM_STACK_ALIGNMENT_BYTES}
             |    ret""".stripMargin
 
     override val dependencies: Set[Widget] = Set(NullDerefErrorWidget)
@@ -450,11 +453,11 @@ object FreeArrayWidget extends Widget {
         s"""// ${description}
             |_freearray:
             |    // push {lr}
-            |    stp lr, xzr, [sp, #-16]!
+            |    stp lr, xzr, [sp, #-${AARch64Limits.ARM_STACK_ALIGNMENT_BYTES}]!
             |    sub x0, x0, #4
             |    bl free
             |    // pop {lr}
-            |    ldp lr, xzr, [sp], #16
+            |    ldp lr, xzr, [sp], #${AARch64Limits.ARM_STACK_ALIGNMENT_BYTES}
             |    ret""".stripMargin
 
     override val dependencies: Set[Widget] = Set()
@@ -472,7 +475,7 @@ object ArrayLoad1Widget extends Widget {
             |//LR (W30) is used as general register, and return into X7
             |_arrLoad1:
             |    // push {lr}
-            |    stp lr, xzr, [sp, #-16]!
+            |    stp lr, xzr, [sp, #-${AARch64Limits.ARM_STACK_ALIGNMENT_BYTES}]!
             |    cmp w17, #0
             |    csel x1, x17, x1, lt // this must be a 64-bit move so that it doesn't truncate if the move fails
             |    b.lt _errOutOfBounds
@@ -482,7 +485,7 @@ object ArrayLoad1Widget extends Widget {
             |    b.ge _errOutOfBounds
             |    ldrb w7, [x7, x17]
             |    // pop {lr}
-            |    ldp lr, xzr, [sp], #16
+            |    ldp lr, xzr, [sp], #${AARch64Limits.ARM_STACK_ALIGNMENT_BYTES}
             |    ret""".stripMargin
 
     override val dependencies: Set[Widget] = Set(ArrayBoundsErrorWidget)
@@ -499,7 +502,7 @@ object ArrayStore1Widget extends Widget {
             |// Special calling convention: array ptr passed in X7, ind in X17, value to store in X8, LR (W30) general 
             |_arrStore1:
             |    // push {lr}
-            |    stp lr, xzr, [sp, #-16]!
+            |    stp lr, xzr, [sp, #-${AARch64Limits.ARM_STACK_ALIGNMENT_BYTES}]!
             |    cmp w17, #0
             |    csel x1, x17, x1, lt // this must be a 64-bit move so that it doesn't truncate if the move fails
             |    b.lt _errOutOfBounds
@@ -509,7 +512,7 @@ object ArrayStore1Widget extends Widget {
             |    b.ge _errOutOfBounds
             |    strb w8, [x7, x17]
             |    // pop {lr}
-            |    ldp lr, xzr, [sp], #16
+            |    ldp lr, xzr, [sp], #${AARch64Limits.ARM_STACK_ALIGNMENT_BYTES}
             |    ret""".stripMargin
 
     override val dependencies: Set[Widget] = Set(ArrayBoundsErrorWidget)
@@ -526,7 +529,7 @@ object ArrayLoad4Widget extends Widget {
             |// Special calling convention: array ptr passed in X7, index in X17, LR (W30) is general, and return into X7
             |_arrLoad4:
             |    // push {lr}
-            |    stp lr, xzr, [sp, #-16]!
+            |    stp lr, xzr, [sp, #-${AARch64Limits.ARM_STACK_ALIGNMENT_BYTES}]!
             |    cmp w17, #0
             |    csel x1, x17, x1, lt // this must be a 64-bit move so that it doesn't truncate if the move fails
             |    b.lt _errOutOfBounds
@@ -536,7 +539,7 @@ object ArrayLoad4Widget extends Widget {
             |    b.ge _errOutOfBounds
             |    ldr w7, [x7, x17, lsl #2]
             |    // pop {lr}
-            |    ldp lr, xzr, [sp], #16
+            |    ldp lr, xzr, [sp], #${AARch64Limits.ARM_STACK_ALIGNMENT_BYTES}
             |    ret""".stripMargin
 
     override val dependencies: Set[Widget] = Set(ArrayBoundsErrorWidget)
@@ -553,7 +556,7 @@ object ArrayStore4Widget extends Widget {
             |// Special calling convention: arr ptr passed in X7, ind in X17, value to store in X8, LR (W30) is general 
             |_arrStore4:
             |    // push {lr}
-            |    stp lr, xzr, [sp, #-16]!
+            |    stp lr, xzr, [sp, #-${AARch64Limits.ARM_STACK_ALIGNMENT_BYTES}]!
             |    cmp w17, #0
             |    csel x1, x17, x1, lt // this must be a 64-bit move so that it doesn't truncate if the move fails
             |    b.lt _errOutOfBounds
@@ -563,7 +566,7 @@ object ArrayStore4Widget extends Widget {
             |    b.ge _errOutOfBounds
             |    str w8, [x7, x17, lsl #2]
             |    // pop {lr}
-            |    ldp lr, xzr, [sp], #16
+            |    ldp lr, xzr, [sp], #${AARch64Limits.ARM_STACK_ALIGNMENT_BYTES}
             |    ret""".stripMargin
 
     override val dependencies: Set[Widget] = Set(ArrayBoundsErrorWidget)
@@ -580,7 +583,7 @@ object ArrayLoad8Widget extends Widget {
             |// Special calling convention: arr ptr passed in X7, ind in X17, LR (W30) is general, and return into X7
             |_arrLoad8:
             |    // push {lr}
-            |    stp lr, xzr, [sp, #-16]!
+            |    stp lr, xzr, [sp, #-${AARch64Limits.ARM_STACK_ALIGNMENT_BYTES}]!
             |    cmp w17, #0
             |    csel x1, x17, x1, lt // this must be a 64-bit move so that it doesn't truncate if the move fails
             |    b.lt _errOutOfBounds
@@ -590,7 +593,7 @@ object ArrayLoad8Widget extends Widget {
             |    b.ge _errOutOfBounds
             |    ldr x7, [x7, x17, lsl #3]
             |    // pop {lr}
-            |    ldp lr, xzr, [sp], #16
+            |    ldp lr, xzr, [sp], #${AARch64Limits.ARM_STACK_ALIGNMENT_BYTES}
             |    ret""".stripMargin
 
     override val dependencies: Set[Widget] = Set(ArrayBoundsErrorWidget)
@@ -607,7 +610,7 @@ object ArrayStore8Widget extends Widget {
             |// Special calling convention: arr ptr passed in X7, ind in X17, value to store in X8, LR (W30) is general 
             |_arrStore8:
             |    // push {lr}
-            |    stp lr, xzr, [sp, #-16]!
+            |    stp lr, xzr, [sp, #-${AARch64Limits.ARM_STACK_ALIGNMENT_BYTES}]!
             |    cmp w17, #0
             |    csel x1, x17, x1, lt // this must be a 64-bit move so that it doesn't truncate if the move fails
             |    b.lt _errOutOfBounds
@@ -617,7 +620,7 @@ object ArrayStore8Widget extends Widget {
             |    b.ge _errOutOfBounds
             |    str x8, [x7, x17, lsl #3]
             |    // pop {lr}
-            |    ldp lr, xzr, [sp], #16
+            |    ldp lr, xzr, [sp], #${AARch64Limits.ARM_STACK_ALIGNMENT_BYTES}
             |    ret""".stripMargin
 
     override val dependencies: Set[Widget] = Set(ArrayBoundsErrorWidget)
@@ -641,6 +644,6 @@ object BadCharWidgetError extends Widget {
             |   bl printf
             |   mov x0, #0
             |   bl fflush
-            |   mov w0, #-1
+            |   mov w0, #${ExitCodes.code(ExitCodes.RuntimeErrorCode)}
             |   bl exit""".stripMargin
 }
