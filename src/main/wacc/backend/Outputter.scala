@@ -199,9 +199,9 @@ object Outputter {
     /** Format a register with the appropriate size prefix */
     private def formatReg(reg: PhysicalReg, size: Size): String = {
         reg.index match {
-            case 31 => if (size == Size.X) then "sp" else "wsp"
-            case 30 => "lr"
-            case 29 => "fp"
+            case PhysicalReg.SP_INDEX => if (size == Size.X) then "sp" else "wsp"
+            case PhysicalReg.LR_INDEX => "lr"
+            case PhysicalReg.FP_INDEX => "fp"
             case _ => size match {
                 case Size.X => s"x${reg.index}"
                 case _ => s"w${reg.index}"

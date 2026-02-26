@@ -26,23 +26,23 @@ case class PhysicalReg private (val index: Int, val allocatable: Boolean) extend
   */
 object PhysicalReg {
 
-    private val ARG_START = 0
-    private val ARG_END   = 7
+    val ARG_START = 0
+    val ARG_END   = 7
 
-    private val INDIRECT_RESULT_REG = 8
+    val INDIRECT_RESULT_REG = 8
+   
+    val CALLER_START = 9
+    val CALLER_END   = 15
+
+    val IPC_SCRATCH_1 = 16
+    val IPC_SCRATCH_2 = 17
     
-    private val CALLER_START = 9
-    private val CALLER_END   = 15
+    val CALLEE_START = 19
+    val CALLEE_END   = 28
 
-    private val IPC_SCRATCH_1 = 16
-    private val IPC_SCRATCH_2 = 17
-    
-    private val CALLEE_START = 19
-    private val CALLEE_END   = 28
-
-    private val FP_INDEX = 29
-    private val LR_INDEX = 30
-    private val SP_INDEX = 31
+    val FP_INDEX = 29
+    val LR_INDEX = 30
+    val SP_INDEX = 31
 
     /**
       * Create a list of physical registers from a range
@@ -61,6 +61,10 @@ object PhysicalReg {
 
     /* Registers for function arguments */
     val argRegisters = genRegList(ARG_START, ARG_END, allocatable = true)
+
+    /* Special arg registers */
+    val returnRegister = argRegisters(0)
+    val widgetResultRegister = argRegisters(7)
 
     /* 3rd scratch register for complex expressions */
     val mathScratch = new PhysicalReg(INDIRECT_RESULT_REG, allocatable = false)

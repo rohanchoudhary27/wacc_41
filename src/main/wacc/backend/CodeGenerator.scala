@@ -359,7 +359,7 @@ object CodeGenerator {
         generateFuncPrologue(localsSize, savedRegs)
         generateInstrs(regProgram.body)
         /* main return 0 */
-        generateMovImmediate(Size.W, PhysicalReg.argRegisters(0), Arm.Immediate(code(CompilerSuccess)))
+        generateMovImmediate(Size.W, PhysicalReg.returnRegister, Arm.Immediate(code(CompilerSuccess)))
         generateFuncEpilogue(localsSize, savedRegs)
 
         /* Final low-level IR for the program */
@@ -1010,7 +1010,7 @@ object CodeGenerator {
     /* Loads the array pointer into x7, the index into x17, and calls the appropriate widget. */
     private def emitArrayWidgetCall(array: TAC.VirtualReg, index: TAC.Operand, elemSize: Size, isStore: Boolean)
                                    (using st: GenState): Unit = {
-        val arrayPtrReg = PhysicalReg.argRegisters(7)  // x7
+        val arrayPtrReg = PhysicalReg.widgetResultRegister  // x7
         val indexReg = PhysicalReg.ipcScratch(1)       // x17
 
         /* load operands into the shared calling convention registers */
@@ -1038,7 +1038,7 @@ object CodeGenerator {
         emitArrayWidgetCall(array, index, dest.size, isStore = false)
         
         /* Result is in X7, move to destination */
-        storeToLoc(PhysicalReg.argRegisters(7), locOf(dest), dest.size)
+        storeToLoc(PhysicalReg.widgetResultRegister, locOf(dest), dest.size)
     }
 
     /**
@@ -1187,7 +1187,7 @@ object CodeGenerator {
         generateUnaryOp(dest, src, Some(widget), {(d, s) => {
 
             /* Move the operand into w0 for the error function */
-            emit(Arm.MovReg(Size.W, PhysicalReg.argRegisters(0), s))
+            emit(Arm.MovReg(Size.W, PhysicalReg.returnRegister, s))
 
             /* If the int value is not 0-127 inclusive, runtime error */
             emit(Arm.CmpImm(Size.W, s, Arm.Immediate(Constants.ASCII_MAX)))
@@ -1288,7 +1288,7 @@ object CodeGenerator {
 
         /* Move the function return value to the expected register */
         destOpt.foreach { dest =>
-            val resultReg = PhysicalReg.argRegisters(0) 
+            val resultReg = PhysicalReg.returnRegister 
             storeToLoc(resultReg, locOf(dest), dest.size)
         }
     }
@@ -1362,7 +1362,7 @@ object CodeGenerator {
         generateUnaryOp(dest, src, None, { (destReg, srcReg) =>
 
             /* Compare with 0 and set to 1 if equal (i.e. invert the boolean) */
-            emit(Arm.CmpImm(src.size, srcReg, Arm.Immediate(0)))
+            emit(Arm.CmpImm(src.size, srcReg, Arm.Immediate(Constants.FALSE)))
             emit(Arm.CSet(dest.size, destReg, Condition.EQ))
         })
     }

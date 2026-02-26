@@ -41,7 +41,7 @@ class OutputterTest extends AnyFlatSpec with Matchers {
     it should "emit stp with immediate offset addressing" in {
         val output = emitInstr(
             Arm.StorePair(Size.X,
-                PhysicalReg.argRegisters(0),
+                PhysicalReg.returnRegister,
                 PhysicalReg.argRegisters(1),
                 Arm.AddrImmOffset(PhysicalReg.stackPointer, Arm.Immediate(0)))
         )
@@ -51,7 +51,7 @@ class OutputterTest extends AnyFlatSpec with Matchers {
     it should "emit ldp with immediate offset addressing" in {
         val output = emitInstr(
             Arm.LoadPair(Size.X,
-                PhysicalReg.argRegisters(0),
+                PhysicalReg.returnRegister,
                 PhysicalReg.argRegisters(1),
                 Arm.AddrImmOffset(PhysicalReg.stackPointer, Arm.Immediate(0)))
         )
@@ -61,7 +61,7 @@ class OutputterTest extends AnyFlatSpec with Matchers {
     it should "use w-registers for 32-bit store pairs" in {
         val output = emitInstr(
             Arm.StorePair(Size.W,
-                PhysicalReg.argRegisters(0),
+                PhysicalReg.returnRegister,
                 PhysicalReg.argRegisters(1),
                 Arm.AddrPreIndex(PhysicalReg.stackPointer, Arm.Immediate(-8)))
         )
@@ -82,7 +82,7 @@ class OutputterTest extends AnyFlatSpec with Matchers {
 
     "Outputter mov imm" should "emit movz with immediate value" in {
         val output = emitInstr(
-            Arm.Movz(Size.W, PhysicalReg.argRegisters(0), Arm.Immediate(7))
+            Arm.Movz(Size.W, PhysicalReg.returnRegister, Arm.Immediate(7))
         )
         output should include ("movz w0, #7")
     }
@@ -119,14 +119,14 @@ class OutputterTest extends AnyFlatSpec with Matchers {
 
     "Outputter cmp" should "emit cmp for register-register comparison" in {
         val output = emitInstr(
-            Arm.CmpReg(Size.W, PhysicalReg.argRegisters(0), PhysicalReg.argRegisters(1))
+            Arm.CmpReg(Size.W, PhysicalReg.returnRegister, PhysicalReg.argRegisters(1))
         )
         output should include ("cmp w0, w1")
     }
 
     it should "emit cmp for register-immediate comparison" in {
         val output = emitInstr(
-            Arm.CmpImm(Size.W, PhysicalReg.argRegisters(0), Arm.Immediate(42))
+            Arm.CmpImm(Size.W, PhysicalReg.returnRegister, Arm.Immediate(42))
         )
         output should include ("cmp w0, #42")
     }
@@ -135,28 +135,28 @@ class OutputterTest extends AnyFlatSpec with Matchers {
 
     "Outputter boolean op" should "emit and for register-register AND" in {
         val output = emitInstr(
-            Arm.AndReg(Size.B, PhysicalReg.argRegisters(0), PhysicalReg.argRegisters(1), PhysicalReg.argRegisters(2))
+            Arm.AndReg(Size.B, PhysicalReg.returnRegister, PhysicalReg.argRegisters(1), PhysicalReg.argRegisters(2))
         )
         output should include ("and w0, w1, w2")
     }
 
     it should "emit and for register-immediate AND" in {
         val output = emitInstr(
-            Arm.AndImm(Size.B, PhysicalReg.argRegisters(0), PhysicalReg.argRegisters(1), Arm.Immediate(1))
+            Arm.AndImm(Size.B, PhysicalReg.returnRegister, PhysicalReg.argRegisters(1), Arm.Immediate(1))
         )
         output should include ("and w0, w1, #1")
     }
 
     it should "emit orr for register-register OR" in {
         val output = emitInstr(
-            Arm.OrReg(Size.B, PhysicalReg.argRegisters(0), PhysicalReg.argRegisters(1), PhysicalReg.argRegisters(2))
+            Arm.OrReg(Size.B, PhysicalReg.returnRegister, PhysicalReg.argRegisters(1), PhysicalReg.argRegisters(2))
         )
         output should include ("orr w0, w1, w2")
     }
 
     it should "emit orr for register-immediate OR" in {
         val output = emitInstr(
-            Arm.OrImm(Size.B, PhysicalReg.argRegisters(0), PhysicalReg.argRegisters(1), Arm.Immediate(1))
+            Arm.OrImm(Size.B, PhysicalReg.returnRegister, PhysicalReg.argRegisters(1), Arm.Immediate(1))
         )
         output should include ("orr w0, w1, #1")
     }
@@ -165,35 +165,35 @@ class OutputterTest extends AnyFlatSpec with Matchers {
 
     "Outputter binary operations" should "emit add for register-register addition" in {
         val output = emitInstr(
-            Arm.AddReg(Size.B, PhysicalReg.argRegisters(0), PhysicalReg.argRegisters(1), PhysicalReg.argRegisters(2))
+            Arm.AddReg(Size.B, PhysicalReg.returnRegister, PhysicalReg.argRegisters(1), PhysicalReg.argRegisters(2))
         )
         output should include ("add w0, w1, w2")
     }
 
     it should "emit add for register-immediate addition" in {
         val output = emitInstr(
-            Arm.AddImm(Size.B, PhysicalReg.argRegisters(0), PhysicalReg.argRegisters(1), Arm.Immediate(5))
+            Arm.AddImm(Size.B, PhysicalReg.returnRegister, PhysicalReg.argRegisters(1), Arm.Immediate(5))
         )
         output should include ("add w0, w1, #5")
     }
 
     it should "emit sub for register-register subtraction" in {
         val output = emitInstr(
-            Arm.SubReg(Size.B, PhysicalReg.argRegisters(0), PhysicalReg.argRegisters(1), PhysicalReg.argRegisters(2))
+            Arm.SubReg(Size.B, PhysicalReg.returnRegister, PhysicalReg.argRegisters(1), PhysicalReg.argRegisters(2))
         )
         output should include ("sub w0, w1, w2")
     }
 
     it should "emit sub for register-immediate subtraction" in {
         val output = emitInstr(
-            Arm.SubImm(Size.B, PhysicalReg.argRegisters(0), PhysicalReg.argRegisters(1), Arm.Immediate(5))
+            Arm.SubImm(Size.B, PhysicalReg.returnRegister, PhysicalReg.argRegisters(1), Arm.Immediate(5))
         )
         output should include ("sub w0, w1, #5")
     }
 
     it should "emit mul for register-register multiplication" in {
         val output = emitInstr(
-            Arm.MulReg(Size.B, PhysicalReg.argRegisters(0), PhysicalReg.argRegisters(1), PhysicalReg.argRegisters(2))
+            Arm.MulReg(Size.B, PhysicalReg.returnRegister, PhysicalReg.argRegisters(1), PhysicalReg.argRegisters(2))
         )
         output should include ("mul w0, w1, w2")
     }
@@ -207,21 +207,21 @@ class OutputterTest extends AnyFlatSpec with Matchers {
 
     it should "emit sdiv for signed division" in {
         val output = emitInstr(
-            Arm.DivReg(Size.W, PhysicalReg.argRegisters(0), PhysicalReg.argRegisters(1), PhysicalReg.argRegisters(2))
+            Arm.DivReg(Size.W, PhysicalReg.returnRegister, PhysicalReg.argRegisters(1), PhysicalReg.argRegisters(2))
         )
         output should include ("sdiv w0, w1, w2")
     }
 
     it should "emit sxtx for sign extending 32 to 64 bit" in {
         val output = emitInstr(
-            Arm.Sxtw(PhysicalReg.mathScratch, PhysicalReg.argRegisters(0))
+            Arm.Sxtw(PhysicalReg.mathScratch, PhysicalReg.returnRegister)
         )
         output should include ("sxtw x8, w0")
     }
 
     it should "emit msub for multiply subtract in modulo" in {
         val output = emitInstr(
-            Arm.MSub(Size.W, PhysicalReg.argRegisters(0), 
+            Arm.MSub(Size.W, PhysicalReg.returnRegister, 
             PhysicalReg.argRegisters(1), 
             PhysicalReg.argRegisters(2), 
             PhysicalReg.argRegisters(3))
@@ -233,63 +233,63 @@ class OutputterTest extends AnyFlatSpec with Matchers {
 
     "Outputter cset" should "emit cset with EQ condition" in {
         val output = emitInstr(
-            Arm.CSet(Size.B, PhysicalReg.argRegisters(0), Condition.EQ)
+            Arm.CSet(Size.B, PhysicalReg.returnRegister, Condition.EQ)
         )
         output should include ("cset w0, eq")
     }
 
     it should "emit cset with NE condition" in {
         val output = emitInstr(
-            Arm.CSet(Size.B, PhysicalReg.argRegisters(0), Condition.NE)
+            Arm.CSet(Size.B, PhysicalReg.returnRegister, Condition.NE)
         )
         output should include ("cset w0, ne")
     }
 
     it should "emit cset with GT condition" in {
         val output = emitInstr(
-            Arm.CSet(Size.B, PhysicalReg.argRegisters(0), Condition.GT)
+            Arm.CSet(Size.B, PhysicalReg.returnRegister, Condition.GT)
         )
         output should include ("cset w0, gt")
     }
 
     it should "emit cset with LT condition" in {
         val output = emitInstr(
-            Arm.CSet(Size.B, PhysicalReg.argRegisters(0), Condition.LT)
+            Arm.CSet(Size.B, PhysicalReg.returnRegister, Condition.LT)
         )
         output should include ("cset w0, lt")
     }
 
     it should "emit cset with GE condition" in {
         val output = emitInstr(
-            Arm.CSet(Size.B, PhysicalReg.argRegisters(0), Condition.GE)
+            Arm.CSet(Size.B, PhysicalReg.returnRegister, Condition.GE)
         )
         output should include ("cset w0, ge")
     }
 
     it should "emit cset with LE condition" in {
         val output = emitInstr(
-            Arm.CSet(Size.B, PhysicalReg.argRegisters(0), Condition.LE)
+            Arm.CSet(Size.B, PhysicalReg.returnRegister, Condition.LE)
         )
         output should include ("cset w0, le")
     }
 
     it should "emit neg for integer negation" in {
         val output = emitInstr(
-            Arm.Neg(Size.W, PhysicalReg.argRegisters(1), PhysicalReg.argRegisters(0))
+            Arm.Neg(Size.W, PhysicalReg.argRegisters(1), PhysicalReg.returnRegister)
         )
         output should include ("neg w1, w0")
     }
 
     it should "emit mov for chr identity assignment" in {
         val output = emitInstr(
-            Arm.MovReg(Size.W, PhysicalReg.argRegisters(1), PhysicalReg.argRegisters(0))
+            Arm.MovReg(Size.W, PhysicalReg.argRegisters(1), PhysicalReg.returnRegister)
         )
         output should include ("mov w1, w0")
     }
 
     it should "emit cbz for compare and branch on zero" in {
         val output = emitInstr(
-            Arm.Cbz(Size.W, PhysicalReg.argRegisters(0), Arm.AddrLabel("_errDivZero"))
+            Arm.Cbz(Size.W, PhysicalReg.returnRegister, Arm.AddrLabel("_errDivZero"))
         )
         output should include ("cbz w0, _errDivZero")
     }
@@ -311,7 +311,7 @@ class OutputterTest extends AnyFlatSpec with Matchers {
                 Arm.StorePair(Size.X, PhysicalReg.framePointer, PhysicalReg.linkReg,
                     Arm.AddrPreIndex(PhysicalReg.stackPointer, Arm.Immediate(-16))),
                 Arm.MovReg(Size.X, PhysicalReg.framePointer, PhysicalReg.stackPointer),
-                Arm.Movz(Size.W, PhysicalReg.argRegisters(0), Arm.Immediate(7)),
+                Arm.Movz(Size.W, PhysicalReg.returnRegister, Arm.Immediate(7)),
                 Arm.Bl(Arm.AddrLabel("exit")),
                 Arm.LoadPair(Size.X, PhysicalReg.framePointer, PhysicalReg.linkReg,
                     Arm.AddrPostIndex(PhysicalReg.stackPointer, Arm.Immediate(16)))
@@ -425,7 +425,7 @@ class OutputterTest extends AnyFlatSpec with Matchers {
 
     "Outputter for ldur/stur" should "emit ldur with signed immediate offset" in {
         val output = emitInstr(
-            Arm.Ldur(Size.W, PhysicalReg.argRegisters(0), 
+            Arm.Ldur(Size.W, PhysicalReg.returnRegister, 
                 Arm.AddrImmOffset(PhysicalReg.framePointer, Arm.Immediate(-8)))
         )
         output should include ("ldur w0, [fp, #-8]")

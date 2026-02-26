@@ -496,7 +496,7 @@ object ArrayStore1Widget extends Widget {
 
     override val source: String =
         s"""// ${description}
-            |// Special calling convention: array ptr passed in X7, index in X17, value to store in X8, LR (W30) is used as general register
+            |// Special calling convention: array ptr passed in X7, ind in X17, value to store in X8, LR (W30) general 
             |_arrStore1:
             |    // push {lr}
             |    stp lr, xzr, [sp, #-16]!
@@ -523,7 +523,7 @@ object ArrayLoad4Widget extends Widget {
 
     override val source: String =
         s"""// ${description}
-            |// Special calling convention: array ptr passed in X7, index in X17, LR (W30) is used as general register, and return into X7
+            |// Special calling convention: array ptr passed in X7, index in X17, LR (W30) is general, and return into X7
             |_arrLoad4:
             |    // push {lr}
             |    stp lr, xzr, [sp, #-16]!
@@ -550,7 +550,7 @@ object ArrayStore4Widget extends Widget {
 
     override val source: String =
         s"""// ${description}
-            |// Special calling convention: array ptr passed in X7, index in X17, value to store in X8, LR (W30) is used as general register
+            |// Special calling convention: arr ptr passed in X7, ind in X17, value to store in X8, LR (W30) is general 
             |_arrStore4:
             |    // push {lr}
             |    stp lr, xzr, [sp, #-16]!
@@ -577,7 +577,7 @@ object ArrayLoad8Widget extends Widget {
 
     override val source: String =
         s"""// ${description}
-            |// Special calling convention: array ptr passed in X7, index in X17, LR (W30) is used as general register, and return into X7
+            |// Special calling convention: arr ptr passed in X7, ind in X17, LR (W30) is general, and return into X7
             |_arrLoad8:
             |    // push {lr}
             |    stp lr, xzr, [sp, #-16]!
@@ -604,7 +604,7 @@ object ArrayStore8Widget extends Widget {
 
     override val source: String =
         s"""// ${description}
-            |// Special calling convention: array ptr passed in X7, index in X17, value to store in X8, LR (W30) is used as general register
+            |// Special calling convention: arr ptr passed in X7, ind in X17, value to store in X8, LR (W30) is general 
             |_arrStore8:
             |    // push {lr}
             |    stp lr, xzr, [sp, #-16]!

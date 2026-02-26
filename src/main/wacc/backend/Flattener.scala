@@ -703,7 +703,7 @@ object Flattener {
         val endLabel = directiveState.getNextLabel(".L_end")
 
         /* If the condition is false, jump to the else case*/
-        funcState.emitInstruction(TAC.Cmp(toReg(flatCondition), TAC.Immediate(0)))
+        funcState.emitInstruction(TAC.Cmp(toReg(flatCondition), TAC.Immediate(Constants.FALSE)))
         funcState.emitInstruction(TAC.BranchCond(Condition.EQ, elseLabel))
 
         /* Fall through to the true case and then jump to the end */
@@ -737,7 +737,7 @@ object Flattener {
         /* Evaluate the condition and jump back if it's true */
         funcState.emitInstruction(TAC.LabelDef(condLabel))
         val flatCondition = flattenExpr(cond)
-        funcState.emitInstruction(TAC.Cmp(toReg(flatCondition), TAC.Immediate(1)))
+        funcState.emitInstruction(TAC.Cmp(toReg(flatCondition), TAC.Immediate(Constants.TRUE)))
         funcState.emitInstruction(TAC.BranchCond(Condition.EQ, bodyLabel))
     } 
 
