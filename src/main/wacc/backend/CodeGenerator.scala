@@ -1035,7 +1035,7 @@ object CodeGenerator {
     private def generateArrayStore(array: TAC.VirtualReg, index: TAC.Operand, src: TAC.Operand, elemSize: Size)
                                   (using st: GenState): Unit = {
         val valueReg = PhysicalReg.mathScratch // x8
-        loadOperandToTarget(src, elemSize, valueReg)
+        loadOperandToTarget(src, elemSize, valueReg, strict = true)
         
         /* setup x7, x17, and call the store widget */
         emitArrayWidgetCall(array, index, elemSize, isStore = true)
