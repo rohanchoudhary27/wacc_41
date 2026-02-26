@@ -183,12 +183,6 @@ class GlobalFlattenContext(
   */
 object Flattener {
 
-    /* Pairs are always stored in 16 bytes in heap, each pair slot is allocated 8 bytes. */
-    private val PAIR_HEAP_SIZE_B = 16
-    private val ARRAY_LEN_HEADER_SIZE_B = 4
-
-    private val RETURN_REG_ID = -1
-
     /**
       * The main function of the Flattener. Inputs a typed AST (Program[SemanticData]) from the
       * frontend typechecker and outputs a `RegProgram` which is a flattened version of the AST
@@ -400,7 +394,7 @@ object Flattener {
                 the pointer that corresponds to the first element. this is simialr to C arrays
                 where int *p = {1, 2, 3} the pointer p refers to the first element. */
             val pairPtr = funcState.anonymousReg(Size.X) 
-            funcState.emitInstruction(TAC.HeapAlloc(pairPtr, TAC.Immediate(PAIR_HEAP_SIZE_B)))
+            funcState.emitInstruction(TAC.HeapAlloc(pairPtr, TAC.Immediate(MemoryLayout.PAIR_HEAP_SIZE_B)))
 
             funcState.emitInstruction(TAC.PairStore(pairPtr, PairPos.Fst, src1))
             funcState.emitInstruction(TAC.PairStore(pairPtr, PairPos.Snd, src2))
@@ -458,7 +452,7 @@ object Flattener {
         
         /* determine element size and total heap allocation needed */
         val elemSize = Size.fromSemType(elemType)
-        val totalSize = ARRAY_LEN_HEADER_SIZE_B + length * Size.bytes(elemSize)
+        val totalSize = MemoryLayout.ARRAY_LEN_HEADER_SIZE_B + length * Size.bytes(elemSize)
         
         /* allocate heap memory */
         val arrayBase = funcState.anonymousReg(Size.X)
@@ -471,7 +465,7 @@ object Flattener {
         
         /* calculate pointer to first element (base + 4) */
         val arrayPtr = funcState.anonymousReg(Size.X)
-        funcState.emitInstruction(TAC.Add(arrayPtr, arrayBase, TAC.Immediate(ARRAY_LEN_HEADER_SIZE_B)))
+        funcState.emitInstruction(TAC.Add(arrayPtr, arrayBase, TAC.Immediate(MemoryLayout.ARRAY_LEN_HEADER_SIZE_B)))
         
         /* flatten and store each element */
         elements.zipWithIndex.foreach { case (elem, idx) =>
@@ -771,10 +765,10 @@ object Flattener {
                            (using funcState: FunctionState,
                                   directiveState: GlobalFlattenContext): TAC.Operand = typedExpr match
         case IntLiter(value, _) => TAC.Immediate(value)
-        case BoolLiter(value, _) => TAC.Immediate(if value then 1 else 0)
+        case BoolLiter(value, _) => TAC.Immediate(if value then Constants.TRUE else Constants.FALSE)
         case CharLiter(value, _) => TAC.Immediate(value)
         case StrLiter(value, _) => directiveState.addString(value)
-        case PairLiter(_) => TAC.Immediate(NULL_PTR) /* reference compiler uses 0 to represent `null` */
+        case PairLiter(_) => TAC.Immediate(MemoryLayout.NULL_PTR)
         case i: Ident[SemanticData] => funcState.lookupReg(i.name, i.renameId)
         case BinaryExpr(op, left, right, _) => flattenBinaryExpr(op, left, right)
         case UnaryExpr(op, expr, _) => flattenUnaryExpr(op, expr)
@@ -1054,7 +1048,7 @@ object Flattener {
                                    globalContext: GlobalFlattenContext): Unit = {
  
         val flatExprReg = toReg(flattenExpr(expr))
-        val returnReg = TAC.VirtualReg(RETURN_REG_ID, flatExprReg.size)
+        val returnReg = TAC.VirtualReg(MemoryLayout.RETURN_REG_ID, flatExprReg.size)
         
         /* Move return value to register -1 (return reg) */
         funcState.emitInstruction(TAC.Mov(returnReg, flatExprReg))

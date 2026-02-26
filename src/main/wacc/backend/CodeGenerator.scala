@@ -74,21 +74,6 @@ class GenState(val global: GlobalGenContext, val alloc: Map[TAC.VirtualReg, Loca
   */
 object CodeGenerator {
 
-    /* ARM requires that the stack MUST be aligned to 16 bytes */
-    private val ARM_STACK_ALIGNMENT_BYTES = 16
-
-    /* ARM immediate signed offset bounds allowed by the STR/LDR/STUR/LDUR instructions */
-    private val ARM_IMMEDIATE_SIGNED_OFFSET_LOW = -256
-    private val ARM_IMMEDIATE_SIGNED_OFFSET_HIGH = 255
-    
-    private val ARM_IMMEDIATE_UNSIGNED_HIGH = 65535
-
-    /* Arm allocates parameters into registers for the first 8 arguments */
-    private val ARM_NUM_REGS_FOR_FUNC_ARGS = 8
-
-    /* Arm stores pair elemens in 8 byte sized slots */
-    private val ARM_PAIR_SLOT_SIZE = 8
-
     /** Emit a single instruction to the output */
     private def emit(instr: Arm.Instruction)(using st: GenState): Unit = 
         st += instr
@@ -109,7 +94,8 @@ object CodeGenerator {
      * @param offset the immediate offset value used in addressing mode
      */
     private def isSafeSignedOffset(offset: Int): Boolean = 
-        offset >= ARM_IMMEDIATE_SIGNED_OFFSET_LOW && offset<= ARM_IMMEDIATE_SIGNED_OFFSET_HIGH
+        offset >= AARch64Limits.ARM_IMMEDIATE_SIGNED_OFFSET_LOW 
+            && offset<= AARch64Limits.ARM_IMMEDIATE_SIGNED_OFFSET_HIGH
 
     /**
       * Helper to get the set of callee-saved registers (x19-x28) used in a function.
@@ -153,7 +139,7 @@ object CodeGenerator {
 	        b.eq ${NullDerefErrorWidget.label}
             ```
             to check that the ptrReg is null or not */
-        emit(Arm.CmpImm(Size.X, ptrReg, Arm.Immediate(NULL_PTR)))
+        emit(Arm.CmpImm(Size.X, ptrReg, Arm.Immediate(MemoryLayout.NULL_PTR)))
         emit(Arm.BranchCond(Condition.EQ, Arm.AddrLabel(NullDerefErrorWidget.label)))
     }
     
@@ -279,8 +265,11 @@ object CodeGenerator {
       * @return The 16-byte aligned number of bytes to push
       */
     private def alignBytes(numBytes: Int): Int = {
-        if (numBytes % ARM_STACK_ALIGNMENT_BYTES == 0) numBytes 
-        else numBytes + (ARM_STACK_ALIGNMENT_BYTES - (numBytes % ARM_STACK_ALIGNMENT_BYTES))
+        if (numBytes % AARch64Limits.ARM_STACK_ALIGNMENT_BYTES == 0) numBytes 
+        else numBytes + (
+            AARch64Limits.ARM_STACK_ALIGNMENT_BYTES 
+                - (numBytes % AARch64Limits.ARM_STACK_ALIGNMENT_BYTES)
+        )
     }
 
     /**
@@ -399,7 +388,8 @@ object CodeGenerator {
                          PhysicalReg.framePointer,
                          PhysicalReg.linkReg,
                          Arm.AddrPreIndex(
-                            PhysicalReg.stackPointer, Arm.Immediate(-1 * ARM_STACK_ALIGNMENT_BYTES)
+                            PhysicalReg.stackPointer, 
+                            Arm.Immediate(-1 * AARch64Limits.ARM_STACK_ALIGNMENT_BYTES)
                         )))
 
         /* set FP to be SP */
@@ -418,13 +408,15 @@ object CodeGenerator {
             case List(r1, r2) => /* do stp xi, x(i+1), [sp, #-16]! */
                 emit(Arm.StorePair(
                     Size.X, r1, r2, Arm.AddrPreIndex(
-                        PhysicalReg.stackPointer, Arm.Immediate(-1 * ARM_STACK_ALIGNMENT_BYTES)
+                        PhysicalReg.stackPointer, 
+                        Arm.Immediate(-1 * AARch64Limits.ARM_STACK_ALIGNMENT_BYTES)
                     )
                 ))
             case List(r1) => /* push 16 bytes for alignment */
                 emit(Arm.Store(
                     Size.X, r1, Arm.AddrPreIndex(
-                        PhysicalReg.stackPointer, Arm.Immediate(-1 * ARM_STACK_ALIGNMENT_BYTES)
+                        PhysicalReg.stackPointer, 
+                        Arm.Immediate(-1 * AARch64Limits.ARM_STACK_ALIGNMENT_BYTES)
                     )
                 ))
             case _ => ()
@@ -455,7 +447,8 @@ object CodeGenerator {
                 emit(
                     Arm.LoadPair(
                         Size.X, r1, r2, Arm.AddrPostIndex(
-                            PhysicalReg.stackPointer, Arm.Immediate(ARM_STACK_ALIGNMENT_BYTES)
+                            PhysicalReg.stackPointer, 
+                            Arm.Immediate(AARch64Limits.ARM_STACK_ALIGNMENT_BYTES)
                         )
                     )
                 )
@@ -463,7 +456,8 @@ object CodeGenerator {
                 emit(
                     Arm.Load(Size.X, r1, 
                         Arm.AddrPostIndex(
-                            PhysicalReg.stackPointer, Arm.Immediate(ARM_STACK_ALIGNMENT_BYTES)
+                            PhysicalReg.stackPointer, 
+                            Arm.Immediate(AARch64Limits.ARM_STACK_ALIGNMENT_BYTES)
                         )
                     )
                 )
@@ -478,7 +472,8 @@ object CodeGenerator {
         emit(
             Arm.LoadPair(
                 Size.X, PhysicalReg.framePointer, PhysicalReg.linkReg, 
-                Arm.AddrPostIndex(PhysicalReg.stackPointer, Arm.Immediate(ARM_STACK_ALIGNMENT_BYTES))
+                Arm.AddrPostIndex(PhysicalReg.stackPointer, 
+                    Arm.Immediate(AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))
             )
         )
         emit(Arm.Ret)
@@ -508,7 +503,7 @@ object CodeGenerator {
            because they're caller save. E.g. they'll be used if the function calls another
            function. */
         func.args.zipWithIndex.foreach { case (arg, index) =>
-            if (index < ARM_NUM_REGS_FOR_FUNC_ARGS) {
+            if (index < AARch64Limits.ARM_NUM_REGS_FOR_FUNC_ARGS) {
                 /* Parameter's assigned location by register allocator */
                 val destLoc = alloc(arg)
                 storeToLoc(PhysicalReg.argRegisters(index), destLoc, arg.size)
@@ -601,10 +596,6 @@ object CodeGenerator {
 
         /* Character functions */
         case TAC.Chr(dest, src, widget) => generateChr(dest, src, widget)
-
-        /* Stack operations */
-        case TAC.Push(src) => ??? // TODO
-        case TAC.Pop(dest) => ??? // TODO
         
         /* Array operations */
         case TAC.ArrayLoad(array, index, dest) => 
@@ -623,7 +614,6 @@ object CodeGenerator {
         case TAC.Free(ptr, freeType) => generateFree(ptr, freeType)
         
         /* Special operations */
-        case TAC.Lea(dest, label) => ??? // TODO
         case TAC.SignExtend(dest, src) => generateSignExtend(dest, src)
     }
 
@@ -896,7 +886,7 @@ object CodeGenerator {
         
         val offset = pos match {
             case PairPos.Fst => 0
-            case PairPos.Snd => ARM_PAIR_SLOT_SIZE
+            case PairPos.Snd => MemoryLayout.PAIR_SLOT_SIZE
         }
         
         /* we first load the memory address (ptrReg + offset) into a scratch register x17, then
@@ -938,7 +928,7 @@ object CodeGenerator {
         
         val offset = pos match {
             case PairPos.Fst => 0
-            case PairPos.Snd => ARM_PAIR_SLOT_SIZE
+            case PairPos.Snd => MemoryLayout.PAIR_SLOT_SIZE
         }
         
         /* Load the source value into x17 (scratch register) (see the comment in generatePairLoad)
@@ -1100,7 +1090,7 @@ object CodeGenerator {
  
         /* If the value fits in 16 bits we can move it in one go. If it fits in 16 bits,
            it will be positive as negative numbers require 32 bits (wacc ints are 32 bit) */
-        if (numericalValue >= 0 && numericalValue <= ARM_IMMEDIATE_UNSIGNED_HIGH) {
+        if (numericalValue >= 0 && numericalValue <= AARch64Limits.ARM_IMMEDIATE_UNSIGNED_HIGH) {
             emit(Arm.Movz(size, dest, Arm.Immediate(numericalValue)))
         } else {
             val lower16 = numericalValue & 0xFFFF
@@ -1195,8 +1185,8 @@ object CodeGenerator {
                              destOpt: Option[TAC.VirtualReg])
                              (using GenState) = {
 
-        val stackArgs = args.drop(ARM_NUM_REGS_FOR_FUNC_ARGS)
-        val regArgs = args.take(ARM_NUM_REGS_FOR_FUNC_ARGS)
+        val stackArgs = args.drop(AARch64Limits.ARM_NUM_REGS_FOR_FUNC_ARGS)
+        val regArgs = args.take(AARch64Limits.ARM_NUM_REGS_FOR_FUNC_ARGS)
 
         /* Allocate stack space (moving stack pointer) to accomodate arguments
             beyond the first 8 which must live on the stack.
