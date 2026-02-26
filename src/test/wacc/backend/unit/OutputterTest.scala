@@ -23,9 +23,10 @@ class OutputterTest extends AnyFlatSpec with Matchers {
             Arm.StorePair(Size.X,
                 PhysicalReg.framePointer,
                 PhysicalReg.linkReg,
-                Arm.AddrPreIndex(PhysicalReg.stackPointer, Arm.Immediate(-16)))
+                Arm.AddrPreIndex(PhysicalReg.stackPointer,
+                                 Arm.Immediate(-AARch64Limits.ARM_STACK_ALIGNMENT_BYTES)))
         )
-        output should include ("stp fp, lr, [sp, #-16]!")
+        output should include (s"stp fp, lr, [sp, #${-AARch64Limits.ARM_STACK_ALIGNMENT_BYTES}]!")
     }
 
     it should "emit ldp with post-index addressing for epilogue" in {
@@ -33,9 +34,10 @@ class OutputterTest extends AnyFlatSpec with Matchers {
             Arm.LoadPair(Size.X,
                 PhysicalReg.framePointer,
                 PhysicalReg.linkReg,
-                Arm.AddrPostIndex(PhysicalReg.stackPointer, Arm.Immediate(16)))
+                Arm.AddrPostIndex(PhysicalReg.stackPointer,
+                                  Arm.Immediate(AARch64Limits.ARM_STACK_ALIGNMENT_BYTES)))
         )
-        output should include ("ldp fp, lr, [sp], #16")
+        output should include (s"ldp fp, lr, [sp], #${AARch64Limits.ARM_STACK_ALIGNMENT_BYTES}")
     }
 
     it should "emit stp with immediate offset addressing" in {
@@ -63,9 +65,9 @@ class OutputterTest extends AnyFlatSpec with Matchers {
             Arm.StorePair(Size.W,
                 PhysicalReg.returnRegister,
                 PhysicalReg.argRegisters(1),
-                Arm.AddrPreIndex(PhysicalReg.stackPointer, Arm.Immediate(-8)))
+                Arm.AddrPreIndex(PhysicalReg.stackPointer, Arm.Immediate(-MemoryLayout.PAIR_SLOT_SIZE)))
         )
-        output should include ("stp w0, w1, [sp, #-8]!")
+        output should include (s"stp w0, w1, [sp, #${-MemoryLayout.PAIR_SLOT_SIZE}]!")
     }
 
     it should "use w-registers for 32-bit load pairs" in {
@@ -73,9 +75,9 @@ class OutputterTest extends AnyFlatSpec with Matchers {
             Arm.LoadPair(Size.W,
                 PhysicalReg.argRegisters(2),
                 PhysicalReg.argRegisters(3),
-                Arm.AddrPostIndex(PhysicalReg.stackPointer, Arm.Immediate(8)))
+                Arm.AddrPostIndex(PhysicalReg.stackPointer, Arm.Immediate(MemoryLayout.PAIR_SLOT_SIZE)))
         )
-        output should include ("ldp w2, w3, [sp], #8")
+        output should include (s"ldp w2, w3, [sp], #${MemoryLayout.PAIR_SLOT_SIZE}")
     }
 
     /* ==================== MovImm Tests ==================== */
@@ -289,16 +291,16 @@ class OutputterTest extends AnyFlatSpec with Matchers {
 
     it should "emit cbz for compare and branch on zero" in {
         val output = emitInstr(
-            Arm.Cbz(Size.W, PhysicalReg.returnRegister, Arm.AddrLabel("_errDivZero"))
+            Arm.Cbz(Size.W, PhysicalReg.returnRegister, Arm.AddrLabel(DivByZeroErrorWidget.label))
         )
-        output should include ("cbz w0, _errDivZero")
+        output should include (s"cbz w0, ${DivByZeroErrorWidget.label}")
     }
 
     it should "emit cbnz for compare and branch on non zero" in {
         val output = emitInstr(
-            Arm.Cbnz(Size.X, PhysicalReg.mathScratch, Arm.AddrLabel("_errOverflow"))
+            Arm.Cbnz(Size.X, PhysicalReg.mathScratch, Arm.AddrLabel(IntOverflowErrorWidget.label))
         )
-        output should include ("cbnz x8, _errOverflow")
+        output should include (s"cbnz x8, ${IntOverflowErrorWidget.label}")
     }
 
     /* ==================== Full Program Tests ==================== */
@@ -309,12 +311,14 @@ class OutputterTest extends AnyFlatSpec with Matchers {
             List(
                 Arm.LabelDef(Arm.AddrLabel("main")),
                 Arm.StorePair(Size.X, PhysicalReg.framePointer, PhysicalReg.linkReg,
-                    Arm.AddrPreIndex(PhysicalReg.stackPointer, Arm.Immediate(-16))),
+                              Arm.AddrPreIndex(PhysicalReg.stackPointer,
+                              Arm.Immediate(-AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
                 Arm.MovReg(Size.X, PhysicalReg.framePointer, PhysicalReg.stackPointer),
                 Arm.Movz(Size.W, PhysicalReg.returnRegister, Arm.Immediate(7)),
                 Arm.Bl(Arm.AddrLabel("exit")),
                 Arm.LoadPair(Size.X, PhysicalReg.framePointer, PhysicalReg.linkReg,
-                    Arm.AddrPostIndex(PhysicalReg.stackPointer, Arm.Immediate(16)))
+                             Arm.AddrPostIndex(PhysicalReg.stackPointer,
+                             Arm.Immediate(AARch64Limits.ARM_STACK_ALIGNMENT_BYTES)))
             )
         )
         val output = Outputter.emit(prog)
@@ -322,11 +326,11 @@ class OutputterTest extends AnyFlatSpec with Matchers {
         output should include (".text")
         output should include (".global main")
         output should include ("main:")
-        output should include ("stp fp, lr, [sp, #-16]!")
+        output should include (s"stp fp, lr, [sp, #${-AARch64Limits.ARM_STACK_ALIGNMENT_BYTES}]!")
         output should include ("mov fp, sp")
         output should include ("movz w0, #7")
         output should include ("bl exit")
-        output should include ("ldp fp, lr, [sp], #16")
+        output should include (s"ldp fp, lr, [sp], #${AARch64Limits.ARM_STACK_ALIGNMENT_BYTES}")
     }
 
     it should "emit data directives when present" in {
@@ -355,14 +359,14 @@ class OutputterTest extends AnyFlatSpec with Matchers {
         val errorMsg = "fatal error: int %d is not ascii character 0-127\n"
         
         val prog = Arm.Program(
-            List(Arm.DataDirective(Arm.AddrLabel("_errBadChar"), errorMsg)),
+            List(Arm.DataDirective(Arm.AddrLabel(BadCharWidgetError.label), errorMsg)),
             List(Arm.LabelDef(Arm.AddrLabel("main")), Arm.Ret)
         )
 
         val output = Outputter.emit(prog)
 
         output should include (".data")
-        output should include ("_errBadChar:")
+        output should include (s"${BadCharWidgetError.label}:")
         output should include (errorMsg)
     }
 
@@ -372,7 +376,7 @@ class OutputterTest extends AnyFlatSpec with Matchers {
             List.empty,
             List(
                 Arm.LabelDef(Arm.AddrLabel("main")), 
-                Arm.Bl(Arm.AddrLabel("_printi")), 
+                Arm.Bl(Arm.AddrLabel(PrintIntWidget.label)), 
                 Arm.Ret
             )
         )
@@ -381,7 +385,7 @@ class OutputterTest extends AnyFlatSpec with Matchers {
         val widgetOutput = PrintIntWidget.source
         val fullOutput = s"$mainOutput\n\n$widgetOutput"
 
-        fullOutput should include ("_printi:") // check for label
+        fullOutput should include (PrintIntWidget.label) // check for label
         fullOutput should include ("bl printf") // check for implementation detail
     }
 
@@ -391,7 +395,7 @@ class OutputterTest extends AnyFlatSpec with Matchers {
             List.empty,
             List(
                 Arm.LabelDef(Arm.AddrLabel("main")),
-                Arm.Bl(Arm.AddrLabel("_readi")),
+                Arm.Bl(Arm.AddrLabel(ReadIntegerWidget.label)),
                 Arm.Ret
             )
         )
@@ -400,7 +404,7 @@ class OutputterTest extends AnyFlatSpec with Matchers {
         val widgetOutput = ReadIntegerWidget.source
         val fullOutput = s"$mainOutput\n\n$widgetOutput"
 
-        fullOutput should include ("_readi:") // check for label
+        fullOutput should include (ReadIntegerWidget.label) // check for label
         fullOutput should include ("bl scanf") // check for implementation detail
     }
 
@@ -410,7 +414,7 @@ class OutputterTest extends AnyFlatSpec with Matchers {
             List.empty,
             List(
                 Arm.LabelDef(Arm.AddrLabel("main")),
-                Arm.Bl(Arm.AddrLabel("_readc")),
+                Arm.Bl(Arm.AddrLabel(ReadCharWidget.label)),
                 Arm.Ret
             )
         )
@@ -419,23 +423,25 @@ class OutputterTest extends AnyFlatSpec with Matchers {
         val widgetOutput = ReadCharWidget.source
         val fullOutput = s"$mainOutput\n\n$widgetOutput"
 
-        fullOutput should include ("_readc:") // check for label
+        fullOutput should include (ReadCharWidget.label) // check for label
         fullOutput should include ("bl scanf") // check for implementation detail
     }
 
     "Outputter for ldur/stur" should "emit ldur with signed immediate offset" in {
         val output = emitInstr(
             Arm.Ldur(Size.W, PhysicalReg.returnRegister, 
-                Arm.AddrImmOffset(PhysicalReg.framePointer, Arm.Immediate(-8)))
+                Arm.AddrImmOffset(PhysicalReg.framePointer,
+                                  Arm.Immediate(-AARch64Limits.ARM_STACK_ALIGNMENT_BYTES)))
         )
-        output should include ("ldur w0, [fp, #-8]")
+        output should include (s"ldur w0, [fp, #${-AARch64Limits.ARM_STACK_ALIGNMENT_BYTES}]")
     }
 
     it should "emit stur with signed immediate offset" in {
         val output = emitInstr(
             Arm.Stur(Size.X, PhysicalReg.argRegisters(1), 
-                Arm.AddrImmOffset(PhysicalReg.stackPointer, Arm.Immediate(-16)))
+                Arm.AddrImmOffset(PhysicalReg.stackPointer,
+                                  Arm.Immediate(-AARch64Limits.ARM_NUM_REGS_FOR_FUNC_ARGS)))
         )
-        output should include ("stur x1, [sp, #-16]")
+        output should include (s"stur x1, [sp, #${-AARch64Limits.ARM_NUM_REGS_FOR_FUNC_ARGS}]")
     }
 }
