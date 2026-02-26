@@ -34,9 +34,7 @@ class FunctionState(
     def lookupReg(varName: String, renameId: Int): TAC.VirtualReg = {
         virtualRegMap.get(QualifiedName(varName, renameId)) match
             case None => {
-                Console.err.println("Internal compiler failure: attempted to lookup a virtual" +
-                                    "register before defining one")
-                sys.exit(code(CompilerFailure))
+                BackendError.undefinedRegister(varName)
             }
             case Some(virtualReg) => virtualReg
     }
@@ -643,8 +641,7 @@ object Flattener {
                 case KnownType.Pair(_, _) | KnownType.Array(_) | PairAny | Null => true
                 case _ => false
             },
-            "Backend Error: 'free' statement received " +
-              s"invalid type ${expr.expressionType}. Must be an array or pair."
+            InternalCompilerError.invalidFreeType(expr.expressionType.outputFormat)
         )
         val freeType = expr.expressionType match {
             case KnownType.Array(_) => FreeType.Array
@@ -1095,9 +1092,7 @@ extension (typ: SemanticType) {
      */
     def asKnownType: KnownType = typ match {
         case kt: KnownType => kt
-        case _ => throw new IllegalStateException(
-            s"Backend Error: Variable declaration requires a KnownType, but received $typ"
-        )
+        case _ => BackendError.expectedKnownType(typ.outputFormat)
     }
 }
 
@@ -1113,9 +1108,7 @@ extension (info: SemanticData) {
         case SemanticData.Typed(_, t, _)    => t 
         case SemanticData.Var(_, _, t)   => t
         case SemanticData.Func(_, _, t, _) => t
-        case _ => throw new IllegalStateException(
-            s"Backend Error: Expected type information in AST node, but found: $info"
-        )
+        case _ => BackendError.missingTypeInfo(info.toString)
     }
 
     /**
@@ -1137,8 +1130,6 @@ extension (ident: Ident[SemanticData]) {
      */
     def renameId: Int = ident.info match {
         case SemanticData.Var(_, renameId, _) => renameId
-        case _ => throw new IllegalStateException(
-            s"Backend Error: Expected renameId information in Identifier node $ident, but found: $ident.info"
-        )
+        case _ => BackendError.missingRenameId(ident.info.toString)
     }
 }

@@ -1351,6 +1351,6 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         val exception = intercept[IllegalArgumentException] {
             Flattener.flatten(programWith(List(decl, freeStmt)))
         }
-        exception.getMessage should include ("Backend Error: 'free' statement received invalid type")
+        exception.getMessage should include ("Invalid type passed to 'free' statement. Must be an Array or Pair")
     }
 }
