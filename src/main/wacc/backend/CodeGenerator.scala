@@ -410,14 +410,14 @@ object CodeGenerator {
                 emit(Arm.StorePair(
                     Size.X, r1, r2, Arm.AddrPreIndex(
                         PhysicalReg.stackPointer, 
-                        Arm.Immediate(-1 * AARch64Limits.ARM_STACK_ALIGNMENT_BYTES)
+                        Arm.Immediate(-AARch64Limits.ARM_STACK_ALIGNMENT_BYTES)
                     )
                 ))
             case List(r1) => /* push 16 bytes for alignment */
                 emit(Arm.Store(
                     Size.X, r1, Arm.AddrPreIndex(
                         PhysicalReg.stackPointer, 
-                        Arm.Immediate(-1 * AARch64Limits.ARM_STACK_ALIGNMENT_BYTES)
+                        Arm.Immediate(-AARch64Limits.ARM_STACK_ALIGNMENT_BYTES)
                     )
                 ))
             case _ => ()
