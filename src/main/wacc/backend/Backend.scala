@@ -5,12 +5,20 @@ import wacc.frontend.{Program, SemanticData}
 import java.nio.file.{Files, Paths, StandardOpenOption}
 import scala.util.{Try, Success, Failure}
 
+/**
+  * A result returned from WaccBackend.run()
+  *
+  * @param exitCode The exit code of the backend
+  * @param outputFile The output file to write assembly to
+  * @param error A backend error message
+  */
 case class BackendCompilationResult(
     exitCode: ExitCode,
     outputFile: Option[String] = None,
     error: Option[String] = None
 )
 
+/* The object running the compiler backend */
 object WaccBackend:
 
     /**
@@ -38,6 +46,7 @@ object WaccBackend:
 
             assemblyFinal = s"$assemblyMain\n\n$assemblyWidgets\n"
             _ <- writeToFile(outputFilename, assemblyFinal)
+
         } yield outputFilename
 
         pipeline match

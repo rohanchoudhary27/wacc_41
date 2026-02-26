@@ -38,12 +38,14 @@ object RegisterAllocator {
       * Gets the offset in the stack of the next spilled argument (after)
       * using args in register 0-7. Offset is positive because we go into
       * the previous frame. We skip the first two bytes above the current frame
-      * because they belong to the FP and LR (16 bytes).
+      * because they belong to the FP and LR. 
       *
       * @param index the virtual register index to translate to a stack offset
       * @return the stack offset to store the argument in
       */
-    private def getNextArgOffset(index: Int): Int = (index - 8) * 8 + 16
+    private def getNextArgOffset(index: Int): Int = 
+        (index - AARch64Limits.ARM_NUM_REGS_FOR_FUNC_ARGS) * MemoryLayout.BYTES_PER_STACK_ARG + 
+        AARch64Limits.ARM_STACK_ALIGNMENT_BYTES
 
     /**
       * Allocate registers to a block (list) of instructions
@@ -59,23 +61,23 @@ object RegisterAllocator {
         val allocationMap = mutable.Map[TAC.VirtualReg, Location]()
 
         /* Allocate the return register */
-        allocationMap(TAC.VirtualReg(-1, Size.B)) = PhysicalReg.argRegisters(0)
-        allocationMap(TAC.VirtualReg(-1, Size.W)) = PhysicalReg.argRegisters(0)
-        allocationMap(TAC.VirtualReg(-1, Size.X)) = PhysicalReg.argRegisters(0)
+        allocationMap(TAC.VirtualReg(MemoryLayout.VIRTUAL_RETURN_REG_ID, Size.B)) = PhysicalReg.returnRegister
+        allocationMap(TAC.VirtualReg(MemoryLayout.VIRTUAL_RETURN_REG_ID, Size.W)) = PhysicalReg.returnRegister
+        allocationMap(TAC.VirtualReg(MemoryLayout.VIRTUAL_RETURN_REG_ID, Size.X)) = PhysicalReg.returnRegister
         
         /* Allocating only callee saved registers until the WACC extension */
         val freeRegs = mutable.Queue.from(PhysicalReg.getAllocatable)
-        var localVarStackOffset = -8
+        var localVarStackOffset = -MemoryLayout.BYTES_PER_STACK_ARG
 
         /* Allocate callee saved registers for the function parameters (the params will
            be moved into these at the start of function generation */
         args.zipWithIndex.foreach { case (arg, index) =>
-            if (index < 8) {
+            if (index < AARch64Limits.ARM_NUM_REGS_FOR_FUNC_ARGS) {
                 if (freeRegs.nonEmpty) {
                     allocationMap(arg) = freeRegs.dequeue() 
                 } else {
                     allocationMap(arg) = StackSlot(localVarStackOffset)
-                    localVarStackOffset -= 8
+                    localVarStackOffset -= MemoryLayout.BYTES_PER_STACK_ARG
                 }
             } else {
                 allocationMap(arg) = StackSlot(getNextArgOffset(index))
@@ -95,7 +97,9 @@ object RegisterAllocator {
                         allocationMap(v) = freeRegs.dequeue()
                     } else {
                         allocationMap(v) = StackSlot(localVarStackOffset)
-                        localVarStackOffset -= 8 /* move stack frame down */
+
+                        /* move stack frame down */
+                        localVarStackOffset -= MemoryLayout.BYTES_PER_STACK_ARG 
                     }
             }
         

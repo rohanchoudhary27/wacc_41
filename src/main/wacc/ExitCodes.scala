@@ -10,6 +10,7 @@ object ExitCodes {
   val SemanticError: ExitCode = 200
   val BackendFailure: ExitCode = 300
   val CompilerFailure: ExitCode = -1
+  val RuntimeErrorCode: ExitCode = 255
 
   def code(e: ExitCode): Int = e
 }

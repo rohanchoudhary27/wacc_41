@@ -2,6 +2,9 @@ package wacc.backend
 
 import wacc.ExitCodes.* 
 
+/**
+  * Internal compiler error messages for defensive programming
+  */
 object InternalCompilerError {
     def undefinedRegister(varName: String) = 
         s"Attempted to lookup a virtual register before defining it in the environment.\nVariable name: $varName" 
@@ -19,7 +22,7 @@ object InternalCompilerError {
 }
 
 /**
-  * Factory object for standardizing all backend error messages.
+  * Factory object for standardizing all backend internal error messages.
   */
 object BackendError {
     /**

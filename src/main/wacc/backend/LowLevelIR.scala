@@ -194,7 +194,7 @@ object Arm {
    /* Branch if the test register is not equal to 0 (prevents cmp + branch) */
    case class Cbnz(size: Size, reg: PhysicalReg, label: AddrLabel) extends Instruction 
 
-   /* ---------------------------------------------------------------------------------------------- */
+   /* ------------------------------------------------------------------------------------------- */
 
    case class DataDirective(label: AddrLabel, storedValue: String)
    case class Program(data: List[DataDirective], body: List[Instruction])

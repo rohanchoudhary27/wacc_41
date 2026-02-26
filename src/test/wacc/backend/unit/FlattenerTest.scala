@@ -815,7 +815,7 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         // should see a HeapAlloc of 16 bytes
         val allocs = flatOutput.body.collect { case h: TAC.HeapAlloc => h }
         allocs should have length 1
-        allocs.head.size shouldBe TAC.Immediate(16) // PAIR_HEAP_SIZE_B
+        allocs.head.size shouldBe TAC.Immediate(MemoryLayout.PAIR_HEAP_SIZE_B)
 
         // should see exactly two PairStores (for fst and snd)
         val stores = flatOutput.body.collect { case p: TAC.PairStore => p }

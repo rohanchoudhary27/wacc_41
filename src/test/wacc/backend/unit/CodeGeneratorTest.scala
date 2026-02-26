@@ -22,13 +22,13 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
     }
 
     /** Scratch register 0 used by the code generator */
-    private val scratch0 = PhysicalReg.ipcScratch(0)
+    private val scratch0 = PhysicalReg.ipcScratch1
 
     /* ==================== Mov Tests ==================== */
 
     "CodeGenerator generateMov" should "generate Arm.Movz for Mov with small immediate source" in {
         val dest = TAC.VirtualReg(0, Size.W)
-        val destLoc = PhysicalReg.argRegisters(0)
+        val destLoc = PhysicalReg.returnRegister
         val alloc = Map(dest -> (destLoc: Location))
 
         val result = programWith(List(TAC.Mov(dest, TAC.Immediate(42))), alloc)
@@ -45,7 +45,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
 
     it should "generate Arm.Movz and Arm.Movk for Mov with an immediate source >16 bits" in {
         val dest = TAC.VirtualReg(0, Size.W)
-        val destLoc = PhysicalReg.argRegisters(0)
+        val destLoc = PhysicalReg.returnRegister
         val alloc = Map(dest -> (destLoc: Location))
 
         val result = programWith(List(TAC.Mov(dest, TAC.Immediate(131071))), alloc)
@@ -58,7 +58,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         }
 
         /* 16 bits in the bottom 16 */
-        bodyInstrs should contain (Arm.Movz(Size.W, scratch0, Arm.Immediate(65535)))
+        bodyInstrs should contain (Arm.Movz(Size.W, scratch0, Arm.Immediate(AARch64Limits.ARM_IMMEDIATE_UNSIGNED_HIGH)))
 
         /* 1 bit in the top 16 */
         bodyInstrs should contain (Arm.Movk(Size.W, scratch0, Arm.Immediate(1), ShiftAmounts._16)) 
@@ -66,7 +66,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
 
     it should "generate Arm.Movz, Arm.Movk and sign extension for Mov with negative imm and >16 bits to an X reg" in {
         val dest = TAC.VirtualReg(0, Size.X)
-        val destLoc = PhysicalReg.argRegisters(0)
+        val destLoc = PhysicalReg.returnRegister
         val alloc = Map(dest -> (destLoc: Location))
 
         val result = programWith(List(TAC.Mov(dest, TAC.Immediate(-131071))), alloc)
@@ -82,7 +82,9 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         bodyInstrs should contain (Arm.Movz(Size.W, scratch0, Arm.Immediate(1)))
 
         /* 1 bit in the top 16 to a W register importantly */
-        bodyInstrs should contain (Arm.Movk(Size.W, scratch0, Arm.Immediate(65534), ShiftAmounts._16)) 
+        bodyInstrs should contain (Arm.Movk(Size.W, scratch0,
+                                   Arm.Immediate(AARch64Limits.ARM_IMMEDIATE_UNSIGNED_HIGH - 1),
+                                   ShiftAmounts._16)) 
 
         /* Check for a sign extension from the W register scratch back to an X register*/
         bodyInstrs should contain (Arm.Sxtw(scratch0, scratch0))
@@ -91,7 +93,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
     it should "generate Arm.MovReg when moving between registers" in {
         val src = TAC.VirtualReg(0, Size.W)
         val dest = TAC.VirtualReg(1, Size.W)
-        val srcLoc = PhysicalReg.argRegisters(0)
+        val srcLoc = PhysicalReg.returnRegister
         val destLoc = PhysicalReg.argRegisters(1)
         val alloc = Map(
             src -> (srcLoc: Location),
@@ -111,26 +113,26 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         val src = TAC.VirtualReg(0, Size.W)
         val dest = TAC.VirtualReg(1, Size.W)
         val alloc = Map(
-            src -> (StackSlot(-8): Location),
-            dest -> (PhysicalReg.argRegisters(0): Location)
+            src -> (StackSlot(-MemoryLayout.BYTES_PER_STACK_ARG): Location),
+            dest -> (PhysicalReg.returnRegister: Location)
         )
 
         val result = programWith(List(TAC.Mov(dest, src)), alloc)
 
         val loads = result.body.collect { case l: Arm.Ldur => l }
         loads should not be empty
-        loads.head.src shouldBe Arm.AddrImmOffset(PhysicalReg.framePointer, Arm.Immediate(-8))
+        loads.head.src shouldBe Arm.AddrImmOffset(PhysicalReg.framePointer, Arm.Immediate(-MemoryLayout.BYTES_PER_STACK_ARG))
     }
 
     it should "generate a store (stur) to stack when destination is on the stack" in {
         val dest = TAC.VirtualReg(0, Size.W)
-        val alloc = Map(dest -> (StackSlot(-8): Location))
+        val alloc = Map(dest -> (StackSlot(-MemoryLayout.BYTES_PER_STACK_ARG): Location))
 
         val result = programWith(List(TAC.Mov(dest, TAC.Immediate(5))), alloc)
 
         val stores = result.body.collect { case s: Arm.Stur => s }
         stores should not be empty
-        stores.head.src shouldBe Arm.AddrImmOffset(PhysicalReg.framePointer, Arm.Immediate(-8))
+        stores.head.src shouldBe Arm.AddrImmOffset(PhysicalReg.framePointer, Arm.Immediate(-MemoryLayout.BYTES_PER_STACK_ARG))
     }
 
     /* ==================== Call Tests ==================== */
@@ -142,10 +144,10 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         )
 
         val movImms = result.body.collect {
-            case m @ Arm.Movz(Size.W, reg, Arm.Immediate(7)) => m
+            case m @ Arm.Movz(Size.W, _, Arm.Immediate(7)) => m
         }
         movImms should have length 1
-        movImms.head.dest shouldBe PhysicalReg.argRegisters(0)
+        movImms.head.dest shouldBe PhysicalReg.returnRegister
     }
 
     it should "emit a branch-and-link instruction to the correct label" in {
@@ -199,7 +201,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
             Map.empty
         )
 
-        result.body should contain (Arm.Movz(Size.W, PhysicalReg.argRegisters(0), Arm.Immediate(1)))
+        result.body should contain (Arm.Movz(Size.W, PhysicalReg.returnRegister, Arm.Immediate(1)))
         result.body should contain (Arm.Movz(Size.W, PhysicalReg.argRegisters(1), Arm.Immediate(2)))
     }
 
@@ -215,7 +217,8 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         prologue.size shouldBe Size.X
         prologue.src1 shouldBe PhysicalReg.framePointer
         prologue.src2 shouldBe PhysicalReg.linkReg
-        prologue.addr shouldBe Arm.AddrPreIndex(PhysicalReg.stackPointer, Arm.Immediate(-16))
+        prologue.addr shouldBe Arm.AddrPreIndex(PhysicalReg.stackPointer,
+                                                Arm.Immediate(-AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))
     }
 
     it should "set frame pointer to stack pointer" in {
@@ -236,7 +239,8 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         epilogue.size shouldBe Size.X
         epilogue.dest1 shouldBe PhysicalReg.framePointer
         epilogue.dest2 shouldBe PhysicalReg.linkReg
-        epilogue.addr shouldBe Arm.AddrPostIndex(PhysicalReg.stackPointer, Arm.Immediate(16))
+        epilogue.addr shouldBe Arm.AddrPostIndex(PhysicalReg.stackPointer,
+                                                 Arm.Immediate(AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))
     }
 
     /* ==================== End-to-End Exit Code Generation ==================== */
@@ -252,7 +256,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
 
         /* Should contain: main label, prologue (stp, mov fp), mov w0 #7, bl exit, epilogue (ldp) */
         armProg.body should contain (Arm.LabelDef(Arm.AddrLabel("main")))
-        armProg.body should contain (Arm.Movz(Size.W, PhysicalReg.argRegisters(0), Arm.Immediate(7)))
+        armProg.body should contain (Arm.Movz(Size.W, PhysicalReg.returnRegister, Arm.Immediate(7)))
         armProg.body should contain (Arm.Bl(Arm.AddrLabel("exit")))
     }
 
@@ -278,7 +282,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
             List.empty,
             List(TAC.Mov(bodyReg, TAC.Immediate(10)))
         )
-        val alloc = Map(bodyReg -> (PhysicalReg.argRegisters(0): Location))
+        val alloc = Map(bodyReg -> (PhysicalReg.returnRegister: Location))
         val ctx = new GlobalGenContext()
         val instrs = CodeGenerator.generateFunc(funcDef, alloc, ctx)
 
@@ -308,7 +312,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         val src1 = TAC.VirtualReg(0, Size.W)
         val src2 = TAC.VirtualReg(1, Size.W)
         val alloc = Map(
-            src1 -> (PhysicalReg.argRegisters(0): Location),
+            src1 -> (PhysicalReg.returnRegister: Location),
             src2 -> (PhysicalReg.argRegisters(1): Location)
         )
 
@@ -321,7 +325,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
 
     it should "generate Arm.CmpImm for register-immediate comparison" in {
         val src1 = TAC.VirtualReg(0, Size.W)
-        val alloc = Map(src1 -> (PhysicalReg.argRegisters(0): Location))
+        val alloc = Map(src1 -> (PhysicalReg.returnRegister: Location))
 
         val result = programWith(List(TAC.Cmp(src1, TAC.Immediate(42))), alloc)
 
@@ -335,7 +339,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
 
     "CodeGenerator generateSetCond" should "generate Arm.CSet with correct condition code for EQ" in {
         val dest = TAC.VirtualReg(0, Size.B)
-        val alloc = Map(dest -> (PhysicalReg.argRegisters(0): Location))
+        val alloc = Map(dest -> (PhysicalReg.returnRegister: Location))
 
         val result = programWith(List(TAC.SetCond(dest, Condition.EQ)), alloc)
 
@@ -346,7 +350,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
 
     it should "generate Arm.CSet with correct condition code for NE" in {
         val dest = TAC.VirtualReg(0, Size.B)
-        val alloc = Map(dest -> (PhysicalReg.argRegisters(0): Location))
+        val alloc = Map(dest -> (PhysicalReg.returnRegister: Location))
 
         val result = programWith(List(TAC.SetCond(dest, Condition.NE)), alloc)
 
@@ -356,7 +360,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
 
     it should "generate Arm.CSet with correct condition code for GT" in {
         val dest = TAC.VirtualReg(0, Size.B)
-        val alloc = Map(dest -> (PhysicalReg.argRegisters(0): Location))
+        val alloc = Map(dest -> (PhysicalReg.returnRegister: Location))
 
         val result = programWith(List(TAC.SetCond(dest, Condition.GT)), alloc)
 
@@ -366,7 +370,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
 
     it should "generate Arm.CSet with correct condition code for LT" in {
         val dest = TAC.VirtualReg(0, Size.B)
-        val alloc = Map(dest -> (PhysicalReg.argRegisters(0): Location))
+        val alloc = Map(dest -> (PhysicalReg.returnRegister: Location))
 
         val result = programWith(List(TAC.SetCond(dest, Condition.LT)), alloc)
 
@@ -380,7 +384,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         val src = TAC.VirtualReg(0, Size.B)
         val dest = TAC.VirtualReg(1, Size.B)
         val alloc = Map(
-            src -> (PhysicalReg.argRegisters(0): Location),
+            src -> (PhysicalReg.returnRegister: Location),
             dest -> (PhysicalReg.argRegisters(1): Location)
         )
 
@@ -403,7 +407,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         val src2 = TAC.VirtualReg(1, Size.B)
         val dest = TAC.VirtualReg(2, Size.B)
         val alloc = Map(
-            src1 -> (PhysicalReg.argRegisters(0): Location),
+            src1 -> (PhysicalReg.returnRegister: Location),
             src2 -> (PhysicalReg.argRegisters(1): Location),
             dest -> (PhysicalReg.argRegisters(2): Location)
         )
@@ -420,7 +424,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         val src2 = TAC.VirtualReg(1, Size.B)
         val dest = TAC.VirtualReg(2, Size.B)
         val alloc = Map(
-            src1 -> (PhysicalReg.argRegisters(0): Location),
+            src1 -> (PhysicalReg.returnRegister: Location),
             src2 -> (PhysicalReg.argRegisters(1): Location),
             dest -> (PhysicalReg.argRegisters(2): Location)
         )
@@ -439,7 +443,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         val src2 = TAC.VirtualReg(1, Size.W)
         val dest = TAC.VirtualReg(2, Size.W)
         val alloc = Map(
-            src1 -> (PhysicalReg.argRegisters(0): Location),
+            src1 -> (PhysicalReg.returnRegister: Location),
             src2 -> (PhysicalReg.argRegisters(1): Location),
             dest -> (PhysicalReg.argRegisters(2): Location)
         )
@@ -463,7 +467,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         val src2 = TAC.VirtualReg(1, Size.W)
         val dest = TAC.VirtualReg(2, Size.W)
         val alloc = Map(
-            src1 -> (PhysicalReg.argRegisters(0): Location),
+            src1 -> (PhysicalReg.returnRegister: Location),
             src2 -> (PhysicalReg.argRegisters(1): Location),
             dest -> (PhysicalReg.argRegisters(2): Location)
         )
@@ -484,7 +488,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         val src2 = TAC.VirtualReg(1, Size.W)
         val dest = TAC.VirtualReg(2, Size.W)
         val alloc = Map(
-            src1 -> (PhysicalReg.argRegisters(0): Location),
+            src1 -> (PhysicalReg.returnRegister: Location),
             src2 -> (PhysicalReg.argRegisters(1): Location),
             dest -> (PhysicalReg.argRegisters(2): Location)
         )
@@ -516,7 +520,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
 
         val widgetAssembly = dispatcher.getCollectedAssembly
         
-        widgetAssembly should include ("_printi:")
+        widgetAssembly should include (PrintIntWidget.label)
         widgetAssembly should include ("%d") 
     }
 
@@ -531,12 +535,12 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         val (_, dispatcher) = CodeGenerator.generate(prog, alloc)
         val widgetAssembly = dispatcher.getCollectedAssembly
 
-        widgetAssembly should include ("_printi:")
-        widgetAssembly should include ("_println:")
+        widgetAssembly should include (PrintIntWidget.label)
+        widgetAssembly should include (PrintlnWidget.label)
         widgetAssembly should include ("puts") // what println uses to make the new line
     }
 
-    it should "NOT register widgets that are not used" in {
+    it should "NOT use register widgets that are not used" in {
         val prog = TAC.RegProgram(
             List.empty, 
             List.empty, 
@@ -547,8 +551,8 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         val (_, dispatcher) = CodeGenerator.generate(prog, alloc)
         val widgetAssembly = dispatcher.getCollectedAssembly
 
-        widgetAssembly should not include ("_prints:")
-        widgetAssembly should not include ("malloc")
+        widgetAssembly should not include (PrintStringWidget.label)
+        widgetAssembly should not include (MallocWidget.label)
     }
 
     it should "register ReadIntegerWidget when Read instruction is used" in {
@@ -563,7 +567,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         val (_, dispatcher) = CodeGenerator.generate(prog, alloc)
         val widgetAssembly = dispatcher.getCollectedAssembly
 
-        widgetAssembly should include ("_readi:")
+        widgetAssembly should include (ReadIntegerWidget.label)
         widgetAssembly should include ("%d")
         widgetAssembly should include ("scanf")
     }
@@ -580,7 +584,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         val (_, dispatcher) = CodeGenerator.generate(prog, alloc)
         val widgetAssembly = dispatcher.getCollectedAssembly
 
-        widgetAssembly should include ("_readc:")
+        widgetAssembly should include (ReadCharWidget.label)
         widgetAssembly should include ("%c")
         widgetAssembly should include ("scanf")
     }
@@ -599,7 +603,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         val (_, dispatcher) = CodeGenerator.generate(prog, alloc)
         val widgetAssembly = dispatcher.getCollectedAssembly
         
-        widgetAssembly should include ("_errBadChar:")
+        widgetAssembly should include (BadCharWidgetError.label)
         widgetAssembly should include ("bl exit") 
     }
 
@@ -609,7 +613,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         val src = TAC.VirtualReg(0, Size.W)
         val dest = TAC.VirtualReg(1, Size.W)
         val alloc = Map(
-            src -> (PhysicalReg.argRegisters(0): Location),
+            src -> (PhysicalReg.returnRegister: Location),
             dest -> (PhysicalReg.argRegisters(1): Location)
         )
 
@@ -624,7 +628,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         val src = TAC.VirtualReg(0, Size.W)
         val dest = TAC.VirtualReg(1, Size.W)
         val alloc = Map(
-            src -> (PhysicalReg.argRegisters(0): Location),
+            src -> (PhysicalReg.returnRegister: Location),
             dest -> (PhysicalReg.argRegisters(1): Location)
         )
 
@@ -632,7 +636,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
 
         val cmpInstrs = result.body.collect { case c: Arm.CmpImm => c }
         cmpInstrs should have length 1
-        cmpInstrs.head.src2.value shouldBe 127
+        cmpInstrs.head.src2.value shouldBe Constants.ASCII_MAX
 
         val branchInstrs = result.body.collect { case b: Arm.BranchCond => b }
         branchInstrs.exists(_.cond == Condition.HI) shouldBe true
@@ -680,7 +684,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         
         // Force a stack slot at -24 (allocator puts locals at negative offsets)
         val v1 = TAC.VirtualReg(1, Size.W)
-        val alloc = Map(v1 -> (StackSlot(-24): Location))
+        val alloc = Map(v1 -> (StackSlot(-MemoryLayout.BYTES_PER_STACK_ARG): Location))
         
         val ctx = new GlobalGenContext()
         val instrs = CodeGenerator.generateFunc(funcDef, alloc, ctx)
@@ -688,7 +692,8 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         // Should be sub sp, sp, #32 (because aligned to 16 bytes)
         val subs = instrs.collect { 
             case Arm.SubImm(
-                Size.X, PhysicalReg.stackPointer, PhysicalReg.stackPointer, Arm.Immediate(32)
+                Size.X, PhysicalReg.stackPointer, PhysicalReg.stackPointer,
+                Arm.Immediate(AARch64Limits.ARM_STACK_ALIGNMENT_BYTES)
             ) => true
         }
         subs should not be empty
@@ -699,23 +704,24 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
     "CodeGenerator load/store" should "generate LDUR for negative stack offsets" in {
         val dest = TAC.VirtualReg(0, Size.W)
         // Stack slot at -8 (within -256 range)
-        val alloc = Map(dest -> (StackSlot(-8): Location)) 
+        val alloc = Map(dest -> (StackSlot(-MemoryLayout.BYTES_PER_STACK_ARG): Location)) 
         
         // generate: Mov(x0, v0) -> Load v0 into scratch, move scratch to x0
         val result = programWith(
             List(TAC.Mov(TAC.VirtualReg(1, Size.W), dest)), // v1 = v0(stack)
-            alloc + (TAC.VirtualReg(1, Size.W) -> PhysicalReg.argRegisters(0))
+            alloc + (TAC.VirtualReg(1, Size.W) -> PhysicalReg.returnRegister)
         )
 
         // Expect Arm.Ldur because offset is -8
         val ldurs = result.body.collect { case i: Arm.Ldur => i }
         ldurs should not be empty
-        ldurs.head.src shouldBe Arm.AddrImmOffset(PhysicalReg.framePointer, Arm.Immediate(-8))
+        ldurs.head.src shouldBe Arm.AddrImmOffset(PhysicalReg.framePointer,
+                                                  Arm.Immediate(-MemoryLayout.BYTES_PER_STACK_ARG))
     }
 
     it should "generate STUR for negative stack offsets" in {
         val dest = TAC.VirtualReg(0, Size.W)
-        val alloc = Map(dest -> (StackSlot(-16): Location))
+        val alloc = Map(dest -> (StackSlot(-MemoryLayout.BYTES_PER_STACK_ARG * 2): Location))
         
         // generate: Mov(v0, 10)
         val result = programWith(List(TAC.Mov(dest, TAC.Immediate(10))), alloc)
@@ -723,7 +729,8 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         // Expect Arm.Stur because offset is -16
         val sturs = result.body.collect { case i: Arm.Stur => i }
         sturs should not be empty
-        sturs.head.src shouldBe Arm.AddrImmOffset(PhysicalReg.framePointer, Arm.Immediate(-16))
+        sturs.head.src shouldBe Arm.AddrImmOffset(PhysicalReg.framePointer,
+                                                  Arm.Immediate(-MemoryLayout.BYTES_PER_STACK_ARG * 2))
     }
 
     it should "handle large stack offsets by materializing offset in scratch register" in {
@@ -739,19 +746,19 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         
         val movz = result.body.collect { 
             case Arm.Movz(Size.W, reg, Arm.Immediate(64512)) 
-                if reg == PhysicalReg.ipcScratch(1) => true 
+                if reg == PhysicalReg.ipcScratch2 => true 
         }
         movz should not be empty
 
         val movk = result.body.collect { 
-            case Arm.Movk(Size.W, reg, Arm.Immediate(65535), shift) 
-                if reg == PhysicalReg.ipcScratch(1) => true 
+            case Arm.Movk(Size.W, reg, Arm.Immediate(AARch64Limits.ARM_IMMEDIATE_UNSIGNED_HIGH), shift) 
+                if reg == PhysicalReg.ipcScratch2 => true 
         }
         movk should not be empty
 
         val stores = result.body.collect { 
             case Arm.Store(_, _, Arm.AddrRegOffset(PhysicalReg.framePointer, offsetReg))
-                if offsetReg == PhysicalReg.ipcScratch(1) => true
+                if offsetReg == PhysicalReg.ipcScratch2 => true
         }
         stores should not be empty
     }
@@ -762,9 +769,9 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         val args = List.fill(9)(TAC.Immediate(1))
         val result = programWith(List(TAC.Call(TAC.Label("getNinth"), args, None)), Map.empty)
 
-        /* Get instr where the stack pointer is moved */
+        /* Get instr where tihe stack pointer is moved */
         val stackAllocInstr = result.body.collectFirst {
-            case Arm.SubImm(Size.X, dest, src, Arm.Immediate(16)) 
+            case Arm.SubImm(Size.X, dest, src, Arm.Immediate(AARch64Limits.ARM_STACK_ALIGNMENT_BYTES)) 
                 if dest == PhysicalReg.stackPointer && src == PhysicalReg.stackPointer => true
         }
         stackAllocInstr shouldBe Some(true)
@@ -791,8 +798,9 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         /* Post BL we restore the stack pointer */
         val afterBl = result.body.drop(branchLinkIndex + 1)
         val stackCleanup = afterBl.collectFirst {
-            case Arm.AddImm(Size.X, dest, src, Arm.Immediate(32)) 
-                if dest == PhysicalReg.stackPointer => true
+        case Arm.AddImm(Size.X, dest, _, Arm.Immediate(imm)) 
+            if dest == PhysicalReg.stackPointer && 
+            imm == AARch64Limits.ARM_STACK_ALIGNMENT_BYTES * 2 => true
         }
         
         stackCleanup shouldBe Some(true)
@@ -814,7 +822,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         val afterBl = result.body.drop(branchLinkIndex + 1)
         val captureMov = afterBl.collectFirst {
             case Arm.MovReg(Size.W, dest, src) 
-                if dest == PhysicalReg.calleeSaved(0) && src == PhysicalReg.argRegisters(0) => true
+                if dest == PhysicalReg.calleeSaved(0) && src == PhysicalReg.returnRegister => true
         }
 
         captureMov shouldBe Some(true)
@@ -828,22 +836,22 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         
         // generate HeapAlloc(v0, 16)
         val result = programWith(
-            List(TAC.HeapAlloc(dest, TAC.Immediate(16))),
+            List(TAC.HeapAlloc(dest, TAC.Immediate(MemoryLayout.PAIR_HEAP_SIZE_B))),
             allocMap
         )
 
         // check we load 16 into x0
         val movs = result.body.collect { case m: Arm.Movz => m }
-        movs.exists(m => m.dest == PhysicalReg.argRegisters(0) && m.imm == Arm.Immediate(16)) shouldBe true
+        movs.exists(m => m.dest == PhysicalReg.returnRegister && m.imm == Arm.Immediate(MemoryLayout.PAIR_HEAP_SIZE_B)) shouldBe true
 
         // check we branch to _malloc
         val bls = result.body.collect { case b: Arm.Bl => b }
-        bls.exists(_.label.name == "_malloc") shouldBe true
+        bls.exists(_.label.name == MallocWidget.label) shouldBe true
     }
 
     it should "generate cmp and b.eq to _errNull for NullCheck" in {
         val ptr = TAC.VirtualReg(0, Size.X)
-        val allocMap = Map[TAC.VirtualReg, Location](ptr -> PhysicalReg.argRegisters(0)) // ptr in x0
+        val allocMap = Map[TAC.VirtualReg, Location](ptr -> PhysicalReg.returnRegister) // ptr in x0
         
         val result = programWith(List(TAC.NullCheck(ptr)), allocMap)
 
@@ -856,14 +864,14 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         val branches = result.body.collect { case b: Arm.BranchCond => b }
         branches should not be empty
         branches.head.cond shouldBe Condition.EQ
-        branches.head.label.name shouldBe "_errNull"
+        branches.head.label.name shouldBe NullDerefErrorWidget.label 
     }
 
     it should "generate correct memory offsets for PairLoad" in {
         val ptr = TAC.VirtualReg(0, Size.X)
         val dest = TAC.VirtualReg(1, Size.X)
         val allocMap = Map[TAC.VirtualReg, Location](
-            ptr -> PhysicalReg.argRegisters(0),
+            ptr -> PhysicalReg.returnRegister,
             dest -> PhysicalReg.argRegisters(1)
         )
         
@@ -878,7 +886,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         val memoryAddr = (loads.last.src: @unchecked) match {
             case x: Arm.AddrImmOffset => x
         }
-        memoryAddr.offset shouldBe Arm.Immediate(8)
+        memoryAddr.offset shouldBe Arm.Immediate(MemoryLayout.PAIR_SLOT_SIZE)
     }
 
     /* ========================= Free Tests ========================= */
@@ -887,7 +895,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         val freeInstr = TAC.Free(ptrReg, FreeType.Pair)
 
         val allocMap = Map[TAC.VirtualReg, Location](
-            ptrReg -> PhysicalReg.argRegisters(0)
+            ptrReg -> PhysicalReg.returnRegister
         )
         
         // 2. Create a minimal RegProgram with just our Free instruction
@@ -895,7 +903,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         
         // should emit a branch to _freepair
         val branchInstrs = armProg.body.collect { case Arm.Bl(label) => label.name }
-        branchInstrs should contain ("_freepair")
+        branchInstrs should contain (FreePairWidget.label)
     }
 
     it should "generate a branch to _freearray for arrays" in {
@@ -903,12 +911,12 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         val freeInstr = TAC.Free(ptrReg, FreeType.Array)
 
         val allocMap = Map[TAC.VirtualReg, Location](
-            ptrReg -> PhysicalReg.argRegisters(0)
+            ptrReg -> PhysicalReg.returnRegister
         )
         
         val armProg = programWith(List(freeInstr), allocMap)
         
         val branchInstrs = armProg.body.collect { case Arm.Bl(label) => label.name }
-        branchInstrs should contain ("_freearray")
+        branchInstrs should contain (FreeArrayWidget.label)
     }
 }

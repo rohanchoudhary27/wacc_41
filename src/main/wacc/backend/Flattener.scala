@@ -2,7 +2,6 @@ package wacc.backend
 
 import wacc.frontend.*
 import scala.collection.mutable.{ListBuffer, Map}
-import wacc.ExitCodes.*
 import wacc.backend.TAC
 
 /**
@@ -107,7 +106,7 @@ class FunctionState(
     /**
       * Returns an immutable list of the function's instructions
       *
-      * @return
+      * @return An immutable list of instructions
       */
     def getAllInstructions = instructions.toList
 }
@@ -297,12 +296,14 @@ object Flattener {
         ident: Ident[SemanticData], 
         rval: RValue[SemanticData]
     )(using funcState: FunctionState, directiveState: GlobalFlattenContext): Unit = { 
+
         /* unlike assignments, declarations create a new variable binding, so we must call 
             defineReg to allocate a fresh `VirtualReg` and store it in the environment so 
             future lookups (eg `lvalue` or `expr` lookups) can find it */
         /* funcState's `defineReg` expects a `KnownType` but the type extracted from the
             `ident` is a `SemanticType`. But we know from type checker that it's always going
              to be a `KnownType`, so just convert it to a `KnownType`. */
+
         val kty: KnownType = ident.info.knownType
         
         val destReg: TAC.VirtualReg = funcState.defineReg(ident.name, ident.renameId, kty)
@@ -324,6 +325,7 @@ object Flattener {
         lval: LValue[SemanticData],
         rval: RValue[SemanticData]
     )(using funcState: FunctionState, directiveState: GlobalFlattenContext) = {
+
         /* assignments update existing state, and flattenLValue handles looking up
             the previously allocated VirtualReg for identifiers or memory for heap objects */
         val srcOperand: TAC.Operand = flattenRValue(rval)
@@ -381,14 +383,16 @@ object Flattener {
         rval: RValue[SemanticData]
     )(using funcState: FunctionState, directiveState: GlobalFlattenContext): TAC.Operand = rval match {
         case expr: Expr[SemanticData] => flattenExpr(expr)
-        case wacc.frontend.Call(ident, argList, info) => flattenCall(ident, argList)
+        case Call(ident, argList, info) => flattenCall(ident, argList)
         case NewPair(e1, e2, _) => 
+
             /* flatten both expressions, they'll be put inside PairStore */
             val src1 = flattenExpr(e1)
             val src2 = flattenExpr(e2)
-            /* Pairs are always allocated in 16 bytes on the heap, so get a new 
-                anonymous register with size `Size.X` and heap allocate with 16 bytes. The
-                freshly allocated anonymous register will be the base pointer of the pair, i.e.,
+
+            /*  Pairs are always allocated in `MemoryLayout.PAIR_HEAP_SIZE_B` bytes on the heap, so
+                get a new anonymous register with size `Size.X` and heap allocate with this many bytes.
+                The freshly allocated anonymous register will be the base pointer of the pair, i.e.,
                 the pointer that corresponds to the first element. this is simialr to C arrays
                 where int *p = {1, 2, 3} the pointer p refers to the first element. */
             val pairPtr = funcState.anonymousReg(Size.X) 
@@ -443,7 +447,7 @@ object Flattener {
         val SemanticData.Typed(_, arrayType, Some(length)) = info: @unchecked
         
         /* extract element type - handle both Array and String types */
-        val elemType = arrayType match {
+        val elemType = (arrayType: @unchecked) match {
             case KnownType.Array(et) => et
             case KnownType.String => KnownType.Char
         }
@@ -461,7 +465,7 @@ object Flattener {
         funcState.emitInstruction(TAC.Mov(lengthReg, TAC.Immediate(length)))
         funcState.emitInstruction(TAC.Store(lengthReg, TAC.AddrImmOffset(arrayBase, TAC.Immediate(0))))
         
-        /* calculate pointer to first element (base + 4) */
+        /* calculate pointer to first element */
         val arrayPtr = funcState.anonymousReg(Size.X)
         funcState.emitInstruction(TAC.Add(arrayPtr, arrayBase, TAC.Immediate(MemoryLayout.ARRAY_LEN_HEADER_SIZE_B)))
         
@@ -671,15 +675,15 @@ object Flattener {
             known. */
         require(semType != PairAny && semType != ?)
 
-        val printWidget: Widget = semType match
-            case wacc.frontend.KnownType.Int =>  PrintIntWidget
+        val printWidget: Widget = (semType: @unchecked) match
+            case KnownType.Int =>  PrintIntWidget
             case KnownType.Bool => PrintBoolWidget
-            case wacc.frontend.KnownType.Char => PrintCharWidget
-            case wacc.frontend.KnownType.String => PrintStringWidget
-            case wacc.frontend.KnownType.Pair(_, _) => PrintPointerWidget
-            case wacc.frontend.KnownType.Array(KnownType.Char) => PrintStringWidget
-            case wacc.frontend.KnownType.Array(_) => PrintPointerWidget
-            case wacc.frontend.Null | wacc.frontend.EmptyArray => PrintPointerWidget
+            case KnownType.Char => PrintCharWidget
+            case KnownType.String => PrintStringWidget
+            case KnownType.Pair(_, _) => PrintPointerWidget
+            case KnownType.Array(KnownType.Char) => PrintStringWidget
+            case KnownType.Array(_) => PrintPointerWidget
+            case Null | EmptyArray => PrintPointerWidget
         
 
         funcState.emitInstruction(TAC.Print(printVal, printWidget, newline))
@@ -698,7 +702,7 @@ object Flattener {
         val endLabel = directiveState.getNextLabel(".L_end")
 
         /* If the condition is false, jump to the else case*/
-        funcState.emitInstruction(TAC.Cmp(toReg(flatCondition), TAC.Immediate(0)))
+        funcState.emitInstruction(TAC.Cmp(toReg(flatCondition), TAC.Immediate(Constants.FALSE)))
         funcState.emitInstruction(TAC.BranchCond(Condition.EQ, elseLabel))
 
         /* Fall through to the true case and then jump to the end */
@@ -732,7 +736,7 @@ object Flattener {
         /* Evaluate the condition and jump back if it's true */
         funcState.emitInstruction(TAC.LabelDef(condLabel))
         val flatCondition = flattenExpr(cond)
-        funcState.emitInstruction(TAC.Cmp(toReg(flatCondition), TAC.Immediate(1)))
+        funcState.emitInstruction(TAC.Cmp(toReg(flatCondition), TAC.Immediate(Constants.TRUE)))
         funcState.emitInstruction(TAC.BranchCond(Condition.EQ, bodyLabel))
     } 
 
@@ -817,7 +821,8 @@ object Flattener {
       * @param leftOp The left operand
       * @param rightOp The right operand
       * @param funcState The current scope function state
-      * @return The virtual register containing the comparison result (0 or 1)
+      * @return The virtual register containing the comparison result
+      * (Constants.TRUE or Constants.FALSE)
       */
     private def flattenComparison(op: BinaryOperator,
                                   leftOp: TAC.Operand,
@@ -831,7 +836,7 @@ object Flattener {
         funcState.emitInstruction(TAC.Cmp(leftReg, rightReg))
 
         /* Map frontend operator to backend condition */
-        val condition = op match {
+        val condition = (op: @unchecked) match {
             case BinaryOperator.GT  => Condition.GT
             case BinaryOperator.GTE => Condition.GE
             case BinaryOperator.LT  => Condition.LT
@@ -892,8 +897,8 @@ object Flattener {
 
     /**
       * Flatten a `chr` unary operator. Emits a `Chr` high level IR node
-      * because the code generator needs have logic for the runtime error check (ascii
-      * chars can only be 0-127 inclusive).
+      * because the code generator needs have logic for the runtime error check (must be a valid
+      * ascii char not just any int).
       *
       * @param operand The operand to the chr function
       * @param funcState The current scope function state
@@ -985,7 +990,7 @@ object Flattener {
     private def flattenBinaryOp(leftOp: TAC.Operand,
                                 rightOp: TAC.Operand,
                                 makeInstr: (TAC.VirtualReg, TAC.VirtualReg, TAC.VirtualReg) => TAC.Instruction,
-                                operandType: KnownType = KnownType.Int)
+                                operandType: KnownType)
                                (using funcState: FunctionState): TAC.VirtualReg = {
         val leftReg = toReg(leftOp, operandType)
         val rightReg = toReg(rightOp, operandType)
@@ -1045,9 +1050,9 @@ object Flattener {
                                    globalContext: GlobalFlattenContext): Unit = {
  
         val flatExprReg = toReg(flattenExpr(expr))
-        val returnReg = TAC.VirtualReg(MemoryLayout.RETURN_REG_ID, flatExprReg.size)
+        val returnReg = TAC.VirtualReg(MemoryLayout.VIRTUAL_RETURN_REG_ID, flatExprReg.size)
         
-        /* Move return value to register -1 (return reg) */
+        /* Move return value to return reg */
         funcState.emitInstruction(TAC.Mov(returnReg, flatExprReg))
         funcState.emitInstruction(TAC.Ret)
     }

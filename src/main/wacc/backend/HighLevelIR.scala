@@ -11,11 +11,13 @@ object TAC {
     /* Addresses */
     sealed trait Address
     case class AddrRegOffset(baseAddr: VirtualReg, offset: VirtualReg) extends  Address {
-        require(baseAddr.size == Size.X, InternalCompilerError.sizeMismatch("AddrRegOffset", Size.X, baseAddr.size))
+        require(baseAddr.size == Size.X,
+                InternalCompilerError.sizeMismatch("AddrRegOffset", Size.X, baseAddr.size))
     }
 
     case class AddrImmOffset(baseAddr: VirtualReg, offset: Immediate) extends Address {
-        require(baseAddr.size == Size.X, InternalCompilerError.sizeMismatch("AddrRegOffset", Size.X, baseAddr.size))
+        require(baseAddr.size == Size.X,
+                InternalCompilerError.sizeMismatch("AddrRegOffset", Size.X, baseAddr.size))
     }
 
     case class AddrLabel(name: String) extends Address
@@ -29,10 +31,13 @@ object TAC {
 
     /* Enforcing all the same register sizes */
     abstract class BinOp(dest: VirtualReg, src1: VirtualReg, src2: Operand) extends Instruction {
-        require(dest.size == src1.size, InternalCompilerError.sizeMismatch("BinOp", dest.size, src1.size))
+        require(dest.size == src1.size,
+                InternalCompilerError.sizeMismatch("BinOp", dest.size, src1.size))
         
         src2 match {
-            case v: VirtualReg => require(dest.size == v.size, InternalCompilerError.sizeMismatch("BinOp Src2", dest.size, v.size))
+            case v: VirtualReg =>
+                require(dest.size == v.size,
+                        InternalCompilerError.sizeMismatch("BinOp Src2", dest.size, v.size))
             case _ =>
         }
     }
@@ -40,9 +45,10 @@ object TAC {
     /* Enforcing both the same register sizes */
     abstract class UnOp(dest: VirtualReg, src: Operand) extends Instruction {
         src match {
-            case v: VirtualReg => require(dest.size == v.size, InternalCompilerError.sizeMismatch("UnOp", dest.size, v.size))
+            case v: VirtualReg =>
+                require(dest.size == v.size,
+                        InternalCompilerError.sizeMismatch("UnOp", dest.size, v.size))
             case _ => 
-
         }
     }
 
