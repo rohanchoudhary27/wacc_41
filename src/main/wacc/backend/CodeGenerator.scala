@@ -254,7 +254,7 @@ object CodeGenerator {
       * @return The physical register that currently holds the evaluated operand
       */
     private def loadOperandToTarget(
-        op: Operand, size: Size, targetReg: PhysicalReg, strict: Boolean = false
+        op: TAC.Operand, size: Size, targetReg: PhysicalReg, strict: Boolean = false
     )(using st: GenState): PhysicalReg = op match {
         case v: TAC.VirtualReg =>
             val loadedReg = loadToReg(locOf(v), size, targetReg)
@@ -289,7 +289,7 @@ object CodeGenerator {
       * @param op The operand to get the size of
       * @return The register size of the opernad (Size.W / Size.X)
       */
-    private def operandSize(op: Operand) = {
+    private def operandSize(op: TAC.Operand) = {
         op match {
             case v: TAC.VirtualReg => v.size
             case _: TAC.Immediate => Size.W
@@ -481,7 +481,7 @@ object CodeGenerator {
                 Arm.AddrPostIndex(PhysicalReg.stackPointer, Arm.Immediate(ARM_STACK_ALIGNMENT_BYTES))
             )
         )
-        emit(ArmRet)
+        emit(Arm.Ret)
     }
 
     /**
@@ -493,9 +493,6 @@ object CodeGenerator {
       * @return the low-level ARM instruction list
       */
     def generateFunc(func: TAC.FunctionDef, alloc: Map[TAC.VirtualReg, Location], ctx: GlobalGenContext): List[Arm.Instruction] = {
-    def generateFunc(
-        func: FunctionDef, alloc: Map[VirtualReg, Location], ctx: GlobalGenContext
-    ): List[ArmInstruction] = {
         given st: GenState = GenState(ctx, alloc)
         
         /* Function label */
@@ -996,7 +993,7 @@ object CodeGenerator {
     }
 
     /* Loads the array pointer into x7, the index into x17, and calls the appropriate widget. */
-    private def emitArrayWidgetCall(array: VirtualReg, index: Operand, elemSize: Size, isStore: Boolean)
+    private def emitArrayWidgetCall(array: TAC.VirtualReg, index: TAC.Operand, elemSize: Size, isStore: Boolean)
                                    (using st: GenState): Unit = {
         val arrayPtrReg = PhysicalReg.argRegisters(7)  // x7
         val indexReg = PhysicalReg.ipcScratch(1)       // x17
@@ -1096,7 +1093,7 @@ object CodeGenerator {
       * @param st A GenState object
       */
     private def generateMovImmediate(
-        size: Size, dest: PhysicalReg, immValue: ArmImmediate
+        size: Size, dest: PhysicalReg, immValue: Arm.Immediate
     )(using st: GenState): Unit = {
 
         val numericalValue = immValue.value
