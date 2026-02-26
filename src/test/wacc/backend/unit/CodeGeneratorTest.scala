@@ -142,7 +142,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         )
 
         val movImms = result.body.collect {
-            case m @ Arm.Movz(Size.W, reg, Arm.Immediate(7)) => m
+            case m @ Arm.Movz(Size.W, _, Arm.Immediate(7)) => m
         }
         movImms should have length 1
         movImms.head.dest shouldBe PhysicalReg.returnRegister
@@ -791,7 +791,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         /* Post BL we restore the stack pointer */
         val afterBl = result.body.drop(branchLinkIndex + 1)
         val stackCleanup = afterBl.collectFirst {
-            case Arm.AddImm(Size.X, dest, src, Arm.Immediate(32)) 
+            case Arm.AddImm(Size.X, dest, _, Arm.Immediate(32)) 
                 if dest == PhysicalReg.stackPointer => true
         }
         

@@ -298,7 +298,7 @@ object CodeGenerator {
       */
     private def withBinaryContext(dest: TAC.VirtualReg, 
                                   src1: TAC.VirtualReg, 
-                                  optWidget: Option[Widget] = None)
+                                  optWidget: Option[Widget])
                                  (opBlock: (PhysicalReg, PhysicalReg) => Unit)
                                  (using st: GenState): Unit = {
 
@@ -573,19 +573,19 @@ object CodeGenerator {
         
         /* Bitwise operations */
         case TAC.And(dest, src1, src2) => 
-            generateStandardBinOp(dest, src1, src2, Arm.AndReg.apply, Arm.AndImm.apply, None)
+            generateStandardBinOp(dest, src1, src2, Arm.AndReg.apply, Arm.AndImm.apply)
         case TAC.Or(dest, src1, src2) => 
-            generateStandardBinOp(dest, src1, src2, Arm.OrReg.apply, Arm.OrImm.apply, None)
+            generateStandardBinOp(dest, src1, src2, Arm.OrReg.apply, Arm.OrImm.apply)
         case TAC.Not(dest, src) => 
             generateNot(dest, src)
 
         /* Shifts */
         case TAC.Lsl(dest, src1, src2) => 
-            generateStandardBinOp(dest, src1, src2, Arm.LslReg.apply, Arm.LslImm.apply, None)
+            generateStandardBinOp(dest, src1, src2, Arm.LslReg.apply, Arm.LslImm.apply)
         case TAC.Lsr(dest, src1, src2) => 
-            generateStandardBinOp(dest, src1, src2, Arm.LsrReg.apply, Arm.LsrImm.apply, None)
+            generateStandardBinOp(dest, src1, src2, Arm.LsrReg.apply, Arm.LsrImm.apply)
         case TAC.Asr(dest, src1, src2) => 
-            generateStandardBinOp(dest, src1, src2, Arm.AsrReg.apply, Arm.AsrImm.apply, None)
+            generateStandardBinOp(dest, src1, src2, Arm.AsrReg.apply, Arm.AsrImm.apply)
         
         /* Comparison and conditional */
         case TAC.Cmp(src1, src2) => generateCmp(src1, src2)

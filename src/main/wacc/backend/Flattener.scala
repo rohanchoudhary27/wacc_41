@@ -2,7 +2,6 @@ package wacc.backend
 
 import wacc.frontend.*
 import scala.collection.mutable.{ListBuffer, Map}
-import wacc.ExitCodes.*
 import wacc.backend.TAC
 
 /**
@@ -448,7 +447,7 @@ object Flattener {
         val SemanticData.Typed(_, arrayType, Some(length)) = info: @unchecked
         
         /* extract element type - handle both Array and String types */
-        val elemType = arrayType match {
+        val elemType = (arrayType: @unchecked) match {
             case KnownType.Array(et) => et
             case KnownType.String => KnownType.Char
         }
@@ -676,7 +675,7 @@ object Flattener {
             known. */
         require(semType != PairAny && semType != ?)
 
-        val printWidget: Widget = semType match
+        val printWidget: Widget = (semType: @unchecked) match
             case wacc.frontend.KnownType.Int =>  PrintIntWidget
             case KnownType.Bool => PrintBoolWidget
             case wacc.frontend.KnownType.Char => PrintCharWidget
@@ -837,7 +836,7 @@ object Flattener {
         funcState.emitInstruction(TAC.Cmp(leftReg, rightReg))
 
         /* Map frontend operator to backend condition */
-        val condition = op match {
+        val condition = (op: @unchecked) match {
             case BinaryOperator.GT  => Condition.GT
             case BinaryOperator.GTE => Condition.GE
             case BinaryOperator.LT  => Condition.LT
@@ -991,7 +990,7 @@ object Flattener {
     private def flattenBinaryOp(leftOp: TAC.Operand,
                                 rightOp: TAC.Operand,
                                 makeInstr: (TAC.VirtualReg, TAC.VirtualReg, TAC.VirtualReg) => TAC.Instruction,
-                                operandType: KnownType = KnownType.Int)
+                                operandType: KnownType)
                                (using funcState: FunctionState): TAC.VirtualReg = {
         val leftReg = toReg(leftOp, operandType)
         val rightReg = toReg(rightOp, operandType)
