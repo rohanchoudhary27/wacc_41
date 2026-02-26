@@ -383,7 +383,7 @@ object Flattener {
         rval: RValue[SemanticData]
     )(using funcState: FunctionState, directiveState: GlobalFlattenContext): TAC.Operand = rval match {
         case expr: Expr[SemanticData] => flattenExpr(expr)
-        case wacc.frontend.Call(ident, argList, info) => flattenCall(ident, argList)
+        case Call(ident, argList, info) => flattenCall(ident, argList)
         case NewPair(e1, e2, _) => 
 
             /* flatten both expressions, they'll be put inside PairStore */
@@ -676,14 +676,14 @@ object Flattener {
         require(semType != PairAny && semType != ?)
 
         val printWidget: Widget = (semType: @unchecked) match
-            case wacc.frontend.KnownType.Int =>  PrintIntWidget
+            case KnownType.Int =>  PrintIntWidget
             case KnownType.Bool => PrintBoolWidget
-            case wacc.frontend.KnownType.Char => PrintCharWidget
-            case wacc.frontend.KnownType.String => PrintStringWidget
-            case wacc.frontend.KnownType.Pair(_, _) => PrintPointerWidget
-            case wacc.frontend.KnownType.Array(KnownType.Char) => PrintStringWidget
-            case wacc.frontend.KnownType.Array(_) => PrintPointerWidget
-            case wacc.frontend.Null | wacc.frontend.EmptyArray => PrintPointerWidget
+            case KnownType.Char => PrintCharWidget
+            case KnownType.String => PrintStringWidget
+            case KnownType.Pair(_, _) => PrintPointerWidget
+            case KnownType.Array(KnownType.Char) => PrintStringWidget
+            case KnownType.Array(_) => PrintPointerWidget
+            case Null | EmptyArray => PrintPointerWidget
         
 
         funcState.emitInstruction(TAC.Print(printVal, printWidget, newline))

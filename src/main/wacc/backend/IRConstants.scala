@@ -1,7 +1,6 @@
 package wacc.backend
 
-import wacc.frontend.KnownType
-import wacc.frontend.SemanticType
+import wacc.frontend.*
 
 object MemoryLayout {
     val NULL_PTR = 0 /* Null pointer (pair) representation */
@@ -60,7 +59,7 @@ object Size {
     /* Get the size of a semantic type */
     def fromSemType(typ: SemanticType): Size = typ match {
         case t: KnownType => fromType(t)
-        case wacc.frontend.PairAny | wacc.frontend.Null | wacc.frontend.EmptyArray => Size.X
+        case PairAny | Null | EmptyArray => Size.X
         case _ => Size.X /* we will not have `?` in the typed metadata but in case... */
     }
 }
