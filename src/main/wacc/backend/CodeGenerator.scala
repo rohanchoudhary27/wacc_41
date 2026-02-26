@@ -174,7 +174,7 @@ object CodeGenerator {
                 
             } else {
                 /* Large offset, so we need to load the offset into x17, then `ldr [fp, x17]` */
-                val offsetReg = PhysicalReg.ipcScratch(1) // use x17
+                val offsetReg = PhysicalReg.ipcScratch2 // use x17
                 generateMovImmediate(Size.X, offsetReg, Arm.Immediate(offset))
                 emit(Arm.Load(size, scratch, Arm.AddrRegOffset(PhysicalReg.framePointer, offsetReg)))
             }
@@ -211,10 +211,10 @@ object CodeGenerator {
                 /* Large offset so scratch register needed but it must not be the
                    same as the source register else we will destroy it before it
                    can be stored on the stack. */
-                val offsetReg = if (src == PhysicalReg.ipcScratch(1)) {
-                    PhysicalReg.ipcScratch(0)
+                val offsetReg = if (src == PhysicalReg.ipcScratch2) {
+                    PhysicalReg.ipcScratch1
                 } else {
-                    PhysicalReg.ipcScratch(1)
+                    PhysicalReg.ipcScratch2
                 }
 
                 generateMovImmediate(Size.X, offsetReg, Arm.Immediate(offset))
@@ -307,10 +307,10 @@ object CodeGenerator {
 
         /* Setup registers */
         val destLoc = locOf(dest)
-        val src1Reg = loadToReg(locOf(src1), dest.size, PhysicalReg.ipcScratch(0))
+        val src1Reg = loadToReg(locOf(src1), dest.size, PhysicalReg.ipcScratch1)
         val resultReg = destLoc match {
             case reg: PhysicalReg => reg
-            case _ => PhysicalReg.ipcScratch(0)
+            case _ => PhysicalReg.ipcScratch1
         }
 
         /* Emit the instruction for the binary operation */
@@ -547,11 +547,11 @@ object CodeGenerator {
         case TAC.Load(dest, addr) =>
             generateMemOp(dest, addr, Arm.Ldur.apply, Arm.Load.apply) {
                 /* afterwards, store the loaded value into the destination register */
-                storeToLoc(PhysicalReg.ipcScratch(0), locOf(dest), dest.size)
+                storeToLoc(PhysicalReg.ipcScratch1, locOf(dest), dest.size)
             }
         case TAC.Store(src, addr) =>
             /* pre-load src into scratch0 */
-            loadToReg(locOf(src), src.size, PhysicalReg.ipcScratch(0))
+            loadToReg(locOf(src), src.size, PhysicalReg.ipcScratch1)
             generateMemOp(src, addr, Arm.Stur.apply, Arm.Store.apply)()
         
         /* Arithmetic operations */
@@ -656,16 +656,16 @@ object CodeGenerator {
         
         /* Setup registers */
         val destLoc = locOf(dest)
-        val src1Reg = loadToReg(locOf(src1), dest.size, PhysicalReg.ipcScratch(0))
+        val src1Reg = loadToReg(locOf(src1), dest.size, PhysicalReg.ipcScratch1)
         val resultReg = destLoc match {
             case reg: PhysicalReg => reg
-            case _ => PhysicalReg.ipcScratch(0)
+            case _ => PhysicalReg.ipcScratch1
         }
         
         /* Generate the register-register / register-immediate instruction */
         (src2: @unchecked) match {
             case src2VReg: TAC.VirtualReg =>
-                val src2Reg = loadToReg(locOf(src2VReg), dest.size, PhysicalReg.ipcScratch(1))
+                val src2Reg = loadToReg(locOf(src2VReg), dest.size, PhysicalReg.ipcScratch2)
                 emit(regOp(dest.size, resultReg, src1Reg, src2Reg))
 
             case TAC.Immediate(value) =>
@@ -702,13 +702,13 @@ object CodeGenerator {
         
             /* Load the second register */
             val src2Reg = src2 match {
-                case v: TAC.VirtualReg => loadToReg(locOf(v), dest.size, PhysicalReg.ipcScratch(1))
+                case v: TAC.VirtualReg => loadToReg(locOf(v), dest.size, PhysicalReg.ipcScratch2)
                 case TAC.Immediate(v) => 
-                    val temp = PhysicalReg.ipcScratch(1)
+                    val temp = PhysicalReg.ipcScratch2
                     generateMovImmediate(dest.size, temp, Arm.Immediate(v))
                     temp
                 case TAC.Label(name) => 
-                    val temp = PhysicalReg.ipcScratch(1)
+                    val temp = PhysicalReg.ipcScratch2
                     emit(Arm.Lea(temp, Arm.AddrLabel(name)))
                     temp
             }
@@ -806,12 +806,12 @@ object CodeGenerator {
         val destLoc = locOf(dest)
         
         /* Load source operand */
-        val srcReg = loadToReg(srcLoc, src.size, PhysicalReg.ipcScratch(0))
+        val srcReg = loadToReg(srcLoc, src.size, PhysicalReg.ipcScratch1)
         
         /* Determine result register */
         val destReg = destLoc match {
             case reg: PhysicalReg => reg
-            case _ => PhysicalReg.ipcScratch(1)
+            case _ => PhysicalReg.ipcScratch2
         }
         
         /* Emit the unary operation specific low level IR */
@@ -877,11 +877,11 @@ object CodeGenerator {
 
         /* Load smaller register (source) to scratch. Passing 'src.size' means we load
            into a register with the smaller size */
-        val srcReg = loadToReg(srcLoc, src.size, PhysicalReg.ipcScratch(0))
+        val srcReg = loadToReg(srcLoc, src.size, PhysicalReg.ipcScratch1)
 
         val resultReg = destLoc match {
             case reg: PhysicalReg => reg
-            case _ => PhysicalReg.ipcScratch(1)
+            case _ => PhysicalReg.ipcScratch2
         }
 
         /* Move to the larger register so we use dest.size */
@@ -906,7 +906,7 @@ object CodeGenerator {
     private def generatePairLoad(pairPtr: TAC.VirtualReg, pos: PairPos, dest: TAC.VirtualReg)
                                 (using st: GenState): Unit = {
         /* load the base pointer into strach register x16 */
-        val ptrReg = loadToReg(locOf(pairPtr), Size.X, PhysicalReg.ipcScratch(0))
+        val ptrReg = loadToReg(locOf(pairPtr), Size.X, PhysicalReg.ipcScratch1)
         
         val offset = pos match {
             case PairPos.Fst => 0
@@ -919,7 +919,7 @@ object CodeGenerator {
 
             also note that we load the full 8-byte pair slot (pair slots are always 8 bytes) from
             the heap into the 64 bit (corrsponds to Size.X) scratch register */
-        val destScratch = PhysicalReg.ipcScratch(1)
+        val destScratch = PhysicalReg.ipcScratch2
         emit(Arm.Load(Size.X, destScratch, Arm.AddrImmOffset(ptrReg, Arm.Immediate(offset))))
         storeToLoc(destScratch, locOf(dest), dest.size)
     }
@@ -929,7 +929,7 @@ object CodeGenerator {
       */
     private def generateNullCheck(ptr: TAC.VirtualReg)(using st: GenState): Unit = {
         // Load the pointer into a scratch register
-        val ptrReg = loadToReg(locOf(ptr), Size.X, PhysicalReg.ipcScratch(0))
+        val ptrReg = loadToReg(locOf(ptr), Size.X, PhysicalReg.ipcScratch1)
         
         nullCheck(ptrReg) 
     }
@@ -949,7 +949,7 @@ object CodeGenerator {
     private def generatePairStore(pairPtr: TAC.VirtualReg, pos: PairPos, src: TAC.Operand)
                                  (using st: GenState): Unit = {
         /* load the base pointer into strach register x16 */
-        val ptrReg = loadToReg(locOf(pairPtr), Size.X, PhysicalReg.ipcScratch(0))
+        val ptrReg = loadToReg(locOf(pairPtr), Size.X, PhysicalReg.ipcScratch1)
         
         val offset = pos match {
             case PairPos.Fst => 0
@@ -958,7 +958,7 @@ object CodeGenerator {
         
         /* Load the source value into x17 (scratch register) (see the comment in generatePairLoad)
             about why we store this in a scratch register first. */
-        val srcScratch = PhysicalReg.ipcScratch(1)
+        val srcScratch = PhysicalReg.ipcScratch2
         val finalSrcReg = loadOperandToTarget(src, Size.X, srcScratch)
         
         /* Store the 8 byte scrath register into heap memory */
@@ -981,15 +981,15 @@ object CodeGenerator {
         immOp: (Size, PhysicalReg, Arm.Address) => Arm.Instruction,
         regOp: (Size, PhysicalReg, Arm.Address) => Arm.Instruction,
     )(postOp: => Unit = ())(using st: GenState): Unit = {
-        val scratch0 = PhysicalReg.ipcScratch(0)
+        val scratch0 = PhysicalReg.ipcScratch1
 
         addr match {
             case TAC.AddrImmOffset(base, TAC.Immediate(offset)) =>
-                val baseReg = loadToReg(locOf(base), Size.X, PhysicalReg.ipcScratch(1))
+                val baseReg = loadToReg(locOf(base), Size.X, PhysicalReg.ipcScratch2)
                 emit(immOp(reg.size, scratch0, Arm.AddrImmOffset(baseReg, Arm.Immediate(offset))))
             case TAC.AddrRegOffset(base, offsetReg) =>
-                val baseReg = loadToReg(locOf(base), Size.X, PhysicalReg.ipcScratch(1))
-                val offReg = loadToReg(locOf(offsetReg), Size.X, PhysicalReg.ipcScratch(1))
+                val baseReg = loadToReg(locOf(base), Size.X, PhysicalReg.ipcScratch2)
+                val offReg = loadToReg(locOf(offsetReg), Size.X, PhysicalReg.ipcScratch2)
                 emit(regOp(reg.size, scratch0, Arm.AddrRegOffset(baseReg, offReg)))
             case _ => ???
         }
@@ -1011,7 +1011,7 @@ object CodeGenerator {
     private def emitArrayWidgetCall(array: TAC.VirtualReg, index: TAC.Operand, elemSize: Size, isStore: Boolean)
                                    (using st: GenState): Unit = {
         val arrayPtrReg = PhysicalReg.widgetResultRegister  // x7
-        val indexReg = PhysicalReg.ipcScratch(1)       // x17
+        val indexReg = PhysicalReg.ipcScratch2       // x17
 
         /* load operands into the shared calling convention registers */
         loadOperandToTarget(array, Size.X, arrayPtrReg, strict = true)
@@ -1068,10 +1068,10 @@ object CodeGenerator {
     private def generateArrayLen(arrayPtr: TAC.VirtualReg, dest: TAC.VirtualReg)
                                 (using st: GenState): Unit = {
         /* load the array pointer into scratch register x16 */
-        val ptrReg = loadToReg(locOf(arrayPtr), Size.X, PhysicalReg.ipcScratch(0))
+        val ptrReg = loadToReg(locOf(arrayPtr), Size.X, PhysicalReg.ipcScratch1)
         
         /* load the length from offset -4 */
-        val destScratch = PhysicalReg.ipcScratch(1)
+        val destScratch = PhysicalReg.ipcScratch2
         emit(Arm.Ldur(Size.W, destScratch, Arm.AddrImmOffset(ptrReg, Arm.Immediate(-4))))
         
         /* store to destination location */
@@ -1087,7 +1087,7 @@ object CodeGenerator {
     private def generateMov(dest: TAC.VirtualReg, src: TAC.Operand)(using GenState) = {
 
         /* Get the source value in a scratch register to avoid memory to memory moves */
-        val scratch = PhysicalReg.ipcScratch(0)
+        val scratch = PhysicalReg.ipcScratch1
         val tempReg = loadOperandToTarget(src, dest.size, scratch)
 
         /* Store `src` in the destination location (register/stack) */
@@ -1234,7 +1234,7 @@ object CodeGenerator {
             val offset = i * MemoryLayout.BYTES_PER_STACK_ARG /* offset from the stack pointer */
 
             /* Put the argument in a scratch register */
-            val scratch = PhysicalReg.ipcScratch(0)
+            val scratch = PhysicalReg.ipcScratch1
             val valReg = loadOperandToTarget(arg, size, scratch)
 
             /* Store the argument (in scratch) on the stack */
@@ -1256,7 +1256,7 @@ object CodeGenerator {
             arg match {
                 case argVReg: TAC.VirtualReg =>
                     /* Move out of a stack slot into a scratch register */
-                    val valReg = loadToReg(locOf(argVReg), opSize, PhysicalReg.ipcScratch(0))
+                    val valReg = loadToReg(locOf(argVReg), opSize, PhysicalReg.ipcScratch1)
                     
                     /* Move the ith argument into the wi */
                     if (valReg != targetReg) {
@@ -1314,14 +1314,14 @@ object CodeGenerator {
         val src1Loc = locOf(src1)
         
         /* Load first operand into a register */
-        val src1Reg = loadToReg(src1Loc, src1.size, PhysicalReg.ipcScratch(0))
+        val src1Reg = loadToReg(src1Loc, src1.size, PhysicalReg.ipcScratch1)
 
         /* Handle second operand and emit comparison */
         (src2: @unchecked) match {
             case src2VReg: TAC.VirtualReg =>
                 /* Register-register comparison */
                 val src2Loc = locOf(src2VReg)
-                val src2Reg = loadToReg(src2Loc, src1.size, PhysicalReg.ipcScratch(1))
+                val src2Reg = loadToReg(src2Loc, src1.size, PhysicalReg.ipcScratch2)
                 emit(Arm.CmpReg(src1.size, src1Reg, src2Reg))
 
             case TAC.Immediate(value) =>
@@ -1342,7 +1342,7 @@ object CodeGenerator {
         /* Determine result register */
         val resultReg = destLoc match {
             case reg: PhysicalReg => reg
-            case _ => PhysicalReg.ipcScratch(0)
+            case _ => PhysicalReg.ipcScratch1
         }
         
         /* Emit conditional set instruction */

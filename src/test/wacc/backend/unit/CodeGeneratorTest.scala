@@ -22,7 +22,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
     }
 
     /** Scratch register 0 used by the code generator */
-    private val scratch0 = PhysicalReg.ipcScratch(0)
+    private val scratch0 = PhysicalReg.ipcScratch1
 
     /* ==================== Mov Tests ==================== */
 
@@ -739,19 +739,19 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         
         val movz = result.body.collect { 
             case Arm.Movz(Size.W, reg, Arm.Immediate(64512)) 
-                if reg == PhysicalReg.ipcScratch(1) => true 
+                if reg == PhysicalReg.ipcScratch2 => true 
         }
         movz should not be empty
 
         val movk = result.body.collect { 
             case Arm.Movk(Size.W, reg, Arm.Immediate(65535), shift) 
-                if reg == PhysicalReg.ipcScratch(1) => true 
+                if reg == PhysicalReg.ipcScratch2 => true 
         }
         movk should not be empty
 
         val stores = result.body.collect { 
             case Arm.Store(_, _, Arm.AddrRegOffset(PhysicalReg.framePointer, offsetReg))
-                if offsetReg == PhysicalReg.ipcScratch(1) => true
+                if offsetReg == PhysicalReg.ipcScratch2 => true
         }
         stores should not be empty
     }

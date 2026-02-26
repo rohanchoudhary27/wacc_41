@@ -74,6 +74,8 @@ object PhysicalReg {
     
     /* Scratch registers */
     val ipcScratch = genRegList(IPC_SCRATCH_1, IPC_SCRATCH_2, allocatable = false) 
+    val ipcScratch1 = new PhysicalReg(IPC_SCRATCH_1, allocatable = false)
+    val ipcScratch2 = new PhysicalReg(IPC_SCRATCH_2, allocatable = false)
     
     /* Callee saved general purpose registers */
     val calleeSaved = genRegList(CALLEE_START, CALLEE_END, allocatable = true)
