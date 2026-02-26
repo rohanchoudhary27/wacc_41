@@ -19,7 +19,7 @@ object Constants {
 }
 
 object AARch64Limits {
-    val ARM_NUM_REGS_FOR_FUNC_ARGS = 8 /* Arm allocates parameters into registers for the first 8 arguments */
+    val ARM_NUM_REGS_FOR_FUNC_ARGS = 8 /* Arm allocates params into registers for the first 8 args */
     val ARM_STACK_ALIGNMENT_BYTES = 16 /* ARM requires that the stack MUST be aligned to 16 bytes */
     val ARM_STACK_REG_PER_PUSH = 2 /* We push two registers to maintain stack alignment */
 
