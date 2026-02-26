@@ -187,6 +187,9 @@ final class BackendIntegrationSpec extends WaccIntegrationTestBase(
     BACKEND_INTEGRATION_TEST_CONFIGURATION
 ) with BeforeAndAfterAll {
 
+    /* Text length of expected output to display before a ... */
+    val expectedOutLength = 10
+
     /**
      * Checks that `aarch64-linux-gnu-gcc` and `qemu-aarch64` are installed on the environment
      */
@@ -216,8 +219,8 @@ final class BackendIntegrationSpec extends WaccIntegrationTestBase(
             
             /* Display string for expected output */
             val expectedDisplay = expectedOut.replace("\n", "\\n") match
-                case t if t.length <= 10 => t
-                case t                  => t.take(10) + "..."
+                case t if t.length <= expectedOutLength => t
+                case t                  => t.take(expectedOutLength) + "..."
             
             val testDecl 
                 = it should s"output ${expectedDisplay} for ${metadata.path.toString()}"
