@@ -1050,7 +1050,7 @@ object Flattener {
                                    globalContext: GlobalFlattenContext): Unit = {
  
         val flatExprReg = toReg(flattenExpr(expr))
-        val returnReg = TAC.VirtualReg(MemoryLayout.RETURN_REG_ID, flatExprReg.size)
+        val returnReg = TAC.VirtualReg(MemoryLayout.VIRTUAL_RETURN_REG_ID, flatExprReg.size)
         
         /* Move return value to return reg */
         funcState.emitInstruction(TAC.Mov(returnReg, flatExprReg))

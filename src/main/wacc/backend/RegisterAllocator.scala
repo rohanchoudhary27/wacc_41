@@ -61,9 +61,9 @@ object RegisterAllocator {
         val allocationMap = mutable.Map[TAC.VirtualReg, Location]()
 
         /* Allocate the return register */
-        allocationMap(TAC.VirtualReg(MemoryLayout.RETURN_REG_ID, Size.B)) = PhysicalReg.returnRegister
-        allocationMap(TAC.VirtualReg(MemoryLayout.RETURN_REG_ID, Size.W)) = PhysicalReg.returnRegister
-        allocationMap(TAC.VirtualReg(MemoryLayout.RETURN_REG_ID, Size.X)) = PhysicalReg.returnRegister
+        allocationMap(TAC.VirtualReg(MemoryLayout.VIRTUAL_RETURN_REG_ID, Size.B)) = PhysicalReg.returnRegister
+        allocationMap(TAC.VirtualReg(MemoryLayout.VIRTUAL_RETURN_REG_ID, Size.W)) = PhysicalReg.returnRegister
+        allocationMap(TAC.VirtualReg(MemoryLayout.VIRTUAL_RETURN_REG_ID, Size.X)) = PhysicalReg.returnRegister
         
         /* Allocating only callee saved registers until the WACC extension */
         val freeRegs = mutable.Queue.from(PhysicalReg.getAllocatable)
