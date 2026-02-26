@@ -1,5 +1,7 @@
 package wacc.backend
 
+import wacc.backend.Arm
+
 /**
   * Outputter for generating final ARM64 assembly from the low-level IR.
   */
@@ -14,7 +16,7 @@ object Outputter {
       * @param prog the ARM program containing data directives and instructions
       * @return the complete assembly source as a string
       */
-    def emit(prog: ArmProgram): String = {
+    def emit(prog: Arm.Program): String = {
         val sb = StringBuilder()
 
         /* Data section */
@@ -39,7 +41,7 @@ object Outputter {
       * @param dir the data directive to emit
       * @return the assembly string for this directive
       */
-    private def emitDirective(dir: ArmDataDirective): String = {
+    private def emitDirective(dir: Arm.DataDirective): String = {
         s"${INDENT}.word ${dir.storedValue.length}\n" +
         s"${dir.label.name}:\n" +
         s"${INDENT}.asciz \"${dir.storedValue}\"\n" +
@@ -52,90 +54,90 @@ object Outputter {
       * @param instr the instruction to emit
       * @return the assembly string for this instruction
       */
-    private def emitInstruction(instr: ArmInstruction): String = instr match {
+    private def emitInstruction(instr: Arm.Instruction): String = instr match {
         /* Arithmetic */
-        case ArmAddReg(size, dest, src1, src2) => emitBinary("add", size, dest, src1, src2)
-        case ArmAddImm(size, dest, src1, imm) => emitBinary("add", size, dest, src1, imm)
-        case ArmAddsReg(size, dest, src1, src2) => emitBinary("adds", size, dest, src1, src2)
-        case ArmAddsImm(size, dest, src1, src2) => emitBinary("adds", size, dest, src1, src2)
+        case Arm.AddReg(size, dest, src1, src2) => emitBinary("add", size, dest, src1, src2)
+        case Arm.AddImm(size, dest, src1, imm) => emitBinary("add", size, dest, src1, imm)
+        case Arm.AddsReg(size, dest, src1, src2) => emitBinary("adds", size, dest, src1, src2)
+        case Arm.AddsImm(size, dest, src1, src2) => emitBinary("adds", size, dest, src1, src2)
 
-        case ArmSubReg(size, dest, src1, src2) => emitBinary("sub", size, dest, src1, src2)
-        case ArmSubImm(size, dest, src1, imm) => emitBinary("sub", size, dest, src1, imm)
-        case ArmSubsReg(size, dest, src1, imm) => emitBinary("subs", size, dest, src1, imm)
-        case ArmSubsImm(size, dest, src1, imm) => emitBinary("subs", size, dest, src1, imm)
+        case Arm.SubReg(size, dest, src1, src2) => emitBinary("sub", size, dest, src1, src2)
+        case Arm.SubImm(size, dest, src1, imm) => emitBinary("sub", size, dest, src1, imm)
+        case Arm.SubsReg(size, dest, src1, imm) => emitBinary("subs", size, dest, src1, imm)
+        case Arm.SubsImm(size, dest, src1, imm) => emitBinary("subs", size, dest, src1, imm)
 
-        case ArmMulReg(size, dest, src1, src2) => emitBinary("mul", size, dest, src1, src2)
-        case ArmDivReg(size, dest, src1, src2) => emitBinary("sdiv", size, dest, src1, src2)
-        case ArmNeg(size, dest, src) => emitUnary("neg", size, dest, src)
-        case ArmNegs(size, dest, src) => emitUnary("negs", size, dest, src)
+        case Arm.MulReg(size, dest, src1, src2) => emitBinary("mul", size, dest, src1, src2)
+        case Arm.DivReg(size, dest, src1, src2) => emitBinary("sdiv", size, dest, src1, src2)
+        case Arm.Neg(size, dest, src) => emitUnary("neg", size, dest, src)
+        case Arm.Negs(size, dest, src) => emitUnary("negs", size, dest, src)
         
         /* Logical */
-        case ArmAndReg(size, dest, src1, src2) => emitBinary("and", size, dest, src1, src2)
-        case ArmAndImm(size, dest, src1, imm) => emitBinary("and", size, dest, src1, imm)
-        case ArmOrReg(size, dest, src1, src2) => emitBinary("orr", size, dest, src1, src2)
-        case ArmOrImm(size, dest, src1, imm) => emitBinary("orr", size, dest, src1, imm)
+        case Arm.AndReg(size, dest, src1, src2) => emitBinary("and", size, dest, src1, src2)
+        case Arm.AndImm(size, dest, src1, imm) => emitBinary("and", size, dest, src1, imm)
+        case Arm.OrReg(size, dest, src1, src2) => emitBinary("orr", size, dest, src1, src2)
+        case Arm.OrImm(size, dest, src1, imm) => emitBinary("orr", size, dest, src1, imm)
         
         /* Shifts */
-        case ArmLslReg(size, dest, src1, src2) => emitBinary("lsl", size, dest, src1, src2)
-        case ArmLslImm(size, dest, src1, imm) => emitBinary("lsl", size, dest, src1, imm)
-        case ArmLsrReg(size, dest, src1, src2) => emitBinary("lsr", size, dest, src1, src2)
-        case ArmLsrImm(size, dest, src1, imm) => emitBinary("lsr", size, dest, src1, imm)
-        case ArmAsrReg(size, dest, src1, src2) => emitBinary("asr", size, dest, src1, src2)
-        case ArmAsrImm(size, dest, src1, imm) => emitBinary("asr", size, dest, src1, imm)
+        case Arm.LslReg(size, dest, src1, src2) => emitBinary("lsl", size, dest, src1, src2)
+        case Arm.LslImm(size, dest, src1, imm) => emitBinary("lsl", size, dest, src1, imm)
+        case Arm.LsrReg(size, dest, src1, src2) => emitBinary("lsr", size, dest, src1, src2)
+        case Arm.LsrImm(size, dest, src1, imm) => emitBinary("lsr", size, dest, src1, imm)
+        case Arm.AsrReg(size, dest, src1, src2) => emitBinary("asr", size, dest, src1, src2)
+        case Arm.AsrImm(size, dest, src1, imm) => emitBinary("asr", size, dest, src1, imm)
         
         /* Data Movement */
-        case ArmMovReg(size, dest, src) => emitUnary("mov", size, dest, src)
-        case ArmMovz(size, dest, imm) => 
+        case Arm.MovReg(size, dest, src) => emitUnary("mov", size, dest, src)
+        case Arm.Movz(size, dest, imm) => 
             indented(s"movz ${formatReg(dest, size)}, ${formatImmediate(imm)}")
-        case ArmMovk(size, dest, imm, shift) => 
+        case Arm.Movk(size, dest, imm, shift) => 
             indented(s"movk ${formatReg(dest, size)}, ${formatImmediate(imm)}, lsl #${ShiftAmounts.value(shift)}")
 
-        case ArmLoad(size, dest, addr) => emitMemOp("ldr", size, dest, addr)
-        case ArmStore(size, src, addr) => emitMemOp("str", size, src, addr)
-        case ArmLdur(size, dest, addr) => emitMemOp("ldur", size, dest, addr)
-        case ArmStur(size, src, addr) => emitMemOp("stur", size, src, addr)
-        case ArmLea(dest, label) => emitLea(dest, label)
+        case Arm.Load(size, dest, addr) => emitMemOp("ldr", size, dest, addr)
+        case Arm.Store(size, src, addr) => emitMemOp("str", size, src, addr)
+        case Arm.Ldur(size, dest, addr) => emitMemOp("ldur", size, dest, addr)
+        case Arm.Stur(size, src, addr) => emitMemOp("stur", size, src, addr)
+        case Arm.Lea(dest, label) => emitLea(dest, label)
         
         /* Comparison */
-        case ArmCmpReg(size, src1, src2) => emitCompare(size, src1, src2)
-        case ArmCmpImm(size, src1, imm) => emitCompare(size, src1, imm)
+        case Arm.CmpReg(size, src1, src2) => emitCompare(size, src1, src2)
+        case Arm.CmpImm(size, src1, imm) => emitCompare(size, src1, imm)
         
         /* Control Flow */
-        case ArmBranchUncond(label) => indented(s"b ${label.name}")
-        case ArmBranchCond(cond, label) => indented(s"b${formatCondition(cond)} ${label.name}")
-        case ArmLabelDef(label) => s"${label.name}:\n"
-        case ArmBl(label) => indented(s"bl ${label.name}")
-        case ArmRet => indented("ret")
+        case Arm.BranchUncond(label) => indented(s"b ${label.name}")
+        case Arm.BranchCond(cond, label) => indented(s"b${formatCondition(cond)} ${label.name}")
+        case Arm.LabelDef(label) => s"${label.name}:\n"
+        case Arm.Bl(label) => indented(s"bl ${label.name}")
+        case Arm.Ret => indented("ret")
         
         /* Stack Operations */
-        case ArmLoadPair(size, dest1, dest2, addr) => emitLoadPair(size, dest1, dest2, addr)
-        case ArmStorePair(size, src1, src2, addr) => emitStorePair(size, src1, src2, addr)
+        case Arm.LoadPair(size, dest1, dest2, addr) => emitLoadPair(size, dest1, dest2, addr)
+        case Arm.StorePair(size, src1, src2, addr) => emitStorePair(size, src1, src2, addr)
 
         /* Special Instructions */
-        case ArmMSub(size, dest, mult1, mult2, sub) =>
+        case Arm.MSub(size, dest, mult1, mult2, sub) =>
             val d = formatReg(dest, size)
             val m1 = formatReg(mult1, size)
             val m2 = formatReg(mult2, size)
             val s = formatReg(sub, size)
             indented(s"msub $d, $m1, $m2, $s")
 
-        case ArmCSet(size, dest, cond) => 
+        case Arm.CSet(size, dest, cond) => 
             indented(s"cset ${formatReg(dest, size)}, ${formatCondition(cond)}")
 
-        case ArmSMull(dest, src1, src2) => 
+        case Arm.SMull(dest, src1, src2) => 
             indented(
                 s"smull ${formatReg(dest, Size.X)}, " +
                   s"${formatReg(src1, Size.W)}, " +
                   s"${formatReg(src2, Size.W)}"
                 )
 
-        case ArmSxtw(dest, src) => 
+        case Arm.Sxtw(dest, src) => 
             indented(s"sxtw ${formatReg(dest, Size.X)}, ${formatReg(src, Size.W)}")
 
-        case ArmCbz(size, reg, label) => 
+        case Arm.Cbz(size, reg, label) => 
             indented(s"cbz ${formatReg(reg, size)}, ${label.name}")
             
-        case ArmCbnz(size, reg, label) => 
+        case Arm.Cbnz(size, reg, label) => 
             indented(s"cbnz ${formatReg(reg, size)}, ${label.name}")
 
     }
@@ -144,7 +146,7 @@ object Outputter {
     private def emitStorePair(size: Size,
                              src1: PhysicalReg,
                              src2: PhysicalReg,
-                             addr: ArmAddress) =
+                             addr: Arm.Address) =
         indented(s"stp ${formatReg(src1, size)}, ${formatReg(src2, size)}, ${{formatAddress(addr)}}")
 
 
@@ -152,15 +154,15 @@ object Outputter {
     private def emitLoadPair(size: Size,
                              dest1: PhysicalReg,
                              dest2: PhysicalReg,
-                             addr: ArmAddress) =
+                             addr: Arm.Address) =
         indented(s"ldp ${formatReg(dest1, size)}, ${formatReg(dest2, size)}, ${{formatAddress(addr)}}")
 
     /** Emit a binary operation: op dest, src1, src2 */
     private def emitBinary(op: String, size: Size, dest: PhysicalReg, src1: PhysicalReg, 
-                          src2: PhysicalReg | ArmImmediate): String = {
+                          src2: PhysicalReg | Arm.Immediate): String = {
         val src2Str = src2 match {
             case reg: PhysicalReg => formatReg(reg, size)
-            case imm: ArmImmediate => formatImmediate(imm)
+            case imm: Arm.Immediate => formatImmediate(imm)
         }
         indented(s"${op} ${formatReg(dest, size)}, ${formatReg(src1, size)}, ${src2Str}")
     }
@@ -171,20 +173,20 @@ object Outputter {
     
     /** Emit a comparison: cmp src1, src2 */
     private def emitCompare(size: Size, src1: PhysicalReg, 
-                           src2: PhysicalReg | ArmImmediate): String = {
+                           src2: PhysicalReg | Arm.Immediate): String = {
         val src2Str = src2 match {
             case reg: PhysicalReg => formatReg(reg, size)
-            case imm: ArmImmediate => formatImmediate(imm)
+            case imm: Arm.Immediate => formatImmediate(imm)
         }
         indented(s"cmp ${formatReg(src1, size)}, ${src2Str}")
     }
     
     /** Emit a load/store: op reg, [addr]  s*/
-    private def emitMemOp(op: String, size: Size, reg: PhysicalReg, addr: ArmAddress): String =
+    private def emitMemOp(op: String, size: Size, reg: PhysicalReg, addr: Arm.Address): String =
         indented(s"${op} ${formatReg(reg, size)}, ${formatAddress(addr)}")
 
     /** Emit a Lea (load effective address) instruction */
-    private def emitLea(reg: PhysicalReg, label: ArmAddress): String = {
+    private def emitLea(reg: PhysicalReg, label: Arm.Address): String = {
         indented(s"adrp ${formatReg(reg, Size.X)}, ${formatAddress(label)}") +
         indented(s"add ${formatReg(reg, Size.X)}, ${formatReg(reg, Size.X)}, :lo12:${{formatAddress(label)}}")
     }
@@ -208,27 +210,27 @@ object Outputter {
     }
 
     /** Format an immediate value */
-    private def formatImmediate(imm: ArmImmediate): String = s"#${imm.value}"
+    private def formatImmediate(imm: Arm.Immediate): String = s"#${imm.value}"
     
     /** Format an address operand */
-    private def formatAddress(addr: ArmAddress): String = addr match {
-        case ArmAddrRegOffset(base, offset) => 
+    private def formatAddress(addr: Arm.Address): String = addr match {
+        case Arm.AddrRegOffset(base, offset) => 
             s"[${formatReg(base, Size.X)}, ${formatReg(offset, Size.X)}]"
 
-        case ArmAddrImmOffset(base, imm) => 
+        case Arm.AddrImmOffset(base, imm) => 
             s"[${formatReg(base, Size.X)}, ${formatImmediate(imm)}]"
 
-        case ArmAddrRegShift(base, offset, shift) => 
+        case Arm.AddrRegShift(base, offset, shift) => 
             s"[${formatReg(base, Size.X)}, ${formatReg(offset, Size.X)}, " +
             s"lsl #${ShiftAmounts.value(shift)}]"
 
-        case ArmAddrPostIndex(baseAddr, immOffset) => 
+        case Arm.AddrPostIndex(baseAddr, immOffset) => 
             s"[${formatReg(baseAddr, Size.X)}], ${{formatImmediate(immOffset)}}"
 
-        case ArmAddrPreIndex(baseAddr, immOffset) => 
+        case Arm.AddrPreIndex(baseAddr, immOffset) => 
             s"[${formatReg(baseAddr, Size.X)}, ${{formatImmediate(immOffset)}}]!"
             
-        case ArmAddrLabel(name) => 
+        case Arm.AddrLabel(name) => 
             s"$name"
     }
     

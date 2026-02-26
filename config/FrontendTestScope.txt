@@ -1,0 +1,3 @@
+examples/valid
+examples/invalid
+custom/valid

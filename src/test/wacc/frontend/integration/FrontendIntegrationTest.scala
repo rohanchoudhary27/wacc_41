@@ -5,7 +5,7 @@ import wacc.frontend.WaccFrontend
 import wacc.ExitCodes._
 import wacc.integration.WaccIntegrationTestBase
 
-private val FRONTEND_INTEGRATION_TEST_CONFIGURATION: Path = Paths.get("config", "TestScope.txt")
+private val FRONTEND_INTEGRATION_TEST_CONFIGURATION: Path = Paths.get("config", "FrontendTestScope.txt")
 
 final class FrontendIntegrationSpec extends WaccIntegrationTestBase(
     FRONTEND_INTEGRATION_TEST_CONFIGURATION

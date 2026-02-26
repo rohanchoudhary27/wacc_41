@@ -67,7 +67,7 @@ abstract class WaccIntegrationTestBase(
         /* Make the file relative to examples root to get the scope */
         val rel = rootTestPath.relativize(file).toString 
 
-        if (rel.startsWith("examples/valid/") || rel.startsWith("custom/valid/")) code(Success)
+        if (rel.startsWith("examples/valid/") || rel.startsWith("custom/valid/")) code(CompilerSuccess)
         else if (rel.startsWith("examples/invalid/syntaxErr/") ||
                  rel.startsWith("examples/invalid/whack/")) code(SyntaxError)
         else if (rel.startsWith("examples/invalid/semanticErr/")) code(SemanticError)
@@ -81,13 +81,22 @@ abstract class WaccIntegrationTestBase(
      * @return: True if the file belongs to an enabled scope, false otherwise
      */ 
     protected def isEnabled(file: Path): Boolean = {
-        if (enabledScopes.isEmpty) false
-        else {
-            val fileRel = rootTestPath.relativize(file).toString
-            val scopeKey = scopeFor(file)
-            enabledScopes.exists { s =>
-                val scope = s.stripSuffix("/")
-                fileRel == scope || scopeKey == scope || scopeKey.startsWith(scope + "/")
+
+        val fileRel = rootTestPath.relativize(file).toString
+
+        /* Don't run advanced tests on pipeline */
+        if (fileRel.startsWith("examples/valid/advanced/")) {
+            false
+        } else {
+
+            /* Enable if the scope is enabled */
+            if (enabledScopes.isEmpty) false
+            else {
+                val scopeKey = scopeFor(file)
+                enabledScopes.exists { s =>
+                    val scope = s.stripSuffix("/")
+                    fileRel == scope || scopeKey == scope || scopeKey.startsWith(scope + "/")
+                }
             }
         }
     }
@@ -96,7 +105,7 @@ abstract class WaccIntegrationTestBase(
     * Parses the scope config file to find the tests to run.
     * Filters commented lines (beginning with a '#')
     * 
-    * @param path: The path to the TestScope.txt config file
+    * @param path: The path to the FrontendTestScope.txt config file
     * 
     * @return A set of strings representing the active test scopes
     */
