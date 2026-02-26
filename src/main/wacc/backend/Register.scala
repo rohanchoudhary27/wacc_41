@@ -26,6 +26,24 @@ case class PhysicalReg private (val index: Int, val allocatable: Boolean) extend
   */
 object PhysicalReg {
 
+    private val ARG_START = 0
+    private val ARG_END   = 7
+
+    private val INDIRECT_RESULT_REG = 8
+    
+    private val CALLER_START = 9
+    private val CALLER_END   = 15
+
+    private val IPC_SCRATCH_1 = 16
+    private val IPC_SCRATCH_2 = 17
+    
+    private val CALLEE_START = 19
+    private val CALLEE_END   = 28
+
+    private val FP_INDEX = 29
+    private val LR_INDEX = 30
+    private val SP_INDEX = 31
+
     /**
       * Create a list of physical registers from a range
       *
@@ -42,24 +60,24 @@ object PhysicalReg {
     }
 
     /* Registers for function arguments */
-    val argRegisters = genRegList(0, 7, allocatable = true)
+    val argRegisters = genRegList(ARG_START, ARG_END, allocatable = true)
 
-    /* 3rd scratch register for comlext expressions */
-    val mathScratch = new PhysicalReg(8, allocatable = false)
+    /* 3rd scratch register for complex expressions */
+    val mathScratch = new PhysicalReg(INDIRECT_RESULT_REG, allocatable = false)
 
     /* Caller saved general purpose registers */
-    val callerSaved = genRegList(9, 15, allocatable = true)
+    val callerSaved = genRegList(CALLER_START, CALLER_END, allocatable = true)
     
     /* Scratch registers */
-    val ipcScratch = genRegList(16, 17, allocatable = false) 
+    val ipcScratch = genRegList(IPC_SCRATCH_1, IPC_SCRATCH_2, allocatable = false) 
     
     /* Callee saved general purpose registers */
-    val calleeSaved = genRegList(19, 28, allocatable = true)
+    val calleeSaved = genRegList(CALLEE_START, CALLEE_END, allocatable = true)
 
     /* Stack and function linking registers */
-    val framePointer = new PhysicalReg(29, allocatable = false)
-    val linkReg = new PhysicalReg(30, allocatable = false)
-    val stackPointer = new PhysicalReg(31, allocatable = false)
+    val framePointer = new PhysicalReg(FP_INDEX, allocatable = false)
+    val linkReg = new PhysicalReg(LR_INDEX, allocatable = false)
+    val stackPointer = new PhysicalReg(SP_INDEX, allocatable = false)
 
     /**
       * Retrieves the allocatable registers
