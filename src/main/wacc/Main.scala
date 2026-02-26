@@ -23,7 +23,7 @@ object WaccCompiler {
         /* Expect a singular argument */
         if (args.length != 1) {
             Console.err.println("Requires file.")
-            sys.exit(code(ExitCodes.CompilerFailure))
+            sys.exit(code(CompilerFailure))
         }
 
         val path = Paths.get(args(0))
@@ -34,11 +34,19 @@ object WaccCompiler {
             sys.exit(code(CompilerFailure))
         }
 
-        /* Run frontend compiler and return an AST. */
-        val ast: Program[SemanticData] = runFrontend(path)
+        val finalExitCode = compilePipeline(path)
 
-        /* Run backend compiler using the AST from the frontend. */
-        runBackend(path, ast)
+        if (finalExitCode == CompilerSuccess) {
+            println(s"Success - finished with exit code ${code(finalExitCode)}")
+        } else {
+            Console.err.println(s"\nFinished with exit code ${code(finalExitCode)}")
+        }
+
+    }
+
+    private def compilePipeline(path: Path): ExitCode = runFrontend(path) match {
+        case Left(frontendErrorCode) => frontendErrorCode
+        case Right(ast) => runBackend(path, ast)
     }
 
     /**
@@ -48,7 +56,7 @@ object WaccCompiler {
     * @param errorLogger: the `ErrorLogger` object with the errors
     * @param exitCode: the exit code of the program (100/200 in this case)
     */
-    private def failureExit(filename: String,
+    private def printFrontendErrors(filename: String,
                             errorLogger: ErrorLogger,
                             exitCode: ExitCode): Unit = {
 
@@ -60,34 +68,21 @@ object WaccCompiler {
 
         val allErrors = errorLogger.retrieveAllErrors()
 
-        /* For syntax errors, position is already on the first line from ErrorBuilder.
-                    For semantic errors, get the position from the first error. */
-        val (header, body) = exitCode match {
-            case ExitCodes.SyntaxError =>
-
-                /* ErrorBuilder outputs "(line X, column Y):\n..."
-                                Split to extract position for the header */
-                val newlineIdx = allErrors.indexOf('\n')
-                if (newlineIdx >= 0) {
-                    val posLine = allErrors.substring(0, newlineIdx)
-                    val rest = allErrors.substring(newlineIdx + 1)
-                    (s"$errorType in $filename $posLine", rest)
-                } else {
-                    (s"$errorType in $filename:", allErrors)
-                }
-
-            case ExitCodes.SemanticError => (s"$errorType in $filename:", allErrors)
+        val lines = allErrors.split("\n", 2)
+        val (head, body) = if (lines.length > 1) {
+            (s" ${lines(0)}", lines(1))
+        } else {
+            (":", allErrors)
         }
 
-        /* Print the errors */
+        val header = exitCode match {
+            case ExitCodes.SyntaxError => s"$errorType in $filename$head"
+            case ExitCodes.SemanticError => s"$errorType in $filename:"
+            case _ => s"$errorType:"
+        }
+
         Console.err.println(header)
         Console.err.println(body)
-        Console.err.println()
-        Console.err.println(
-            s"Finished with exit code ${exitCode}"
-        )
-
-        sys.exit(code(exitCode))
     }
 
     /**
@@ -96,23 +91,22 @@ object WaccCompiler {
       * @param path: path to the WACC file to be compiled
       * @return Program[SemanticData]: which is an AST
       */
-    private def runFrontend(path: Path): Program[SemanticData] = {
+    private def runFrontend(path: Path): Either[ExitCode, Program[SemanticData]] = {
 
         // Run the WACC code through the front end of the compiler
         val frontendResult: FrontendCompilationResult = WaccFrontend.run(path)
 
-        frontendResult.errors match {
+        frontendResult match {
 
-            // Case if the frontend does not compile succesfully
-            case Some(errorLogger) =>
-                failureExit(path.getFileName.toString, 
-                            errorLogger,
-                            frontendResult.exitCode)
-                throw new RuntimeException("Unreachable") 
-
-            // Case if the frontend pass has no errors
-            case None =>
-                frontendResult.typedAST.get
+            case FrontendCompilationResult(CompilerSuccess, _, Some(ast)) =>
+                Right(ast)
+            // Case if the frontend does not compile succesfully (Syntax/Semantic error)
+            case FrontendCompilationResult(exitCode, Some(logger), _) if exitCode != CompilerSuccess => 
+                printFrontendErrors(path.getFileName.toString, logger, exitCode)
+                Left(exitCode)
+            case _ =>
+                Console.err.println("Internal Compiler Error: Invalid frontend state")
+                Left(CompilerFailure)
         }
     }
 
@@ -122,19 +116,18 @@ object WaccCompiler {
       * @param path: path of the file compiled by the frontend
       * @param ast: the AST produced by the front end of the compiler
       */
-    private def runBackend(path: Path, ast: Program[SemanticData]): Unit = {
+    private def runBackend(path: Path, ast: Program[SemanticData]): ExitCode = {
 
         // Change the filename to a .s assembly file but keep the name the same
-        val filename = path.getFileName.toString
-        val outFilename = filename.replaceAll("\\.wacc$", "") + ".s"
+        val outFilename = path.getFileName.toString.replaceAll("\\.wacc$", ".s")
 
         // Run the ast through the backend of the compiler
         val backendResult = WaccBackend.run(ast, outFilename)
 
-        if (backendResult.exitCode == CompilerSuccess) {
-            println(s"Success - finished with exit code ${backendResult.exitCode}")
-        } 
+        backendResult.error.foreach { 
+            errMsg => Console.err.println(s"Backend Code generation Error: $errMsg") 
+            }
         
-        sys.exit(code(backendResult.exitCode))
+        backendResult.exitCode
     }
 }
