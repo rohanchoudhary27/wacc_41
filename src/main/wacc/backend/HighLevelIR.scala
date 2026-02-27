@@ -1,5 +1,7 @@
 package wacc.backend
 
+import wacc.InternalCompilerError
+
 object TAC {
 
     /* Operands */

@@ -10,7 +10,7 @@ import wacc.backend.Arm
   * Global context shared across all function code generation.
   * Manages label generation and data section directives.
   */
-class GlobalGenContext {
+private class GlobalGenContext {
     private var labelCounter = 0
     private val dataDirectives = ListBuffer[Arm.DataDirective]()
     
@@ -49,7 +49,7 @@ class GlobalGenContext {
   * @param global the global context for labels and data directives
   * @param alloc the register allocation map (VirtualReg -> Location)
   */
-class GenState(val global: GlobalGenContext, val alloc: Map[TAC.VirtualReg, Location]) {
+private class GenState(val global: GlobalGenContext, val alloc: Map[TAC.VirtualReg, Location]) {
 
     /* The current return label to branch to at the end of the current function */
     var currEpilogueLabel: Option[Arm.AddrLabel] = None
@@ -858,7 +858,7 @@ object CodeGenerator {
             case FreeType.Array => FreeArrayWidget
         }
         useWidget(widget)
-        generateCall(TAC.Label(widget.label), List(ptr), None)
+        generateCall(TAC.Label(widget.label), List(ptr), destOpt=None)
     }
 
     /**
@@ -1153,11 +1153,11 @@ object CodeGenerator {
     private def generatePrint(src: TAC.Operand, widget: Widget, newline: Boolean)
                              (using st: GenState): Unit = {
         useWidget(widget)
-        generateCall(TAC.Label(widget.label), List(src), None)
+        generateCall(TAC.Label(widget.label), List(src), destOpt=None)
 
         if (newline) {
             useWidget(PrintlnWidget)
-            generateCall(TAC.Label(PrintlnWidget.label), List(), None)
+            generateCall(TAC.Label(PrintlnWidget.label), List(), destOpt=None)
         }
     }
 
@@ -1359,7 +1359,7 @@ object CodeGenerator {
       * @param src the source virtual register to not
       */
     private def generateNot(dest: TAC.VirtualReg, src: TAC.VirtualReg)(using st: GenState): Unit = {
-        generateUnaryOp(dest, src, None, { (destReg, srcReg) =>
+        generateUnaryOp(dest, src, optWidget=None, { (destReg, srcReg) =>
 
             /* Compare with 0 and set to 1 if equal (i.e. invert the boolean) */
             emit(Arm.CmpImm(src.size, srcReg, Arm.Immediate(Constants.FALSE)))

@@ -1,6 +1,7 @@
 package wacc.backend
 
 import wacc.frontend.*
+import wacc.*
 import scala.collection.mutable.{ListBuffer, Map}
 import wacc.backend.TAC
 
@@ -8,7 +9,7 @@ import wacc.backend.TAC
   * A state class managing the virtual register allocation and instructions that make up
   * a function. The main body of a WACC program is treated as a 'main' function.
   */
-class FunctionState(
+private class FunctionState(
 ) {
 
     /* A renamed variable from the AST. While the AST has this information already in
@@ -114,7 +115,7 @@ class FunctionState(
 /**
   * State class for managing directives.
   */
-class GlobalFlattenContext(
+private class GlobalFlattenContext(
 ) {
     private val directives = ListBuffer[TAC.DataDirective]()
 
@@ -568,7 +569,7 @@ object Flattener {
                            (using funcState: FunctionState,
                                   directiveState: GlobalFlattenContext) = {
         val exitCode = flattenExpr(expr)
-        val callInstr = TAC.Call(TAC.Label("exit"), List(exitCode), None)
+        val callInstr = TAC.Call(TAC.Label("exit"), List(exitCode), dest=None)
         funcState.emitInstruction(callInstr)
     }
 

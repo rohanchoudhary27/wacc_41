@@ -1,6 +1,22 @@
-package wacc.backend
+package wacc
 
 import wacc.ExitCodes.* 
+import wacc.backend.*
+
+/**
+  * Top level error messages for internal system errors (defensive programming). These
+  * are used in the main, backend, and frontend files (i.e. at the top level)
+  *
+  * @param message The error message string
+  */
+enum TopLevelError(val message: String) {
+
+  def outputFormat: String = s"${this.productPrefix}: $message"
+
+  case FileSystemError(msg: String) extends TopLevelError(msg)
+  case BackendPipelineError(msg: String) extends TopLevelError(msg)
+  case FrontendPipelineError(msg: String) extends TopLevelError(msg)
+}
 
 /**
   * Internal compiler error messages for defensive programming

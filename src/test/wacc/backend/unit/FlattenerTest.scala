@@ -977,9 +977,9 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
 
     "The flattener for arrays" should "flatten an integer array literal into HeapAlloc, Store (for length), and ArrayStores" in {
         // int[] arr = [1, 2, 3]
-        val e1 = IntLiter(1, SemanticData.Typed(synPos.pos, KnownType.Int, None))
-        val e2 = IntLiter(2, SemanticData.Typed(synPos.pos, KnownType.Int, None))
-        val e3 = IntLiter(3, SemanticData.Typed(synPos.pos, KnownType.Int, None))
+        val e1 = IntLiter(1, SemanticData.Typed(synPos.pos, KnownType.Int, arrayLength=None))
+        val e2 = IntLiter(2, SemanticData.Typed(synPos.pos, KnownType.Int, arrayLength=None))
+        val e3 = IntLiter(3, SemanticData.Typed(synPos.pos, KnownType.Int, arrayLength=None))
         val arrayLit = ArrayLiter(
             List(e1, e2, e3),
             SemanticData.Typed(synPos.pos, KnownType.Array(KnownType.Int), Some(3))
@@ -1044,10 +1044,10 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
 
     it should "flatten a char array literal with correct size calculation" in {
         // char[] arr = ['a', 'b', 'c', 'd']
-        val e1 = CharLiter('a', SemanticData.Typed(synPos.pos, KnownType.Char, None))
-        val e2 = CharLiter('b', SemanticData.Typed(synPos.pos, KnownType.Char, None))
-        val e3 = CharLiter('c', SemanticData.Typed(synPos.pos, KnownType.Char, None))
-        val e4 = CharLiter('d', SemanticData.Typed(synPos.pos, KnownType.Char, None))
+        val e1 = CharLiter('a', SemanticData.Typed(synPos.pos, KnownType.Char, arrayLength=None))
+        val e2 = CharLiter('b', SemanticData.Typed(synPos.pos, KnownType.Char, arrayLength=None))
+        val e3 = CharLiter('c', SemanticData.Typed(synPos.pos, KnownType.Char, arrayLength=None))
+        val e4 = CharLiter('d', SemanticData.Typed(synPos.pos, KnownType.Char, arrayLength=None))
         val arrayLit = ArrayLiter(
             List(e1, e2, e3, e4),
             SemanticData.Typed(synPos.pos, KnownType.Array(KnownType.Char), Some(4))
@@ -1075,9 +1075,9 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
     "The flattener for array element access" should "read from a 1D array using ArrayLoad" in {
         // int[] arr = [10, 20, 30]
         // int x = arr[1]
-        val e1 = IntLiter(10, SemanticData.Typed(synPos.pos, KnownType.Int, None))
-        val e2 = IntLiter(20, SemanticData.Typed(synPos.pos, KnownType.Int, None))
-        val e3 = IntLiter(30, SemanticData.Typed(synPos.pos, KnownType.Int, None))
+        val e1 = IntLiter(10, SemanticData.Typed(synPos.pos, KnownType.Int, arrayLength=None))
+        val e2 = IntLiter(20, SemanticData.Typed(synPos.pos, KnownType.Int, arrayLength=None))
+        val e3 = IntLiter(30, SemanticData.Typed(synPos.pos, KnownType.Int, arrayLength=None))
         val arrayLit = ArrayLiter(
             List(e1, e2, e3),
             SemanticData.Typed(synPos.pos, KnownType.Array(KnownType.Int), Some(3))
@@ -1087,8 +1087,8 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         
         val arrayElem = ArrayElem(
             Ident("arr", SemanticData.Var(synPos.pos, 0, KnownType.Array(KnownType.Int))),
-            List(IntLiter(1, SemanticData.Typed(synPos.pos, KnownType.Int, None))),
-            SemanticData.Typed(synPos.pos, KnownType.Int, None)
+            List(IntLiter(1, SemanticData.Typed(synPos.pos, KnownType.Int, arrayLength=None))),
+            SemanticData.Typed(synPos.pos, KnownType.Int, arrayLength=None)
         )
         val xIdent = Ident("x", SemanticData.Var(synPos.pos, 1, KnownType.Int))
         val xDecl = Stmt.Decl(SyntaxType.Int, xIdent, arrayElem, semPos)
@@ -1104,9 +1104,9 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
     it should "write to a 1D array using ArrayStore" in {
         // int[] arr = [10, 20, 30]
         // arr[2] = 99
-        val e1 = IntLiter(10, SemanticData.Typed(synPos.pos, KnownType.Int, None))
-        val e2 = IntLiter(20, SemanticData.Typed(synPos.pos, KnownType.Int, None))
-        val e3 = IntLiter(30, SemanticData.Typed(synPos.pos, KnownType.Int, None))
+        val e1 = IntLiter(10, SemanticData.Typed(synPos.pos, KnownType.Int, arrayLength=None))
+        val e2 = IntLiter(20, SemanticData.Typed(synPos.pos, KnownType.Int, arrayLength=None))
+        val e3 = IntLiter(30, SemanticData.Typed(synPos.pos, KnownType.Int, arrayLength=None))
         val arrayLit = ArrayLiter(
             List(e1, e2, e3),
             SemanticData.Typed(synPos.pos, KnownType.Array(KnownType.Int), Some(3))
@@ -1116,10 +1116,10 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         
         val arrayElem = ArrayElem(
             Ident("arr", SemanticData.Var(synPos.pos, 0, KnownType.Array(KnownType.Int))),
-            List(IntLiter(2, SemanticData.Typed(synPos.pos, KnownType.Int, None))),
-            SemanticData.Typed(synPos.pos, KnownType.Int, None)
+            List(IntLiter(2, SemanticData.Typed(synPos.pos, KnownType.Int, arrayLength=None))),
+            SemanticData.Typed(synPos.pos, KnownType.Int, arrayLength=None)
         )
-        val assign = Stmt.Asgn(arrayElem, IntLiter(99, SemanticData.Typed(synPos.pos, KnownType.Int, None)), semPos)
+        val assign = Stmt.Asgn(arrayElem, IntLiter(99, SemanticData.Typed(synPos.pos, KnownType.Int, arrayLength=None)), semPos)
         
         val flatOutput = Flattener.flatten(programWith(List(arrDecl, assign)))
         
@@ -1136,9 +1136,9 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
     "The flattener for len operator" should "emit ArrayLen instruction for non-empty array" in {
         // int[] arr = [1, 2, 3]
         // int x = len arr
-        val e1 = IntLiter(1, SemanticData.Typed(synPos.pos, KnownType.Int, None))
-        val e2 = IntLiter(2, SemanticData.Typed(synPos.pos, KnownType.Int, None))
-        val e3 = IntLiter(3, SemanticData.Typed(synPos.pos, KnownType.Int, None))
+        val e1 = IntLiter(1, SemanticData.Typed(synPos.pos, KnownType.Int, arrayLength=None))
+        val e2 = IntLiter(2, SemanticData.Typed(synPos.pos, KnownType.Int, arrayLength=None))
+        val e3 = IntLiter(3, SemanticData.Typed(synPos.pos, KnownType.Int, arrayLength=None))
         val arrayLit = ArrayLiter(
             List(e1, e2, e3),
             SemanticData.Typed(synPos.pos, KnownType.Array(KnownType.Int), Some(3))
@@ -1150,7 +1150,7 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         val lenExpr = UnaryExpr(
             UnaryOperator.Len,
             Ident("arr", SemanticData.Var(synPos.pos, 0, KnownType.Array(KnownType.Int))),
-            SemanticData.Typed(synPos.pos, KnownType.Int, None)
+            SemanticData.Typed(synPos.pos, KnownType.Int, arrayLength=None)
         )
         val xIdent = Ident("x", SemanticData.Var(synPos.pos, 1, KnownType.Int))
         val xDecl = Stmt.Decl(SyntaxType.Int, xIdent, lenExpr, semPos)
@@ -1176,7 +1176,7 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         val lenExpr = UnaryExpr(
             UnaryOperator.Len,
             Ident("arr", SemanticData.Var(synPos.pos, 0, KnownType.Array(KnownType.Int))),
-            SemanticData.Typed(synPos.pos, KnownType.Int, None)
+            SemanticData.Typed(synPos.pos, KnownType.Int, arrayLength=None)
         )
         val xIdent = Ident("x", SemanticData.Var(synPos.pos, 1, KnownType.Int))
         val xDecl = Stmt.Decl(SyntaxType.Int, xIdent, lenExpr, semPos)
@@ -1191,8 +1191,8 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
     it should "work when len is used in an expression" in {
         // int[] arr = [10, 20]
         // int x = len arr + 5
-        val e1 = IntLiter(10, SemanticData.Typed(synPos.pos, KnownType.Int, None))
-        val e2 = IntLiter(20, SemanticData.Typed(synPos.pos, KnownType.Int, None))
+        val e1 = IntLiter(10, SemanticData.Typed(synPos.pos, KnownType.Int, arrayLength=None))
+        val e2 = IntLiter(20, SemanticData.Typed(synPos.pos, KnownType.Int, arrayLength=None))
         val arrayLit = ArrayLiter(
             List(e1, e2),
             SemanticData.Typed(synPos.pos, KnownType.Array(KnownType.Int), Some(2))
@@ -1204,13 +1204,13 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         val lenExpr = UnaryExpr(
             UnaryOperator.Len,
             Ident("arr", SemanticData.Var(synPos.pos, 0, KnownType.Array(KnownType.Int))),
-            SemanticData.Typed(synPos.pos, KnownType.Int, None)
+            SemanticData.Typed(synPos.pos, KnownType.Int, arrayLength=None)
         )
         val addExpr = BinaryExpr(
             BinaryOperator.Add,
             lenExpr,
-            IntLiter(5, SemanticData.Typed(synPos.pos, KnownType.Int, None)),
-            SemanticData.Typed(synPos.pos, KnownType.Int, None)
+            IntLiter(5, SemanticData.Typed(synPos.pos, KnownType.Int, arrayLength=None)),
+            SemanticData.Typed(synPos.pos, KnownType.Int, arrayLength=None)
         )
         val xIdent = Ident("x", SemanticData.Var(synPos.pos, 1, KnownType.Int))
         val xDecl = Stmt.Decl(SyntaxType.Int, xIdent, addExpr, semPos)
@@ -1229,9 +1229,9 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
     "The flattener for read into array elements" should "read an int into an array element" in {
         // int[] arr = [1, 2, 3]
         // read arr[0]
-        val e1 = IntLiter(1, SemanticData.Typed(synPos.pos, KnownType.Int, None))
-        val e2 = IntLiter(2, SemanticData.Typed(synPos.pos, KnownType.Int, None))
-        val e3 = IntLiter(3, SemanticData.Typed(synPos.pos, KnownType.Int, None))
+        val e1 = IntLiter(1, SemanticData.Typed(synPos.pos, KnownType.Int, arrayLength=None))
+        val e2 = IntLiter(2, SemanticData.Typed(synPos.pos, KnownType.Int, arrayLength=None))
+        val e3 = IntLiter(3, SemanticData.Typed(synPos.pos, KnownType.Int, arrayLength=None))
         val arrayLit = ArrayLiter(
             List(e1, e2, e3),
             SemanticData.Typed(synPos.pos, KnownType.Array(KnownType.Int), Some(3))
@@ -1241,8 +1241,8 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         
         val arrayElem = ArrayElem(
             Ident("arr", SemanticData.Var(synPos.pos, 0, KnownType.Array(KnownType.Int))),
-            List(IntLiter(0, SemanticData.Typed(synPos.pos, KnownType.Int, None))),
-            SemanticData.Typed(synPos.pos, KnownType.Int, None)
+            List(IntLiter(0, SemanticData.Typed(synPos.pos, KnownType.Int, arrayLength=None))),
+            SemanticData.Typed(synPos.pos, KnownType.Int, arrayLength=None)
         )
         val readStmt = Stmt.Read(arrayElem, semPos)
         
@@ -1262,8 +1262,8 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
     it should "read a char into an array element" in {
         // char[] arr = ['a', 'b']
         // read arr[1]
-        val c1 = CharLiter('a', SemanticData.Typed(synPos.pos, KnownType.Char, None))
-        val c2 = CharLiter('b', SemanticData.Typed(synPos.pos, KnownType.Char, None))
+        val c1 = CharLiter('a', SemanticData.Typed(synPos.pos, KnownType.Char, arrayLength=None))
+        val c2 = CharLiter('b', SemanticData.Typed(synPos.pos, KnownType.Char, arrayLength=None))
         val arrayLit = ArrayLiter(
             List(c1, c2),
             SemanticData.Typed(synPos.pos, KnownType.Array(KnownType.Char), Some(2))
@@ -1273,8 +1273,8 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
         
         val arrayElem = ArrayElem(
             Ident("arr", SemanticData.Var(synPos.pos, 0, KnownType.Array(KnownType.Char))),
-            List(IntLiter(1, SemanticData.Typed(synPos.pos, KnownType.Int, None))),
-            SemanticData.Typed(synPos.pos, KnownType.Char, None)
+            List(IntLiter(1, SemanticData.Typed(synPos.pos, KnownType.Int, arrayLength=None))),
+            SemanticData.Typed(synPos.pos, KnownType.Char, arrayLength=None)
         )
         val readStmt = Stmt.Read(arrayElem, semPos)
         

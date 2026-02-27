@@ -1,6 +1,7 @@
 package wacc.backend
 
 import wacc.ExitCodes.*
+import wacc.TopLevelError
 import wacc.frontend.{Program, SemanticData}
 import java.nio.file.{Files, Paths, StandardOpenOption}
 import scala.util.{Try, Success, Failure}
@@ -12,14 +13,14 @@ import scala.util.{Try, Success, Failure}
   * @param outputFile The output file to write assembly to
   * @param error A backend error message
   */
-case class BackendCompilationResult(
+private case class BackendCompilationResult(
     exitCode: ExitCode,
     outputFile: Option[String] = None,
     error: Option[String] = None
 )
 
 /* The object running the compiler backend */
-object WaccBackend:
+object WaccBackend {
 
     /**
       * Runs the backend part of the compiler on the AST from the frontend
@@ -29,12 +30,38 @@ object WaccBackend:
       * @return BackendCompilationResult: Compilation result
       */
     def run(ast: Program[SemanticData], outputFilename: String): BackendCompilationResult = {
-        val pipeline = for {
 
-            /* Phase 1 - Flatten*/
+        generateAssembly(ast) match
+            case Success(assemblyFinalString) =>
+                writeToFile(outputFilename, assemblyFinalString) match
+                    case Success(_) =>
+                        BackendCompilationResult(CompilerSuccess, Some(outputFilename))
+
+                    /* Error writing to file */
+                    case Failure(ioError) =>
+                        Console.err.println(TopLevelError.FileSystemError(ioError.getMessage).outputFormat)
+                        BackendCompilationResult(CompilerFailure, outputFile=None, error=Some(ioError.getMessage))
+
+            /* Internal backend error */
+            case Failure(e) =>
+                Console.err.println(TopLevelError.BackendPipelineError(e.getMessage).outputFormat)
+                BackendCompilationResult(BackendFailure, outputFile=None, error=Some(e.getMessage))
+    }
+
+    /**
+      * Generate the assembly string for an input AST via the full backend pipeline
+      *
+      * @param ast The input semantically typed AST
+      * @return Success(assemblyString) with a string for the final assembly to write on
+      * success and a Failure(err) on any backend internal error caught in the pipeline
+      * (defensive programming)
+      */
+    private def generateAssembly(ast: Program[SemanticData]): Try[String] = for {
+
+            /* Phase 1 - Flatten */
             highLevelIR <- Try(Flattener.flatten(ast))
 
-            /* Phase 2 - Register Allocation*/
+            /* Phase 2 - Register Allocation */
             registerAllocation <- Try(RegisterAllocator.allocate(highLevelIR))
 
             /* Phase 3 - Code Generation */
@@ -45,17 +72,8 @@ object WaccBackend:
             assemblyWidgets <- Try(runtimeDispatcher.getCollectedAssembly)
 
             assemblyFinal = s"$assemblyMain\n\n$assemblyWidgets\n"
-            _ <- writeToFile(outputFilename, assemblyFinal)
 
-        } yield outputFilename
-
-        pipeline match
-            case Success(filename) =>
-                BackendCompilationResult(CompilerSuccess, Some(filename))
-            case Failure(e) =>
-                Console.err.println(s"Backend Error: ${e.getMessage}")
-                BackendCompilationResult(BackendFailure, None, Some(e.getMessage))
-    }
+        } yield assemblyFinal
 
     /**
       * Helper function to write the generated assembly string to a file.
@@ -73,4 +91,4 @@ object WaccBackend:
             StandardOpenOption.TRUNCATE_EXISTING
         )
     }
-end WaccBackend
+}
