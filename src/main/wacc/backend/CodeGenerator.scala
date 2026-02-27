@@ -10,7 +10,7 @@ import wacc.backend.Arm
   * Global context shared across all function code generation.
   * Manages label generation and data section directives.
   */
-class GlobalGenContext {
+private class GlobalGenContext {
     private var labelCounter = 0
     private val dataDirectives = ListBuffer[Arm.DataDirective]()
     
@@ -49,7 +49,7 @@ class GlobalGenContext {
   * @param global the global context for labels and data directives
   * @param alloc the register allocation map (VirtualReg -> Location)
   */
-class GenState(val global: GlobalGenContext, val alloc: Map[TAC.VirtualReg, Location]) {
+private class GenState(val global: GlobalGenContext, val alloc: Map[TAC.VirtualReg, Location]) {
 
     /* The current return label to branch to at the end of the current function */
     var currEpilogueLabel: Option[Arm.AddrLabel] = None

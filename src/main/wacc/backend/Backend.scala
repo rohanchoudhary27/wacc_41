@@ -13,7 +13,7 @@ import scala.util.{Try, Success, Failure}
   * @param outputFile The output file to write assembly to
   * @param error A backend error message
   */
-case class BackendCompilationResult(
+private case class BackendCompilationResult(
     exitCode: ExitCode,
     outputFile: Option[String] = None,
     error: Option[String] = None
