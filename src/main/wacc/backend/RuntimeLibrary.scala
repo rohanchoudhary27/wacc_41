@@ -1,6 +1,8 @@
 package wacc.backend
 
 import wacc.ExitCodes
+import RuntimeError.asmLength
+
 /**
  * Represents a snippet of AArch64 assembly that provides common functionality
  * Each widget contains its own assembly definition and may depend on other widgets
@@ -18,6 +20,21 @@ abstract class Widget {
 
     /** Any other widgets this widget calls */
     def dependencies: Set[Widget] = Set.empty
+}
+
+/** Runtime error messages used by error handler widgets */
+object RuntimeError {
+    private val prefix = "fatal error: "
+
+    val divByZero     = s"${prefix}division or modulo by zero\\n"
+    val intOverflow   = s"${prefix}integer overflow or underflow occurred\\n"
+    val nullDeref     = s"${prefix}null pair dereferenced or freed\\n"
+    val outOfMemory   = s"${prefix}out of memory\\n"
+    val outOfBounds   = s"${prefix}array index %d out of bounds\\n"
+    val badChar       = s"${prefix}int %d is not ascii character 0-127\\n"
+
+    /** Byte length when assembled: \\n is 2 chars in Scala but 1 byte in assembly */
+    extension (s: String) def asmLength: Int = s.length - 1
 }
 
 /**
@@ -55,9 +72,6 @@ class RuntimeLibraryDispatcher {
         activeWidgets.map(_.source).mkString("\n\n")
     }
 }
-
-
-/* Runtime Library implemented as Widgets */
 
 /** Runtime widget to implement `_println`, printing a new line to stdout */
 object PrintlnWidget extends Widget {
@@ -299,9 +313,9 @@ object DivByZeroErrorWidget extends Widget {
     override val source: String =
         s"""// ${description}
             |// length of .L._errDivZero_str0
-            |    .word 40
+            |    .word ${RuntimeError.divByZero.asmLength}
             |.L._errDivZero_str0:
-            |    .asciz "fatal error: division or modulo by zero\\n"
+            |    .asciz "${RuntimeError.divByZero}"
             |    .align 4
             |_errDivZero:
             |    adr x0, .L._errDivZero_str0
@@ -321,9 +335,9 @@ object IntOverflowErrorWidget extends Widget {
     override val source: String =
         s"""// ${description}
             |// length of .L._errOverflow_str0
-            |    .word 52
+            |    .word ${RuntimeError.intOverflow.asmLength}
             |.L._errOverflow_str0:
-            |    .asciz "fatal error: integer overflow or underflow occurred\\n"
+            |    .asciz "${RuntimeError.intOverflow}"
             |    .align 4
             |_errOverflow:
             |    adr x0, .L._errOverflow_str0
@@ -344,9 +358,9 @@ object NullDerefErrorWidget extends Widget {
     override val source: String =
         s"""// ${description}
             |// length of .L._errNull_str0
-            |    .word 45
+            |    .word ${RuntimeError.nullDeref.asmLength}
             |.L._errNull_str0:
-            |    .asciz "fatal error: null pair dereferenced or freed\\n"
+            |    .asciz "${RuntimeError.nullDeref}"
             |    .align 4
             |_errNull:
             |    adr x0, .L._errNull_str0
@@ -366,9 +380,9 @@ object OutOfMemoryErrorWidget extends Widget {
     override val source: String =
         s"""// ${description}
             |// length of .L._errOutOfMemory_str0
-            |    .word 27
+            |    .word ${RuntimeError.outOfMemory.asmLength}
             |.L._errOutOfMemory_str0:
-            |    .asciz "fatal error: out of memory\\n"
+            |    .asciz "${RuntimeError.outOfMemory}"
             |    .align 4
             |_errOutOfMemory:
             |    adr x0, .L._errOutOfMemory_str0
@@ -388,9 +402,9 @@ object ArrayBoundsErrorWidget extends Widget {
     override val source: String =
         s"""// ${description}
             |// length of .L._errOutOfBounds_str0
-            |    .word 42
+            |    .word ${RuntimeError.outOfBounds.asmLength}
             |.L._errOutOfBounds_str0:
-            |    .asciz "fatal error: array index %d out of bounds\\n"
+            |    .asciz "${RuntimeError.outOfBounds}"
             |    .align 4
             |_errOutOfBounds:
             |    adr x0, .L._errOutOfBounds_str0
@@ -635,9 +649,9 @@ object BadCharWidgetError extends Widget {
     override val source: String =
         s"""//${description}
             |// length of .L._errBadChar_str0
-            |   .word 50
+            |   .word ${RuntimeError.badChar.asmLength}
             |.L._errBadChar_str0:
-            |   .asciz "fatal error: int %d is not ascii character 0-127\\n"
+            |   .asciz "${RuntimeError.badChar}"
             |.align 4
             |_errBadChar:
             |   adr x0, .L._errBadChar_str0
