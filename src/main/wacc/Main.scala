@@ -5,6 +5,17 @@ import wacc.frontend.*
 import wacc.backend.*
 import wacc.ExitCodes.*
 
+/* Final exit status of the compiler */
+private enum CompilerExitStatus {
+
+  case Success(code: Int)
+  case Info(msg: String, code: Int)
+
+  def message: String = this match
+    case Success(c)  => s"Success - finished with exit code $c"
+    case Info(m, c)  => s"\n$m - finished with exit code $c"
+}
+
 /** 
 * Main entry point for the WACC compiler which runs the frontend and backend.
 */
@@ -39,9 +50,9 @@ object WaccCompiler {
 
         /* Exit with exit code and message */
         if (finalExitCode == CompilerSuccess) {
-            println(s"Success - finished with exit code ${code(finalExitCode)}")
+            println(CompilerExitStatus.Success(code(finalExitCode)).message)
         } else {
-            Console.err.println(s"\nFinished with exit code ${code(finalExitCode)}")
+            Console.err.println(CompilerExitStatus.Info("Finished", code(finalExitCode)).message)
         }
 
     }
