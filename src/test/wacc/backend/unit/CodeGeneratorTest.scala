@@ -12,6 +12,16 @@ import wacc.backend.Arm
   */
 class CodeGeneratorTest extends AnyFlatSpec with Matchers {
 
+    /** Helper: collect widget assembly as a string via BufferedWriter */
+    private def collectWidgetAssembly(dispatcher: RuntimeLibraryDispatcher): String = {
+        val sw = java.io.StringWriter()
+        val bw = java.io.BufferedWriter(sw)
+        dispatcher.writeCollectedAssembly(bw)
+        bw.flush()
+        sw.toString
+    }
+
+
     /** Helper to create a minimal RegProgram with the given body instructions */
     private def programWith(body: List[TAC.Instruction],
                             alloc: Map[TAC.VirtualReg, Location] = Map.empty): Arm.Program = {
@@ -459,7 +469,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         val branches = armProg.body.collect { case b: Arm.BranchCond => b }
         branches.exists(b => b.cond == Condition.NE && b.label.name == IntOverflowErrorWidget.label) shouldBe true
 
-        dispatcher.getCollectedAssembly should include (IntOverflowErrorWidget.label)
+        collectWidgetAssembly(dispatcher) should include (IntOverflowErrorWidget.label)
     }
 
     "CodeGenerator for generateDivMod" should "generate safe division for Div" in {
@@ -480,7 +490,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
 
         armProg.body.collect { case x: Arm.DivReg => x } should not be empty
         
-        dispatcher.getCollectedAssembly should include (DivByZeroErrorWidget.label)
+        collectWidgetAssembly(dispatcher) should include (DivByZeroErrorWidget.label)
     }
 
     it should "generate safe division for Mod" in {
@@ -502,7 +512,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         armProg.body.collect { case x: Arm.DivReg => x } should not be empty
         armProg.body.collect { case m: Arm.MSub => m } should not be empty
         
-        dispatcher.getCollectedAssembly should include (DivByZeroErrorWidget.label)
+        collectWidgetAssembly(dispatcher) should include (DivByZeroErrorWidget.label)
     }
 
     /* ==================== Widget Tests ==================== */
@@ -518,7 +528,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
 
         val (_, dispatcher) = CodeGenerator.generate(prog, alloc)
 
-        val widgetAssembly = dispatcher.getCollectedAssembly
+        val widgetAssembly = collectWidgetAssembly(dispatcher)
         
         widgetAssembly should include (PrintIntWidget.label)
         widgetAssembly should include ("%d") 
@@ -533,7 +543,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         val alloc = RegisterAllocator.allocate(prog)
 
         val (_, dispatcher) = CodeGenerator.generate(prog, alloc)
-        val widgetAssembly = dispatcher.getCollectedAssembly
+        val widgetAssembly = collectWidgetAssembly(dispatcher)
 
         widgetAssembly should include (PrintIntWidget.label)
         widgetAssembly should include (PrintlnWidget.label)
@@ -549,7 +559,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         val alloc = RegisterAllocator.allocate(prog)
 
         val (_, dispatcher) = CodeGenerator.generate(prog, alloc)
-        val widgetAssembly = dispatcher.getCollectedAssembly
+        val widgetAssembly = collectWidgetAssembly(dispatcher)
 
         widgetAssembly should not include (PrintStringWidget.label)
         widgetAssembly should not include (MallocWidget.label)
@@ -565,7 +575,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         val alloc = RegisterAllocator.allocate(prog)
 
         val (_, dispatcher) = CodeGenerator.generate(prog, alloc)
-        val widgetAssembly = dispatcher.getCollectedAssembly
+        val widgetAssembly = collectWidgetAssembly(dispatcher)
 
         widgetAssembly should include (ReadIntegerWidget.label)
         widgetAssembly should include ("%d")
@@ -582,7 +592,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         val alloc = RegisterAllocator.allocate(prog)
 
         val (_, dispatcher) = CodeGenerator.generate(prog, alloc)
-        val widgetAssembly = dispatcher.getCollectedAssembly
+        val widgetAssembly = collectWidgetAssembly(dispatcher)
 
         widgetAssembly should include (ReadCharWidget.label)
         widgetAssembly should include ("%c")
@@ -601,7 +611,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         val alloc = RegisterAllocator.allocate(prog)
 
         val (_, dispatcher) = CodeGenerator.generate(prog, alloc)
-        val widgetAssembly = dispatcher.getCollectedAssembly
+        val widgetAssembly = collectWidgetAssembly(dispatcher)
         
         widgetAssembly should include (BadCharWidgetError.label)
         widgetAssembly should include ("bl exit") 

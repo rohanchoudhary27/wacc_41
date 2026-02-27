@@ -10,10 +10,19 @@ import wacc.backend.*
   */
 class OutputterTest extends AnyFlatSpec with Matchers {
 
+    /** Helper: emit an ARM program to a string via BufferedWriter */
+    private def emitToString(prog: Arm.Program): String = {
+        val sw = java.io.StringWriter()
+        val bw = java.io.BufferedWriter(sw)
+        Outputter.emit(prog, bw)
+        bw.flush()
+        sw.toString
+    }
+
     /** Helper: emit a single-instruction program and return only the instruction line */
     private def emitInstr(instr: Arm.Instruction): String = {
         val prog = Arm.Program(List.empty, List(instr))
-        Outputter.emit(prog)
+        emitToString(prog)
     }
 
     /* ==================== Store Pair Tests ==================== */
@@ -321,7 +330,7 @@ class OutputterTest extends AnyFlatSpec with Matchers {
                              Arm.Immediate(AARch64Limits.ARM_STACK_ALIGNMENT_BYTES)))
             )
         )
-        val output = Outputter.emit(prog)
+        val output = emitToString(prog)
 
         output should include (".text")
         output should include (".global main")
@@ -338,7 +347,7 @@ class OutputterTest extends AnyFlatSpec with Matchers {
             List(Arm.DataDirective(Arm.AddrLabel(".msg_0"), "hello")),
             List(Arm.LabelDef(Arm.AddrLabel("main")), Arm.Ret)
         )
-        val output = Outputter.emit(prog)
+        val output = emitToString(prog)
 
         output should include (".data")
         output should include (".msg_0:")
@@ -350,7 +359,7 @@ class OutputterTest extends AnyFlatSpec with Matchers {
             List.empty,
             List(Arm.LabelDef(Arm.AddrLabel("main")), Arm.Ret)
         )
-        val output = Outputter.emit(prog)
+        val output = emitToString(prog)
 
         output should not include (".data")
     }
@@ -363,7 +372,7 @@ class OutputterTest extends AnyFlatSpec with Matchers {
             List(Arm.LabelDef(Arm.AddrLabel("main")), Arm.Ret)
         )
 
-        val output = Outputter.emit(prog)
+        val output = emitToString(prog)
 
         output should include (".data")
         output should include (s"${BadCharWidgetError.label}:")
@@ -381,7 +390,7 @@ class OutputterTest extends AnyFlatSpec with Matchers {
             )
         )
 
-        val mainOutput = Outputter.emit(prog)
+        val mainOutput = emitToString(prog)
         val widgetOutput = PrintIntWidget.source
         val fullOutput = s"$mainOutput\n\n$widgetOutput"
 
@@ -400,7 +409,7 @@ class OutputterTest extends AnyFlatSpec with Matchers {
             )
         )
 
-        val mainOutput = Outputter.emit(prog)
+        val mainOutput = emitToString(prog)
         val widgetOutput = ReadIntegerWidget.source
         val fullOutput = s"$mainOutput\n\n$widgetOutput"
 
@@ -419,7 +428,7 @@ class OutputterTest extends AnyFlatSpec with Matchers {
             )
         )
 
-        val mainOutput = Outputter.emit(prog)
+        val mainOutput = emitToString(prog)
         val widgetOutput = ReadCharWidget.source
         val fullOutput = s"$mainOutput\n\n$widgetOutput"
 
