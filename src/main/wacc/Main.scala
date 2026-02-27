@@ -79,14 +79,10 @@ object WaccCompiler {
                                     errorLogger: ErrorLogger,
                                     exitCode: ExitCode): Unit = {
 
-        val errorType = exitCode match {
-            case ExitCodes.SyntaxError   => "Syntax error"
-            case ExitCodes.SemanticError => "Semantic error"
-            case _                       => "Internal Error"
-        }
+        val errorName = ExitCodes.errorName(exitCode)
 
         /* Print top-level file header */
-        Console.err.println(s"$errorType in $filename:\n")
+        Console.err.println(s"$errorName in $filename:\n")
 
         /* Print error logger errors */
         Console.err.println(errorLogger.retrieveAllErrors())

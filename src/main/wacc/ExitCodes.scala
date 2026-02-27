@@ -13,4 +13,12 @@ object ExitCodes {
   val RuntimeErrorCode: ExitCode = 255
 
   def code(e: ExitCode): Int = e
+
+  def errorName(e: ExitCode): String = e match
+    case SyntaxError   => "Syntax error"
+    case SemanticError => "Semantic error"
+    case BackendFailure => "Backend error"
+    case CompilerFailure => "Internal Compiler Error"
+    case RuntimeErrorCode => "Runtime error"
+    case _              => "Unknown Error"
 }
