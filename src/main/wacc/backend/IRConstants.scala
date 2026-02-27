@@ -28,8 +28,6 @@ object AARch64Limits {
     val ARM_IMMEDIATE_UNSIGNED_HIGH = 65535
 }
 
-
-
 /**
   * Size in bytes for registers/memory operations
   */

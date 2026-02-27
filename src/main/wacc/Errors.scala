@@ -10,12 +10,11 @@ import wacc.backend.*
   * @param message The error message string
   */
 enum TopLevelError(val message: String) {
-
-  def outputFormat: String = s"${this.productPrefix}: $message"
-
-  case FileSystemError(msg: String) extends TopLevelError(msg)
-  case BackendPipelineError(msg: String) extends TopLevelError(msg)
-  case FrontendPipelineError(msg: String) extends TopLevelError(msg)
+    def outputFormat: String = s"${this.productPrefix}: $message"
+    
+    case FileSystemError(msg: String) extends TopLevelError(msg)
+    case BackendPipelineError(msg: String) extends TopLevelError(msg)
+    case FrontendPipelineError(msg: String) extends TopLevelError(msg)
 }
 
 /**

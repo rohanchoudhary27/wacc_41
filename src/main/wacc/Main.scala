@@ -8,27 +8,27 @@ import wacc.ExitCodes.*
 /* Final exit status of the compiler */
 private enum CompilerExitStatus {
 
-  case Success(code: Int)
-  case Info(msg: String, code: Int)
+    case Success(code: Int)
+    case Info(msg: String, code: Int)
 
-  def message: String = this match
-    case Success(c)  => s"Success - finished with exit code $c"
-    case Info(m, c)  => s"\n$m - finished with exit code $c"
+    def message: String = this match
+        case Success(c)  => s"Success - finished with exit code $c"
+        case Info(m, c)  => s"\n$m - finished with exit code $c"
 }
 
 /** 
-* Main entry point for the WACC compiler which runs the frontend and backend.
-*/
+  * Main entry point for the WACC compiler which runs the frontend and backend.
+  */
 object WaccCompiler {
 
     /** Main function for the WACC compiler.
-    *
-    * Runs the frontend and then the backend on the read .wacc file. 
-    *
-    * @param args:
-    *   Command Line arguments. Only 1 is expected (the path of the file to
-    *   compile).
-    */
+      *
+      * Runs the frontend and then the backend on the read .wacc file. 
+      *
+      * @param args:
+      *   Command Line arguments. Only 1 is expected (the path of the file to
+      *   compile).
+      */
     def main(args: Array[String]): Unit = {
 
         /* Expect a singular argument */
