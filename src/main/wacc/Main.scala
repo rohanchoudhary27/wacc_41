@@ -55,6 +55,8 @@ object WaccCompiler {
             Console.err.println(CompilerExitStatus.Info("Finished", code(finalExitCode)).message)
         }
 
+        sys.exit(code(finalExitCode))
+
     }
 
     /**
