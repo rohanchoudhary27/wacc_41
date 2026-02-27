@@ -39,12 +39,12 @@ object WaccBackend{
                     /* Error writing to file */
                     case Failure(ioError) =>
                         Console.err.println(s"File System Error: ${ioError.getMessage}")
-                        BackendCompilationResult(CompilerFailure, None, Some(ioError.getMessage))
+                        BackendCompilationResult(CompilerFailure, outputFile=None, error=Some(ioError.getMessage))
 
             /* Internal backend error */
             case Failure(e) =>
                 Console.err.println(s"Backend Error: ${e.getMessage}")
-                BackendCompilationResult(BackendFailure, None, Some(e.getMessage))
+                BackendCompilationResult(BackendFailure, outputFile=None, error=Some(e.getMessage))
     }
 
     /**

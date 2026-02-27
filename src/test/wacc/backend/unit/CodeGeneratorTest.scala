@@ -139,7 +139,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
 
     "CodeGenerator generateCall" should "move immediate argument directly to arg register" in {
         val result = programWith(
-            List(TAC.Call(TAC.Label("exit"), List(TAC.Immediate(7)), None)),
+            List(TAC.Call(TAC.Label("exit"), List(TAC.Immediate(7)), dest=None)),
             Map.empty
         )
 
@@ -152,7 +152,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
 
     it should "emit a branch-and-link instruction to the correct label" in {
         val result = programWith(
-            List(TAC.Call(TAC.Label("exit"), List(TAC.Immediate(0)), None)),
+            List(TAC.Call(TAC.Label("exit"), List(TAC.Immediate(0)), dest=None)),
             Map.empty
         )
 
@@ -164,7 +164,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         val alloc = Map(argReg -> (PhysicalReg.callerSaved(0): Location))
 
         val result = programWith(
-            List(TAC.Call(TAC.Label("myFunc"), List(argReg), None)),
+            List(TAC.Call(TAC.Label("myFunc"), List(argReg), dest=None)),
             alloc
         )
 
@@ -197,7 +197,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
 
     it should "handle multiple immediate arguments" in {
         val result = programWith(
-            List(TAC.Call(TAC.Label("twoArgs"), List(TAC.Immediate(1), TAC.Immediate(2)), None)),
+            List(TAC.Call(TAC.Label("twoArgs"), List(TAC.Immediate(1), TAC.Immediate(2)), dest=None)),
             Map.empty
         )
 
@@ -249,7 +249,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         val prog = TAC.RegProgram(
             List.empty,
             List.empty,
-            List(TAC.Call(TAC.Label("exit"), List(TAC.Immediate(7)), None))
+            List(TAC.Call(TAC.Label("exit"), List(TAC.Immediate(7)), dest=None))
         )
         val alloc = RegisterAllocator.allocate(prog)
         val (armProg, _) = CodeGenerator.generate(prog, alloc)
@@ -767,7 +767,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
 
     "CodeGenerator for functions" should "allocate an aligned stack block for > 8 arguments" in {
         val args = List.fill(9)(TAC.Immediate(1))
-        val result = programWith(List(TAC.Call(TAC.Label("getNinth"), args, None)), Map.empty)
+        val result = programWith(List(TAC.Call(TAC.Label("getNinth"), args, dest=None)), Map.empty)
 
         /* Get instr where tihe stack pointer is moved */
         val stackAllocInstr = result.body.collectFirst {
@@ -788,7 +788,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
 
         /* 3 spilled stack args that need to be aligned i.e. 32 bytes allocated */
         val args = List.fill(11)(TAC.Immediate(1))
-        val result = programWith(List(TAC.Call(TAC.Label("manyArgs"), args, None)), Map.empty)
+        val result = programWith(List(TAC.Call(TAC.Label("manyArgs"), args, dest=None)), Map.empty)
 
         val branchLinkIndex = result.body.indexWhere {
             case _: Arm.Bl => true

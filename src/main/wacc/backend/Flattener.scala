@@ -568,7 +568,7 @@ object Flattener {
                            (using funcState: FunctionState,
                                   directiveState: GlobalFlattenContext) = {
         val exitCode = flattenExpr(expr)
-        val callInstr = TAC.Call(TAC.Label("exit"), List(exitCode), None)
+        val callInstr = TAC.Call(TAC.Label("exit"), List(exitCode), dest=None)
         funcState.emitInstruction(callInstr)
     }
 
