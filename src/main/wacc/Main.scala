@@ -22,7 +22,7 @@ object WaccCompiler {
 
         /* Expect a singular argument */
         if (args.length != 1) {
-            Console.err.println("Requires file.")
+            Console.err.println(TopLevelError.FileSystemError("Requires a file").outputFormat)
             sys.exit(code(CompilerFailure))
         }
 
@@ -30,7 +30,7 @@ object WaccCompiler {
 
         /* Validate file exists */
         if (!Files.exists(path)) {
-            Console.err.println(s"Error: Path '$path' does not exist.")
+            Console.err.println(TopLevelError.FileSystemError(s"Path '$path' does not exist").outputFormat)
             sys.exit(code(CompilerFailure))
         }
 
@@ -101,7 +101,7 @@ object WaccCompiler {
                 printFrontendErrors(path.getFileName.toString, logger, exitCode)
                 Left(exitCode)
             case _ =>
-                Console.err.println("Internal Compiler Error: Invalid frontend state")
+                Console.err.println(TopLevelError.FrontendPipelineError("Invalid frontend state").outputFormat)
                 Left(CompilerFailure)
         }
     }
@@ -121,8 +121,8 @@ object WaccCompiler {
         val backendResult = WaccBackend.run(ast, outFilename)
 
         backendResult.error.foreach { 
-            errMsg => Console.err.println(s"Backend Code generation Error: $errMsg") 
-            }
+            errMsg => Console.err.println(TopLevelError.BackendPipelineError(errMsg).outputFormat)
+        }
         
         backendResult.exitCode
     }
