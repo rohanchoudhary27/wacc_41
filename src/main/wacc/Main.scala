@@ -65,31 +65,20 @@ object WaccCompiler {
     * @param exitCode: the exit code of the program (100/200 in this case)
     */
     private def printFrontendErrors(filename: String,
-                            errorLogger: ErrorLogger,
-                            exitCode: ExitCode): Unit = {
+                                    errorLogger: ErrorLogger,
+                                    exitCode: ExitCode): Unit = {
 
         val errorType = exitCode match {
-            case ExitCodes.SyntaxError => "Syntax error"
-            case ExitCodes.SemanticError  => "Semantic error"
-            case _ => "Internal Error"
+            case ExitCodes.SyntaxError   => "Syntax error"
+            case ExitCodes.SemanticError => "Semantic error"
+            case _                       => "Internal Error"
         }
 
-        val allErrors = errorLogger.retrieveAllErrors()
+        /* Print top-level file header */
+        Console.err.println(s"$errorType in $filename:\n")
 
-        val lines = allErrors.split("\n", 2)
-        val (head, body) = if (lines.length > 1) {
-            (s"\n${lines(0)}", lines(1))
-        } else {
-            (":", allErrors)
-        }
-
-        val header = exitCode match {
-            case ExitCodes.SyntaxError | ExitCodes.SemanticError => s"$errorType in $filename:$head"
-            case _ => s"$errorType:"
-        }
-
-        Console.err.println(header)
-        Console.err.println(body)
+        /* Print error logger errors */
+        Console.err.println(errorLogger.retrieveAllErrors())
     }
 
     /**
