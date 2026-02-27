@@ -1,6 +1,7 @@
 package wacc.backend
 
 import wacc.backend.Arm
+import java.io.BufferedWriter
 
 /**
   * Outputter for generating final ARM64 assembly from the low-level IR.
@@ -11,50 +12,57 @@ object Outputter {
     private val INDENT = "\t"
     
     /**
-      * Generate complete assembly output from an ARM program.
+      * Write complete assembly output from an ARM program to a BufferedWriter.
       * 
       * @param prog the ARM program containing data directives and instructions
-      * @return the complete assembly source as a string
+      * @param bw the buffered writer to write to
       */
-    def emit(prog: Arm.Program): String = {
-        val sb = StringBuilder()
+    def emit(prog: Arm.Program, bw: BufferedWriter): Unit = {
 
         /* Data section */
         if (prog.data.nonEmpty) {
-            sb ++= ".data\n"
-            sb ++= ".align 4\n"
-            prog.data.foreach(d => sb ++= emitDirective(d))
-            sb ++= "\n"
+            bw.write(".data\n")
+            bw.write(".align 4\n")
+            prog.data.foreach(d => emitDirective(d, bw))
+            bw.write("\n")
         }
         
         /* GNU assembler directives and code section */
-        sb ++= ".text\n"
-        sb ++= ".global main\n"
-        prog.body.foreach(i => sb ++= emitInstruction(i))
-        
-        sb.toString
+        bw.write(".text\n")
+        bw.write(".global main\n")
+        prog.body.foreach(i => emitInstruction(i, bw))
     }
 
     /**
       * Emit a data directive as assembly text.
       * 
       * @param dir the data directive to emit
-      * @return the assembly string for this directive
+      * @param bw the buffered writer to write to
       */
-    private def emitDirective(dir: Arm.DataDirective): String = {
-        s"${INDENT}.word ${dir.storedValue.length}\n" +
-        s"${dir.label.name}:\n" +
-        s"${INDENT}.asciz \"${dir.storedValue}\"\n" +
-        ".align 4\n"
+    private def emitDirective(dir: Arm.DataDirective, bw: BufferedWriter): Unit = {
+        bw.write(s"${INDENT}.word ${dir.storedValue.length}\n")
+        bw.write(s"${dir.label.name}:\n")
+        bw.write(s"${INDENT}.asciz \"${dir.storedValue}\"\n")
+        bw.write(".align 4\n")
     }
     
     /**
       * Emit a single ARM instruction as assembly text.
       * 
       * @param instr the instruction to emit
+      * @param bw the buffered writer to write to
+      */
+    private def emitInstruction(instr: Arm.Instruction, bw: BufferedWriter): Unit = {
+        bw.write(formatInstruction(instr))
+    }
+
+    /**
+      * Format a single ARM instruction as an assembly string.
+      * 
+      * @param instr the instruction to format
       * @return the assembly string for this instruction
       */
-    private def emitInstruction(instr: Arm.Instruction): String = instr match {
+    private def formatInstruction(instr: Arm.Instruction): String = instr match {
         /* Arithmetic */
         case Arm.AddReg(size, dest, src1, src2) => emitBinary("add", size, dest, src1, src2)
         case Arm.AddImm(size, dest, src1, imm) => emitBinary("add", size, dest, src1, imm)
@@ -147,7 +155,7 @@ object Outputter {
                              src1: PhysicalReg,
                              src2: PhysicalReg,
                              addr: Arm.Address) =
-        indented(s"stp ${formatReg(src1, size)}, ${formatReg(src2, size)}, ${{formatAddress(addr)}}")
+        indented(s"stp ${formatReg(src1, size)}, ${formatReg(src2, size)}, ${formatAddress(addr)}")
 
 
     /** Format a load pair instruction */
@@ -155,7 +163,7 @@ object Outputter {
                              dest1: PhysicalReg,
                              dest2: PhysicalReg,
                              addr: Arm.Address) =
-        indented(s"ldp ${formatReg(dest1, size)}, ${formatReg(dest2, size)}, ${{formatAddress(addr)}}")
+        indented(s"ldp ${formatReg(dest1, size)}, ${formatReg(dest2, size)}, ${formatAddress(addr)}")
 
     /** Emit a binary operation: op dest, src1, src2 */
     private def emitBinary(op: String, size: Size, dest: PhysicalReg, src1: PhysicalReg, 
@@ -188,7 +196,7 @@ object Outputter {
     /** Emit a Lea (load effective address) instruction */
     private def emitLea(reg: PhysicalReg, label: Arm.Address): String = {
         indented(s"adrp ${formatReg(reg, Size.X)}, ${formatAddress(label)}") +
-        indented(s"add ${formatReg(reg, Size.X)}, ${formatReg(reg, Size.X)}, :lo12:${{formatAddress(label)}}")
+        indented(s"add ${formatReg(reg, Size.X)}, ${formatReg(reg, Size.X)}, :lo12:${formatAddress(label)}")
     }
 
     /* ========== Formatting Helpers ========== */
@@ -225,10 +233,10 @@ object Outputter {
             s"lsl #${ShiftAmounts.value(shift)}]"
 
         case Arm.AddrPostIndex(baseAddr, immOffset) => 
-            s"[${formatReg(baseAddr, Size.X)}], ${{formatImmediate(immOffset)}}"
+            s"[${formatReg(baseAddr, Size.X)}], ${formatImmediate(immOffset)}"
 
         case Arm.AddrPreIndex(baseAddr, immOffset) => 
-            s"[${formatReg(baseAddr, Size.X)}, ${{formatImmediate(immOffset)}}]!"
+            s"[${formatReg(baseAddr, Size.X)}, ${formatImmediate(immOffset)}]!"
             
         case Arm.AddrLabel(name) => 
             s"$name"
