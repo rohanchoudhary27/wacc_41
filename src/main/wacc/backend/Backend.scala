@@ -19,7 +19,7 @@ case class BackendCompilationResult(
 )
 
 /* The object running the compiler backend */
-object WaccBackend:
+object WaccBackend{
 
     /**
       * Runs the backend part of the compiler on the AST from the frontend
@@ -29,7 +29,21 @@ object WaccBackend:
       * @return BackendCompilationResult: Compilation result
       */
     def run(ast: Program[SemanticData], outputFilename: String): BackendCompilationResult = {
-        val pipeline = for {
+
+        generateAssembly(ast) match
+            case Success(assemblyFinal) =>
+                writeToFile(outputFilename, assemblyFinal) match
+                    case Success(_) =>
+                        BackendCompilationResult(CompilerSuccess, Some(outputFilename))
+                    case Failure(ioError) =>
+                        Console.err.println(s"File System Error: ${ioError.getMessage}")
+                        BackendCompilationResult(CompilerFailure, None, Some(ioError.getMessage))
+            case Failure(e) =>
+                Console.err.println(s"Backend Error: ${e.getMessage}")
+                BackendCompilationResult(BackendFailure, None, Some(e.getMessage))
+    }
+
+    private def generateAssembly(ast: Program[SemanticData]): Try[String] = for {
 
             /* Phase 1 - Flatten*/
             highLevelIR <- Try(Flattener.flatten(ast))
@@ -45,17 +59,8 @@ object WaccBackend:
             assemblyWidgets <- Try(runtimeDispatcher.getCollectedAssembly)
 
             assemblyFinal = s"$assemblyMain\n\n$assemblyWidgets\n"
-            _ <- writeToFile(outputFilename, assemblyFinal)
 
-        } yield outputFilename
-
-        pipeline match
-            case Success(filename) =>
-                BackendCompilationResult(CompilerSuccess, Some(filename))
-            case Failure(e) =>
-                Console.err.println(s"Backend Error: ${e.getMessage}")
-                BackendCompilationResult(BackendFailure, None, Some(e.getMessage))
-    }
+        } yield assemblyFinal
 
     /**
       * Helper function to write the generated assembly string to a file.
@@ -73,4 +78,4 @@ object WaccBackend:
             StandardOpenOption.TRUNCATE_EXISTING
         )
     }
-end WaccBackend
+}
