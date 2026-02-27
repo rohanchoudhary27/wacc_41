@@ -1,6 +1,7 @@
-package wacc.backend
+package wacc
 
 import wacc.ExitCodes.* 
+import wacc.backend.*
 
 /**
   * Top level error messages for internal system errors (defensive programming). These

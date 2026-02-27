@@ -1,6 +1,7 @@
 package wacc.backend
 
 import wacc.frontend.*
+import wacc.*
 import scala.collection.mutable.{ListBuffer, Map}
 import wacc.backend.TAC
 
