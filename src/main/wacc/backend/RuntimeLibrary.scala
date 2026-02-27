@@ -63,13 +63,17 @@ class RuntimeLibraryDispatcher {
     }
 
     /**
-     * Returns the full assembly string block for all required widgets
-     * 
-     * @return the assembly source of all used widgets
-     */
-    def getCollectedAssembly: String = {
-        "// RUNTIME LIBRARY:\n\n" +
-        activeWidgets.map(_.source).mkString("\n\n")
+      * Writes the assembly for all required widgets to a BufferedWriter.
+      * 
+      * @param bw the buffered writer to write to
+      */
+    def writeCollectedAssembly(bw: java.io.BufferedWriter): Unit = {
+        bw.write("// RUNTIME LIBRARY:\n\n")
+        val widgetList = activeWidgets.toList
+        widgetList.zipWithIndex.foreach { (widget, idx) =>
+            bw.write(widget.source)
+            if (idx < widgetList.length - 1) bw.write("\n\n")
+        }
     }
 }
 

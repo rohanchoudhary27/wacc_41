@@ -84,9 +84,7 @@ object CodeGenerator {
     
     /** Mark a widget as used (will be included in final assembly) */
     def useWidget(widget: Widget)(using st: GenState): Unit = st.global.dispatcher.use(widget)
-    
-    /** Get all collected widget assembly */
-    def getWidgetAssembly()(using st: GenState): String = st.global.dispatcher.getCollectedAssembly
+
 
     /** Checks if an Immediate offset fits within the 9-bit signed immediate range (-256 to +255) 
      * allowed by the STR/LDR/STUR/LDUR instructions
