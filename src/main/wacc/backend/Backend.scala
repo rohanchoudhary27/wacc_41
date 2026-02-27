@@ -20,7 +20,7 @@ private case class BackendCompilationResult(
 )
 
 /* The object running the compiler backend */
-object WaccBackend{
+object WaccBackend {
 
     /**
       * Runs the backend part of the compiler on the AST from the frontend
