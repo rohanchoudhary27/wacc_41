@@ -34,8 +34,10 @@ object WaccCompiler {
             sys.exit(code(CompilerFailure))
         }
 
+        /* Run the compiler */
         val finalExitCode = compilePipeline(path)
 
+        /* Exit with exit code and message */
         if (finalExitCode == CompilerSuccess) {
             println(s"Success - finished with exit code ${code(finalExitCode)}")
         } else {
@@ -76,14 +78,13 @@ object WaccCompiler {
 
         val lines = allErrors.split("\n", 2)
         val (head, body) = if (lines.length > 1) {
-            (s" ${lines(0)}", lines(1))
+            (s"\n${lines(0)}", lines(1))
         } else {
             (":", allErrors)
         }
 
         val header = exitCode match {
-            case ExitCodes.SyntaxError => s"$errorType in $filename$head"
-            case ExitCodes.SemanticError => s"$errorType in $filename:"
+            case ExitCodes.SyntaxError | ExitCodes.SemanticError => s"$errorType in $filename:$head"
             case _ => s"$errorType:"
         }
 

@@ -34,7 +34,7 @@ object SyntaxPass {
     } match {
       case Some(func) =>
         val errorMsg =
-          s"\nFunction error: Function '${func.ident.name}' is not guaranteed to return"
+          s"Function error: Function '${func.ident.name}' is not guaranteed to return"
         errorLogger.logSemanticError(func.ident.info.pos, errorMsg)
         prog
       case None => prog
