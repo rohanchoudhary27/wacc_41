@@ -44,6 +44,12 @@ object WaccCompiler {
 
     }
 
+    /**
+      * Run the frontend and backend successively with error handling support
+      *
+      * @param path The path of the wacc file to compile
+      * @return An `ExitCode` representing the success/failure status of the compilation
+      */
     private def compilePipeline(path: Path): ExitCode = runFrontend(path) match {
         case Left(frontendErrorCode) => frontendErrorCode
         case Right(ast) => runBackend(path, ast)
@@ -93,14 +99,14 @@ object WaccCompiler {
       */
     private def runFrontend(path: Path): Either[ExitCode, Program[SemanticData]] = {
 
-        // Run the WACC code through the front end of the compiler
+        /* Run the WACC code through the front end of the compiler */
         val frontendResult: FrontendCompilationResult = WaccFrontend.run(path)
 
         frontendResult match {
 
             case FrontendCompilationResult(CompilerSuccess, _, Some(ast)) =>
                 Right(ast)
-            // Case if the frontend does not compile succesfully (Syntax/Semantic error)
+            /* Case if the frontend does not compile succesfully (Syntax/Semantic error) */
             case FrontendCompilationResult(exitCode, Some(logger), _) if exitCode != CompilerSuccess => 
                 printFrontendErrors(path.getFileName.toString, logger, exitCode)
                 Left(exitCode)
@@ -118,10 +124,10 @@ object WaccCompiler {
       */
     private def runBackend(path: Path, ast: Program[SemanticData]): ExitCode = {
 
-        // Change the filename to a .s assembly file but keep the name the same
+        /* Change the filename to a .s assembly file but keep the name the same */
         val outFilename = path.getFileName.toString.replaceAll("\\.wacc$", ".s")
 
-        // Run the ast through the backend of the compiler
+        /* Run the ast through the backend of the compiler */
         val backendResult = WaccBackend.run(ast, outFilename)
 
         backendResult.error.foreach { 

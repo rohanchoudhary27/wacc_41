@@ -31,24 +31,36 @@ object WaccBackend{
     def run(ast: Program[SemanticData], outputFilename: String): BackendCompilationResult = {
 
         generateAssembly(ast) match
-            case Success(assemblyFinal) =>
-                writeToFile(outputFilename, assemblyFinal) match
+            case Success(assemblyFinalString) =>
+                writeToFile(outputFilename, assemblyFinalString) match
                     case Success(_) =>
                         BackendCompilationResult(CompilerSuccess, Some(outputFilename))
+
+                    /* Error writing to file */
                     case Failure(ioError) =>
                         Console.err.println(s"File System Error: ${ioError.getMessage}")
                         BackendCompilationResult(CompilerFailure, None, Some(ioError.getMessage))
+
+            /* Internal backend error */
             case Failure(e) =>
                 Console.err.println(s"Backend Error: ${e.getMessage}")
                 BackendCompilationResult(BackendFailure, None, Some(e.getMessage))
     }
 
+    /**
+      * Generate the assembly string for an input AST via the full backend pipeline
+      *
+      * @param ast The input semantically typed AST
+      * @return Success(assemblyString) with a string for the final assembly to write on
+      * success and a Failure(err) on any backend internal error caught in the pipeline
+      * (defensive programming)
+      */
     private def generateAssembly(ast: Program[SemanticData]): Try[String] = for {
 
-            /* Phase 1 - Flatten*/
+            /* Phase 1 - Flatten */
             highLevelIR <- Try(Flattener.flatten(ast))
 
-            /* Phase 2 - Register Allocation*/
+            /* Phase 2 - Register Allocation */
             registerAllocation <- Try(RegisterAllocator.allocate(highLevelIR))
 
             /* Phase 3 - Code Generation */
