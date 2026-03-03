@@ -187,9 +187,12 @@ object Flattener {
       * into a high level 3-register assembley IR.
       *
       * @param typedAST the type checker AST output from the frontend
+      * @param optimState: `FrontendOptimState` for extra info to the AST for WACC extensions
       * @return a `RegProgram` 3-register assembley IR
       */
-    def flatten(typedAST: Program[SemanticData]): TAC.RegProgram = {
+    def flatten(typedAST: Program[SemanticData],
+                optimState: FrontendOptimState = FrontendOptimState.empty): TAC.RegProgram = {
+
         val Program(funcs, stmt, _) = typedAST
 
         /* Initialise contexts */

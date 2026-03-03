@@ -67,7 +67,7 @@ object WaccCompiler {
       */
     private def compilePipeline(path: Path): ExitCode = runFrontend(path) match {
         case Left(frontendErrorCode) => frontendErrorCode
-        case Right(ast) => runBackend(path, ast)
+        case Right(ast, optimState) => runBackend(path, ast, optimState)
     }
 
     /**
@@ -94,19 +94,22 @@ object WaccCompiler {
       * Runs the WACC file through the WACC frontend compiler.
       *
       * @param path: path to the WACC file to be compiled
-      * @return Program[SemanticData]: which is an AST
+      * @return Left(ExitCode) on a failure exit (syntax/semantic error) or
+      * Right(Program[SemanticData], FrontendOptimState) for the typed AST and additional
+      * WACC Extension annotations
       */
-    private def runFrontend(path: Path): Either[ExitCode, Program[SemanticData]] = {
+    private def runFrontend(path: Path): Either[ExitCode, (Program[SemanticData], FrontendOptimState)] = {
 
         /* Run the WACC code through the front end of the compiler */
         val frontendResult: FrontendCompilationResult = WaccFrontend.run(path)
 
         frontendResult match {
 
-            case FrontendCompilationResult(CompilerSuccess, _, Some(ast)) =>
-                Right(ast)
+            case FrontendCompilationResult(CompilerSuccess, _, Some(ast), Some(optimState)) =>
+                Right(ast, optimState)
+
             /* Case if the frontend does not compile succesfully (Syntax/Semantic error) */
-            case FrontendCompilationResult(exitCode, Some(logger), _) if exitCode != CompilerSuccess => 
+            case FrontendCompilationResult(exitCode, Some(logger), _, _) if exitCode != CompilerSuccess => 
                 printFrontendErrors(path.getFileName.toString, logger, exitCode)
                 Left(exitCode)
             case _ =>
@@ -120,14 +123,17 @@ object WaccCompiler {
       *
       * @param path: path of the file compiled by the frontend
       * @param ast: the AST produced by the front end of the compiler
+      * @param optimState: `FrontendOptimState` for extra info to the AST for WACC extensions
       */
-    private def runBackend(path: Path, ast: Program[SemanticData]): ExitCode = {
+    private def runBackend(path: Path,
+                           ast: Program[SemanticData],
+                           optimState: FrontendOptimState): ExitCode = {
 
         /* Change the filename to a .s assembly file but keep the name the same */
         val outFilename = path.getFileName.toString.replaceAll("\\.wacc$", ".s")
 
         /* Run the ast through the backend of the compiler */
-        val backendResult = WaccBackend.run(ast, outFilename)
+        val backendResult = WaccBackend.run(outFilename, ast, optimState)
 
         backendResult.error.foreach { 
             errMsg => Console.err.println(TopLevelError.BackendPipelineError(errMsg).outputFormat)

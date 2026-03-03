@@ -11,8 +11,26 @@ import wacc.ExitCodes._
 case class FrontendCompilationResult(
     exitCode: ExitCode,
     errors: Option[ErrorLogger] = None,
-    typedAST: Option[Program[SemanticData]]
+    typedAST: Option[Program[SemanticData]],
+    optimState: Option[FrontendOptimState] = None
 )
+
+/**
+  * A class holding additional information to the AST for facilitating
+  * WACC extensions.
+  *
+  * @param tailRecCalls A set of `Call` AST nodes which are tail recursive
+  */
+case class FrontendOptimState(
+    tailRecCalls: Set[Call[SemanticData]]
+)
+
+/**
+  * Companion object for `FrontendOptimState`
+  */
+object FrontendOptimState {
+    val empty: FrontendOptimState = FrontendOptimState(Set.empty)
+}
 
 /** The top level object of the WACC compiler frontend. Contains the `main`
   * function as well as a `compile` function which doesn't do printing (to be
@@ -103,7 +121,14 @@ object WaccFrontend {
             /* Log any semantic errors */
             if (semanticErrors.hasErrors())
               FrontendCompilationResult(SemanticError, Some(semanticErrors), None)
-            else FrontendCompilationResult(CompilerSuccess, None, typedAST)
+            else {
+
+              /* Frontend optimisation passes */
+              val tailRecCalls = CheckTailRec.checkTailRec(typedAST.get)
+              val optimState = FrontendOptimState(tailRecCalls)
+              FrontendCompilationResult(CompilerSuccess, None, typedAST, Some(optimState))
+            }
+
           }
       }
     }

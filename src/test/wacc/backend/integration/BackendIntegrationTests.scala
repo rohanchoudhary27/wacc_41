@@ -83,8 +83,8 @@ object BackendAdapter extends AnyFlatSpec {
         frontendRes.exitCode match {
             case CompilerSuccess =>
                 val backendRes = wacc.backend.WaccBackend.run(
-                    frontendRes.typedAST.get,
-                    destination.toString
+                    destination.toString,
+                    frontendRes.typedAST.get
                 )
                 code(backendRes.exitCode)
 
