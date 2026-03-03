@@ -198,6 +198,7 @@ object Flattener {
         /* Initialise contexts */
         given funcState: FunctionState = FunctionState()
         given directiveState: GlobalFlattenContext = GlobalFlattenContext()
+        given FrontendOptimState = optimState
 
         /* Flatten the main statement which populates the funcState
            instructions buffer */
@@ -270,7 +271,8 @@ object Flattener {
       */
     private def flattenStmt(typedStmt: Stmt[SemanticData])
                             (using funcState: FunctionState,
-                                   directiveState: GlobalFlattenContext): Unit = typedStmt match {
+                                   directiveState: GlobalFlattenContext,
+                                   optimState: FrontendOptimState): Unit = typedStmt match {
 
         case Stmt.Block(stmts, _) => stmts.foreach(flattenStmt)
         case Stmt.Skip(_) => () /* do nothing on skip */
@@ -296,10 +298,11 @@ object Flattener {
       * @param ident The AST identifier node being declared
       * @param rval The AST right hand side value being assigned
       */
-    private def flattenDecl(
-        ident: Ident[SemanticData], 
-        rval: RValue[SemanticData]
-    )(using funcState: FunctionState, directiveState: GlobalFlattenContext): Unit = { 
+    private def flattenDecl(ident: Ident[SemanticData],
+                            rval: RValue[SemanticData])
+                           (using funcState: FunctionState,
+                                  directiveState: GlobalFlattenContext,
+                                  optimState: FrontendOptimState): Unit = { 
 
         /* unlike assignments, declarations create a new variable binding, so we must call 
             defineReg to allocate a fresh `VirtualReg` and store it in the environment so 
@@ -325,10 +328,11 @@ object Flattener {
       * @param lval The AST left hand side location being updated
       * @param rval The AST right hand side value being assigned
       */
-    private def flattenAsgn(
-        lval: LValue[SemanticData],
-        rval: RValue[SemanticData]
-    )(using funcState: FunctionState, directiveState: GlobalFlattenContext) = {
+    private def flattenAsgn(lval: LValue[SemanticData],
+                            rval: RValue[SemanticData])
+                           (using funcState: FunctionState,
+                                  directiveState: GlobalFlattenContext,
+                                  optimState: FrontendOptimState) = {
 
         /* assignments update existing state, and flattenLValue handles looking up
             the previously allocated VirtualReg for identifiers or memory for heap objects */
@@ -383,11 +387,12 @@ object Flattener {
       * 
       * @return The evaluated Operand (VirtualReg or Immediate) containing the value
       */
-    private def flattenRValue(
-        rval: RValue[SemanticData]
-    )(using funcState: FunctionState, directiveState: GlobalFlattenContext): TAC.Operand = rval match {
+    private def flattenRValue(rval: RValue[SemanticData])
+                             (using funcState: FunctionState,
+                                    directiveState: GlobalFlattenContext,
+                                    optimState: FrontendOptimState): TAC.Operand = rval match {
         case expr: Expr[SemanticData] => flattenExpr(expr)
-        case Call(ident, argList, info) => flattenCall(ident, argList)
+        case call: Call[SemanticData] => flattenCall(call)
         case NewPair(e1, e2, _) => 
 
             /* flatten both expressions, they'll be put inside PairStore */
@@ -697,7 +702,8 @@ object Flattener {
                           ifBlock: Stmt[SemanticData],
                           elseBlock: Stmt[SemanticData])
                             (using funcState: FunctionState,
-                                   directiveState: GlobalFlattenContext) = {
+                                   directiveState: GlobalFlattenContext,
+                                   optimState: FrontendOptimState) = {
 
         val flatCondition = flattenExpr(cond)
 
@@ -724,7 +730,8 @@ object Flattener {
     private def flattenWhile(cond: Expr[SemanticData],
                              body: Stmt[SemanticData])
                             (using funcState: FunctionState,
-                                   directiveState: GlobalFlattenContext) = {
+                                   directiveState: GlobalFlattenContext,
+                                   optimState: FrontendOptimState) = {
         
         /* Define labels */
         val bodyLabel = directiveState.getNextLabel(".L_body")
@@ -1013,7 +1020,8 @@ object Flattener {
       * @return a `FunctionDef` high level IR object
       */
     private def flattenFunc(typedFunc: Func[SemanticData])
-                           (using directiveState: GlobalFlattenContext): TAC.FunctionDef = {
+                           (using directiveState: GlobalFlattenContext,
+                                  optimState: FrontendOptimState): TAC.FunctionDef = {
 
         /* Create a fresh function state */
         given funcState: FunctionState = FunctionState()
@@ -1068,10 +1076,12 @@ object Flattener {
       * @param funcState The current scope function state
       * @param globalContext The flattener global context
       */
-    private def flattenCall(ident: Ident[SemanticData],
-                            argList: List[Expr[SemanticData]])
-                            (using funcState: FunctionState,
-                                   globalContext: GlobalFlattenContext): TAC.Operand = {
+    private def flattenCall(callInstr: Call[SemanticData])
+                           (using funcState: FunctionState,
+                                  globalContext: GlobalFlattenContext,
+                                  optimState: FrontendOptimState): TAC.Operand = {
+        
+        val Call(ident, argList, _) = callInstr
         
         /* Flatten function arguments */
         val flatArgs: List[TAC.Operand] = argList.map(arg => flattenExpr(arg))
@@ -1084,7 +1094,18 @@ object Flattener {
 
         /* Emit call instruction */
         val funcLabel = TAC.Label(s"f_${ident.name}")
-        funcState.emitInstruction(TAC.Call(funcLabel, flatArgs, Some(resultReg)))
+
+        /* Make the flat call node. If the optimState says it's a tail recursive node, 
+           a `TailCall` node is made for the code generator to optimise. */
+        val isTailRec = optimState.tailRecCalls.contains(callInstr)
+        val flatCallInstr =
+            if (isTailRec) {
+                TAC.TailCall(funcLabel, flatArgs, Some(resultReg))
+            } else {
+                TAC.Call(funcLabel, flatArgs, Some(resultReg))
+            }
+
+        funcState.emitInstruction(flatCallInstr)
 
         resultReg
     }
