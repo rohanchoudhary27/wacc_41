@@ -4,13 +4,14 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.flatspec.AnyFlatSpec
 import wacc.backend.{Flattener}
 import wacc.frontend.*
+import wacc.testhelpers.*
 import wacc.backend.TAC
 import wacc.backend.*
 
 /**
   * Unit tests for the Flattener
   */
-class FlattenerTest extends AnyFlatSpec with Matchers {
+class FlattenerTest extends AnyFlatSpec with Matchers with TailRecPrebuiltTrees {
 
     /** Helper to create a minimal typed AST with no functions */
     private def programWith(stmt: Stmt[SemanticData]): Program[SemanticData] =
@@ -18,10 +19,6 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
 
     private def programWith(stmts: List[Stmt[SemanticData]]): Program[SemanticData] =
         Program(List.empty, Stmt.Block(stmts, SemanticData.Pos(0, 0)), SemanticData.Pos((0, 0)))
-
-    /** Dummy position annotation */
-    val synPos = SyntacticData.Pos(0, 0)
-    val semPos = synPos.toSemanticPos
 
     "The flattener for exit" should "flatten with int literal to a Call instruction" in {
         val ast = programWith(
@@ -1352,5 +1349,30 @@ class FlattenerTest extends AnyFlatSpec with Matchers {
             Flattener.flatten(programWith(List(decl, freeStmt)))
         }
         exception.getMessage should include ("Invalid type passed to 'free' statement. Must be an Array or Pair")
+    }
+
+    /* ========================================================================================== */
+    /* ================================= EXTENSION TESTS ======================================== */
+    /* ========================================================================================== */
+
+    "The flattener for tail recursion" should "make a TailCall node instead of a Call" in {
+        val (inputAST, callsThatAreTailrec) = threeCallsTwoTailRec()
+
+        val optimState = FrontendOptimState(callsThatAreTailrec.toSet)
+        val flatOutput = Flattener.flatten(inputAST, optimState)
+
+        val testFunc = flatOutput.funcs.find(_.name == "f").getOrElse(
+            fail("couldn't find function 'f' in flattened output")
+        )
+
+        val tailCallNodes = testFunc.body.collect { case call: TAC.TailCall => call }
+        tailCallNodes.length shouldBe 2
+
+        tailCallNodes.foreach { tacCall =>
+            tacCall.label.name should include ("f") 
+        }
+        
+        val normalCallNodes = testFunc.body.collect { case call: TAC.Call => call }
+        normalCallNodes.length shouldBe 1
     }
 }
