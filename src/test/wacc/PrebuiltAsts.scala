@@ -22,12 +22,10 @@ trait TailRecPrebuiltTrees extends ASTBoilerplate {
         val paramIdent = Ident("x", SemanticData.Typed(synPos.pos, KnownType.Int))
         val params = List(Param(SyntaxType.Int, paramIdent, semPos))
 
-        val typedInt = SemanticData.Typed(synPos.pos, KnownType.Int)
-
         /* int z = call f(x); */
-        val xExpr = Ident("x", typedInt)
+        val xExpr = Ident("x", SemanticData.Var(synPos.pos, 0, KnownType.Int))
         val callF = Call(funcIdent, List(xExpr), typedInt)
-        val zIdent = Ident("z", typedInt)
+        val zIdent = Ident("z", SemanticData.Var(synPos.pos, 1, KnownType.Int))
         val declZ = Stmt.Decl(SyntaxType.Int, zIdent, callF, semPos)
 
         /* return z; */
@@ -55,12 +53,10 @@ trait TailRecPrebuiltTrees extends ASTBoilerplate {
                                                                  KnownType.Int,
                                                                  List(KnownType.Int))
         val funcIdent: Ident[SemanticData] = Ident("f", semPos)
-        val typedInt = SemanticData.Typed(synPos.pos, KnownType.Int)
-        val typedBool = SemanticData.Typed(synPos.pos, KnownType.Bool)
         
-        val xExpr = Ident("x", typedInt)
+        val xExpr = Ident("x", SemanticData.Var(synPos.pos, 0, KnownType.Int))
         val callF: Call[SemanticData] = Call(funcIdent, List(xExpr), typedInt)
-        val zIdent = Ident("z", typedInt)
+        val zIdent = Ident("z", SemanticData.Var(synPos.pos, 1, KnownType.Int))
         
         /* if (true) { int z = call f(x); return z; } else { return x; } */
         val declZ = Stmt.Decl(SyntaxType.Int, zIdent, callF, semPos)
@@ -91,12 +87,10 @@ trait TailRecPrebuiltTrees extends ASTBoilerplate {
         val funcSignature: SemanticData.Func =
             SemanticData.Func(synPos.pos, "f", KnownType.Int, List(KnownType.Int))
         val funcIdent: Ident[SemanticData] = Ident("f", semPos)
-        val typedInt = SemanticData.Typed(synPos.pos, KnownType.Int)
-        val typedBool = SemanticData.Typed(synPos.pos, KnownType.Bool)
         
-        val xExpr = Ident("x", typedInt)
+        val xExpr = Ident("x", SemanticData.Var(synPos.pos, 0, KnownType.Int))
         val callF: Call[SemanticData] = Call(funcIdent, List(xExpr), typedInt)
-        val zIdent = Ident("z", typedInt)
+        val zIdent = Ident("z", SemanticData.Var(synPos.pos, 1, KnownType.Int))
         
         /* while (true) { int z = call f(x); return z; } */
         val declZ = Stmt.Decl(SyntaxType.Int, zIdent, callF, semPos)
@@ -129,10 +123,9 @@ trait TailRecPrebuiltTrees extends ASTBoilerplate {
         
         val funcFIdent: Ident[SemanticData] = Ident("f", semPos)
         val funcGIdent: Ident[SemanticData] = Ident("g", semPos)
-        val typedInt = SemanticData.Typed(synPos.pos, KnownType.Int)
         
-        val xExpr = Ident("x", typedInt)
-        val zIdent = Ident("z", typedInt)
+        val xExpr = Ident("x", SemanticData.Var(synPos.pos, 0, KnownType.Int))
+        val zIdent = Ident("z", SemanticData.Var(synPos.pos, 1, KnownType.Int))
         
         /* int z = call g(x); return z; */
         val callG: Call[SemanticData] = Call(funcGIdent, List(xExpr), typedInt)
@@ -155,15 +148,14 @@ trait TailRecPrebuiltTrees extends ASTBoilerplate {
         val funcSignature: SemanticData.Func =
             SemanticData.Func(synPos.pos, "f", KnownType.Int, List(KnownType.Int))
         val funcIdent: Ident[SemanticData] = Ident("f", semPos)
-        val typedInt = SemanticData.Typed(synPos.pos, KnownType.Int)
         
-        val xExpr: Expr[SemanticData] = Ident("x", typedInt)
+        val xExpr: Expr[SemanticData] = Ident("x", SemanticData.Var(synPos.pos, 0, KnownType.Int))
         val callF: Call[SemanticData] = Call(funcIdent, List(xExpr), typedInt)
-        val zIdent = Ident("z", typedInt)
+        val zIdent = Ident("z", SemanticData.Var(synPos.pos, 1, KnownType.Int))
         
         /* int z = call f(x); int y = z + x; return y; */
         val declZ = Stmt.Decl(SyntaxType.Int, zIdent, callF, semPos)
-        val yIdent = Ident("y", typedInt)
+        val yIdent = Ident("y", SemanticData.Var(synPos.pos, 2, KnownType.Int))
         val addExpr = BinaryExpr(BinaryOperator.Add, zIdent, xExpr, typedInt)
         val declY = Stmt.Decl(SyntaxType.Int, yIdent, addExpr, semPos)
         val returnY = Stmt.Return(yIdent, semPos)
@@ -188,7 +180,6 @@ trait TailRecPrebuiltTrees extends ASTBoilerplate {
         val funcSignature: SemanticData.Func =
             SemanticData.Func(synPos.pos, "f", KnownType.Int, List(KnownType.Int))
         val funcIdent: Ident[SemanticData] = Ident("f", semPos)
-        val typedInt = SemanticData.Typed(synPos.pos, KnownType.Int)
         
         val xExpr: Expr[SemanticData] = Ident("x", typedInt)
         val callF: Call[SemanticData] = Call(funcIdent, List(xExpr), typedInt)
@@ -215,48 +206,47 @@ trait TailRecPrebuiltTrees extends ASTBoilerplate {
 
     /* AST with one function with 3 recursive calls - 2 of which are tail recursive */
     def threeCallsTwoTailRec(): (Program[SemanticData], List[Call[SemanticData]]) = {
-
-        val funcSignature: SemanticData.Func =
-            SemanticData.Func(synPos.pos, "f", KnownType.Int, List(KnownType.Int))
-        val funcIdent: Ident[SemanticData] = Ident("f", semPos)
-        
-        val xExpr: Expr[SemanticData] = Ident("x", typedInt)
+        val funcSignature: SemanticData.Func = SemanticData.Func(synPos.pos, "f", KnownType.Int, List(KnownType.Int))
+        val funcIdent: Ident[SemanticData] = Ident("f", funcSignature)
+        val xExpr = Ident("x", SemanticData.Var(synPos.pos, 0, KnownType.Int))
         
         /* if (true) { int a = call f(x); return a; } */
         val call1: Call[SemanticData] = Call(funcIdent, List(xExpr), typedInt)
-        val aIdent = Ident("a", typedInt)
+        val aIdent = Ident("a", SemanticData.Var(synPos.pos, 1, KnownType.Int))
         val declA = Stmt.Decl(SyntaxType.Int, aIdent, call1, semPos)
         val returnA = Stmt.Return(aIdent, semPos)
         val ifBlock = Stmt.Block(List(declA, returnA), semPos)
         
-        /* else { int b = call f(x); int c = call f(b); return c; } */
-
-        /* not tail recursive */
-        val call2 = Call(funcIdent, List(xExpr), typedInt)
-        val bIdent = Ident("b", typedInt)
+        /* else { int b = call f(1); int c = call f(b); return c; } */
+        
+        /* Non tailrec call */
+        val oneExpr = IntLiter(1, typedInt)
+        val call2 = Call(funcIdent, List(oneExpr), typedInt) 
+        val bIdent = Ident("b", SemanticData.Var(synPos.pos, 2, KnownType.Int))
         val declB = Stmt.Decl(SyntaxType.Int, bIdent, call2, semPos)
         
-        /* tail recursive */
+        /* Tailrec call */
         val call3 = Call(funcIdent, List(bIdent), typedInt)
-        val cIdent = Ident("c", typedInt)
+        val cIdent = Ident("c", SemanticData.Var(synPos.pos, 3, KnownType.Int))
         val declC = Stmt.Decl(SyntaxType.Int, cIdent, call3, semPos)
         val returnC = Stmt.Return(cIdent, semPos)
+
         val elseBlock = Stmt.Block(List(declB, declC, returnC), semPos)
-        
+
         val trueExpr = BoolLiter(true, typedBool)
         val ifStmt = Stmt.If(trueExpr, ifBlock, elseBlock, semPos)
         val body = Stmt.Block(List(ifStmt), semPos)
 
-        val func = Func(SyntaxType.Int,
-                        funcIdent,
-                        List(Param(SyntaxType.Int,
-                                    Ident("x", typedInt), semPos)), body, funcSignature)
+        val func = Func(
+            SyntaxType.Int, funcIdent, 
+            List(Param(SyntaxType.Int, Ident("x", SemanticData.Var(synPos.pos, 0, KnownType.Int)), semPos)), 
+            body, funcSignature
+        )
 
-        val ast = Program(List(func),
-                          Stmt.Block(List(), semPos),
-                          SemanticData.TopLevel(Map("f" -> funcSignature)))
+        val ast = Program(
+            List(func), Stmt.Block(List(), semPos), SemanticData.TopLevel(Map("f" -> funcSignature))
+        )
 
-        (ast, List(call1, call2, call3))
-
+        (ast, List(call1, call3))
     }
 }
