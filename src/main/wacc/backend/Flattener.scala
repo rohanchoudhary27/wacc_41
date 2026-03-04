@@ -1100,7 +1100,7 @@ object Flattener {
         val isTailRec = optimState.tailRecCalls.contains(callInstr)
         val flatCallInstr =
             if (isTailRec) {
-                TAC.TailCall(funcLabel, flatArgs, Some(resultReg))
+                TAC.TailCall(funcLabel, flatArgs)
             } else {
                 TAC.Call(funcLabel, flatArgs, Some(resultReg))
             }
