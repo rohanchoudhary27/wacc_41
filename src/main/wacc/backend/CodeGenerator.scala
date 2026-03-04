@@ -459,7 +459,7 @@ object CodeGenerator {
     }
 
     /** Create a function body (post prologue) label */
-    private def formatFuncBodyLabel(funcLabelName: String) =
+    def formatFuncBodyLabel(funcLabelName: String) =
         Arm.AddrLabel(s".L_${funcLabelName}_body")
 
     /**

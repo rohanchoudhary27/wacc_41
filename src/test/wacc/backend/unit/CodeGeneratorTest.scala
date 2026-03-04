@@ -929,4 +929,83 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         val branchInstrs = armProg.body.collect { case Arm.Bl(label) => label.name }
         branchInstrs should contain (FreeArrayWidget.label)
     }
+
+    /* ========================================================================================== */
+    /* ================================= EXTENSION TESTS ======================================== */
+    /* ========================================================================================== */
+
+    "CodeGenerator generateTailCall" should "emit an uncond branch to func body label instead of bl" in {
+        val result = programWith(
+            List(TAC.TailCall(TAC.Label("func"), List.empty)),
+            Map.empty
+        )
+
+        val blInstrs = result.body.collect { case b: Arm.Bl => b }
+        blInstrs shouldBe empty
+
+        val branchInstrs = result.body.collect { case b: Arm.BranchUncond => b }
+        branchInstrs should not be empty
+        println(branchInstrs)
+        branchInstrs.exists(_.label.name == CodeGenerator.formatFuncBodyLabel("func").name) shouldBe true
+    }
+
+    it should "put new tailrec call arguments into the right physical parameter registers" in {
+        val args = List(TAC.Immediate(10), TAC.Immediate(20))
+        
+        val result = programWith(
+            List(TAC.TailCall(TAC.Label("func"), args)),
+            Map.empty
+        )
+
+        val movzInstrs = result.body.collect { case m: Arm.Movz => m }
+        
+        val argZeroMapped = movzInstrs.exists(m => 
+            m.dest == PhysicalReg.argRegisters(0) && m.imm == Arm.Immediate(10)
+        )
+        val argOneMapped = movzInstrs.exists(m => 
+            m.dest == PhysicalReg.argRegisters(1) && m.imm == Arm.Immediate(20)
+        )
+
+        argZeroMapped shouldBe true
+        argOneMapped shouldBe true
+    }
+
+    it should "overwrite caller stack args (>8 args) with a positive offset from the frame pointer" in {
+
+        val args = List.fill(9)(TAC.Immediate(2))
+        
+        val result = programWith(
+            List(TAC.TailCall(TAC.Label("func"), args)),
+            Map.empty
+        )
+
+        val stores = result.body.collect { case s: Arm.Store => s }
+        val callerStackStore = stores.find { s =>
+            s.src match {
+                case Arm.AddrImmOffset(reg, Arm.Immediate(offset)) => 
+                    reg == PhysicalReg.framePointer && offset == AARch64Limits.ARM_STACK_ALIGNMENT_BYTES
+                case _ => false
+            }
+        }
+
+        callerStackStore shouldBe defined
+    }
+
+    it should "not allocate new stack space for tailrec arguments" in {
+
+        val args = List.fill(10)(TAC.Immediate(2))
+        
+        val result = programWith(
+            List(TAC.TailCall(TAC.Label("func"), args)),
+            Map.empty
+        )
+
+        /* Grab stack allocations */
+        val stackAllocations = result.body.collect {
+            case sub @ Arm.SubImm(Size.X, dest, src, _) 
+                if dest == PhysicalReg.stackPointer && src == PhysicalReg.stackPointer => sub
+        }
+
+        stackAllocations shouldBe empty
+    }
 }
