@@ -1361,15 +1361,15 @@ class FlattenerTest extends AnyFlatSpec with Matchers with TailRecPrebuiltTrees 
         val optimState = FrontendOptimState(callsThatAreTailrec.toSet)
         val flatOutput = Flattener.flatten(inputAST, optimState)
 
-        val testFunc = flatOutput.funcs.find(_.name == "f").getOrElse(
-            fail("couldn't find function 'f' in flattened output")
+        val testFunc = flatOutput.funcs.find(_.name == "f_f").getOrElse(
+            fail("couldn't find function 'f_f' in flattened output")
         )
 
         val tailCallNodes = testFunc.body.collect { case call: TAC.TailCall => call }
         tailCallNodes.length shouldBe 2
 
         tailCallNodes.foreach { tacCall =>
-            tacCall.label.name should include ("f") 
+            tacCall.label.name should include ("f_f") 
         }
         
         val normalCallNodes = testFunc.body.collect { case call: TAC.Call => call }
