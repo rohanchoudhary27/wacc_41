@@ -478,6 +478,10 @@ object CodeGenerator {
         emit(Arm.Ret)
     }
 
+    /** Create a function body (post prologue) label */
+    private def formatFuncBodyLabel(funcLabelName: String) =
+        Arm.AddrLabel(s".L_${funcLabelName}_body")
+
     /**
       * Generate Low-Level IR for a function definition.
       * 
@@ -500,6 +504,10 @@ object CodeGenerator {
         val savedRegs = getUsedCalleeSaved(alloc)
 
         generateFuncPrologue(localsSize, savedRegs)
+
+        /* emit the function body label which enables tail recursive optimised
+           Call instructions to skip the prologue */
+        emit(Arm.LabelDef(formatFuncBodyLabel(func.name)))
 
         /* Parameters are moved to their allocated registers (by the RegisterAllocator)
            because they're caller save. E.g. they'll be used if the function calls another
