@@ -1198,6 +1198,65 @@ object CodeGenerator {
     }
 
     /**
+      * Store a list of arguments (operands) onto the stack.
+      *
+      * @param args The list of operand arguments to store
+      * @param baseReg The base register of the immediate offset addressing mode
+      * @param baseOffset An offset before stack argument block
+      */
+    private def storeArgsToStack(args: List[TAC.Operand],
+                                 baseReg: PhysicalReg, 
+                                 baseOffset: Int)
+                                (using GenState): Unit = {
+ 
+        args.zipWithIndex.foreach { case (arg, i) =>
+            val size = operandSize(arg)
+
+            /* Current arg stack offset */
+            val offset = baseOffset + (i * MemoryLayout.BYTES_PER_STACK_ARG)
+
+            /* Put the argument in a physical register */
+            val valReg = loadOperandToTarget(arg, size, PhysicalReg.ipcScratch1)
+
+            /* Store the register to the stack */
+            emit(Arm.Store(size,
+                           valReg,
+                           Arm.AddrImmOffset(baseReg, Arm.Immediate(offset))))
+        }
+    }
+
+    /**
+      * Helper function to grow or shrink the stack from the stack pointer
+      *
+      * @param alignedBytes The aligned stack bytes to push
+      * @param instructionBuilder An apply method of an Instruction to emit. Will be either
+      * Arm.AddImm.apply or Arm.SubImm.apply
+      */
+    private def modifyStackSpace(alignedBytes: Int, 
+                                 instructionBuilder: (Size,
+                                                      PhysicalReg,
+                                                      PhysicalReg,
+                                                      Arm.Immediate) => Arm.Instruction)
+                                (using GenState): Unit = {
+        if (alignedBytes > 0) {
+            emit(instructionBuilder(
+                Size.X,
+                PhysicalReg.stackPointer,
+                PhysicalReg.stackPointer,
+                Arm.Immediate(alignedBytes)
+            ))
+        }
+    }
+
+    /** Grow the stack by `alignedBytes` */
+    private def allocateStackSpace(alignedBytes: Int)(using GenState): Unit = 
+        modifyStackSpace(alignedBytes, Arm.SubImm.apply)
+
+    /** Shrink the stack by `stackBytesAdded` */
+    private def collapseStackSpace(stackBytesAdded: Int)(using GenState): Unit = 
+        modifyStackSpace(stackBytesAdded, Arm.AddImm.apply)
+
+    /**
       * Generate the low level IR for a Call high level IR instruction
       *
       * @param label The label of the function
@@ -1220,69 +1279,24 @@ object CodeGenerator {
         */
         val unalignedStackBytes = stackArgs.length * MemoryLayout.BYTES_PER_STACK_ARG
         val stackBytesAdded = alignBytes(unalignedStackBytes)
-        emit(Arm.SubImm(Size.X,
-                        PhysicalReg.stackPointer,
-                        PhysicalReg.stackPointer,
-                        Arm.Immediate(stackBytesAdded)))
+        allocateStackSpace(stackBytesAdded)
 
         /* Space is now allocated, so store excess arguments on the stack */
-        stackArgs.zipWithIndex.foreach { (arg, i) =>
-
-            val size = operandSize(arg)
-            val offset = i * MemoryLayout.BYTES_PER_STACK_ARG /* offset from the stack pointer */
-
-            /* Put the argument in a scratch register */
-            val scratch = PhysicalReg.ipcScratch1
-            val valReg = loadOperandToTarget(arg, size, scratch)
-
-            /* Store the argument (in scratch) on the stack */
-            emit(Arm.Store(size,
-                          valReg, 
-                          Arm.AddrImmOffset(PhysicalReg.stackPointer,
-                                           Arm.Immediate(offset))))
-        }
+        storeArgsToStack(stackArgs, PhysicalReg.stackPointer, baseOffset = 0)
 
         /* For each function of the register arguments */
         regArgs.zipWithIndex.foreach { case (arg, index) =>
 
             /* Get the physical register of the current argument */
             val targetReg = PhysicalReg.argRegisters(index)
-
-            val opSize = operandSize(arg)
-            
-            /* Get the value in the target register */
-            arg match {
-                case argVReg: TAC.VirtualReg =>
-                    /* Move out of a stack slot into a scratch register */
-                    val valReg = loadToReg(locOf(argVReg), opSize, PhysicalReg.ipcScratch1)
-                    
-                    /* Move the ith argument into the wi */
-                    if (valReg != targetReg) {
-                        emit(Arm.MovReg(opSize, targetReg, valReg))
-                    }
-                
-                case TAC.Immediate(value) =>
-                    /* Move the immediate directly to the argument register */
-                    generateMovImmediate(opSize, targetReg, Arm.Immediate(value))
-                
-                case TAC.Label(name) => {
-                    /* Move the label (string directive in this case) to
-                       the argument register */
-                    emit(Arm.Lea(targetReg, Arm.AddrLabel(name)))
-                }
-            }
+            loadOperandToTarget(arg, operandSize(arg), targetReg, strict = true)
         }
 
         /* Branch to the function */
         emit(Arm.Bl(Arm.AddrLabel(label.name)))
 
         /* Post function call, we restore the stack pointer (collapse the frame) */
-        if (stackBytesAdded > 0) {
-            emit(Arm.AddImm(Size.X, 
-                           PhysicalReg.stackPointer, 
-                           PhysicalReg.stackPointer, 
-                           Arm.Immediate(stackBytesAdded)))
-        }
+        collapseStackSpace(stackBytesAdded)
 
         /* Move the function return value to the expected register */
         destOpt.foreach { dest =>
