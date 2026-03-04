@@ -583,6 +583,7 @@ object CodeGenerator {
         case TAC.LabelDef(label) => emit(Arm.LabelDef(Arm.AddrLabel(label.name)))
         
         /* Function calls */
+        case TAC.TailCall(label, args) => generateTailCall(label, args)
         case TAC.Call(label, args, destOpt) => generateCall(label, args, destOpt)
         case TAC.Ret => generateReturn()
         
@@ -1190,7 +1191,9 @@ object CodeGenerator {
       *
       * @param args The list of operand arguments to store
       * @param baseReg The base register of the immediate offset addressing mode
-      * @param baseOffset An offset before stack argument block
+      * @param baseOffset An offset before the stack argument block. Useful to skip the
+      * saved link and frame pointer registers to access the previous frame stack-spilled
+      * registers in tail recursion
       */
     private def storeArgsToStack(args: List[TAC.Operand],
                                  baseReg: PhysicalReg, 
@@ -1291,6 +1294,37 @@ object CodeGenerator {
             val resultReg = PhysicalReg.returnRegister 
             storeToLoc(resultReg, locOf(dest), dest.size)
         }
+    }
+
+    /**
+      * Generate the low level IR for a TailCall high level IR instruction. This is a
+      * tail recurion optimised Call instruction. Part of the WACC Extensions milestone.
+      *
+      * @param label The label of the function
+      * @param args The argument operands to the function
+      */
+    private def generateTailCall(label: TAC.Label,
+                                 args: List[TAC.Operand])
+                                (using GenState) = {
+
+        val stackArgs = args.drop(AARch64Limits.ARM_NUM_REGS_FOR_FUNC_ARGS)
+        val regArgs = args.take(AARch64Limits.ARM_NUM_REGS_FOR_FUNC_ARGS)
+
+        /* Overwrite the old stack args */
+        if (stackArgs.nonEmpty) {
+            storeArgsToStack(stackArgs,
+                             PhysicalReg.framePointer,
+                             baseOffset = AARch64Limits.ARM_STACK_ALIGNMENT_BYTES)
+        }
+
+        /* Store new registers in to the arg registers */
+        regArgs.zipWithIndex.foreach { case (arg, i) =>
+            val targetReg = PhysicalReg.argRegisters(i)
+            loadOperandToTarget(arg, operandSize(arg), targetReg, strict = true)
+        }
+
+        /* Branch back to the function body code */
+        emit(Arm.BranchUncond(formatFuncBodyLabel(label.name)))
     }
 
     /**
