@@ -1,0 +1,21 @@
+# Deep tail recursion that has been tested to segmentation fault without tailrec optimisation
+# but with tailrec works completely fine.
+
+# Output:
+# 0
+#
+
+# Program:
+begin
+  int countdown(int n) is
+    if n == 0 then
+      return 0
+    else
+      int next = call countdown (n - 1);
+      return next
+    fi
+  end
+
+  int result = call countdown (1000000);
+  println result
+end
