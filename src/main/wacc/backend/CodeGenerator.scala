@@ -157,17 +157,13 @@ object CodeGenerator {
         case reg: PhysicalReg => reg
         case StackSlot(offset) =>
             if (isSafeSignedOffset(offset)) {
+
+                val loadOffset = Arm.AddrImmOffset(PhysicalReg.framePointer, Arm.Immediate(offset))
+
                 if (offset < 0) /* negative offset, use LDUR */ {
-                    emit(
-                        Arm.Ldur(size, scratch, 
-                            Arm.AddrImmOffset(PhysicalReg.framePointer, Arm.Immediate(offset))
-                        )
-                    )  
+                    emit(Arm.Ldur(size, scratch, loadOffset))  
                 } else { /* positive offset, use LDR */
-                    emit(Arm.Load(
-                        size, scratch, 
-                        Arm.AddrImmOffset(PhysicalReg.framePointer, Arm.Immediate(offset))
-                    ))
+                    emit(Arm.Load(size, scratch, loadOffset))
                 }
                 
             } else {
@@ -196,14 +192,16 @@ object CodeGenerator {
             if (src != dest) emit(Arm.MovReg(size, dest, src))
         case StackSlot(offset) =>
             if (isSafeSignedOffset(offset)) {
-                if (offset < 0) { /* negative offset, use STUR */
-                    emit(Arm.Stur(
-                        size, src, Arm.AddrImmOffset(PhysicalReg.framePointer, Arm.Immediate(offset))
-                    ))
-                } else { /* positive offset, use STR */
-                    emit(Arm.Store(
-                        size, src, Arm.AddrImmOffset(PhysicalReg.framePointer, Arm.Immediate(offset))
-                    ))
+
+                val storeOffset = Arm.AddrImmOffset(PhysicalReg.framePointer, Arm.Immediate(offset))
+
+                /* negative offset, use STUR */
+                if (offset < 0) { 
+                    emit(Arm.Stur(size, src, storeOffset))
+
+                /* positive offset, use STR */
+                } else { 
+                    emit(Arm.Store(size, src, storeOffset))
                 }
             } else {
                 /* Large offset so scratch register needed but it must not be the
@@ -382,14 +380,15 @@ object CodeGenerator {
     private def generateFuncPrologue(
         localsSize: Int, savedRegs: List[PhysicalReg]
     )(using GenState) = {
+
+        val storeOffset = Arm.Immediate(-AARch64Limits.ARM_STACK_ALIGNMENT_BYTES)
+        val storeAddress = Arm.AddrPreIndex(PhysicalReg.stackPointer, storeOffset)
+
         /* save FP and LR */
         emit(Arm.StorePair(Size.X,
-                         PhysicalReg.framePointer,
-                         PhysicalReg.linkReg,
-                         Arm.AddrPreIndex(
-                            PhysicalReg.stackPointer, 
-                            Arm.Immediate(-AARch64Limits.ARM_STACK_ALIGNMENT_BYTES)
-                        )))
+                           PhysicalReg.framePointer,
+                           PhysicalReg.linkReg,
+                           storeAddress))
 
         /* set FP to be SP */
         emit(Arm.MovReg(Size.X, PhysicalReg.framePointer, PhysicalReg.stackPointer))
@@ -405,19 +404,9 @@ object CodeGenerator {
         /* push callee-saved registers in pairs */
         savedRegs.grouped(AARch64Limits.ARM_STACK_REG_PER_PUSH).foreach {
             case List(r1, r2) => /* do stp xi, x(i+1), [sp, #-16]! */
-                emit(Arm.StorePair(
-                    Size.X, r1, r2, Arm.AddrPreIndex(
-                        PhysicalReg.stackPointer, 
-                        Arm.Immediate(-AARch64Limits.ARM_STACK_ALIGNMENT_BYTES)
-                    )
-                ))
+                emit(Arm.StorePair(Size.X, r1, r2, storeAddress))
             case List(r1) => /* push 16 bytes for alignment */
-                emit(Arm.Store(
-                    Size.X, r1, Arm.AddrPreIndex(
-                        PhysicalReg.stackPointer, 
-                        Arm.Immediate(-AARch64Limits.ARM_STACK_ALIGNMENT_BYTES)
-                    )
-                ))
+                emit(Arm.Store(Size.X, r1, storeAddress))
             case _ => ()
         }
     }
@@ -437,29 +426,21 @@ object CodeGenerator {
     private def generateFuncEpilogue(
         localsSize: Int, savedRegs: List[PhysicalReg]
     )(using GenState) = {
+
+        val postIndexOffset = Arm.Immediate(AARch64Limits.ARM_STACK_ALIGNMENT_BYTES)
+        val postIndexAddr = Arm.AddrPostIndex(
+            PhysicalReg.stackPointer, 
+            postIndexOffset
+        )
+
         savedRegs.grouped(AARch64Limits.ARM_STACK_REG_PER_PUSH).toList.reverse.foreach {
-            case List(r1, r2) => 
-                /* (r1, r2) was pushed in prologue, and stack top has r1 at low addr, r2 at high 
-                    addr. LDP loads low addr into first register, high into second, so we load 
-                    into r1, r2 */
-                /* do ldp r1, r2, [sp], #16 */
-                emit(
-                    Arm.LoadPair(
-                        Size.X, r1, r2, Arm.AddrPostIndex(
-                            PhysicalReg.stackPointer, 
-                            Arm.Immediate(AARch64Limits.ARM_STACK_ALIGNMENT_BYTES)
-                        )
-                    )
-                )
-            case List(r1) =>
-                emit(
-                    Arm.Load(Size.X, r1, 
-                        Arm.AddrPostIndex(
-                            PhysicalReg.stackPointer, 
-                            Arm.Immediate(AARch64Limits.ARM_STACK_ALIGNMENT_BYTES)
-                        )
-                    )
-                )
+
+            /* do ldp r1, r2, [sp], #16 */
+            case List(r1, r2) => emit(Arm.LoadPair(Size.X, r1, r2, postIndexAddr))
+
+            /* LDR r1, [sp], #16 */
+            case List(r1) => emit(Arm.Load(Size.X, r1, postIndexAddr))
+
             case _ =>
         }
         /* we have to free local variable space too */
@@ -471,8 +452,7 @@ object CodeGenerator {
         emit(
             Arm.LoadPair(
                 Size.X, PhysicalReg.framePointer, PhysicalReg.linkReg, 
-                Arm.AddrPostIndex(PhysicalReg.stackPointer, 
-                    Arm.Immediate(AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))
+                Arm.AddrPostIndex(PhysicalReg.stackPointer, postIndexOffset)
             )
         )
         emit(Arm.Ret)
