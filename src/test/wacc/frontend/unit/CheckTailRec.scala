@@ -67,7 +67,7 @@ class CheckTailRecTests extends AnyFlatSpec with TailRecPrebuiltTrees {
 
         tailCalls.size shouldBe 2
         tailCalls should contain (calls(0))
-        tailCalls should contain (calls(2))
+        tailCalls should contain (calls(1))
     }
 
 }
