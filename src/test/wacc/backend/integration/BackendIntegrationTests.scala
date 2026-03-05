@@ -78,13 +78,15 @@ object BackendAdapter extends AnyFlatSpec {
      * @param destination the output assembly path
      */
     private def generateAssembly(source: Path, destination: Path): Int = {
+
         val frontendRes = wacc.frontend.WaccFrontend.run(source)
 
         frontendRes.exitCode match {
             case CompilerSuccess =>
                 val backendRes = wacc.backend.WaccBackend.run(
+                    destination.toString,
                     frontendRes.typedAST.get,
-                    destination.toString
+                    frontendRes.optimState.get
                 )
                 code(backendRes.exitCode)
 
@@ -263,8 +265,8 @@ final class BackendIntegrationSpec extends WaccIntegrationTestBase(
                             exitCode shouldBe expectedExitCode
 
                         case None =>
-                            replacedOut shouldBe replacedExpectedOut
                             exitCode shouldBe expectedExitCode
+                            replacedOut shouldBe replacedExpectedOut
                     }
                 }
             }

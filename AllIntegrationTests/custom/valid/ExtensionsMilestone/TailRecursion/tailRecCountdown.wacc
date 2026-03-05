@@ -1,0 +1,22 @@
+# Basic tail-recursive countdown
+
+# Output:
+# 0
+#
+
+# Program:
+
+begin
+  int countdown(int n) is
+    if n <= 0 then
+      return 0
+    else
+      int next = n - 1 ;
+      int res = call countdown(next);
+      return res
+    fi
+  end
+
+  int result = call countdown(10) ;
+  println result
+end

@@ -1,0 +1,23 @@
+# Simple program with a While statement and tail recursion
+
+# Output:
+# 3
+#
+
+# Program:
+begin
+  int while_tail_rec(int x) is
+    if x == 3 then
+	  return 3
+    else
+      while (x > 3) do
+        int res = call while_tail_rec (x - 1);
+        return res
+      done;
+      return 25
+    fi
+  end
+
+  int x = call while_tail_rec (10);
+  println x
+end

@@ -157,17 +157,13 @@ object CodeGenerator {
         case reg: PhysicalReg => reg
         case StackSlot(offset) =>
             if (isSafeSignedOffset(offset)) {
+
+                val loadOffset = Arm.AddrImmOffset(PhysicalReg.framePointer, Arm.Immediate(offset))
+
                 if (offset < 0) /* negative offset, use LDUR */ {
-                    emit(
-                        Arm.Ldur(size, scratch, 
-                            Arm.AddrImmOffset(PhysicalReg.framePointer, Arm.Immediate(offset))
-                        )
-                    )  
+                    emit(Arm.Ldur(size, scratch, loadOffset))  
                 } else { /* positive offset, use LDR */
-                    emit(Arm.Load(
-                        size, scratch, 
-                        Arm.AddrImmOffset(PhysicalReg.framePointer, Arm.Immediate(offset))
-                    ))
+                    emit(Arm.Load(size, scratch, loadOffset))
                 }
                 
             } else {
@@ -196,14 +192,16 @@ object CodeGenerator {
             if (src != dest) emit(Arm.MovReg(size, dest, src))
         case StackSlot(offset) =>
             if (isSafeSignedOffset(offset)) {
-                if (offset < 0) { /* negative offset, use STUR */
-                    emit(Arm.Stur(
-                        size, src, Arm.AddrImmOffset(PhysicalReg.framePointer, Arm.Immediate(offset))
-                    ))
-                } else { /* positive offset, use STR */
-                    emit(Arm.Store(
-                        size, src, Arm.AddrImmOffset(PhysicalReg.framePointer, Arm.Immediate(offset))
-                    ))
+
+                val storeOffset = Arm.AddrImmOffset(PhysicalReg.framePointer, Arm.Immediate(offset))
+
+                /* negative offset, use STUR */
+                if (offset < 0) { 
+                    emit(Arm.Stur(size, src, storeOffset))
+
+                /* positive offset, use STR */
+                } else { 
+                    emit(Arm.Store(size, src, storeOffset))
                 }
             } else {
                 /* Large offset so scratch register needed but it must not be the
@@ -382,14 +380,15 @@ object CodeGenerator {
     private def generateFuncPrologue(
         localsSize: Int, savedRegs: List[PhysicalReg]
     )(using GenState) = {
+
+        val storeOffset = Arm.Immediate(-AARch64Limits.ARM_STACK_ALIGNMENT_BYTES)
+        val storeAddress = Arm.AddrPreIndex(PhysicalReg.stackPointer, storeOffset)
+
         /* save FP and LR */
         emit(Arm.StorePair(Size.X,
-                         PhysicalReg.framePointer,
-                         PhysicalReg.linkReg,
-                         Arm.AddrPreIndex(
-                            PhysicalReg.stackPointer, 
-                            Arm.Immediate(-AARch64Limits.ARM_STACK_ALIGNMENT_BYTES)
-                        )))
+                           PhysicalReg.framePointer,
+                           PhysicalReg.linkReg,
+                           storeAddress))
 
         /* set FP to be SP */
         emit(Arm.MovReg(Size.X, PhysicalReg.framePointer, PhysicalReg.stackPointer))
@@ -405,19 +404,9 @@ object CodeGenerator {
         /* push callee-saved registers in pairs */
         savedRegs.grouped(AARch64Limits.ARM_STACK_REG_PER_PUSH).foreach {
             case List(r1, r2) => /* do stp xi, x(i+1), [sp, #-16]! */
-                emit(Arm.StorePair(
-                    Size.X, r1, r2, Arm.AddrPreIndex(
-                        PhysicalReg.stackPointer, 
-                        Arm.Immediate(-AARch64Limits.ARM_STACK_ALIGNMENT_BYTES)
-                    )
-                ))
+                emit(Arm.StorePair(Size.X, r1, r2, storeAddress))
             case List(r1) => /* push 16 bytes for alignment */
-                emit(Arm.Store(
-                    Size.X, r1, Arm.AddrPreIndex(
-                        PhysicalReg.stackPointer, 
-                        Arm.Immediate(-AARch64Limits.ARM_STACK_ALIGNMENT_BYTES)
-                    )
-                ))
+                emit(Arm.Store(Size.X, r1, storeAddress))
             case _ => ()
         }
     }
@@ -437,29 +426,21 @@ object CodeGenerator {
     private def generateFuncEpilogue(
         localsSize: Int, savedRegs: List[PhysicalReg]
     )(using GenState) = {
+
+        val postIndexOffset = Arm.Immediate(AARch64Limits.ARM_STACK_ALIGNMENT_BYTES)
+        val postIndexAddr = Arm.AddrPostIndex(
+            PhysicalReg.stackPointer, 
+            postIndexOffset
+        )
+
         savedRegs.grouped(AARch64Limits.ARM_STACK_REG_PER_PUSH).toList.reverse.foreach {
-            case List(r1, r2) => 
-                /* (r1, r2) was pushed in prologue, and stack top has r1 at low addr, r2 at high 
-                    addr. LDP loads low addr into first register, high into second, so we load 
-                    into r1, r2 */
-                /* do ldp r1, r2, [sp], #16 */
-                emit(
-                    Arm.LoadPair(
-                        Size.X, r1, r2, Arm.AddrPostIndex(
-                            PhysicalReg.stackPointer, 
-                            Arm.Immediate(AARch64Limits.ARM_STACK_ALIGNMENT_BYTES)
-                        )
-                    )
-                )
-            case List(r1) =>
-                emit(
-                    Arm.Load(Size.X, r1, 
-                        Arm.AddrPostIndex(
-                            PhysicalReg.stackPointer, 
-                            Arm.Immediate(AARch64Limits.ARM_STACK_ALIGNMENT_BYTES)
-                        )
-                    )
-                )
+
+            /* do ldp r1, r2, [sp], #16 */
+            case List(r1, r2) => emit(Arm.LoadPair(Size.X, r1, r2, postIndexAddr))
+
+            /* LDR r1, [sp], #16 */
+            case List(r1) => emit(Arm.Load(Size.X, r1, postIndexAddr))
+
             case _ =>
         }
         /* we have to free local variable space too */
@@ -471,12 +452,15 @@ object CodeGenerator {
         emit(
             Arm.LoadPair(
                 Size.X, PhysicalReg.framePointer, PhysicalReg.linkReg, 
-                Arm.AddrPostIndex(PhysicalReg.stackPointer, 
-                    Arm.Immediate(AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))
+                Arm.AddrPostIndex(PhysicalReg.stackPointer, postIndexOffset)
             )
         )
         emit(Arm.Ret)
     }
+
+    /** Create a function body (post prologue) label */
+    def formatFuncBodyLabel(funcLabelName: String) =
+        Arm.AddrLabel(s".L_${funcLabelName}_body")
 
     /**
       * Generate Low-Level IR for a function definition.
@@ -500,6 +484,10 @@ object CodeGenerator {
         val savedRegs = getUsedCalleeSaved(alloc)
 
         generateFuncPrologue(localsSize, savedRegs)
+
+        /* emit the function body label which enables tail recursive optimised
+           Call instructions to skip the prologue */
+        emit(Arm.LabelDef(formatFuncBodyLabel(func.name)))
 
         /* Parameters are moved to their allocated registers (by the RegisterAllocator)
            because they're caller save. E.g. they'll be used if the function calls another
@@ -595,6 +583,7 @@ object CodeGenerator {
         case TAC.LabelDef(label) => emit(Arm.LabelDef(Arm.AddrLabel(label.name)))
         
         /* Function calls */
+        case TAC.TailCall(label, args) => generateTailCall(label, args)
         case TAC.Call(label, args, destOpt) => generateCall(label, args, destOpt)
         case TAC.Ret => generateReturn()
         
@@ -1198,6 +1187,67 @@ object CodeGenerator {
     }
 
     /**
+      * Store a list of arguments (operands) onto the stack.
+      *
+      * @param args The list of operand arguments to store
+      * @param baseReg The base register of the immediate offset addressing mode
+      * @param baseOffset An offset before the stack argument block. Useful to skip the
+      * saved link and frame pointer registers to access the previous frame stack-spilled
+      * registers in tail recursion
+      */
+    private def storeArgsToStack(args: List[TAC.Operand],
+                                 baseReg: PhysicalReg, 
+                                 baseOffset: Int)
+                                (using GenState): Unit = {
+ 
+        args.zipWithIndex.foreach { case (arg, i) =>
+            val size = operandSize(arg)
+
+            /* Current arg stack offset */
+            val offset = baseOffset + (i * MemoryLayout.BYTES_PER_STACK_ARG)
+
+            /* Put the argument in a physical register */
+            val valReg = loadOperandToTarget(arg, size, PhysicalReg.ipcScratch1)
+
+            /* Store the register to the stack */
+            emit(Arm.Store(size,
+                           valReg,
+                           Arm.AddrImmOffset(baseReg, Arm.Immediate(offset))))
+        }
+    }
+
+    /**
+      * Helper function to grow or shrink the stack from the stack pointer
+      *
+      * @param alignedBytes The aligned stack bytes to push
+      * @param instructionBuilder An apply method of an Instruction to emit. Will be either
+      * Arm.AddImm.apply or Arm.SubImm.apply
+      */
+    private def modifyStackSpace(alignedBytes: Int, 
+                                 instructionBuilder: (Size,
+                                                      PhysicalReg,
+                                                      PhysicalReg,
+                                                      Arm.Immediate) => Arm.Instruction)
+                                (using GenState): Unit = {
+        if (alignedBytes > 0) {
+            emit(instructionBuilder(
+                Size.X,
+                PhysicalReg.stackPointer,
+                PhysicalReg.stackPointer,
+                Arm.Immediate(alignedBytes)
+            ))
+        }
+    }
+
+    /** Grow the stack by `alignedBytes` */
+    private def allocateStackSpace(alignedBytes: Int)(using GenState): Unit = 
+        modifyStackSpace(alignedBytes, Arm.SubImm.apply)
+
+    /** Shrink the stack by `stackBytesAdded` */
+    private def collapseStackSpace(stackBytesAdded: Int)(using GenState): Unit = 
+        modifyStackSpace(stackBytesAdded, Arm.AddImm.apply)
+
+    /**
       * Generate the low level IR for a Call high level IR instruction
       *
       * @param label The label of the function
@@ -1220,75 +1270,61 @@ object CodeGenerator {
         */
         val unalignedStackBytes = stackArgs.length * MemoryLayout.BYTES_PER_STACK_ARG
         val stackBytesAdded = alignBytes(unalignedStackBytes)
-        emit(Arm.SubImm(Size.X,
-                        PhysicalReg.stackPointer,
-                        PhysicalReg.stackPointer,
-                        Arm.Immediate(stackBytesAdded)))
+        allocateStackSpace(stackBytesAdded)
 
         /* Space is now allocated, so store excess arguments on the stack */
-        stackArgs.zipWithIndex.foreach { (arg, i) =>
-
-            val size = operandSize(arg)
-            val offset = i * MemoryLayout.BYTES_PER_STACK_ARG /* offset from the stack pointer */
-
-            /* Put the argument in a scratch register */
-            val scratch = PhysicalReg.ipcScratch1
-            val valReg = loadOperandToTarget(arg, size, scratch)
-
-            /* Store the argument (in scratch) on the stack */
-            emit(Arm.Store(size,
-                          valReg, 
-                          Arm.AddrImmOffset(PhysicalReg.stackPointer,
-                                           Arm.Immediate(offset))))
-        }
+        storeArgsToStack(stackArgs, PhysicalReg.stackPointer, baseOffset = 0)
 
         /* For each function of the register arguments */
         regArgs.zipWithIndex.foreach { case (arg, index) =>
 
             /* Get the physical register of the current argument */
             val targetReg = PhysicalReg.argRegisters(index)
-
-            val opSize = operandSize(arg)
-            
-            /* Get the value in the target register */
-            arg match {
-                case argVReg: TAC.VirtualReg =>
-                    /* Move out of a stack slot into a scratch register */
-                    val valReg = loadToReg(locOf(argVReg), opSize, PhysicalReg.ipcScratch1)
-                    
-                    /* Move the ith argument into the wi */
-                    if (valReg != targetReg) {
-                        emit(Arm.MovReg(opSize, targetReg, valReg))
-                    }
-                
-                case TAC.Immediate(value) =>
-                    /* Move the immediate directly to the argument register */
-                    generateMovImmediate(opSize, targetReg, Arm.Immediate(value))
-                
-                case TAC.Label(name) => {
-                    /* Move the label (string directive in this case) to
-                       the argument register */
-                    emit(Arm.Lea(targetReg, Arm.AddrLabel(name)))
-                }
-            }
+            loadOperandToTarget(arg, operandSize(arg), targetReg, strict = true)
         }
 
         /* Branch to the function */
         emit(Arm.Bl(Arm.AddrLabel(label.name)))
 
         /* Post function call, we restore the stack pointer (collapse the frame) */
-        if (stackBytesAdded > 0) {
-            emit(Arm.AddImm(Size.X, 
-                           PhysicalReg.stackPointer, 
-                           PhysicalReg.stackPointer, 
-                           Arm.Immediate(stackBytesAdded)))
-        }
+        collapseStackSpace(stackBytesAdded)
 
         /* Move the function return value to the expected register */
         destOpt.foreach { dest =>
             val resultReg = PhysicalReg.returnRegister 
             storeToLoc(resultReg, locOf(dest), dest.size)
         }
+    }
+
+    /**
+      * Generate the low level IR for a TailCall high level IR instruction. This is a
+      * tail recurion optimised Call instruction. Part of the WACC Extensions milestone.
+      *
+      * @param label The label of the function
+      * @param args The argument operands to the function
+      */
+    private def generateTailCall(label: TAC.Label,
+                                 args: List[TAC.Operand])
+                                (using GenState) = {
+
+        val stackArgs = args.drop(AARch64Limits.ARM_NUM_REGS_FOR_FUNC_ARGS)
+        val regArgs = args.take(AARch64Limits.ARM_NUM_REGS_FOR_FUNC_ARGS)
+
+        /* Overwrite the old stack args */
+        if (stackArgs.nonEmpty) {
+            storeArgsToStack(stackArgs,
+                             PhysicalReg.framePointer,
+                             baseOffset = AARch64Limits.ARM_STACK_ALIGNMENT_BYTES)
+        }
+
+        /* Store new registers in to the arg registers */
+        regArgs.zipWithIndex.foreach { case (arg, i) =>
+            val targetReg = PhysicalReg.argRegisters(i)
+            loadOperandToTarget(arg, operandSize(arg), targetReg, strict = true)
+        }
+
+        /* Branch back to the function body code */
+        emit(Arm.BranchUncond(formatFuncBodyLabel(label.name)))
     }
 
     /**

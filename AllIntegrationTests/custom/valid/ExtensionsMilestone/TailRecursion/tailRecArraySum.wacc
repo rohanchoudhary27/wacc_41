@@ -1,0 +1,38 @@
+# Sum of an array tail recursively
+
+# Output:
+# 6
+# 8
+#
+
+# Program:
+
+begin
+  int arr_sum_tailrec(int[] list, int index, int acc) is
+    if index == len list then
+      return acc
+    else
+      int head = list[index];
+      
+      int next_index = index + 1;
+      int next_acc = acc + head;
+      
+      int result = call arr_sum_tailrec(list, next_index, next_acc);
+      return result
+    fi
+  end
+
+  int arr_sum(int[] list) is
+    int result = call arr_sum_tailrec(list, 0, 0);
+    return result
+  end
+
+  int[] arr1 = [1, 2, 3];
+  int sum1 = call arr_sum(arr1);
+
+  int[] arr2 = [12, -2, 1, 1, -4];
+  int sum2 = call arr_sum(arr2);
+
+  println sum1;
+  println sum2
+end

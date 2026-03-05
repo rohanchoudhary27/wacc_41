@@ -6,6 +6,7 @@ import wacc.frontend.{Program, SemanticData}
 import java.io.{BufferedWriter, FileWriter}
 import java.nio.file.{Files, Paths}
 import scala.util.{Try, Success, Failure, Using}
+import wacc.frontend.FrontendOptimState
 
 /**
   * A result returned from WaccBackend.run()
@@ -26,13 +27,16 @@ object WaccBackend {
     /**
       * Runs the backend part of the compiler on the AST from the frontend
       *
-      * @param ast: the AST produced from the frontend
       * @param outputFilename: .s file to write the Aarch64 assembly to
+      * @param ast: the AST produced from the frontend
+      * @param optimState: `FrontendOptimState` for extra info to the AST for WACC extensions
       * @return BackendCompilationResult: Compilation result
       */
-    def run(ast: Program[SemanticData], outputFilename: String): BackendCompilationResult = {
+    def run(outputFilename: String,
+            ast: Program[SemanticData],
+            optimState: FrontendOptimState = FrontendOptimState.empty): BackendCompilationResult = {
 
-        compileToFile(ast, outputFilename) match
+        compileToFile(outputFilename, ast, optimState) match
             case Success(_) =>
                 BackendCompilationResult(CompilerSuccess, Some(outputFilename))
 
@@ -49,14 +53,17 @@ object WaccBackend {
     /**
       * Run the full backend pipeline and write assembly directly to a file
       *
-      * @param ast The input semantically typed AST
       * @param outputFilename The output .s file path
+      * @param ast The input semantically typed AST
+      * @param optimState: `FrontendOptimState` for extra info to the AST for WACC extensions
       * @return Success(()) on success, Failure on any error
       */
-    private def compileToFile(ast: Program[SemanticData], outputFilename: String): Try[Unit] = for {
+    private def compileToFile(outputFilename: String,
+                              ast: Program[SemanticData],
+                              optimState: FrontendOptimState): Try[Unit] = for {
 
         /* Phase 1 - Flatten */
-        highLevelIR <- Try(Flattener.flatten(ast))
+        highLevelIR <- Try(Flattener.flatten(ast, optimState))
 
         /* Phase 2 - Register Allocation */
         registerAllocation <- Try(RegisterAllocator.allocate(highLevelIR))
