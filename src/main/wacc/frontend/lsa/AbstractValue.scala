@@ -1,0 +1,227 @@
+package wacc.frontend.lsa
+
+/**
+  * Defines the abstract values used by the static analyser to represent
+  * compile time knowledge about program variables. Each value lives in a
+  * tree like structure where `Unknown` is the top element
+  * and the concrete values are at the bottom.
+  *
+  * This is the core abstraction of the static analyser. Each variable in
+  * the program maps to one of these abstract values at every program point.
+  */
+sealed trait AbstractValue {
+
+    /** Merge this value with `other` at a control flow join.
+      *
+      * The result must be sound and it must over approximate both inputs for safety.
+      * If both sides agree on the same value, preserve it, otherwise widen to `Unknown`
+      *
+      * @param other The abstract value from the other branch
+      * @return The least upper bound of `this` and `other`
+      */
+    def join(other: AbstractValue): AbstractValue = (this, other) match {
+        case (a, b) if a == b => a
+        case (Unknown, _) | (_, Unknown) => Unknown
+        
+        /* converting to a range is useful when it comes to length of arrays, e.g. if we
+            know that the length is 10, and the range from the branches is (2, 5), i.e.
+                ```
+                ...
+                if b then
+                    x = 2
+                else
+                    x = 5
+                fi
+                ...
+                int[] arr = [1, 2, 3, ..., 10]
+                print arr[x]
+                ```
+            then we can deduce that x is always less than its length so no need to emit a length
+            check on the index
+            */
+        case (IntConstant(a), IntConstant(b)) => 
+            IntRange(math.min(a, b), math.max(a, b))
+        case (IntConstant(v), IntRange(lo, hi)) =>
+            IntRange(math.min(v, lo), math.max(v, hi))
+        case (IntRange(lo, hi), IntConstant(v)) =>
+            IntRange(math.min(v, lo), math.max(v, hi))
+        case (IntRange(lo1, hi1), IntRange(lo2, hi2)) =>
+            IntRange(math.min(lo1, lo2), math.max(hi1, hi2))
+
+        /* Nullity values */
+        case (Null, NonNull) | (NonNull, Null)       => Unknown
+
+        /* Freed pointers: joining freed with any pointer state is unsafe,
+           so we widen to Unknown */
+        case (Freed, _: PointerValue) | (_: PointerValue, Freed) => Unknown
+        case (Freed, _) | (_, Freed)                             => Unknown
+
+        /* Array info: merge lengths and nullity separately */
+        case (ArrayInfo(len1, null1), ArrayInfo(len2, null2)) =>
+            val mergedLen = (len1, len2) match {
+                case (Some(a), Some(b)) if a == b => Some(a)
+                case _                            => None
+            }
+            if (null1 == null2) ArrayInfo(mergedLen, null1)
+            else Unknown
+
+        /* Cross-domain disagreements widen to Unknown */
+        case _ => Unknown
+    }
+
+    /** description for diagnostic messages */
+    def describe: String
+}
+
+/** Abstract values specifically about pointer nullity.
+  *
+  * This is a sub-trait so that `ArrayInfo` can embed a `PointerValue` for
+  * its own nullity without allowing arbitrary abstract values in that slot.
+  */
+sealed trait PointerValue extends AbstractValue
+
+
+/** No compile time information is known about this value.
+  *
+  * Joining any value with `Unknown` yields `Unknown`. Variables
+  * start here when we have no information (e.g. values read from stdin).
+  */
+case object Unknown extends AbstractValue {
+    override def describe: String = "unknown"
+}
+
+/** The value is known to be exactly `value` at this program point
+  *
+  * @param value The concrete integer value
+  */
+case class IntConstant(value: Int) extends AbstractValue {
+    override def describe: String = s"int constant $value"
+}
+
+/** The value is known to lie within the interval `[lo, hi]`.
+  *
+  * This provides more info than `Unknown` for cases like loop
+  * bounds or array index checks, while handling the case
+  * where two branches assign different constants.
+  *
+  * @param lo The lower bound
+  * @param hi The upper bound
+  */
+case class IntRange(lo: Int, hi: Int) extends AbstractValue {
+    require(lo <= hi, s"IntRange lower bound ($lo) must not exceed upper bound ($hi)")
+    override def describe: String = s"int in range [$lo, $hi]"
+
+    /** Check whether a concrete int value is within this range */
+    def contains(value: Int): Boolean = value >= lo && value <= hi
+
+    /** Check whether this range is entirely non negative */
+    def isNonNegative: Boolean = lo >= 0
+}
+
+/** The value is known to be exactly `value` at this program point.
+  *
+  * @param value The concrete boolean value
+  */
+case class BoolConstant(value: Boolean) extends AbstractValue {
+    override def describe: String = s"bool constant ${if value then "true" else "false"}"
+}
+
+/** The value is definitely the null pointer
+  *
+  * Any dereference (`fst`, `snd`) of a `Null` value is a guaranteed
+  * runtime error that we can report at compile time.
+  */
+case object Null extends PointerValue {
+    override def describe: String = "null"
+}
+
+/** The value is definitely a valid (non-null) pointer.
+  *
+  * Dereferences of `NonNull` values are safe, so the
+  * runtime null check can be eliminated.
+  */
+case object NonNull extends PointerValue {
+    override def describe: String = "non-null"
+}
+
+/** The value has been freed and any access is an error */
+case object Freed extends PointerValue {
+    override def describe: String = "freed"
+}
+
+/** Tracks both the known length and the nullity of an array reference.
+  *
+  * @param knownLength
+  *   `Some(n)` if the array was created from a literal of `n` elements
+  *   or its length is otherwise statically determinable, `None` if unknown
+  * @param nullity
+  *   The pointer nullity of the array reference itself
+  */
+case class ArrayInfo(
+    knownLength: Option[Int],
+    nullity: PointerValue
+) extends AbstractValue {
+    override def describe: String = {
+        val lenStr = knownLength.map(n => s"length $n").getOrElse("unknown length")
+        s"$lenStr, ${nullity.describe}"
+    }
+}
+
+object AbstractValue {
+
+    /** no information known */
+    val top: AbstractValue = Unknown
+
+    /** Create the initial abstract value for an integer literal */
+    def fromInt(n: Int): IntConstant = IntConstant(n)
+
+    /** Create the initial abstract value for a boolean literal */
+    def fromBool(b: Boolean): BoolConstant = BoolConstant(b)
+
+    /** Create the initial abstract value for an array literal of known size.
+      *
+      * Array literals are always freshly allocated, so they are `NonNull`.
+      *
+      * @param length
+      *   The number of elements in the array literal
+      */
+    def fromArrayLiteral(length: Int): ArrayInfo =
+        ArrayInfo(knownLength = Some(length), nullity = NonNull)
+
+    /** Create the initial abstract value for a `newpair` allocation.
+      *
+      * `newpair` always produces a valid, non-null pointer.
+      */
+    val freshPair: AbstractValue = NonNull
+
+    /** Create the initial abstract value for a `null` literal */
+    val nullValue: AbstractValue = Null
+
+    /** Check whether an abstract value is definitely zero */
+    def isDefinitelyZero(av: AbstractValue): Boolean = av match {
+        case IntConstant(0) => true
+        case IntRange(lo, hi) if lo == 0 && hi == 0 => true
+        case _ => false
+    }
+
+    /** Check whether an abstract value is definitely non-zero */
+    def isDefinitelyNonZero(av: AbstractValue): Boolean = av match {
+        case IntConstant(v) => v != 0
+        case IntRange(lo, hi)  => lo > 0 || hi < 0
+        case _ => false
+    }
+
+    /** Check whether an abstract value represents a definite null */
+    def isDefinitelyNull(av: AbstractValue): Boolean = av match {
+        case Null  => true
+        case ArrayInfo(_, Null)  => true
+        case _ => false
+    }
+
+    /** Check whether an abstract value represents a definite non-null */
+    def isDefinitelyNonNull(av: AbstractValue): Boolean = av match {
+        case NonNull => true
+        case ArrayInfo(_, NonNull) => true
+        case _  => false
+    }
+}
