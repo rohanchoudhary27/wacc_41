@@ -124,8 +124,8 @@ object WaccFrontend {
             else {
 
               /* Frontend optimisation passes */
-              val tailRecCalls = CheckTailRec.checkTailRec(typedAST.get)
-              val optimState = FrontendOptimState(tailRecCalls)
+              val (selfTailRecCalls, generalisedTailRecCalls) = CheckTailRec.checkTailRec(typedAST.get)
+              val optimState = FrontendOptimState(selfTailRecCalls)
               FrontendCompilationResult(CompilerSuccess, None, typedAST, Some(optimState))
             }
 
