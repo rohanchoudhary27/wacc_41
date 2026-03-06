@@ -256,8 +256,8 @@ trait TailRecPrebuiltTrees extends ASTBoilerplate {
             SemanticData.Func(synPos.pos, "f", KnownType.Int, List.fill(10)(KnownType.Int))
         val funcGSignature: SemanticData.Func =
             SemanticData.Func(synPos.pos, "g", KnownType.Int, List.fill(9)(KnownType.Int))
-        val funcFIdent: Ident[SemanticData] = Ident("f", semPos)
-        val funcGIdent: Ident[SemanticData] = Ident("g", semPos)
+        val funcFIdent: Ident[SemanticData] = Ident("f", funcFSignature)
+        val funcGIdent: Ident[SemanticData] = Ident("g", funcGSignature)
         
         val argsG: List[Ident[SemanticData]] =
             (0 until 9).map(i => Ident(s"p$i", SemanticData.Var(synPos.pos, i, KnownType.Int))).toList
@@ -285,8 +285,8 @@ trait TailRecPrebuiltTrees extends ASTBoilerplate {
             SemanticData.Func(synPos.pos, "f", KnownType.Int, List.fill(2)(KnownType.Int))
         val funcGSignature: SemanticData.Func =
             SemanticData.Func(synPos.pos, "g", KnownType.Int, List.fill(10)(KnownType.Int))
-        val funcFIdent: Ident[SemanticData] = Ident("f", semPos)
-        val funcGIdent: Ident[SemanticData] = Ident("g", semPos)
+        val funcFIdent: Ident[SemanticData] = Ident("f", funcFSignature)
+        val funcGIdent: Ident[SemanticData] = Ident("g", funcGSignature)
         
         val argsG = (0 until 10).map(i => IntLiter(i, typedInt)).toList
         val callG = Call(funcGIdent, argsG, typedInt)
@@ -313,8 +313,8 @@ trait TailRecPrebuiltTrees extends ASTBoilerplate {
             SemanticData.Func(synPos.pos, "f", KnownType.Int, List())
         val funcGSignature: SemanticData.Func =
             SemanticData.Func(synPos.pos, "g", KnownType.Int, List.fill(8)(KnownType.Int))
-        val funcFIdent: Ident[SemanticData] = Ident("f", semPos)
-        val funcGIdent: Ident[SemanticData] = Ident("g", semPos)
+        val funcFIdent: Ident[SemanticData] = Ident("f", funcFSignature)
+        val funcGIdent: Ident[SemanticData] = Ident("g", funcGSignature)
         
         val argsG = (0 until 8).map(i => IntLiter(i, typedInt)).toList
         val callG = Call(funcGIdent, argsG, typedInt)
