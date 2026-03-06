@@ -1358,7 +1358,7 @@ class FlattenerTest extends AnyFlatSpec with Matchers with TailRecPrebuiltTrees 
     "The flattener for tail recursion" should "make a TailCall node instead of a Call" in {
         val (inputAST, callsThatAreTailrec) = threeCallsTwoTailRec()
 
-        val optimState = FrontendOptimState(callsThatAreTailrec.toSet)
+        val optimState = FrontendOptimState(callsThatAreTailrec.toSet, Set.empty)
         val flatOutput = Flattener.flatten(inputAST, optimState)
 
         val testFunc = flatOutput.funcs.find(_.name == "f_f").getOrElse(

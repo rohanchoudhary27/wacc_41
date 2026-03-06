@@ -1095,12 +1095,13 @@ object Flattener {
         /* Emit call instruction */
         val funcLabel = TAC.Label(s"f_${ident.name}")
 
-        /* Make the flat call node. If the optimState says it's a tail recursive node, 
-           a `TailCall` node is made for the code generator to optimise. */
-        val isTailRec = optimState.tailRecCalls.contains(callInstr)
+        /* Make the flat call node. If it is marked as self tail recursive, `TAC.SelfTailCall` is
+           emitted. If it is marked as general tail recursive, `TAC.GeneralTailCall` is emitted */
         val flatCallInstr =
-            if (isTailRec) {
+            if (optimState.selfTailRecCalls.contains(callInstr)) {
                 TAC.SelfTailCall(funcLabel, flatArgs)
+            } else if (optimState.generalTailRecCalls.contains(callInstr)) {
+                TAC.GeneralTailCall(funcLabel, flatArgs, Some(resultReg))
             } else {
                 TAC.Call(funcLabel, flatArgs, Some(resultReg))
             }

@@ -584,6 +584,7 @@ object CodeGenerator {
         
         /* Function calls */
         case TAC.SelfTailCall(label, args) => generateTailCall(label, args)
+        case TAC.GeneralTailCall(label, args, destOpt) => generateCall(label, args, destOpt)
         case TAC.Call(label, args, destOpt) => generateCall(label, args, destOpt)
         case TAC.Ret => generateReturn()
         

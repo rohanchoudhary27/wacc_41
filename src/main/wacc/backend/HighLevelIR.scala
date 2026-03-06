@@ -113,7 +113,7 @@ object TAC {
     /* Function instructions */
     case class Call(label: Label, args: List[Operand], dest: Option[VirtualReg]) extends Instruction
     case class SelfTailCall(label: Label, args: List[Operand]) extends Instruction
-    case class GeneralTailCall(label: Label, args: List[Operand]) extends Instruction
+    case class GeneralTailCall(label: Label, args: List[Operand], dest: Option[VirtualReg]) extends Instruction
     case object Ret extends Instruction
 
     /* I/O instructions */
