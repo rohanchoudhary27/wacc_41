@@ -43,13 +43,19 @@ private class GlobalGenContext {
 }
 
 /**
-  * State class managing code generation.
+  * State class managing code generation for a single function context (with the main
+  * function being treated as a top-level function)
   * Tracks the allocation map and generated instructions.
   *
   * @param global the global context for labels and data directives
   * @param alloc the register allocation map (VirtualReg -> Location)
   */
 private class GenState(val global: GlobalGenContext, val alloc: Map[TAC.VirtualReg, Location]) {
+
+    /* Calculate local variables size needed to put onto stack 
+        and the calle-saved registers used */
+    val localsSize: Int = CodeGenerator.getLocalsSize(alloc)
+    val savedRegs: List[PhysicalReg] = CodeGenerator.getUsedCalleeSaved(alloc)
 
     /* The current return label to branch to at the end of the current function */
     var currEpilogueLabel: Option[Arm.AddrLabel] = None
@@ -99,7 +105,7 @@ object CodeGenerator {
       * Helper to get the set of callee-saved registers (x19-x28) used in a function.
       * We only need to save the ones we actually assign
       */
-    private def getUsedCalleeSaved(alloc: Map[TAC.VirtualReg, Location]): List[PhysicalReg] = {
+    def getUsedCalleeSaved(alloc: Map[TAC.VirtualReg, Location]): List[PhysicalReg] = {
         val used = alloc.values.collect { 
             case r: PhysicalReg if PhysicalReg.calleeSaved.contains(r) => r 
         }.toSet
@@ -111,7 +117,7 @@ object CodeGenerator {
       * Helper to calculate the size of the local variables area.
       * Scans for the lowest StackSlot offset and aligns the size to 16 bytes.
       */
-    private def getLocalsSize(alloc: Map[TAC.VirtualReg, Location]): Int = {
+    def getLocalsSize(alloc: Map[TAC.VirtualReg, Location]): Int = {
         val minOffset = alloc.values.collect { 
             case StackSlot(offset) => offset 
         }.minOption.getOrElse(0)
@@ -341,22 +347,17 @@ object CodeGenerator {
         /* Emit code for the main function */
         emit(Arm.LabelDef(Arm.AddrLabel("main")))
 
-        /* Calculate local variables size needed to put onto stack 
-            and the calle-saved registers used */
-        val localsSize = getLocalsSize(allocs.mainAlloc)
-        val savedRegs = getUsedCalleeSaved(allocs.mainAlloc)
-
         /* To ensure compatibility with the register allocator's offset calculations,
             the stack frame is organized such that the FP remains adjacent to the LR
             at the top of the frame, with local variables immediately below it.
             Callee-saved registers are pushed to the bottom of the stack. This layout 
             preserves the relative offsets of local variables to the FP regardless of
             the number of callee-saved registers saved in the stack. */
-        generateFuncPrologue(localsSize, savedRegs)
+        generateFuncPrologue(st.localsSize, st.savedRegs)
         generateInstrs(regProgram.body)
         /* main return 0 */
         generateMovImmediate(Size.W, PhysicalReg.returnRegister, Arm.Immediate(code(CompilerSuccess)))
-        generateFuncEpilogue(localsSize, savedRegs)
+        generateFuncEpilogue(st.localsSize, st.savedRegs)
 
         /* Final low-level IR for the program */
         val program = Arm.Program(globalCtx.finalDirectives, st.finalInstrs)
@@ -424,7 +425,7 @@ object CodeGenerator {
       * @param savedRegs  The list of callee-saved registers to restore
       */
     private def generateFuncEpilogue(
-        localsSize: Int, savedRegs: List[PhysicalReg]
+        localsSize: Int, savedRegs: List[PhysicalReg], emitRet: Boolean = true
     )(using GenState) = {
 
         val postIndexOffset = Arm.Immediate(AARch64Limits.ARM_STACK_ALIGNMENT_BYTES)
@@ -455,7 +456,12 @@ object CodeGenerator {
                 Arm.AddrPostIndex(PhysicalReg.stackPointer, postIndexOffset)
             )
         )
-        emit(Arm.Ret)
+
+        /* We skip the ret instruction if this epilogue is being inlined during
+           a generalised tail recursive call */
+        if (emitRet) {
+            emit(Arm.Ret)
+        }
     }
 
     /** Create a function body (post prologue) label */
@@ -1339,12 +1345,17 @@ object CodeGenerator {
       */
     private def generateGeneralTailCall(label: TAC.Label,
                                         args: List[TAC.Operand])
-                                       (using GenState) = {
-
-        /* TODO ADD THE STACK ARG HANDLING FOR GENERALISED TAILREC */
+                                       (using st: GenState) = {
 
         val stackArgs = args.drop(AARch64Limits.ARM_NUM_REGS_FOR_FUNC_ARGS)
         val regArgs = args.take(AARch64Limits.ARM_NUM_REGS_FOR_FUNC_ARGS)
+
+        /* Overwrite the old stack args */
+        if (stackArgs.nonEmpty) {
+            storeArgsToStack(stackArgs,
+                             PhysicalReg.framePointer,
+                             baseOffset = AARch64Limits.ARM_STACK_ALIGNMENT_BYTES)
+        }
 
         /* Store new registers in the arg registers */
         regArgs.zipWithIndex.foreach { case (arg, i) =>
@@ -1352,8 +1363,9 @@ object CodeGenerator {
             loadOperandToTarget(arg, operandSize(arg), targetReg, strict = true)
         }
 
-        /* Early return to epilogue, collapsing parent frame */
-        generateReturn()
+        /* Inline the epilogue to destroy the frame without returning (which
+           would happen if we jumped to the function's actual epilogue */
+        generateFuncEpilogue(st.localsSize, st.savedRegs, emitRet = false) 
 
         /* Branch back to the function body code */
         emit(Arm.BranchUncond(Arm.AddrLabel(label.name)))
