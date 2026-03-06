@@ -583,8 +583,8 @@ object CodeGenerator {
         case TAC.LabelDef(label) => emit(Arm.LabelDef(Arm.AddrLabel(label.name)))
         
         /* Function calls */
-        case TAC.SelfTailCall(label, args) => generateTailCall(label, args)
-        case TAC.GeneralTailCall(label, args) => generateTailCall(label, args) /* placeholder for now */
+        case TAC.SelfTailCall(label, args) => generateSelfTailCall(label, args)
+        case TAC.GeneralTailCall(label, args) => generateGeneralTailCall(label, args)
         case TAC.Call(label, args, destOpt) => generateCall(label, args, destOpt)
         case TAC.Ret => generateReturn()
         
@@ -1298,13 +1298,13 @@ object CodeGenerator {
     }
 
     /**
-      * Generate the low level IR for a TailCall high level IR instruction. This is a
+      * Generate the low level IR for a SelfTailCall high level IR instruction. This is a
       * tail recurion optimised Call instruction. Part of the WACC Extensions milestone.
       *
       * @param label The label of the function
       * @param args The argument operands to the function
       */
-    private def generateTailCall(label: TAC.Label,
+    private def generateSelfTailCall(label: TAC.Label,
                                  args: List[TAC.Operand])
                                 (using GenState) = {
 
@@ -1326,6 +1326,37 @@ object CodeGenerator {
 
         /* Branch back to the function body code */
         emit(Arm.BranchUncond(formatFuncBodyLabel(label.name)))
+    }
+
+
+    /**
+      * Generate the low level IR for a GeneralTailCall high level IR instruction. This is a
+      * tail recurion optimised Call instruction for generalised tail recursion.
+      * Part of the WACC Extensions milestone to extend the medium difficulty extension to hard.
+      *
+      * @param label The label of the function
+      * @param args The argument operands to the function
+      */
+    private def generateGeneralTailCall(label: TAC.Label,
+                                        args: List[TAC.Operand])
+                                       (using GenState) = {
+
+        /* TODO ADD THE STACK ARG HANDLING FOR GENERALISED TAILREC */
+
+        val stackArgs = args.drop(AARch64Limits.ARM_NUM_REGS_FOR_FUNC_ARGS)
+        val regArgs = args.take(AARch64Limits.ARM_NUM_REGS_FOR_FUNC_ARGS)
+
+        /* Store new registers in the arg registers */
+        regArgs.zipWithIndex.foreach { case (arg, i) =>
+            val targetReg = PhysicalReg.argRegisters(i)
+            loadOperandToTarget(arg, operandSize(arg), targetReg, strict = true)
+        }
+
+        /* Early return to epilogue, collapsing parent frame */
+        generateReturn()
+
+        /* Branch back to the function body code */
+        emit(Arm.BranchUncond(Arm.AddrLabel(label.name)))
     }
 
     /**
