@@ -4,14 +4,19 @@ import scala.util.chaining.*
 
 object PeepholeOptimisation{
     def allOptimisations(prog: Arm.Program): Arm.Program = {
-        val Arm.Program(data, body) = prog
-        val optimisedBody = body
-            .pipe(optimisedBranches)
-            .pipe(selfMove)
-            .pipe(constBinary)
-            .pipe(redundantLoads)
+        var body = prog.body
+        var previousLength = -1
 
-        Arm.Program(data, optimisedBody)
+        while(previousLength != body.length) {
+            previousLength = body.length
+            body = body
+                .pipe(optimisedBranches)
+                .pipe(selfMove)
+                .pipe(constBinary)
+                .pipe(redundantLoads)
+        }
+
+        Arm.Program(prog.data, body)
     }
 
     private def selfMove(body: List[Arm.Instruction]): List[Arm.Instruction] = body match {
