@@ -1101,7 +1101,7 @@ object Flattener {
             if (optimState.selfTailRecCalls.contains(callInstr)) {
                 TAC.SelfTailCall(funcLabel, flatArgs)
             } else if (optimState.generalTailRecCalls.contains(callInstr)) {
-                TAC.GeneralTailCall(funcLabel, flatArgs, Some(resultReg))
+                TAC.GeneralTailCall(funcLabel, flatArgs)
             } else {
                 TAC.Call(funcLabel, flatArgs, Some(resultReg))
             }
