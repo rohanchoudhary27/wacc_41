@@ -1,0 +1,103 @@
+package wacc.frontend.lsa
+
+import wacc.frontend.*
+import wacc.frontend.lsa.*
+
+/* 
+ * Diagnostics are the output of the static analyser. They describe problems
+ * detected at compile time. There are three levels:
+ *   - Error: A guaranteed runtime failure (eg division by zero). These halt the compilation
+ *   - Warning: A potential runtime failure that cannot be proven to always
+ *              occur (eg a variable that might be null depending on the branch)
+ *   - Info: An optimisation opportunity (e.g. a null check that can be
+ *           removed because the pointer is provably non-null).
+ */
+
+/** The severity level of an analysis diagnostic */
+enum DiagnosticSeverity {
+    case Error, Warning, Info
+}
+
+/**  
+  * Diagnostic produced by the static analyser.
+  *
+  * @param severity Level of the diagnostic
+  * @param pos The source position where the issue was detected
+  * @param message A description of the issue
+  * @param detail Optional additional context
+  */
+case class AnalysisDiagnostic(
+    severity: DiagnosticSeverity,
+    pos: SourcePos,
+    message: String,
+    detail: String = ""
+) {
+    def format: String = {
+        val severityStr = severity match {
+            case DiagnosticSeverity.Error   => "Static analysis error"
+            case DiagnosticSeverity.Warning => "Static analysis warning"
+            case DiagnosticSeverity.Info    => "Static analysis info"
+        }
+        val detailStr = if (detail.nonEmpty) s"\n$detail" else ""
+        s"(Line ${pos(0)}, column ${pos(1)}) $severityStr: $message$detailStr"
+    }
+}
+
+object AnalysisDiagnostic {
+
+    /** Division by a value that is provably zero */
+    def divisionByZero(
+        pos: SourcePos, divisorName: String, divisorValue: AbstractValue
+    ): AnalysisDiagnostic =
+        AnalysisDiagnostic(
+            DiagnosticSeverity.Error,
+            pos,
+            s"Division by zero: divisor '$divisorName' is ${divisorValue.describe}",
+        )
+
+    /** Dereferencing a value that is provably null */
+    def nullDereference(pos: SourcePos, ptrName: String): AnalysisDiagnostic =
+        AnalysisDiagnostic(
+            DiagnosticSeverity.Error,
+            pos,
+            s"Null dereference: '$ptrName' is known to be null"
+        )
+
+    /** Array access with an index that is provably out of bounds */
+    def arrayOutOfBounds(
+        pos: SourcePos,
+        arrayName: String,
+        knownLength: Int,
+        indexValue: AbstractValue
+    ): AnalysisDiagnostic =
+        AnalysisDiagnostic(
+            DiagnosticSeverity.Error,
+            pos,
+            s"Array index out of bounds: '$arrayName' has length $knownLength " +
+                s"but index is ${indexValue.describe}"
+        )
+
+    /** Accessing a pointer that has been freed */
+    def useAfterFree(pos: SourcePos, ptrName: String): AnalysisDiagnostic =
+        AnalysisDiagnostic(
+            DiagnosticSeverity.Error,
+            pos,
+            s"Use after free: '$ptrName' has already been freed"
+        )
+
+    /** A null check can be safely removed because the pointer is provably non-null */
+    def redundantNullCheck(pos: SourcePos, ptrName: String): AnalysisDiagnostic =
+        AnalysisDiagnostic(
+            DiagnosticSeverity.Info,
+            pos,
+            s"Null check on '$ptrName' is redundant: pointer is non-null"
+        )
+
+    /** A bounds check can be safely removed because the index is provably in range */
+    def redundantBoundsCheck(pos: SourcePos, arrayName: String): AnalysisDiagnostic =
+        AnalysisDiagnostic(
+            DiagnosticSeverity.Info,
+            pos,
+            s"Bounds check on '$arrayName' is redundant: index is provably in range"
+        )
+}
