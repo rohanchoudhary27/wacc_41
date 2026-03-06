@@ -583,7 +583,7 @@ object CodeGenerator {
         case TAC.LabelDef(label) => emit(Arm.LabelDef(Arm.AddrLabel(label.name)))
         
         /* Function calls */
-        case TAC.TailCall(label, args) => generateTailCall(label, args)
+        case TAC.SelfTailCall(label, args) => generateTailCall(label, args)
         case TAC.Call(label, args, destOpt) => generateCall(label, args, destOpt)
         case TAC.Ret => generateReturn()
         

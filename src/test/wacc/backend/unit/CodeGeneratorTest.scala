@@ -936,7 +936,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
 
     "CodeGenerator generateTailCall" should "emit an uncond branch to func body label instead of bl" in {
         val result = programWith(
-            List(TAC.TailCall(TAC.Label("func"), List.empty)),
+            List(TAC.SelfTailCall(TAC.Label("func"), List.empty)),
             Map.empty
         )
 
@@ -953,7 +953,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         val args = List(TAC.Immediate(10), TAC.Immediate(20))
         
         val result = programWith(
-            List(TAC.TailCall(TAC.Label("func"), args)),
+            List(TAC.SelfTailCall(TAC.Label("func"), args)),
             Map.empty
         )
 
@@ -975,7 +975,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         val args = List.fill(9)(TAC.Immediate(2))
         
         val result = programWith(
-            List(TAC.TailCall(TAC.Label("func"), args)),
+            List(TAC.SelfTailCall(TAC.Label("func"), args)),
             Map.empty
         )
 
@@ -996,7 +996,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         val args = List.fill(10)(TAC.Immediate(2))
         
         val result = programWith(
-            List(TAC.TailCall(TAC.Label("func"), args)),
+            List(TAC.SelfTailCall(TAC.Label("func"), args)),
             Map.empty
         )
 

@@ -1365,7 +1365,7 @@ class FlattenerTest extends AnyFlatSpec with Matchers with TailRecPrebuiltTrees 
             fail("couldn't find function 'f_f' in flattened output")
         )
 
-        val tailCallNodes = testFunc.body.collect { case call: TAC.TailCall => call }
+        val tailCallNodes = testFunc.body.collect { case call: TAC.SelfTailCall => call }
         tailCallNodes.length shouldBe 2
 
         tailCallNodes.foreach { tacCall =>
