@@ -22,7 +22,7 @@ private class GlobalGenContext {
 
     /** Generate a fresh unique label for compiler-generated code */
     def freshLabel(): Arm.AddrLabel = {
-        val l = s".L$labelCounter"
+        val l = LabelNameFormatter.generalPurpose(labelCounter)
         labelCounter += 1
         Arm.AddrLabel(l)
     }
@@ -345,7 +345,7 @@ object CodeGenerator {
         }
 
         /* Emit code for the main function */
-        emit(Arm.LabelDef(Arm.AddrLabel("main")))
+        emit(Arm.LabelDef(Arm.AddrLabel(LabelNameFormatter.mainLabel)))
 
         /* To ensure compatibility with the register allocator's offset calculations,
             the stack frame is organized such that the FP remains adjacent to the LR
@@ -466,7 +466,7 @@ object CodeGenerator {
 
     /** Create a function body (post prologue) label */
     def formatFuncBodyLabel(funcLabelName: String) =
-        Arm.AddrLabel(s".L_${funcLabelName}_body")
+        Arm.AddrLabel(LabelNameFormatter.funcBody(funcLabelName))
 
     /**
       * Generate Low-Level IR for a function definition.
@@ -507,7 +507,7 @@ object CodeGenerator {
         }
 
         /* Register the epilogue label */
-        val epilogueLabel = Arm.AddrLabel(s".L_${func.name}_epilogue")
+        val epilogueLabel = Arm.AddrLabel(LabelNameFormatter.funcEpilogue(func.name))
         st.currEpilogueLabel = Some(epilogueLabel)
 
         /* Generate function body */
