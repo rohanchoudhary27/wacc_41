@@ -305,24 +305,136 @@ object StaticAnalyser {
       */
     private def evaluateExpr(
         expr: Expr[SemanticData]
-    )(using state: AnalysisState): AbstractValue =
+    )(using state: AnalysisState, analyser: AnalyserState): AbstractValue =
         expr match {
             case IntLiter(value, _)  => IntConstant(value)
             case BoolLiter(value, _) => BoolConstant(value)
             case CharLiter(value, _) => IntConstant(value.toInt)
-            case StrLiter(_, _)      => Unknown /* We don't wanna deal with strings */
-            case PairLiter(_)        => wacc.frontend.lsa.Null
+            case StrLiter(_, _) => Unknown /* We don't wanna deal with strings */
+            case PairLiter(_) => wacc.frontend.lsa.Null
 
             case ident: Ident[SemanticData] =>
                 VariableId.fromIdent(ident) match {
                     case Some(varId) => state.lookup(varId)
-                    case None        => Unknown
+                    case None => Unknown
                 }
 
-            case UnaryExpr(op, inner, _)          => ???
-            case BinaryExpr(op, left, right, _)   => ???
-            case ArrayElem(ident, indices, _)      => ???
+            case UnaryExpr(op, inner, _) => evaluateUnaryExpr(op, inner)
+            case BinaryExpr(op, left, right, info) => evaluateBinaryExpr(op, left, right, info)
+            case ArrayElem(ident, indices, _) => 
+                indices.foreach(evaluateExpr)
+                Unknown /* do this later */
         }
+    
+    /** Evaluate a unary expression to its abstract value.
+      *
+      * Each unary operator maps to an abstract operation defined in
+      * `AbstractValue`. The inner expression is evaluated first, then
+      * the abstract operation is applied.
+      *
+      * @param op The unary operator
+      * @param inner The operand expression
+      * 
+      * @return The abstract value of the unary expression
+      */
+    private def evaluateUnaryExpr(
+        op: UnaryOperator,
+        inner: Expr[SemanticData]
+    )(using state: AnalysisState, analyserState: AnalyserState): AbstractValue = {
+        val operandVal = evaluateExpr(inner)
+
+        op match {
+            case UnaryOperator.Neg => AbstractValue.neg(operandVal)
+            case UnaryOperator.Not => AbstractValue.not(operandVal)
+            case UnaryOperator.Len => AbstractValue.len(operandVal)
+            case UnaryOperator.Ord => AbstractValue.ord(operandVal)
+            case UnaryOperator.Chr => AbstractValue.chr(operandVal)
+        }
+    }
+    
+    /** Evaluate a binary expression to its abstract value.
+      *
+      * Evaluates both operands, then applies the corresponding
+      * operation. Division and modulo are special: they return `None` when
+      * the divisor is provably zero, which triggers a diagnostic.
+      *
+      * @param op The binary operator
+      * @param left The left operand expression
+      * @param right The right operand expression
+      * @param info The semantic data for the expression (used for source position)
+      * 
+      * @return The abstract value of the binary expression
+      */
+    private def evaluateBinaryExpr(
+        op: BinaryOperator,
+        left: Expr[SemanticData],
+        right: Expr[SemanticData],
+        info: SemanticData
+    )(using state: AnalysisState, analyserState: AnalyserState): AbstractValue = {
+        val leftVal = evaluateExpr(left)
+        val rightVal = evaluateExpr(right)
+
+        op match {
+            /* Arithmetic operators */
+            case BinaryOperator.Add => AbstractValue.add(leftVal, rightVal)
+            case BinaryOperator.Sub => AbstractValue.sub(leftVal, rightVal)
+            case BinaryOperator.Mul => AbstractValue.mul(leftVal, rightVal)
+
+            /* Division and modulo: check for division by zero */
+            case BinaryOperator.Div =>
+                evaluateDivisionOp(leftVal, rightVal, right, info, AbstractValue.div)
+
+            case BinaryOperator.Mod =>
+                evaluateDivisionOp(leftVal, rightVal, right, info, AbstractValue.mod)
+
+            /* Comparison operators */
+            case BinaryOperator.GT  => AbstractValue.gt(leftVal, rightVal)
+            case BinaryOperator.GTE => AbstractValue.gte(leftVal, rightVal)
+            case BinaryOperator.LT  => AbstractValue.lt(leftVal, rightVal)
+            case BinaryOperator.LTE => AbstractValue.lte(leftVal, rightVal)
+            case BinaryOperator.EQ  => AbstractValue.eq(leftVal, rightVal)
+            case BinaryOperator.NEQ => AbstractValue.neq(leftVal, rightVal)
+
+            /* Logical operators */
+            case BinaryOperator.And => AbstractValue.and(leftVal, rightVal)
+            case BinaryOperator.Or  => AbstractValue.or(leftVal, rightVal)
+        }
+    }
+
+    /** Evaluate a division or modulo operation, emitting a diagnostic
+      * if the divisor is provably zero.
+      *
+      * Division and modulo return `Option[AbstractValue]` from `AbstractValue`,
+      * `None` means provably zero divisor.
+      *
+      * @param leftVal The abstract value of the dividend
+      * @param rightVal The abstract value of the divisor
+      * @param rightExpr The divisor expression (for extracting a name for diagnostics)
+      * @param info The source position of the binary expression
+      * @param divOp The abstract operation (either `AbstractValue.div` or `.mod`)
+      * 
+      * @return The abstract value of the result, or `Unknown` if an error was emitted
+      */
+    private def evaluateDivisionOp(
+        leftVal: AbstractValue,
+        rightVal: AbstractValue,
+        rightExpr: Expr[SemanticData],
+        info: SemanticData,
+        divOp: (AbstractValue, AbstractValue) => Option[AbstractValue]
+    )(using state: AnalysisState, analyserState: AnalyserState): AbstractValue = {
+        divOp(leftVal, rightVal) match {
+            case Some(result) => result
+            case None =>
+                val divisorName = rightExpr match {
+                    case ident: Ident[SemanticData] => ident.name
+                    case _                          => "<expression>"
+                }
+                analyserState.emit(
+                    AnalysisDiagnostic.divisionByZero(info.pos, divisorName, rightVal)
+                )
+                Unknown
+        }
+    }
 
     /** Evaluate an RValue to its abstract value.
       *
