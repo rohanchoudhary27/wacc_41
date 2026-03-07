@@ -224,4 +224,253 @@ class AbstractValueTests extends AnyFlatSpec with Matchers {
     it should "return false for Unknown" in {
         AbstractValue.isDefinitelyNonNull(Unknown) shouldBe false
     }
+
+    "AbstractValue.add" should "compute known result for two IntConstants" in {
+        AbstractValue.add(IntConstant(3), IntConstant(5)) shouldBe IntConstant(8)
+    }
+
+    it should "handle negative constants" in {
+        AbstractValue.add(IntConstant(-3), IntConstant(5)) shouldBe IntConstant(2)
+    }
+
+    it should "return Unknown when either operand is Unknown" in {
+        AbstractValue.add(IntConstant(3), Unknown) shouldBe Unknown
+        AbstractValue.add(Unknown, IntConstant(5)) shouldBe Unknown
+    }
+
+    it should "return Unknown on 32-bit overflow" in {
+        AbstractValue.add(IntConstant(Int.MaxValue), IntConstant(1)) shouldBe Unknown
+    }
+
+    it should "return Unknown on 32-bit underflow" in {
+        AbstractValue.add(IntConstant(Int.MinValue), IntConstant(-1)) shouldBe Unknown
+    }
+
+    "AbstractValue.sub" should "compute known result for two IntConstants" in {
+        AbstractValue.sub(IntConstant(10), IntConstant(3)) shouldBe IntConstant(7)
+    }
+
+    it should "handle subtraction yielding negative" in {
+        AbstractValue.sub(IntConstant(3), IntConstant(10)) shouldBe IntConstant(-7)
+    }
+
+    it should "return Unknown when either operand is Unknown" in {
+        AbstractValue.sub(IntConstant(3), Unknown) shouldBe Unknown
+    }
+
+    it should "return Unknown on overflow" in {
+        AbstractValue.sub(IntConstant(Int.MinValue), IntConstant(1)) shouldBe Unknown
+    }
+
+    "AbstractValue.mul" should "compute known result for two IntConstants" in {
+        AbstractValue.mul(IntConstant(3), IntConstant(5)) shouldBe IntConstant(15)
+    }
+
+    it should "return IntConstant(0) when left is zero regardless of right" in {
+        AbstractValue.mul(IntConstant(0), Unknown) shouldBe IntConstant(0)
+    }
+
+    it should "return IntConstant(0) when right is zero regardless of left" in {
+        AbstractValue.mul(Unknown, IntConstant(0)) shouldBe IntConstant(0)
+    }
+
+    it should "return Unknown when neither operand is known" in {
+        AbstractValue.mul(Unknown, Unknown) shouldBe Unknown
+    }
+
+    it should "return Unknown on overflow" in {
+        AbstractValue.mul(IntConstant(Int.MaxValue), IntConstant(2)) shouldBe Unknown
+    }
+
+    "AbstractValue.div" should "compute known result for two IntConstants" in {
+        AbstractValue.div(IntConstant(10), IntConstant(3)) shouldBe Some(IntConstant(3))
+    }
+
+    it should "return None when divisor is provably zero (IntConstant)" in {
+        AbstractValue.div(IntConstant(10), IntConstant(0)) shouldBe None
+    }
+
+    it should "return None when divisor is provably zero (IntRange(0,0))" in {
+        AbstractValue.div(IntConstant(10), IntRange(0, 0)) shouldBe None
+    }
+
+    it should "return Some(Unknown) when divisor is Unknown" in {
+        AbstractValue.div(IntConstant(10), Unknown) shouldBe Some(Unknown)
+    }
+
+    it should "return Some(Unknown) when dividend is Unknown" in {
+        AbstractValue.div(Unknown, IntConstant(5)) shouldBe Some(Unknown)
+    }
+
+    it should "handle negative division" in {
+        AbstractValue.div(IntConstant(-10), IntConstant(3)) shouldBe Some(IntConstant(-3))
+    }
+
+    "AbstractValue.mod" should "compute known result for two IntConstants" in {
+        AbstractValue.mod(IntConstant(10), IntConstant(3)) shouldBe Some(IntConstant(1))
+    }
+
+    it should "return None when divisor is provably zero" in {
+        AbstractValue.mod(IntConstant(10), IntConstant(0)) shouldBe None
+    }
+
+    it should "return Some(Unknown) when either operand is Unknown" in {
+        AbstractValue.mod(IntConstant(10), Unknown) shouldBe Some(Unknown)
+    }
+
+    "AbstractValue.neg" should "negate a known constant" in {
+        AbstractValue.neg(IntConstant(5)) shouldBe IntConstant(-5)
+    }
+
+    it should "negate a negative constant" in {
+        AbstractValue.neg(IntConstant(-3)) shouldBe IntConstant(3)
+    }
+
+    it should "return Unknown for Unknown operand" in {
+        AbstractValue.neg(Unknown) shouldBe Unknown
+    }
+
+    it should "return Unknown on overflow (negating Int.MinValue)" in {
+        /* -Int.MinValue overflows 32-bit signed integer */
+        AbstractValue.neg(IntConstant(Int.MinValue)) shouldBe Unknown
+    }
+
+    "AbstractValue.not" should "negate a known true" in {
+        AbstractValue.not(BoolConstant(true)) shouldBe BoolConstant(false)
+    }
+
+    it should "negate a known false" in {
+        AbstractValue.not(BoolConstant(false)) shouldBe BoolConstant(true)
+    }
+
+    it should "return Unknown for Unknown operand" in {
+        AbstractValue.not(Unknown) shouldBe Unknown
+    }
+
+    "AbstractValue.ord" should "pass through IntConstant" in {
+        AbstractValue.ord(IntConstant(97)) shouldBe IntConstant(97)
+    }
+
+    it should "return Unknown for Unknown" in {
+        AbstractValue.ord(Unknown) shouldBe Unknown
+    }
+
+    "AbstractValue.chr" should "pass through IntConstant" in {
+        AbstractValue.chr(IntConstant(65)) shouldBe IntConstant(65)
+    }
+
+    it should "return Unknown for Unknown" in {
+        AbstractValue.chr(Unknown) shouldBe Unknown
+    }
+
+    "AbstractValue.len" should "extract known length from ArrayInfo" in {
+        AbstractValue.len(ArrayInfo(Some(5), NonNull)) shouldBe IntConstant(5)
+    }
+
+    it should "return Unknown for ArrayInfo with unknown length" in {
+        AbstractValue.len(ArrayInfo(None, NonNull)) shouldBe Unknown
+    }
+
+    it should "return Unknown for non-array values" in {
+        AbstractValue.len(Unknown) shouldBe Unknown
+    }
+
+    "AbstractValue.gt" should "return BoolConstant for known operands" in {
+        AbstractValue.gt(IntConstant(5), IntConstant(3)) shouldBe BoolConstant(true)
+        AbstractValue.gt(IntConstant(3), IntConstant(5)) shouldBe BoolConstant(false)
+        AbstractValue.gt(IntConstant(3), IntConstant(3)) shouldBe BoolConstant(false)
+    }
+
+    it should "return Unknown for unknown operands" in {
+        AbstractValue.gt(IntConstant(5), Unknown) shouldBe Unknown
+    }
+
+    "AbstractValue.gte" should "return BoolConstant for known operands" in {
+        AbstractValue.gte(IntConstant(5), IntConstant(3)) shouldBe BoolConstant(true)
+        AbstractValue.gte(IntConstant(3), IntConstant(3)) shouldBe BoolConstant(true)
+        AbstractValue.gte(IntConstant(2), IntConstant(3)) shouldBe BoolConstant(false)
+    }
+
+    "AbstractValue.lt" should "return BoolConstant for known operands" in {
+        AbstractValue.lt(IntConstant(3), IntConstant(5)) shouldBe BoolConstant(true)
+        AbstractValue.lt(IntConstant(5), IntConstant(3)) shouldBe BoolConstant(false)
+    }
+
+    "AbstractValue.lte" should "return BoolConstant for known operands" in {
+        AbstractValue.lte(IntConstant(3), IntConstant(5)) shouldBe BoolConstant(true)
+        AbstractValue.lte(IntConstant(3), IntConstant(3)) shouldBe BoolConstant(true)
+        AbstractValue.lte(IntConstant(5), IntConstant(3)) shouldBe BoolConstant(false)
+    }
+
+    "AbstractValue.eq" should "return true for equal IntConstants" in {
+        AbstractValue.eq(IntConstant(5), IntConstant(5)) shouldBe BoolConstant(true)
+    }
+
+    it should "return false for unequal IntConstants" in {
+        AbstractValue.eq(IntConstant(3), IntConstant(7)) shouldBe BoolConstant(false)
+    }
+
+    it should "return true for equal BoolConstants" in {
+        AbstractValue.eq(BoolConstant(true), BoolConstant(true)) shouldBe BoolConstant(true)
+    }
+
+    it should "return false for unequal BoolConstants" in {
+        AbstractValue.eq(BoolConstant(true), BoolConstant(false)) shouldBe BoolConstant(false)
+    }
+
+    it should "return true for Null == Null" in {
+        AbstractValue.eq(wacc.frontend.lsa.Null, wacc.frontend.lsa.Null) shouldBe BoolConstant(true)
+    }
+
+    it should "return false for Null == NonNull" in {
+        AbstractValue.eq(wacc.frontend.lsa.Null, NonNull) shouldBe BoolConstant(false)
+        AbstractValue.eq(NonNull, wacc.frontend.lsa.Null) shouldBe BoolConstant(false)
+    }
+
+    it should "return Unknown when either is Unknown" in {
+        AbstractValue.eq(IntConstant(5), Unknown) shouldBe Unknown
+    }
+
+    "AbstractValue.neq" should "return the negation of eq" in {
+        AbstractValue.neq(IntConstant(5), IntConstant(5)) shouldBe BoolConstant(false)
+        AbstractValue.neq(IntConstant(3), IntConstant(7)) shouldBe BoolConstant(true)
+    }
+
+    it should "return Unknown when eq returns Unknown" in {
+        AbstractValue.neq(IntConstant(5), Unknown) shouldBe Unknown
+    }
+
+    "AbstractValue.and" should "compute known result for two BoolConstants" in {
+        AbstractValue.and(BoolConstant(true), BoolConstant(true)) shouldBe BoolConstant(true)
+        AbstractValue.and(BoolConstant(true), BoolConstant(false)) shouldBe BoolConstant(false)
+        AbstractValue.and(BoolConstant(false), BoolConstant(true)) shouldBe BoolConstant(false)
+        AbstractValue.and(BoolConstant(false), BoolConstant(false)) shouldBe BoolConstant(false)
+    }
+
+    it should "short-circuit to false when either is known false" in {
+        AbstractValue.and(BoolConstant(false), Unknown) shouldBe BoolConstant(false)
+        AbstractValue.and(Unknown, BoolConstant(false)) shouldBe BoolConstant(false)
+    }
+
+    it should "return Unknown when neither allows short-circuit" in {
+        AbstractValue.and(BoolConstant(true), Unknown) shouldBe Unknown
+        AbstractValue.and(Unknown, Unknown) shouldBe Unknown
+    }
+
+    "AbstractValue.or" should "compute known result for two BoolConstants" in {
+        AbstractValue.or(BoolConstant(true), BoolConstant(true)) shouldBe BoolConstant(true)
+        AbstractValue.or(BoolConstant(true), BoolConstant(false)) shouldBe BoolConstant(true)
+        AbstractValue.or(BoolConstant(false), BoolConstant(true)) shouldBe BoolConstant(true)
+        AbstractValue.or(BoolConstant(false), BoolConstant(false)) shouldBe BoolConstant(false)
+    }
+
+    it should "short-circuit to true when either is known true" in {
+        AbstractValue.or(BoolConstant(true), Unknown) shouldBe BoolConstant(true)
+        AbstractValue.or(Unknown, BoolConstant(true)) shouldBe BoolConstant(true)
+    }
+
+    it should "return Unknown when neither allows short-circuit" in {
+        AbstractValue.or(BoolConstant(false), Unknown) shouldBe Unknown
+        AbstractValue.or(Unknown, Unknown) shouldBe Unknown
+    }
 }
