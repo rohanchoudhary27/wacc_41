@@ -934,9 +934,9 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
     /* ================================= EXTENSION TESTS ======================================== */
     /* ========================================================================================== */
 
-    "CodeGenerator generateTailCall" should "emit an uncond branch to func body label instead of bl" in {
+    "CodeGenerator for tailrec" should "emit an uncond branch to func body label instead of bl" in {
         val result = programWith(
-            List(TAC.TailCall(TAC.Label("func"), List.empty)),
+            List(TAC.SelfTailCall(TAC.Label("func"), List.empty)),
             Map.empty
         )
 
@@ -945,42 +945,53 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
 
         val branchInstrs = result.body.collect { case b: Arm.BranchUncond => b }
         branchInstrs should not be empty
-        println(branchInstrs)
         branchInstrs.exists(_.label.name == CodeGenerator.formatFuncBodyLabel("func").name) shouldBe true
     }
 
     it should "put new tailrec call arguments into the right physical parameter registers" in {
-        val args = List(TAC.Immediate(10), TAC.Immediate(20))
+        val args1 = List(TAC.Immediate(10), TAC.Immediate(20))
+        val args2 = List(TAC.Immediate(30), TAC.Immediate(40))
         
         val result = programWith(
-            List(TAC.TailCall(TAC.Label("func"), args)),
+            List(TAC.SelfTailCall(TAC.Label("func1"), args1),
+                 TAC.GeneralTailCall(TAC.Label("func2"), args2)),
             Map.empty
         )
 
         val movzInstrs = result.body.collect { case m: Arm.Movz => m }
         
-        val argZeroMapped = movzInstrs.exists(m => 
+        val selfArgZeroMapped = movzInstrs.exists(m => 
             m.dest == PhysicalReg.argRegisters(0) && m.imm == Arm.Immediate(10)
         )
-        val argOneMapped = movzInstrs.exists(m => 
+        val selfArgOneMapped = movzInstrs.exists(m => 
             m.dest == PhysicalReg.argRegisters(1) && m.imm == Arm.Immediate(20)
         )
 
-        argZeroMapped shouldBe true
-        argOneMapped shouldBe true
+        val generalArgZeroMapped = movzInstrs.exists(m => 
+            m.dest == PhysicalReg.argRegisters(0) && m.imm == Arm.Immediate(30)
+        )
+        val generalArgOneMapped = movzInstrs.exists(m => 
+            m.dest == PhysicalReg.argRegisters(1) && m.imm == Arm.Immediate(40)
+        )
+
+        selfArgZeroMapped shouldBe true
+        selfArgOneMapped shouldBe true
+        generalArgZeroMapped shouldBe true
+        generalArgOneMapped shouldBe true
     }
 
-    it should "overwrite caller stack args (>8 args) with a positive offset from the frame pointer" in {
+    it should "overwrite caller stack args (>8 args) with positive fp offset in parent frame slots" in {
 
         val args = List.fill(9)(TAC.Immediate(2))
-        
+
         val result = programWith(
-            List(TAC.TailCall(TAC.Label("func"), args)),
+            List(TAC.SelfTailCall(TAC.Label("func1"), args),
+                 TAC.GeneralTailCall(TAC.Label("func2"), args)),
             Map.empty
         )
 
         val stores = result.body.collect { case s: Arm.Store => s }
-        val callerStackStore = stores.find { s =>
+        val callerStackStore = stores.collect { s =>
             s.src match {
                 case Arm.AddrImmOffset(reg, Arm.Immediate(offset)) => 
                     reg == PhysicalReg.framePointer && offset == AARch64Limits.ARM_STACK_ALIGNMENT_BYTES
@@ -988,15 +999,15 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
             }
         }
 
-        callerStackStore shouldBe defined
+        callerStackStore.length shouldBe 2
     }
 
-    it should "not allocate new stack space for tailrec arguments" in {
+    it should "not allocate new stack space for self tailrec arguments" in {
 
         val args = List.fill(10)(TAC.Immediate(2))
         
         val result = programWith(
-            List(TAC.TailCall(TAC.Label("func"), args)),
+            List(TAC.SelfTailCall(TAC.Label("func"), args)),
             Map.empty
         )
 
@@ -1007,5 +1018,45 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         }
 
         stackAllocations shouldBe empty
+    }
+
+    it should "inline the function epilogue for a generalised tailrec call" in {
+
+        val args = List.fill(3)(TAC.Immediate(2))
+        
+        val result = programWith(
+            List(TAC.GeneralTailCall(TAC.Label("func"), args)),
+            Map.empty
+        )
+
+        /* Expect two epilogues checking by looking for the lr + fp restore */
+        val specRegRestores = result.body.collect {
+            case load @ Arm.LoadPair(
+                Size.X, PhysicalReg.framePointer, PhysicalReg.linkReg, 
+                Arm.AddrPostIndex(PhysicalReg.stackPointer,
+                                  Arm.Immediate(AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))
+            ) => load
+        }
+        specRegRestores.length shouldBe 2
+
+        /* But inlined prologue should not have a return statement */
+        val returnStmts = result.body.collect {
+            case ret @ Arm.Ret => ret
+        }
+        returnStmts.length shouldBe 1
+    }
+    
+    it should "emit for a general tail call an uncond branch to func label (pre-prologue) instead of bl" in {
+        val result = programWith(
+            List(TAC.GeneralTailCall(TAC.Label("func"), List.empty)),
+            Map.empty
+        )
+
+        val blInstrs = result.body.collect { case b: Arm.Bl => b }
+        blInstrs shouldBe empty
+
+        val branchInstrs = result.body.collect { case b: Arm.BranchUncond => b }
+        branchInstrs should not be empty
+        branchInstrs.exists(_.label.name == "func") shouldBe true
     }
 }
