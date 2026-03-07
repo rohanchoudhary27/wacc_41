@@ -22,13 +22,28 @@ import scala.collection.mutable.ListBuffer
   */
 class AnalyserState {
 
+    /* List of diagnostics produced by the analyser. */
     private val diagnostics: ListBuffer[AnalysisDiagnostic] = ListBuffer.empty
+
+    /* Set of PairElem AST nodes where the base pointer is provably non null. */
+    private val safePairAccesses: scala.collection.mutable.Set[PairElem[SemanticData]] =
+        scala.collection.mutable.Set.empty
+
+    /** Record a `PairElem` AST node whose base pointer is provably non null,
+      * so the flattener can skip the runtime null check.
+      *
+      * @param pairElem The `PairElem` AST node with a proven-safe access
+      */
+    def markSafePairAccess(pairElem: PairElem[SemanticData]): Unit = safePairAccesses += pairElem
 
     /** Emit a diagnostic finding. */
     def emit(diagnostic: AnalysisDiagnostic): Unit = diagnostics += diagnostic
 
     /** Retrieve all diagnostics found so far */
     def getAllDiagnostics: List[AnalysisDiagnostic] = diagnostics.toList
+
+    /** Retrieve the set of `PairElem` nodes where null checks can be eliminated */
+    def getSafePairAccesses: Set[PairElem[SemanticData]] = safePairAccesses.toSet
 
     /** Check whether any error level diagnostics have been emitted */
     def hasErrors: Boolean = diagnostics.exists(_.severity == DiagnosticSeverity.Error)
@@ -38,10 +53,14 @@ class AnalyserState {
   *
   * @param diagnostics All diagnostics found
   * @param hasErrors True if any error diagnostics were found
+  * @param safePairAccesses `PairElem` AST nodes where the base pointer is provably non-null.
+  *                          The flattener can skip emitting `NullCheck` instructions for these
+  *                          nodes. Follows the same pattern as `tailRecCalls` in `FrontendOptimState`.
   */
 case class AnalysisResult(
     diagnostics: List[AnalysisDiagnostic],
-    hasErrors: Boolean
+    hasErrors: Boolean,
+    safePairAccesses: Set[PairElem[SemanticData]] = Set.empty
 )
 
 /** The static analyser entry point */
@@ -62,7 +81,8 @@ object StaticAnalyser {
 
         AnalysisResult(
             analyserState.getAllDiagnostics,
-            analyserState.hasErrors
+            analyserState.hasErrors,
+            analyserState.getSafePairAccesses
         )
     }
 
@@ -191,7 +211,7 @@ object StaticAnalyser {
                contents which we don't track, so the state is unchanged */
             case _: ArrayElem[SemanticData] => state
             case p: PairElem[SemanticData]  => 
-                checkPointerSafety(p.lval, p.info)
+                checkPairElemSafety(p)
                 state
         }
     }
@@ -501,36 +521,12 @@ object StaticAnalyser {
                 /* Array literals have a known length and are nonnull */
                 AbstractValue.fromArrayLiteral(elements.length)
             case Call(_, _, _) => Unknown /* we do local analysis, can't know function returns */
-            case PairElem(_, lval, info) => 
+            case p @ PairElem(_, lval, info) => 
                 /* Checks if the pair pointer being accessed via fst/snd is provably
                     Null (emits null dereference error) or Freed (emits use after free error) */
-                checkPointerSafety(lval, info)
+                checkPairElemSafety(p)
                 Unknown /* we don't track pair contents */
         }
-
-    /** Check whether an lvalue points to a null or freed pointer and emit
-      * diagnostics accordingly.
-      *
-      * @param lval  The lvalue being dereferenced (the pair being accessed)
-      * @param info The semantic data of the access expression (for source position)
-      */
-    private def checkPointerSafety(
-        lval: LValue[SemanticData],
-        info: SemanticData
-    )(using state: AnalysisState, analyserState: AnalyserState): Unit = {
-        val (ptrName, ptrVal) = extractLValueInfo(lval)
-        emitPointerErrorIfStale(ptrName, ptrVal, info)
-    }
-
-    private def emitPointerErrorIfStale(
-        ptrName: String, ptrVal: AbstractValue, info: SemanticData
-    )(using state: AnalysisState, analyserState: AnalyserState): Unit = {
-        if (AbstractValue.isDefinitelyNull(ptrVal)) {
-            analyserState.emit(AnalysisDiagnostic.nullDereference(info.pos, ptrName))
-        } else if (ptrVal == Freed) {
-            analyserState.emit(AnalysisDiagnostic.useAfterFree(info.pos, ptrName))
-        }
-    }
 
     /** Extract a descriptive name and abstract value from an lvalue.
       *
@@ -541,7 +537,7 @@ object StaticAnalyser {
       *
       *  @return A tuple of (display name, abstract value)
       */
-    private def extractLValueInfo(
+    private def evaluateLValue(
         lval: LValue[SemanticData]
     )(using state: AnalysisState): (String, AbstractValue) =
         lval match {
@@ -554,8 +550,57 @@ object StaticAnalyser {
             case ArrayElem(ident, _, _) =>
                 (ident.name, Unknown)
             case PairElem(_, innerLval, _) =>
-                extractLValueInfo(innerLval)
+                evaluateLValue(innerLval)
         }
+
+    /** Check whether an lvalue points to a null or freed pointer and emit
+      * diagnostics accordingly.
+      *
+      * @param lval  The lvalue being dereferenced (the pair being accessed)
+      * @param info The semantic data of the access expression (for source position)
+      */
+    private def checkPointerSafety(
+        lval: LValue[SemanticData],
+        info: SemanticData
+    )(using state: AnalysisState, analyserState: AnalyserState): Unit = {
+        val (ptrName, ptrVal) = evaluateLValue(lval)
+        emitPointerErrorIfStale(ptrName, ptrVal, info)
+    }
+
+    /** Check whether a pair element is safe to use, and if is nonnnull mark it as nonnull
+      * in the state for future use in the Backend.
+      *
+      * @param pairElem The `PairElem` AST node being accessed
+      */
+    private def checkPairElemSafety(
+        pairElem: PairElem[SemanticData]
+    )(using state: AnalysisState, analyserState: AnalyserState): Unit = {
+        val pairPointer = pairElem.lval
+        val (_, pairPointerAbstract) = evaluateLValue(pairPointer)
+        checkPointerSafety(pairPointer, pairElem.info)
+
+        if (AbstractValue.isDefinitelyNonNull(pairPointerAbstract)) {
+            /* Pointer is provably nonnull, record the PairElem AST node
+               so the flattener can skip the runtime null check */
+            analyserState.markSafePairAccess(pairElem)
+        }
+    }
+
+    /** Emits an Error Diagnostic if the pointer is stale, i.e., if it is null or free'd before
+     * 
+     * @param ptrName The pointer name used to emit a nice error message
+     * @param ptrVal The `AbstractValue` of the pointer
+     * @param info `SemanticData` used to get the source pos of the error
+     */
+    private def emitPointerErrorIfStale(
+        ptrName: String, ptrVal: AbstractValue, info: SemanticData
+    )(using state: AnalysisState, analyserState: AnalyserState): Unit = {
+        if (AbstractValue.isDefinitelyNull(ptrVal)) {
+            analyserState.emit(AnalysisDiagnostic.nullDereference(info.pos, ptrName))
+        } else if (ptrVal == Freed) {
+            analyserState.emit(AnalysisDiagnostic.useAfterFree(info.pos, ptrName))
+        }
+    }
 
     /** Collect all variables that could be modified inside a statement.
       *
