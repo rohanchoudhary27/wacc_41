@@ -126,10 +126,13 @@ object WaccFrontend {
               /* (Phase 6 - Static Analysis) */
               val typedASTRes = typedAST.get
               val analysisResult = StaticAnalyser.run(typedASTRes, semanticErrors)
-              /* Frontend optimisation passes */
-              val tailRecCalls = CheckTailRec.checkTailRec(typedASTRes)
-              val optimState = FrontendOptimState(tailRecCalls)
-              FrontendCompilationResult(CompilerSuccess, None, typedAST, Some(optimState))
+              if (semanticErrors.hasErrors())
+                FrontendCompilationResult(SemanticError, Some(semanticErrors), None)
+              else
+                /* Frontend optimisation passes */
+                val tailRecCalls = CheckTailRec.checkTailRec(typedASTRes)
+                val optimState = FrontendOptimState(tailRecCalls)
+                FrontendCompilationResult(CompilerSuccess, None, typedAST, Some(optimState))
             }
 
           }
