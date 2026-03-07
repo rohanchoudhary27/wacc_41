@@ -224,4 +224,128 @@ object AbstractValue {
         case ArrayInfo(_, NonNull) => true
         case _  => false
     }
+
+    /** WACC uses signed 32 bit integers */
+    private val IntMin: Long = Int.MinValue.toLong
+    private val IntMax: Long = Int.MaxValue.toLong
+
+    /** Attempt to wrap a Long result back to a 32 bit IntConstant.
+      *
+      * Returns `Unknown` if the result overflows the 32 bit signed range,
+      * since at runtime this would trigger an overflow error.
+      */
+    private def safeIntResult(result: Long): AbstractValue =
+        if (result >= IntMin && result <= IntMax) IntConstant(result.toInt)
+        else Unknown
+
+    def add(l: AbstractValue, r: AbstractValue) = intBinaryOp(l, r, _ + _)
+    def sub(l: AbstractValue, r: AbstractValue) = intBinaryOp(l, r, _ - _)
+
+    def mul(left: AbstractValue, right: AbstractValue): AbstractValue =
+        (left, right) match {
+            /* anything multiplied by 0 is just 0, we don't care if the other side is unkown */
+            case (IntConstant(0), _) | (_, IntConstant(0)) => IntConstant(0)
+            case _ => intBinaryOp(left, right, _ * _)
+        }
+
+    def div(l: AbstractValue, r: AbstractValue) = checkedDivOp(l, r, _ / _)
+    def mod(l: AbstractValue, r: AbstractValue) = checkedDivOp(l, r, _ % _)
+
+    def neg(operand: AbstractValue): AbstractValue = operand match {
+        case IntConstant(v) => safeIntResult(-v.toLong)
+        case _              => Unknown
+    }
+
+    def not(operand: AbstractValue): AbstractValue = operand match {
+        case BoolConstant(v) => BoolConstant(!v)
+        case _               => Unknown
+    }
+
+    def ord(operand: AbstractValue): AbstractValue = operand match {
+        case c: IntConstant => c
+        case _              => Unknown
+    }
+
+    def chr(operand: AbstractValue): AbstractValue = operand match {
+        case c: IntConstant => c
+        case _              => Unknown
+    }
+
+    def len(operand: AbstractValue): AbstractValue = operand match {
+        case ArrayInfo(Some(n), _) => IntConstant(n)
+        case _                     => Unknown
+    }
+
+    /** Abstract greater-than */
+    def gt(left: AbstractValue, right: AbstractValue): AbstractValue =
+        compareInts(left, right, _ > _)
+
+    /** Abstract greater-than-or-equal */
+    def gte(left: AbstractValue, right: AbstractValue): AbstractValue =
+        compareInts(left, right, _ >= _)
+
+    /** Abstract less-than */
+    def lt(left: AbstractValue, right: AbstractValue): AbstractValue =
+        compareInts(left, right, _ < _)
+
+    /** Abstract less-than-or-equal */
+    def lte(left: AbstractValue, right: AbstractValue): AbstractValue =
+        compareInts(left, right, _ <= _)
+
+    def eq(left: AbstractValue, right: AbstractValue): AbstractValue =
+        (left, right) match {
+            case (IntConstant(a), IntConstant(b))   => BoolConstant(a == b)
+            case (BoolConstant(a), BoolConstant(b)) => BoolConstant(a == b)
+            case (Null, Null)                       => BoolConstant(true)
+            case (Null, NonNull) | (NonNull, Null)  => BoolConstant(false)
+            case _                                  => Unknown
+        }
+
+    def neq(left: AbstractValue, right: AbstractValue): AbstractValue =
+        eq(left, right) match {
+            case BoolConstant(v) => BoolConstant(!v)
+            case other           => other
+        }
+
+    def and(left: AbstractValue, right: AbstractValue): AbstractValue =
+        (left, right) match {
+            case (BoolConstant(a), BoolConstant(b)) => BoolConstant(a && b)
+            case (BoolConstant(false), _) | (_, BoolConstant(false)) => BoolConstant(false)
+            case _ => Unknown
+        }
+
+    def or(left: AbstractValue, right: AbstractValue): AbstractValue =
+        (left, right) match {
+            case (BoolConstant(a), BoolConstant(b)) => BoolConstant(a || b)
+            case (BoolConstant(true), _) | (_, BoolConstant(true)) => BoolConstant(true)
+            case _ => Unknown
+        }
+
+    /** Helper for integer binary operations */
+    private def intBinaryOp(
+        left: AbstractValue,
+        right: AbstractValue,
+        op: (Long, Long) => Long
+    ): AbstractValue = (left, right) match {
+        case (IntConstant(a), IntConstant(b)) => safeIntResult(op(a.toLong, b.toLong))
+        case _                                => Unknown
+    }
+
+    private def checkedDivOp(
+        left: AbstractValue,
+        right: AbstractValue,
+        op: (Long, Long) => Long
+    ): Option[AbstractValue] =
+        if (isDefinitelyZero(right)) None
+        else Some(intBinaryOp(left, right, op))
+
+    /** Helper for integer comparison operations */
+    private def compareInts(
+        left: AbstractValue,
+        right: AbstractValue,
+        op: (Int, Int) => Boolean
+    ): AbstractValue = (left, right) match {
+        case (IntConstant(a), IntConstant(b)) => BoolConstant(op(a, b))
+        case _                                => Unknown
+    }
 }
