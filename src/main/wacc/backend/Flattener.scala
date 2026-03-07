@@ -346,8 +346,9 @@ object Flattener {
                 funcState.emitInstruction(TAC.Mov(destReg, srcOperand))
             case p: PairElem[SemanticData] => 
                 val (pairPtr, pos) = resolvePairElem(p) /* get the base pointer and index */
-                /* null check when accessing the pair p */
-                funcState.emitInstruction(TAC.NullCheck(pairPtr))
+                /* null check when accessing the pair p IF it's not safe (maybe null) */
+                if (!optimState.safePairAccesses.contains(p))
+                    funcState.emitInstruction(TAC.NullCheck(pairPtr))
                 funcState.emitInstruction(TAC.PairStore(pairPtr, pos, srcOperand))
             case a: ArrayElem[SemanticData] =>
                 val (arrayPtr, index) = resolveArrayElem(a)
@@ -366,7 +367,8 @@ object Flattener {
       */
     private def flattenLValue(
         lval: LValue[SemanticData]
-    )(using funcState: FunctionState, directiveState: GlobalFlattenContext): TAC.VirtualReg = lval match {
+    )(using funcState: FunctionState, directiveState: GlobalFlattenContext,
+            optimState: FrontendOptimState): TAC.VirtualReg = lval match {
         case ident: Ident[SemanticData] => funcState.lookupReg(ident.name, ident.renameId)
 
         case p: PairElem[SemanticData] =>
@@ -424,11 +426,14 @@ object Flattener {
      */
     private def flattenPairElem(
         p: PairElem[SemanticData]
-    )(using funcState: FunctionState, directiveState: GlobalFlattenContext): TAC.VirtualReg = {
+    )(using funcState: FunctionState, directiveState: GlobalFlattenContext, 
+            optimState: FrontendOptimState): TAC.VirtualReg = {
         val (pairPtr, pos) = resolvePairElem(p)
 
-        /* emit the null check when referencing a pair */
-        funcState.emitInstruction(TAC.NullCheck(pairPtr))
+        if (!optimState.safePairAccesses.contains(p)) {
+            /* emit the null check when referencing a pair IF it's not safe */
+            funcState.emitInstruction(TAC.NullCheck(pairPtr))
+        }
 
         /* Extract the element size from its type and allocate an anonymous register
             based on that type. */
@@ -529,7 +534,8 @@ object Flattener {
      */ 
     private def resolvePairElem(
         pairElem: PairElem[SemanticData]
-    )(using funcState: FunctionState, directiveState: GlobalFlattenContext): (TAC.VirtualReg, PairPos) = {
+    )(using funcState: FunctionState, directiveState: GlobalFlattenContext, 
+            optimState: FrontendOptimState): (TAC.VirtualReg, PairPos) = {
         val PairElem(isFst, lval, _) = pairElem
          /* flatten the lvalue to get the pair register */
         val pairPtr = flattenLValue(lval)
@@ -590,7 +596,8 @@ object Flattener {
       */
     private def flattenRead(lval: LValue[SemanticData])
                            (using funcState: FunctionState,
-                                  directiveState: GlobalFlattenContext): Unit = {
+                                  directiveState: GlobalFlattenContext,
+                                  optimState: FrontendOptimState): Unit = {
         
         /* Extract type from lvalue to determine which read widget to use */
         val knownType = lval match {
@@ -618,7 +625,11 @@ object Flattener {
             case p: PairElem[SemanticData] =>
                 /* pair elements are heap memory, so read into temp then store back */
                 val (pairPtr, pos) = resolvePairElem(p)
-                funcState.emitInstruction(TAC.NullCheck(pairPtr))
+
+                /* only emit a null check if it's maybe null, if we've proven that the pointer
+                    is nonnull, don't emit a check. */
+                if (!optimState.safePairAccesses.contains(p))
+                    funcState.emitInstruction(TAC.NullCheck(pairPtr))
                 
                 val tempReg = funcState.anonymousReg(knownType)
                 funcState.emitInstruction(TAC.PairLoad(pairPtr, pos, tempReg))
