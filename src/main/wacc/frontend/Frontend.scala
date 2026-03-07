@@ -3,6 +3,7 @@ package wacc.frontend
 import java.nio.file.Path
 import scala.io.Source
 import wacc.ExitCodes._
+import wacc.frontend.lsa.*
 
 /** A class holding the result of compilation. `exitCode` is the exit code of
   * the program compilation and `errors` is None if there were no errors and
@@ -122,9 +123,11 @@ object WaccFrontend {
             if (semanticErrors.hasErrors())
               FrontendCompilationResult(SemanticError, Some(semanticErrors), None)
             else {
-
+              /* (Phase 6 - Static Analysis) */
+              val typedASTRes = typedAST.get
+              val analysisResult = StaticAnalyser.run(typedASTRes, semanticErrors)
               /* Frontend optimisation passes */
-              val tailRecCalls = CheckTailRec.checkTailRec(typedAST.get)
+              val tailRecCalls = CheckTailRec.checkTailRec(typedASTRes)
               val optimState = FrontendOptimState(tailRecCalls)
               FrontendCompilationResult(CompilerSuccess, None, typedAST, Some(optimState))
             }
