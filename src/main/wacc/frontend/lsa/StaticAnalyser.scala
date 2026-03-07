@@ -66,6 +66,41 @@ object StaticAnalyser {
         )
     }
 
+    /** Run the static analysis and report any error level diagnostics to
+      * the given `ErrorLogger`.
+      *
+      * This is the main entry point called of the static analyser. It runs
+      * the local static analysis and routes any error diagnostics into the existing
+      * error reporting infrastructure. Info and warning diagnostics are
+      * printed to stderr but do not cause compilation to fail.
+      *
+      * @param prog The typed AST from the type checker
+      * @param errorLogger The error logger to report errors to
+      *
+      * @return The `AnalysisResult`
+      */
+    def run(prog: Program[SemanticData], errorLogger: ErrorLogger): AnalysisResult = {
+        val result = analyse(prog)
+
+        /* Put error level diagnostics into the ErrorLogger so the
+           compiler pipeline treats them as semantic errors */
+        result.diagnostics.foreach { diag =>
+            diag.severity match {
+                case DiagnosticSeverity.Error =>
+                    errorLogger.logSemanticError(diag.pos, diag.message, diag.detail)
+                case DiagnosticSeverity.Warning =>
+                    Console.err.println(diag.format)
+                case DiagnosticSeverity.Info =>
+                    /* Info diagnostics (optimisation opportunities) are not
+                       reported to the user during compilation and are mainly used in backend to
+                       eliminate checks */
+                    ()
+            }
+        }
+
+        result
+    }
+
     /** Analyse a function definition.
       *
       * Creates an initial state where each parameter is bound to `Unknown` and
@@ -155,7 +190,9 @@ object StaticAnalyser {
             /* Array element and pair element assignments modify heap
                contents which we don't track, so the state is unchanged */
             case _: ArrayElem[SemanticData] => state
-            case _: PairElem[SemanticData]  => state
+            case p: PairElem[SemanticData]  => 
+                checkPointerSafety(p.lval, p.info)
+                state
         }
     }
 
@@ -184,7 +221,17 @@ object StaticAnalyser {
       */
     private def analyseFree(
         expr: Expr[SemanticData]
-    )(using state: AnalysisState): AnalysisState =
+    )(using state: AnalysisState, analyserState: AnalyserState): AnalysisState =
+        val ptrVal = evaluateExpr(expr)
+
+        val ptrName = expr match {
+            case ident: Ident[SemanticData] => ident.name
+            case _ => "expression"
+        }
+
+        /* Check if the freed pointer is null or previously freed, and emit the error */
+        emitPointerErrorIfStale(ptrName, ptrVal, expr.info)
+
         expr match {
             case ident: Ident[SemanticData] =>
                 VariableId.fromIdent(ident) match {
@@ -427,7 +474,7 @@ object StaticAnalyser {
             case None =>
                 val divisorName = rightExpr match {
                     case ident: Ident[SemanticData] => ident.name
-                    case _                          => "<expression>"
+                    case _ => "<expression>"
                 }
                 analyserState.emit(
                     AnalysisDiagnostic.divisionByZero(info.pos, divisorName, rightVal)
@@ -454,12 +501,63 @@ object StaticAnalyser {
                 /* Array literals have a known length and are nonnull */
                 AbstractValue.fromArrayLiteral(elements.length)
             case Call(_, _, _) => Unknown /* we do local analysis, can't know function returns */
-            case PairElem(_, _, _) => Unknown 
+            case PairElem(_, lval, info) => 
+                /* Checks if the pair pointer being accessed via fst/snd is provably
+                    Null (emits null dereference error) or Freed (emits use after free error) */
+                checkPointerSafety(lval, info)
+                Unknown /* we don't track pair contents */
         }
 
+    /** Check whether an lvalue points to a null or freed pointer and emit
+      * diagnostics accordingly.
+      *
+      * @param lval  The lvalue being dereferenced (the pair being accessed)
+      * @param info The semantic data of the access expression (for source position)
+      */
+    private def checkPointerSafety(
+        lval: LValue[SemanticData],
+        info: SemanticData
+    )(using state: AnalysisState, analyserState: AnalyserState): Unit = {
+        val (ptrName, ptrVal) = extractLValueInfo(lval)
+        emitPointerErrorIfStale(ptrName, ptrVal, info)
+    }
+
+    private def emitPointerErrorIfStale(
+        ptrName: String, ptrVal: AbstractValue, info: SemanticData
+    )(using state: AnalysisState, analyserState: AnalyserState): Unit = {
+        if (AbstractValue.isDefinitelyNull(ptrVal)) {
+            analyserState.emit(AnalysisDiagnostic.nullDereference(info.pos, ptrName))
+        } else if (ptrVal == Freed) {
+            analyserState.emit(AnalysisDiagnostic.useAfterFree(info.pos, ptrName))
+        }
+    }
+
+    /** Extract a descriptive name and abstract value from an lvalue.
+      *
+      * Used by pointer safety checks to produce good diagnostic
+      * messages like "variable 'p' is known to be null".
+      *
+      * @param lval The lvalue to extract information from
+      *
+      *  @return A tuple of (display name, abstract value)
+      */
+    private def extractLValueInfo(
+        lval: LValue[SemanticData]
+    )(using state: AnalysisState): (String, AbstractValue) =
+        lval match {
+            case ident: Ident[SemanticData] =>
+                val name = ident.name
+                val value = VariableId.fromIdent(ident)
+                    .map(state.lookup)
+                    .getOrElse(Unknown)
+                (name, value)
+            case ArrayElem(ident, _, _) =>
+                (ident.name, Unknown)
+            case PairElem(_, innerLval, _) =>
+                extractLValueInfo(innerLval)
+        }
 
     /** Collect all variables that could be modified inside a statement.
-      *
       *
       * @param stmt The statement to scan
       * @return The set of variable ids that could be modified
