@@ -462,4 +462,173 @@ class StaticAnalyserTests extends AnyFlatSpec with Matchers {
         result.hasErrors shouldBe true
         result.diagnostics.exists(_.message.contains("Division by zero")) shouldBe true
     }
+
+    "StaticAnalyser null dereference" should "detect access on a null pair" in {
+        /* pair(int, int) p = null; int x = fst p */
+        val pairType = KnownType.Pair(KnownType.Int, KnownType.Int)
+        val pIdent = varIdent("p", 0, pairType)
+        val xIdent = varIdent("x", 1)
+
+        val declP = Stmt.Decl(
+            SyntaxType.Pair(SyntaxType.Int, SyntaxType.Int),
+            pIdent,
+            PairLiter(typedPair),
+            semPos
+        )
+        val fstAccess = PairElem(true, pIdent, SemanticData.Typed((2, 1), KnownType.Int))
+        val declX = Stmt.Decl(SyntaxType.Int, xIdent, fstAccess, semPos)
+
+        val result = StaticAnalyser.analyse(programWithStmts(List(declP, declX)))
+        result.hasErrors shouldBe true
+        result.diagnostics.exists(_.message.contains("Null dereference")) shouldBe true
+    }
+
+    it should "not flag access on a newpair-allocated pair" in {
+        /* pair(int, int) p = newpair(1, 2); int x = fst p */
+        val pairType = KnownType.Pair(KnownType.Int, KnownType.Int)
+        val pIdent = varIdent("p", 0, pairType)
+        val xIdent = varIdent("x", 1)
+
+        val declP = Stmt.Decl(
+            SyntaxType.Pair(SyntaxType.Int, SyntaxType.Int),
+            pIdent,
+            NewPair(IntLiter(1, typedInt), IntLiter(2, typedInt), typedPair),
+            semPos
+        )
+        val fstAccess = PairElem(true, pIdent, SemanticData.Typed((2, 1), KnownType.Int))
+        val declX = Stmt.Decl(SyntaxType.Int, xIdent, fstAccess, semPos)
+
+        val result = StaticAnalyser.analyse(programWithStmts(List(declP, declX)))
+        result.hasErrors shouldBe false
+    }
+
+    "StaticAnalyser use-after-free" should "detect access after free" in {
+        /* pair(int, int) p = newpair(1, 2); free p; int x = fst p */
+        val pairType = KnownType.Pair(KnownType.Int, KnownType.Int)
+        val pIdent = varIdent("p", 0, pairType)
+        val xIdent = varIdent("x", 1)
+
+        val declP = Stmt.Decl(
+            SyntaxType.Pair(SyntaxType.Int, SyntaxType.Int),
+            pIdent,
+            NewPair(IntLiter(1, typedInt), IntLiter(2, typedInt), typedPair),
+            semPos
+        )
+        val freeP = Stmt.Free(pIdent, semPos)
+        val fstAccess = PairElem(true, pIdent, SemanticData.Typed((3, 1), KnownType.Int))
+        val declX = Stmt.Decl(SyntaxType.Int, xIdent, fstAccess, semPos)
+
+        val result = StaticAnalyser.analyse(programWithStmts(List(declP, freeP, declX)))
+        result.hasErrors shouldBe true
+        result.diagnostics.exists(_.message.contains("Use after free")) shouldBe true
+    }
+
+    it should "detect double free" in {
+        /* pair(int, int) p = newpair(1, 2); free p; free p */
+        val pairType = KnownType.Pair(KnownType.Int, KnownType.Int)
+        val pIdent = varIdent("p", 0, pairType)
+
+        val declP = Stmt.Decl(
+            SyntaxType.Pair(SyntaxType.Int, SyntaxType.Int),
+            pIdent,
+            NewPair(IntLiter(1, typedInt), IntLiter(2, typedInt), typedPair),
+            semPos
+        )
+        val free1 = Stmt.Free(pIdent, semPos)
+        val free2 = Stmt.Free(pIdent, semPos)
+
+        val result = StaticAnalyser.analyse(programWithStmts(List(declP, free1, free2)))
+        result.hasErrors shouldBe true
+        result.diagnostics.exists(_.message.contains("Use after free")) shouldBe true
+    }
+
+    it should "detect free of null" in {
+        /* pair(int, int) p = null; free p */
+        val pairType = KnownType.Pair(KnownType.Int, KnownType.Int)
+        val pIdent = varIdent("p", 0, pairType)
+
+        val declP = Stmt.Decl(
+            SyntaxType.Pair(SyntaxType.Int, SyntaxType.Int),
+            pIdent,
+            PairLiter(typedPair),
+            semPos
+        )
+        val freeP = Stmt.Free(pIdent, semPos)
+
+        val result = StaticAnalyser.analyse(programWithStmts(List(declP, freeP)))
+        result.hasErrors shouldBe true
+        result.diagnostics.exists(_.message.contains("Null dereference")) shouldBe true
+    }
+
+    "StaticAnalyser pair element lvalue" should "detect null dereference on fst assignment" in {
+        /* pair(int, int) p = null; fst p = 5 */
+        val pairType = KnownType.Pair(KnownType.Int, KnownType.Int)
+        val pIdent = varIdent("p", 0, pairType)
+
+        val declP = Stmt.Decl(
+            SyntaxType.Pair(SyntaxType.Int, SyntaxType.Int),
+            pIdent,
+            PairLiter(typedPair),
+            semPos
+        )
+        val pairElemLval = PairElem(true, pIdent, SemanticData.Typed((2, 1), KnownType.Int))
+        val asgn = Stmt.Asgn(pairElemLval, IntLiter(5, typedInt), semPos)
+
+        val result = StaticAnalyser.analyse(programWithStmts(List(declP, asgn)))
+        result.hasErrors shouldBe true
+        result.diagnostics.exists(_.message.contains("Null dereference")) shouldBe true
+    }
+
+    "StaticAnalyser.run" should "report errors to ErrorLogger" in {
+        /* int x = 10 / 0 — should route error to ErrorLogger */
+        val xIdent = varIdent("x", 0)
+        val divExpr = BinaryExpr(
+            BinaryOperator.Div,
+            IntLiter(10, typedInt),
+            IntLiter(0, typedInt),
+            semPos
+        )
+        val decl = Stmt.Decl(SyntaxType.Int, xIdent, divExpr, semPos)
+        val prog = programWith(decl)
+
+        val errorLogger = new ErrorLogger()
+        val result = StaticAnalyser.run(prog, errorLogger)
+
+        result.hasErrors shouldBe true
+        errorLogger.hasErrors() shouldBe true
+        errorLogger.retrieveAllErrors() should include("Division by zero")
+    }
+
+    it should "not report errors to ErrorLogger for clean programs" in {
+        val prog = programWith(Stmt.Skip(semPos))
+
+        val errorLogger = new ErrorLogger()
+        val result = StaticAnalyser.run(prog, errorLogger)
+
+        result.hasErrors shouldBe false
+        errorLogger.hasErrors() shouldBe false
+    }
+
+    it should "report null dereference errors to ErrorLogger" in {
+        val pairType = KnownType.Pair(KnownType.Int, KnownType.Int)
+        val pIdent = varIdent("p", 0, pairType)
+        val xIdent = varIdent("x", 1)
+
+        val declP = Stmt.Decl(
+            SyntaxType.Pair(SyntaxType.Int, SyntaxType.Int),
+            pIdent,
+            PairLiter(typedPair),
+            semPos
+        )
+        val fstAccess = PairElem(true, pIdent, SemanticData.Typed((2, 1), KnownType.Int))
+        val declX = Stmt.Decl(SyntaxType.Int, xIdent, fstAccess, semPos)
+        val prog = programWithStmts(List(declP, declX))
+
+        val errorLogger = new ErrorLogger()
+        val result = StaticAnalyser.run(prog, errorLogger)
+
+        result.hasErrors shouldBe true
+        errorLogger.hasErrors() shouldBe true
+        errorLogger.retrieveAllErrors() should include("Null dereference")
+    }
 }
