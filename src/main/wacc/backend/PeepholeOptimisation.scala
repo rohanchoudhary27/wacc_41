@@ -1,9 +1,12 @@
 package wacc.backend
 
 import scala.util.chaining.*
+import wacc.backend.Arm.*
 
 object PeepholeOptimisation{
-    def allOptimisations(prog: Arm.Program): Arm.Program = {
+
+    @tailrec
+    def allOptimisations(prog: Program): Arm.Program = {
         var body = prog.body
         var previousLength = -1
 
@@ -14,46 +17,68 @@ object PeepholeOptimisation{
                 .pipe(selfMove)
                 .pipe(constBinary)
                 .pipe(redundantLoads)
+                .pipe(coalesceMove)
+                .pipe(alternateMoves)
         }
 
-        Arm.Program(prog.data, body)
+        Program(prog.data, body)
     }
 
-    private def selfMove(body: List[Arm.Instruction]): List[Arm.Instruction] = body match {
-        case Arm.MovReg(size, reg, src) :: xs if reg == src => selfMove(xs)
+    private def selfMove(body: List[Instruction]): List[Instruction] = body match {
+        case MovReg(size, reg, src) :: xs if reg == src => selfMove(xs)
         case x :: xs => x :: selfMove(xs)
         case Nil => Nil
     }
 
-    private def optimisedBranches(body: List[Arm.Instruction]): List[Arm.Instruction] = body match {
-        case Arm.BranchUncond(bLabel) :: Arm.LabelDef(lLabel) :: xs if bLabel == lLabel => Arm.LabelDef(lLabel) :: optimisedBranches(xs)
+    private def optimisedBranches(body: List[Instruction]): List[Instruction] = body match {
+        case BranchUncond(bLabel) :: LabelDef(lLabel) :: xs if bLabel == lLabel => LabelDef(lLabel) :: optimisedBranches(xs)
         case x :: xs => x :: optimisedBranches(xs)
         case Nil => Nil
     }
 
-    private def constBinary(body: List[Arm.Instruction]): List[Arm.Instruction] = body match {
-        case Arm.AddImm(size, reg, src, Arm.Immediate(0)) :: xs => binaryHandler(size, reg, src, xs)
-        case Arm.SubImm(size, reg, src, Arm.Immediate(0)) :: xs => binaryHandler(size, reg, src, xs)
-        case Arm.OrImm(size, reg, src, Arm.Immediate(0)) :: xs => binaryHandler(size, reg, src, xs)
-        case Arm.LslImm(size, reg, src, Arm.Immediate(0)) :: xs => binaryHandler(size, reg, src, xs)
-        case Arm.LsrImm(size, reg, src, Arm.Immediate(0)) :: xs => binaryHandler(size, reg, src, xs)
-        case Arm.AsrImm(size, reg, src, Arm.Immediate(0)) :: xs => binaryHandler(size, reg, src, xs)
-        case Arm.AndImm(size, reg, _, Arm.Immediate(0)) :: xs => Arm.Movz(size, reg, Arm.Immediate(0)) :: constBinary(xs)
+    private def constBinary(body: List[Instruction]): List[Instruction] = body match {
+        case AddImm(size, reg, src, Immediate(0)) :: xs => binaryHandler(size, reg, src, xs)
+        case SubImm(size, reg, src, Immediate(0)) :: xs => binaryHandler(size, reg, src, xs)
+        case OrImm(size, reg, src, Immediate(0)) :: xs => binaryHandler(size, reg, src, xs)
+        case LslImm(size, reg, src, Immediate(0)) :: xs => binaryHandler(size, reg, src, xs)
+        case LsrImm(size, reg, src, Immediate(0)) :: xs => binaryHandler(size, reg, src, xs)
+        case AsrImm(size, reg, src, Immediate(0)) :: xs => binaryHandler(size, reg, src, xs)
+        case AndImm(size, reg, _, Immediate(0)) :: xs => Movz(size, reg, Immediate(0)) :: constBinary(xs)
         case x :: xs => x :: constBinary(xs)
         case Nil => Nil
     }
 
-    private def binaryHandler(size: Size, reg: PhysicalReg, src: PhysicalReg, xs: List[Arm.Instruction]) = {
+    private def binaryHandler(size: Size, reg: PhysicalReg, src: PhysicalReg, xs: List[Instruction]) = {
         if (reg == src) constBinary(xs)
-        else Arm.MovReg(size, reg, src) :: constBinary(xs)
+        else MovReg(size, reg, src) :: constBinary(xs)
     }
 
-    private def redundantLoads(body: List[Arm.Instruction]): List[Arm.Instruction] = body match {
-        case Arm.Stur(sSize, sReg, sSrc) :: Arm.Ldur(lSize, lReg, lSrc) :: xs if (sSize == lSize && sReg == lReg && sSrc == lSrc) =>
-                Arm.Stur(sSize, sReg, sSrc) :: redundantLoads(xs)
-        case Arm.Store(sSize, sReg, sSrc) :: Arm.Load(lSize, lReg, lSrc) :: xs if (sSize == lSize && sReg == lReg && sSrc == lSrc) =>
-                Arm.Store(sSize, sReg, sSrc) :: redundantLoads(xs)
+    private def redundantLoads(body: List[Instruction]): List[Instruction] = body match {
+        case Stur(sSize, sReg, sSrc) :: Ldur(lSize, lReg, lSrc) :: xs if (sSize == lSize && sSrc == lSrc) =>
+            if (sReg == lReg)
+                Stur(sSize, sReg, sSrc) :: redundantLoads(xs)
+            else
+                Stur(sSize, sReg, sSrc) :: MovReg(sSize, lReg, sReg) :: redundantLoads(xs)
+        case Store(sSize, sReg, sSrc) :: Load(lSize, lReg, lSrc) :: xs if (sSize == lSize && sSrc == lSrc) =>
+            if (sReg == lReg)
+                Store(sSize, sReg, sSrc) :: redundantLoads(xs)
+            else
+                Store(sSize, sReg, sSrc) :: MovReg(sSize, lReg, sReg) :: redundantLoads(xs)
         case x :: xs => x :: redundantLoads(xs)
+        case Nil => Nil
+    }
+
+    private def coalesceMove(body: List[Instruction]): List[Instruction] = body match {
+        case Movz(s1, scratch, imm) :: MovReg(s2, dest, src) :: xs if scratch == src && s1 == s2 =>
+            Movz(s2, dest, imm) :: coalesceMove(xs)
+        case x :: xs => x :: coalesceMove(xs)
+        case Nil => Nil
+    }
+
+    private def alternateMoves(body: List[Instruction]): List[Instruction] = body match {
+        case MovReg(size1, dest1, src1) :: MovReg(size2, dest2, src2) :: xs if size1 == size2 && dest1 == src2 && dest2 == src1 =>
+            MovReg(size1, dest1, src1) :: alternateMoves(xs)
+        case x :: xs => x :: alternateMoves(xs)
         case Nil => Nil
     }
 }
