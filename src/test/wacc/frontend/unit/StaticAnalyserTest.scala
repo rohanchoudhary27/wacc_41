@@ -227,4 +227,239 @@ class StaticAnalyserTests extends AnyFlatSpec with Matchers {
         )
         diag.format should include("extra detail")
     }
+
+    "StaticAnalyser division-by-zero" should "detect division by literal zero" in {
+        /* int x = 10 / 0 */
+        val xIdent = varIdent("x", 0)
+        val divExpr = BinaryExpr(
+            BinaryOperator.Div,
+            IntLiter(10, typedInt),
+            IntLiter(0, typedInt),
+            semPos
+        )
+        val decl = Stmt.Decl(SyntaxType.Int, xIdent, divExpr, semPos)
+
+        val result = StaticAnalyser.analyse(programWith(decl))
+        result.hasErrors shouldBe true
+        result.diagnostics.exists(_.message.contains("Division by zero")) shouldBe true
+    }
+
+    it should "detect division by a variable known to be zero" in {
+        /* int y = 0; int x = 10 / y */
+        val yIdent = varIdent("y", 0)
+        val xIdent = varIdent("x", 1)
+
+        val declY = Stmt.Decl(SyntaxType.Int, yIdent, IntLiter(0, typedInt), semPos)
+        val divExpr = BinaryExpr(
+            BinaryOperator.Div,
+            IntLiter(10, typedInt),
+            yIdent,
+            semPos
+        )
+        val declX = Stmt.Decl(SyntaxType.Int, xIdent, divExpr, semPos)
+
+        val result = StaticAnalyser.analyse(programWithStmts(List(declY, declX)))
+        result.hasErrors shouldBe true
+        result.diagnostics.exists(_.message.contains("Division by zero")) shouldBe true
+    }
+
+    it should "detect modulo by zero" in {
+        /* int x = 10 % 0 */
+        val xIdent = varIdent("x", 0)
+        val modExpr = BinaryExpr(
+            BinaryOperator.Mod,
+            IntLiter(10, typedInt),
+            IntLiter(0, typedInt),
+            semPos
+        )
+        val decl = Stmt.Decl(SyntaxType.Int, xIdent, modExpr, semPos)
+
+        val result = StaticAnalyser.analyse(programWith(decl))
+        result.hasErrors shouldBe true
+    }
+
+    it should "not flag division by a known non-zero constant" in {
+        /* int x = 10 / 5 */
+        val xIdent = varIdent("x", 0)
+        val divExpr = BinaryExpr(
+            BinaryOperator.Div,
+            IntLiter(10, typedInt),
+            IntLiter(5, typedInt),
+            semPos
+        )
+        val decl = Stmt.Decl(SyntaxType.Int, xIdent, divExpr, semPos)
+
+        val result = StaticAnalyser.analyse(programWith(decl))
+        result.hasErrors shouldBe false
+    }
+
+    it should "not flag division by an unknown variable" in {
+        /* int y = read; int x = 10 / y */
+        val yIdent = varIdent("y", 0)
+        val xIdent = varIdent("x", 1)
+
+        val declY = Stmt.Decl(SyntaxType.Int, yIdent, IntLiter(1, typedInt), semPos)
+        val readY = Stmt.Read(yIdent, semPos)
+        val divExpr = BinaryExpr(
+            BinaryOperator.Div,
+            IntLiter(10, typedInt),
+            yIdent,
+            semPos
+        )
+        val declX = Stmt.Decl(SyntaxType.Int, xIdent, divExpr, semPos)
+
+        val result = StaticAnalyser.analyse(programWithStmts(List(declY, readY, declX)))
+        result.hasErrors shouldBe false
+    }
+
+    "StaticAnalyser" should "propagate through chained arithmetic" in {
+        /* int a = 5; int b = 3; int c = a + b; int d = c / 0 */
+        val aIdent = varIdent("a", 0)
+        val bIdent = varIdent("b", 1)
+        val cIdent = varIdent("c", 2)
+        val dIdent = varIdent("d", 3)
+
+        val declA = Stmt.Decl(SyntaxType.Int, aIdent, IntLiter(5, typedInt), semPos)
+        val declB = Stmt.Decl(SyntaxType.Int, bIdent, IntLiter(3, typedInt), semPos)
+        val addExpr = BinaryExpr(BinaryOperator.Add, aIdent, bIdent, typedInt)
+        val declC = Stmt.Decl(SyntaxType.Int, cIdent, addExpr, semPos)
+        val divExpr = BinaryExpr(BinaryOperator.Div, cIdent, IntLiter(0, typedInt), semPos)
+        val declD = Stmt.Decl(SyntaxType.Int, dIdent, divExpr, semPos)
+
+        val result = StaticAnalyser.analyse(
+            programWithStmts(List(declA, declB, declC, declD))
+        )
+        result.hasErrors shouldBe true
+    }
+
+    it should "lose knowledge after read invalidation" in {
+        /* int x = 0; read x; int y = 10 / x */
+        val xIdent = varIdent("x", 0)
+        val yIdent = varIdent("y", 1)
+
+        val declX = Stmt.Decl(SyntaxType.Int, xIdent, IntLiter(0, typedInt), semPos)
+        val readX = Stmt.Read(xIdent, semPos)
+        val divExpr = BinaryExpr(BinaryOperator.Div, IntLiter(10, typedInt), xIdent, semPos)
+        val declY = Stmt.Decl(SyntaxType.Int, yIdent, divExpr, semPos)
+
+        val result = StaticAnalyser.analyse(
+            programWithStmts(List(declX, readX, declY))
+        )
+        result.hasErrors shouldBe false
+    }
+
+    "StaticAnalyser unary expressions" should "propagate negation" in {
+        /* int x = 5; int y = -x; int z = 10 / y */
+        val xIdent = varIdent("x", 0)
+        val yIdent = varIdent("y", 1)
+        val zIdent = varIdent("z", 2)
+
+        val declX = Stmt.Decl(SyntaxType.Int, xIdent, IntLiter(5, typedInt), semPos)
+        val negExpr = UnaryExpr(UnaryOperator.Neg, xIdent, typedInt)
+        val declY = Stmt.Decl(SyntaxType.Int, yIdent, negExpr, semPos)
+        val divExpr = BinaryExpr(BinaryOperator.Div, IntLiter(10, typedInt), yIdent, semPos)
+        val declZ = Stmt.Decl(SyntaxType.Int, zIdent, divExpr, semPos)
+
+        val result = StaticAnalyser.analyse(
+            programWithStmts(List(declX, declY, declZ))
+        )
+        result.hasErrors shouldBe false
+    }
+
+    it should "detect division by negated zero" in {
+        /* int x = 0; int y = -x; int z = 10 / y — y is -0 = 0, so error */
+        val xIdent = varIdent("x", 0)
+        val yIdent = varIdent("y", 1)
+        val zIdent = varIdent("z", 2)
+
+        val declX = Stmt.Decl(SyntaxType.Int, xIdent, IntLiter(0, typedInt), semPos)
+        val negExpr = UnaryExpr(UnaryOperator.Neg, xIdent, typedInt)
+        val declY = Stmt.Decl(SyntaxType.Int, yIdent, negExpr, semPos)
+        val divExpr = BinaryExpr(BinaryOperator.Div, IntLiter(10, typedInt), yIdent, semPos)
+        val declZ = Stmt.Decl(SyntaxType.Int, zIdent, divExpr, semPos)
+
+        val result = StaticAnalyser.analyse(
+            programWithStmts(List(declX, declY, declZ))
+        )
+        result.hasErrors shouldBe true
+    }
+
+    it should "propagate logical NOT for dead branch detection" in {
+        /* bool b = true; if !b then exit 0 else skip fi */
+        val bIdent = varIdent("b", 0, KnownType.Bool)
+        val declB = Stmt.Decl(SyntaxType.Bool, bIdent, BoolLiter(true, typedBool), semPos)
+
+        val notExpr = UnaryExpr(UnaryOperator.Not, bIdent, typedBool)
+        val ifStmt = Stmt.If(
+            notExpr,
+            Stmt.Block(List(Stmt.Exit(IntLiter(0, typedInt), semPos)), semPos),
+            Stmt.Block(List(Stmt.Skip(semPos)), semPos),
+            semPos
+        )
+
+        val result = StaticAnalyser.analyse(programWithStmts(List(declB, ifStmt)))
+        result.hasErrors shouldBe false
+    }
+
+    "StaticAnalyser len" should "propagate array length through len operator" in {
+        /* int[] a = [1,2,3]; int n = len a; int x = 10 / n */
+        val aIdent = varIdent("a", 0, KnownType.Array(KnownType.Int))
+        val nIdent = varIdent("n", 1)
+        val xIdent = varIdent("x", 2)
+
+        val typedArr = SemanticData.Typed((1, 1), KnownType.Array(KnownType.Int), Some(3))
+        val declA = Stmt.Decl(
+            SyntaxType.Array(SyntaxType.Int), aIdent,
+            ArrayLiter(
+                List(IntLiter(1, typedInt), IntLiter(2, typedInt), IntLiter(3, typedInt)),
+                typedArr
+            ), semPos
+        )
+        val lenExpr = UnaryExpr(UnaryOperator.Len, aIdent, typedInt)
+        val declN = Stmt.Decl(SyntaxType.Int, nIdent, lenExpr, semPos)
+        val divExpr = BinaryExpr(BinaryOperator.Div, IntLiter(10, typedInt), nIdent, semPos)
+        val declX = Stmt.Decl(SyntaxType.Int, xIdent, divExpr, semPos)
+
+        val result = StaticAnalyser.analyse(
+            programWithStmts(List(declA, declN, declX))
+        )
+        result.hasErrors shouldBe false
+    }
+
+    "StaticAnalyser comparisons" should "evaluate known comparisons for dead branch detection" in {
+        /* int x = 5; if x > 3 then skip else exit 1 fi */
+        val xIdent = varIdent("x", 0)
+        val declX = Stmt.Decl(SyntaxType.Int, xIdent, IntLiter(5, typedInt), semPos)
+
+        val cmpExpr = BinaryExpr(BinaryOperator.GT, xIdent, IntLiter(3, typedInt), typedBool)
+        val ifStmt = Stmt.If(
+            cmpExpr,
+            Stmt.Block(List(Stmt.Skip(semPos)), semPos),
+            Stmt.Block(List(Stmt.Exit(IntLiter(1, typedInt), semPos)), semPos),
+            semPos
+        )
+
+        val result = StaticAnalyser.analyse(programWithStmts(List(declX, ifStmt)))
+        result.hasErrors shouldBe false
+    }
+
+    "StaticAnalyser multiplication" should "propagate zero absorbing property" in {
+        /* int x = read; int y = x * 0; int z = 10 / y */
+        val xIdent = varIdent("x", 0)
+        val yIdent = varIdent("y", 1)
+        val zIdent = varIdent("z", 2)
+
+        val declX = Stmt.Decl(SyntaxType.Int, xIdent, IntLiter(1, typedInt), semPos)
+        val readX = Stmt.Read(xIdent, semPos)
+        val mulExpr = BinaryExpr(BinaryOperator.Mul, xIdent, IntLiter(0, typedInt), typedInt)
+        val declY = Stmt.Decl(SyntaxType.Int, yIdent, mulExpr, semPos)
+        val divExpr = BinaryExpr(BinaryOperator.Div, IntLiter(10, typedInt), yIdent, semPos)
+        val declZ = Stmt.Decl(SyntaxType.Int, zIdent, divExpr, semPos)
+
+        val result = StaticAnalyser.analyse(
+            programWithStmts(List(declX, readX, declY, declZ))
+        )
+        result.hasErrors shouldBe true
+        result.diagnostics.exists(_.message.contains("Division by zero")) shouldBe true
+    }
 }
