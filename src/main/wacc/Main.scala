@@ -137,8 +137,8 @@ object WaccCompiler {
 
         /* Change the filename to a .s assembly file but keep the name the same */
         val outFilename = if (optimisationFlag)
-                then path.getFileName.toString.replaceAll("\\.wacc$", ".s")
-                else path.getFileName.toString.replaceAll("\\.wacc$", "_O.s")
+                then path.getFileName.toString.replaceAll("\\.wacc$", "_O.s")
+                else path.getFileName.toString.replaceAll("\\.wacc$", ".s")
 
         /* Run the ast through the backend of the compiler */
         val backendResult = WaccBackend.run(outFilename, ast, optimState, optimisationFlag)
