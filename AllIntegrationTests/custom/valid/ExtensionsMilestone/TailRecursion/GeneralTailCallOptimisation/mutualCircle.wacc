@@ -1,0 +1,52 @@
+# Mutual recursion in a circular call fashion between four functions 
+
+# Output:
+# a
+#
+
+# Program:
+
+begin
+    char funcA(int n) is
+        if n == 0 then
+            return 'a'
+        else 
+            int next = n - 1;
+            char res = call funcB (next);
+            return res
+        fi
+    end
+
+    char funcB(int n) is
+        if n == 0 then
+            return 'b'
+        else 
+            int next = n - 1;
+            char res = call funcC (next);
+            return res
+        fi
+    end
+
+    char funcC(int n) is
+        if n == 0 then
+            return 'c'
+        else 
+            int next = n - 1;
+            char res = call funcD (next);
+            return res
+        fi
+    end
+
+    char funcD(int n) is
+        if n == 0 then
+            return 'd'
+        else 
+            int next = n - 1;
+            char res = call funcA (next);
+            return res
+        fi
+    end
+
+    char ans = call funcA (100);
+    println ans
+end
