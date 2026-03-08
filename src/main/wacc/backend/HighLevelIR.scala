@@ -86,6 +86,12 @@ object TAC {
     case class Mul(reg: VirtualReg, src1: VirtualReg, src2: Operand) extends BinOp(reg, src1, src2)
     case class Div(reg: VirtualReg, src1: VirtualReg, src2: Operand) extends BinOp(reg, src1, src2)
     case class Mod(reg: VirtualReg, src1: VirtualReg, src2: Operand) extends BinOp(reg, src1, src2)
+    case class DivUnchecked(
+        reg: VirtualReg, src1: VirtualReg, src2: Operand
+    ) extends BinOp(reg, src1, src2)
+    case class ModUnchecked(
+        reg: VirtualReg, src1: VirtualReg, src2: Operand
+    ) extends BinOp(reg, src1, src2)
     case class Lsl(reg: VirtualReg, src1: VirtualReg, src2: Operand) extends BinOp(reg, src1, src2)
     case class Lsr(reg: VirtualReg, src1: VirtualReg, src2: Operand) extends BinOp(reg, src1, src2)
     case class Asr(reg: VirtualReg, src1: VirtualReg, src2: Operand) extends BinOp(reg, src1, src2)

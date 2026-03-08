@@ -456,7 +456,9 @@ object Flattener {
      */
     private def flattenArrayLiter(
         a: ArrayLiter[SemanticData]
-    )(using funcState: FunctionState, directiveState: GlobalFlattenContext): TAC.VirtualReg = {
+    )(using funcState: FunctionState, 
+            directiveState: GlobalFlattenContext, 
+            optimState: FrontendOptimState): TAC.VirtualReg = {
         val ArrayLiter(elements, info) = a
         val SemanticData.Typed(_, arrayType, Some(length)) = info: @unchecked
         
@@ -501,7 +503,9 @@ object Flattener {
      */
     private def flattenArrayElem(
         a: ArrayElem[SemanticData]
-    )(using funcState: FunctionState, directiveState: GlobalFlattenContext): TAC.VirtualReg = {
+    )(using funcState: FunctionState, 
+            directiveState: GlobalFlattenContext, 
+            optimState: FrontendOptimState): TAC.VirtualReg = {
         val ArrayElem(ident, indices, info) = a
         val elemType = info.semanticType
         
@@ -553,7 +557,9 @@ object Flattener {
      */ 
     private def resolveArrayElem(
         arrayElem: ArrayElem[SemanticData]
-    )(using funcState: FunctionState, directiveState: GlobalFlattenContext): (TAC.VirtualReg, TAC.Operand) = {
+    )(using funcState: FunctionState, 
+            directiveState: GlobalFlattenContext, 
+            optimState: FrontendOptimState): (TAC.VirtualReg, TAC.Operand) = {
         val ArrayElem(ident, indices, _) = arrayElem
         
         /* start with the base array pointer */
@@ -581,7 +587,8 @@ object Flattener {
       */
     private def flattenExit(expr: Expr[SemanticData])
                            (using funcState: FunctionState,
-                                  directiveState: GlobalFlattenContext) = {
+                                  directiveState: GlobalFlattenContext,
+                                  optimState: FrontendOptimState) = {
         val exitCode = flattenExpr(expr)
         val callInstr = TAC.Call(TAC.Label("exit"), List(exitCode), dest=None)
         funcState.emitInstruction(callInstr)
@@ -658,7 +665,8 @@ object Flattener {
      */
     private def flattenFree(expr: Expr[SemanticData])
                            (using funcState: FunctionState,
-                                  directiveState: GlobalFlattenContext) : Unit = {
+                                  directiveState: GlobalFlattenContext,
+                                  optimState: FrontendOptimState) : Unit = {
         require(
             expr.expressionType match {
                 /* null has type pair */
@@ -686,7 +694,8 @@ object Flattener {
       */
     private def flattenPrint(expr: Expr[SemanticData], newline: Boolean = false)
                             (using funcState: FunctionState,
-                                   directiveState: GlobalFlattenContext) = {
+                                   directiveState: GlobalFlattenContext,
+                                   optimState: FrontendOptimState) = {
 
         val printVal = flattenExpr(expr)
         val semType = expr.expressionType
@@ -772,7 +781,8 @@ object Flattener {
       */
     private def flattenPrintln(expr: Expr[SemanticData])
                               (using funcState: FunctionState,
-                                     directiveState: GlobalFlattenContext) = {
+                                     directiveState: GlobalFlattenContext,
+                                     optimState: FrontendOptimState) = {
         flattenPrint(expr, newline = true)
     }
 
@@ -786,32 +796,32 @@ object Flattener {
       */
     private def flattenExpr(typedExpr: Expr[SemanticData])
                            (using funcState: FunctionState,
-                                  directiveState: GlobalFlattenContext): TAC.Operand = typedExpr match
+                                  directiveState: GlobalFlattenContext,
+                                  optimState: FrontendOptimState): TAC.Operand = typedExpr match
         case IntLiter(value, _) => TAC.Immediate(value)
         case BoolLiter(value, _) => TAC.Immediate(if value then Constants.TRUE else Constants.FALSE)
         case CharLiter(value, _) => TAC.Immediate(value)
         case StrLiter(value, _) => directiveState.addString(value)
         case PairLiter(_) => TAC.Immediate(MemoryLayout.NULL_PTR)
         case i: Ident[SemanticData] => funcState.lookupReg(i.name, i.renameId)
-        case BinaryExpr(op, left, right, _) => flattenBinaryExpr(op, left, right)
+        case b: BinaryExpr[SemanticData] => flattenBinaryExpr(b)
         case UnaryExpr(op, expr, _) => flattenUnaryExpr(op, expr)
         case a: ArrayElem[SemanticData] => flattenArrayElem(a)
     
     /**
       * Flatten a binary expression
       *
-      * @param op The binary operator
-      * @param left The left operand expression
-      * @param right The right operand expression
+      * @param binaryExpr The binary expression AST node
       * @param funcState The current scope function state
       * @param directiveState The global directive state
       * @return The virtual register containing the result
       */
-    private def flattenBinaryExpr(op: BinaryOperator,
-                                  left: Expr[SemanticData],
-                                  right: Expr[SemanticData])
-                                  (using funcState: FunctionState,
-                                         directiveState: GlobalFlattenContext): TAC.VirtualReg = {
+    private def flattenBinaryExpr(
+        binaryExpr: BinaryExpr[SemanticData]
+    )(using funcState: FunctionState, 
+            directiveState: GlobalFlattenContext, 
+            optimState: FrontendOptimState): TAC.VirtualReg = {
+        val BinaryExpr(op, left, right, _) = binaryExpr
         val leftOp = flattenExpr(left)
         val rightOp = flattenExpr(right)
 
@@ -831,8 +841,16 @@ object Flattener {
             case BinaryOperator.Add => flattenBinaryOp(leftOp, rightOp, TAC.Add.apply, KnownType.Int)
             case BinaryOperator.Sub => flattenBinaryOp(leftOp, rightOp, TAC.Sub.apply, KnownType.Int)
             case BinaryOperator.Mul => flattenBinaryOp(leftOp, rightOp, TAC.Mul.apply, KnownType.Int)
-            case BinaryOperator.Div => flattenBinaryOp(leftOp, rightOp, TAC.Div.apply, KnownType.Int)
-            case BinaryOperator.Mod => flattenBinaryOp(leftOp, rightOp, TAC.Mod.apply, KnownType.Int)
+            case BinaryOperator.Div => 
+                if (optimState.safeDivisions.contains(binaryExpr))
+                    flattenBinaryOp(leftOp, rightOp, TAC.DivUnchecked.apply, KnownType.Int)
+                else
+                    flattenBinaryOp(leftOp, rightOp, TAC.Div.apply, KnownType.Int)
+            case BinaryOperator.Mod => 
+                if (optimState.safeDivisions.contains(binaryExpr))
+                    flattenBinaryOp(leftOp, rightOp, TAC.ModUnchecked.apply, KnownType.Int)
+                else
+                    flattenBinaryOp(leftOp, rightOp, TAC.Mod.apply, KnownType.Int)
         }
     }
 
@@ -886,7 +904,8 @@ object Flattener {
     private def flattenUnaryExpr(op: UnaryOperator,
                                  expr: Expr[SemanticData])
                                  (using funcState: FunctionState,
-                                        directiveState: GlobalFlattenContext): TAC.VirtualReg = {
+                                        directiveState: GlobalFlattenContext,
+                                        optimState: FrontendOptimState): TAC.VirtualReg = {
         val operand = flattenExpr(expr)
 
         op match {
@@ -1070,7 +1089,8 @@ object Flattener {
       */
     private def flattenReturn(expr: Expr[SemanticData])
                             (using funcState: FunctionState,
-                                   globalContext: GlobalFlattenContext): Unit = {
+                                   globalContext: GlobalFlattenContext,
+                                   optimState: FrontendOptimState): Unit = {
  
         val flatExprReg = toReg(flattenExpr(expr))
         val returnReg = TAC.VirtualReg(MemoryLayout.VIRTUAL_RETURN_REG_ID, flatExprReg.size)
