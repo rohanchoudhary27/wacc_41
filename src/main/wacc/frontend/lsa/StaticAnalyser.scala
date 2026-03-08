@@ -111,10 +111,7 @@ object StaticAnalyser {
                 case DiagnosticSeverity.Warning =>
                     Console.err.println(diag.format)
                 case DiagnosticSeverity.Info =>
-                    /* Info diagnostics (optimisation opportunities) are not
-                       reported to the user during compilation and are mainly used in backend to
-                       eliminate checks */
-                    ()
+                    Console.out.println(diag.format)
             }
         }
 
@@ -302,18 +299,170 @@ object StaticAnalyser {
         condVal match {
             /* Condition is provably true and only the then branch executes */
             case BoolConstant(true) =>
+                /* the else block is dead bec only the then block will execute */
+                analyserState.emit(
+                    AnalysisDiagnostic.deadBranch(elseBlock.info.pos, "else", true)
+                )
                 analyseStmt(ifBlock)
 
             /* Condition is provably false and only the else branch executes */
             case BoolConstant(false) =>
+                /* the then block is dead bec only the else block will execute */
+                analyserState.emit(
+                    AnalysisDiagnostic.deadBranch(ifBlock.info.pos, "then", false)
+                )
                 analyseStmt(elseBlock)
 
             /* Condition is unknown so analyse both branches and join */
             case _ =>
-                val thenState = analyseStmt(ifBlock)
-                val elseState = analyseStmt(elseBlock)(using state, analyserState)
+                /*  Apply condition refinement to narrow the state in each branch */
+                val (thenRefinement, elseRefinement) = extractRefinements(cond)
+                val thenEntryState = applyRefinement(state, thenRefinement)
+                val elseEntryState = applyRefinement(state, elseRefinement)
+
+                val thenState = analyseStmt(ifBlock)(using thenEntryState, analyserState)
+                val elseState = analyseStmt(elseBlock)(using elseEntryState, analyserState)
                 thenState.join(elseState)
         }
+    }
+
+    /*
+     * When a condition in an if statement gives us information about a
+     * variable (eg `x == 0`, `p != null`, `!b`), we can narrow the
+     * abstract state in each branch to be a bit more precise.
+     *
+     * A `Refinement` is a (VariableId, AbstractValue) update to
+     * apply to the state before entering a branch. `extractRefinements`
+     * pattern matches on the condition expression to produce refinements
+     * for both the then branch and the else branch */
+    private type Refinement = Option[(VariableId, AbstractValue)]
+
+    /** Extract refinements for both branches from a condition expression.
+      * 
+      * Supported patterns for condition refinement include:
+      *  - `x == 0`: the `then` branch is `x = IntConstant(0)`, the `else`
+      *              branch has no refinement because `x` can be many other values
+      *  - `x == null`: the `then` branch is `x = Null`, the `else` branch
+      *                  is `x = NonNull`
+      *  - `x != null`: the `then` branch is `x = NonNull`, the `else` branch
+      *                  is `x = Null`
+      *  - `x == true`: the `then` branch is `x = BoolConstant(true)`, the `else`
+      *                 branch is `x = BoolConstant(false)`
+      *  - `!cond`: swaps the refinement from `cond`
+      *  - `b`:  the `then` branch is `b = true`, the `else` branch
+      *          is `b = false` 
+      *
+      * @param cond The condition expression from the if statement
+      * 
+      * @return A pair of (then-refinement, else-refinement)
+      */
+    private def extractRefinements(
+        cond: Expr[SemanticData]
+    )(using state: AnalysisState): (Refinement, Refinement) = cond match {
+
+        /* x == <value> or <value> == x */
+        case BinaryExpr(BinaryOperator.EQ, left, right, _) =>
+            extractEqualityRefinements(left, right)
+
+        /* x != <value> or <value> != x */
+        case BinaryExpr(BinaryOperator.NEQ, left, right, _) =>
+            val (thenRef, elseRef) = extractEqualityRefinements(left, right)
+            (elseRef, thenRef)
+
+        /* !cond */
+        case UnaryExpr(UnaryOperator.Not, inner, _) =>
+            val (thenRef, elseRef) = extractRefinements(inner)
+            (elseRef, thenRef)
+
+        /* if b then ... else ... */
+        case ident: Ident[SemanticData] =>
+            val varId = VariableId.fromIdent(ident)
+            (
+                varId.map(_ -> BoolConstant(true)),
+                varId.map(_ -> BoolConstant(false))
+            )
+
+        case _ => (None, None)
+    }
+
+    /** Extract refinements from an equality (==)
+      *
+      * Handles the patterns x == literal and literal == x.
+      *
+      * For the then branch, the variable is narrowed to the literal's value.
+      * For the else branch, we can apply further narrowing too (check above scaladocs)
+      *
+      * @return (then refinement, else refinement) for the `==` case
+      */
+    private def extractEqualityRefinements(
+        left: Expr[SemanticData],
+        right: Expr[SemanticData]
+    )(using state: AnalysisState): (Refinement, Refinement) = {
+
+        /* try to match (variable, known value) in either order */
+        val varAndValue: Option[(VariableId, AbstractValue)] = (left, right) match {
+            case (ident: Ident[SemanticData], other) =>
+                for {
+                    varId <- VariableId.fromIdent(ident)
+                    value = evaluateExprPure(other)
+                } yield (varId, value)
+
+            case (other, ident: Ident[SemanticData]) =>
+                for {
+                    varId <- VariableId.fromIdent(ident)
+                    value = evaluateExprPure(other)
+                } yield (varId, value)
+
+            case _ => None
+        }
+
+        varAndValue match {
+            case Some((varId, knownValue)) =>
+                val thenRef = Some(varId -> knownValue)
+                val elseRef = negateRefinement(varId, knownValue)
+                (thenRef, elseRef)
+
+            case None => (None, None)
+        }
+    }
+
+    /** Compute the else branch refinement from an equality check
+      *
+      * The else branch is the "negated" version of the then branch, where the opposite 
+      * boolean truth value applies
+      */
+    private def negateRefinement(varId: VariableId, value: AbstractValue): Refinement =
+        value match {
+            case wacc.frontend.lsa.Null              => Some(varId -> NonNull)
+            case BoolConstant(v)   => Some(varId -> BoolConstant(!v))
+            case _                 => None
+        }
+
+    /** Apply a refinement to the state, narrowing a variable's abstract value
+      *
+      * If the refinement is `None`, the state is returned unchanged
+      */
+    private def applyRefinement(state: AnalysisState, refinement: Refinement): AnalysisState =
+        refinement match {
+            case Some((varId, value)) => state.update(varId, value)
+            case None                 => state
+        }
+
+    
+    /** Evaluate an expression to its abstract value without emitting diagnostics
+      *
+      * I.e. it doesn't have any side effects 
+      * */
+    private def evaluateExprPure(
+        expr: Expr[SemanticData]
+    )(using state: AnalysisState): AbstractValue = expr match {
+        case IntLiter(value, _)  => IntConstant(value)
+        case BoolLiter(value, _) => BoolConstant(value)
+        case CharLiter(value, _) => IntConstant(value.toInt)
+        case PairLiter(_)        => wacc.frontend.lsa.Null
+        case ident: Ident[SemanticData] =>
+            VariableId.fromIdent(ident).map(state.lookup).getOrElse(Unknown)
+        case _ => Unknown
     }
 
     /** Analyse a while statement.
@@ -349,9 +498,17 @@ object StaticAnalyser {
         /* Remember variables in scope before the block for cleanup */
         val outerScope = state.trackedVariables
 
+        var unreachableWarned = false
+
         /* Thread state through each statement sequentially */
         val finalState = stmts.foldLeft(state) { (currentState, stmt) =>
-            if (currentState.unreachable) currentState
+            if (currentState.unreachable) {
+                if (!unreachableWarned) {
+                    analyserState.emit(AnalysisDiagnostic.unreachableCode(stmt.info.pos))
+                    unreachableWarned = true
+                }
+                currentState
+            }
             else analyseStmt(stmt)(using currentState, analyserState)
         }
 
@@ -381,10 +538,7 @@ object StaticAnalyser {
             case PairLiter(_) => wacc.frontend.lsa.Null
 
             case ident: Ident[SemanticData] =>
-                VariableId.fromIdent(ident) match {
-                    case Some(varId) => state.lookup(varId)
-                    case None => Unknown
-                }
+                VariableId.fromIdent(ident).map(state.lookup).getOrElse(Unknown)
 
             case UnaryExpr(op, inner, _) => evaluateUnaryExpr(op, inner)
             case BinaryExpr(op, left, right, info) => evaluateBinaryExpr(op, left, right, info)
@@ -646,4 +800,21 @@ object StaticAnalyser {
             case PairElem(_, innerLval, _) =>
                 collectLValueTarget(innerLval)
         }
+}
+
+extension [A](stmt: Stmt[A]) {
+    def info: A = stmt match
+        case Stmt.Skip(infoParam)                  => infoParam
+        case Stmt.Decl(_, _, _, infoParam)         => infoParam
+        case Stmt.Asgn(_, _, infoParam)            => infoParam
+        case Stmt.Read(_, infoParam)               => infoParam
+        case Stmt.Free(_, infoParam)               => infoParam
+        case Stmt.Return(_, infoParam)             => infoParam
+        case Stmt.Exit(_, infoParam)               => infoParam
+        case Stmt.Print(_, infoParam)              => infoParam
+        case Stmt.Println(_, infoParam)            => infoParam
+        case Stmt.If(_, _, _, infoParam)           => infoParam
+        case Stmt.While(_, _, infoParam)           => infoParam
+        case Stmt.Block(_, infoParam)              => infoParam
+
 }
