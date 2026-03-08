@@ -34,12 +34,12 @@ case class AnalysisDiagnostic(
 ) {
     def format: String = {
         val severityStr = severity match {
-            case DiagnosticSeverity.Error   => "Static analysis error"
-            case DiagnosticSeverity.Warning => "Static analysis warning"
-            case DiagnosticSeverity.Info    => "Static analysis info"
+            case DiagnosticSeverity.Error   => "Compiler error"
+            case DiagnosticSeverity.Warning => "Compiler warning"
+            case DiagnosticSeverity.Info    => "Compiler info"
         }
         val detailStr = if (detail.nonEmpty) s"\n$detail" else ""
-        s"(Line ${pos(0)}, column ${pos(1)}) $severityStr: $message$detailStr"
+        s"(Line ${pos(0)}, column ${pos(1)}) [$severityStr]: $message$detailStr"
     }
 }
 
