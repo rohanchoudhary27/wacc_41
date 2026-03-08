@@ -34,6 +34,10 @@ class AnalyserState {
     private val safeDivisions: scala.collection.mutable.Set[BinaryExpr[SemanticData]] =
         scala.collection.mutable.Set.empty
 
+    /* Set of ArrayElem AST nodes where the index is provably within bounds */
+    private val safeArrayAccesses: scala.collection.mutable.Set[ArrayElem[SemanticData]] =
+        scala.collection.mutable.Set.empty
+
     /** Record a `PairElem` AST node whose base pointer is provably non null,
       * so the flattener can skip the runtime null check.
       *
@@ -48,6 +52,13 @@ class AnalyserState {
       */
     def markSafeDivision(divExpr: BinaryExpr[SemanticData]): Unit = safeDivisions += divExpr
 
+    /** Record a `ArrayElem` AST node whose index is provably within bounds,
+      * so the flattener can skip the runtime bounds check.
+      *
+      * @param arrayElem The `ArrayElem` AST node with a safe index
+      */
+    def markSafeArrayAccess(arrayElem: ArrayElem[SemanticData]): Unit = safeArrayAccesses += arrayElem
+
     /** Emit a diagnostic finding. */
     def emit(diagnostic: AnalysisDiagnostic): Unit = diagnostics += diagnostic
 
@@ -59,6 +70,9 @@ class AnalyserState {
 
     /** Retrieve the set of safe `BinaryExpr` (Div/Mod) nodes */
     def getSafeDivisions: Set[BinaryExpr[SemanticData]] = safeDivisions.toSet
+
+    /** Retrieve the set of `ArrayElem` nodes where bounds checks can be eliminated */
+    def getSafeArrayAccesses: Set[ArrayElem[SemanticData]] = safeArrayAccesses.toSet
 
     /** Check whether any error level diagnostics have been emitted */
     def hasErrors: Boolean = diagnostics.exists(_.severity == DiagnosticSeverity.Error)
@@ -73,12 +87,14 @@ class AnalyserState {
   *                          nodes. Follows the same pattern as `tailRecCalls` in `FrontendOptimState`.
   * @param safeDivisions `BinaryExpr` AST nodes (Div/Mod) where the divisor is provably non-zero.
   *                      The flattener can emit unchecked division/modulo for these nodes.
+  * @param safeArrayAccesses `ArrayElem` AST nodes where the index is provably within bounds.
   */
 case class AnalysisResult(
     diagnostics: List[AnalysisDiagnostic],
     hasErrors: Boolean,
     safePairAccesses: Set[PairElem[SemanticData]] = Set.empty,
-    safeDivisions: Set[BinaryExpr[SemanticData]] = Set.empty
+    safeDivisions: Set[BinaryExpr[SemanticData]] = Set.empty,
+    safeArrayAccesses: Set[ArrayElem[SemanticData]] = Set.empty
 )
 
 /** The static analyser entry point */
@@ -100,7 +116,8 @@ object StaticAnalyser {
             analyserState.getAllDiagnostics,
             analyserState.hasErrors,
             analyserState.getSafePairAccesses,
-            analyserState.getSafeDivisions
+            analyserState.getSafeDivisions,
+            analyserState.getSafeArrayAccesses
         )
     }
 
@@ -566,9 +583,7 @@ object StaticAnalyser {
 
             case UnaryExpr(op, inner, _) => evaluateUnaryExpr(op, inner)
             case b: BinaryExpr[SemanticData] => evaluateBinaryExpr(b)
-            case ArrayElem(ident, indices, _) => 
-                indices.foreach(evaluateExpr)
-                Unknown /* do this later */
+            case a: ArrayElem[SemanticData] => evaluateArrayElem(a)
         }
     
     /** Evaluate a unary expression to its abstract value.
@@ -681,6 +696,53 @@ object StaticAnalyser {
         }
     }
 
+    /** Evaluate an array element access, checking bounds and marking
+      * safe accesses for runtime check elimination.
+      *
+      * For a 1d access a[i], if both the array's length
+      * and the index are known, we can check whether the access is provably
+      * in bounds, provably out of bounds, or unknown (keep runtime check).
+      *
+      * For multi diemansional accesses a[i][j], only the first index
+      * can be checked against the array's known length because we don't
+      * track the lengths of inner arrays (they are heap allocated values
+      * we don't follow). The remaining indices are evaluated for their
+      * side effects but cannot be bounds checked.
+      *
+      * @param array The `ArrayElem` AST node (for recording in safe set)
+      * @return
+      *   Always `Unknown` — we don't track individual array element values
+      */
+    private def evaluateArrayElem(
+        array: ArrayElem[SemanticData]
+    )(using state: AnalysisState, analyserState: AnalyserState): AbstractValue = {
+        val ArrayElem(ident, indices, info) = array
+
+        val arrayVal = VariableId.fromIdent(ident)
+            .map(state.lookup)
+            .getOrElse(Unknown)
+
+        val indexVals = indices.map(evaluateExpr)
+
+        /* We can only check the first index against the known array length.
+           After the first indexing, we get an inner value whose length is
+           unknown (we don't track array contents). */
+        (arrayVal, indexVals.headOption) match {
+            case (ArrayInfo(Some(length), _), Some(indexVal)) =>
+                if (AbstractValue.isProvablyOutOfBounds(indexVal, length)) {
+                    analyserState.emit(
+                        AnalysisDiagnostic.arrayOutOfBounds(
+                            info.pos, ident.name, length, indexVal
+                        )
+                    )
+                } else if (AbstractValue.isProvablyInBounds(indexVal, length)) {
+                    analyserState.markSafeArrayAccess(node)
+                }
+            case _ => () /* we keep runtime check for unkown cases */
+        }
+        Unknown /* we don't track individual array elems in state so return unknown */
+    }
+
     /** Evaluate an RValue to its abstract value.
       *
       * @param rval The RValue to evaluate
@@ -699,7 +761,7 @@ object StaticAnalyser {
                 /* Array literals have a known length and are nonnull */
                 AbstractValue.fromArrayLiteral(elements.length)
             case Call(_, _, _) => Unknown /* we do local analysis, can't know function returns */
-            case p @ PairElem(_, lval, info) => 
+            case p: PairElem[SemanticData] => 
                 /* Checks if the pair pointer being accessed via fst/snd is provably
                     Null (emits null dereference error) or Freed (emits use after free error) */
                 checkPairElemSafety(p)

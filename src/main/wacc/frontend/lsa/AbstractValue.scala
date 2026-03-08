@@ -151,11 +151,9 @@ case object Freed extends PointerValue {
 
 /** Tracks both the known length and the nullity of an array reference.
   *
-  * @param knownLength
-  *   `Some(n)` if the array was created from a literal of `n` elements
-  *   or its length is otherwise statically determinable, `None` if unknown
-  * @param nullity
-  *   The pointer nullity of the array reference itself
+  * @param knownLength `Some(n)` if the array was created from a literal of `n` elements
+  *                     or its length is otherwise statically determinable, `None` if unknown
+  * @param nullity The pointer nullity of the array reference itself
   */
 case class ArrayInfo(
     knownLength: Option[Int],
@@ -224,6 +222,25 @@ object AbstractValue {
         case ArrayInfo(_, NonNull) => true
         case _  => false
     }
+
+    /** Check whether an index is provably within bounds `[0, length)` */
+    def isProvablyInBounds(indexVal: AbstractValue, length: Int): Boolean =
+        indexVal match {
+            case IntConstant(i)   => i >= 0 && i < length
+            case IntRange(lo, hi) => lo >= 0 && hi < length
+            case _                => false
+        }
+
+    /** Check whether an index is provably outside bounds `[0, length)`.
+      *
+      * For `IntRange`, the entire range must be outside bounds for this to return true
+      */
+    def isProvablyOutOfBounds(indexVal: AbstractValue, length: Int): Boolean =
+        indexVal match {
+            case IntConstant(i)   => i < 0 || i >= length
+            case IntRange(lo, hi) => hi < 0 || lo >= length
+            case _                => false
+        }
 
     /** WACC uses signed 32 bit integers */
     private val IntMin: Long = Int.MinValue.toLong
