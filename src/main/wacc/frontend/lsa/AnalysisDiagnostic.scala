@@ -9,7 +9,7 @@ import wacc.frontend.lsa.*
  *   - Error: A guaranteed runtime failure (eg division by zero). These halt the compilation
  *   - Warning: A potential runtime failure that cannot be proven to always
  *              occur (eg a variable that might be null depending on the branch)
- *   - Info: An optimisation opportunity (e.g. a null check that can be
+ *   - Info: An improvement opportunity (e.g. a null check that can be
  *           removed because the pointer is provably non-null).
  */
 
@@ -99,5 +99,21 @@ object AnalysisDiagnostic {
             DiagnosticSeverity.Info,
             pos,
             s"Bounds check on '$arrayName' is redundant: index is provably in range"
+        )
+
+    /** A branch of an if-else is unreachable because the condition is a known constant */
+    def deadBranch(pos: SourcePos, whichBranch: String, condValue: Boolean): AnalysisDiagnostic =
+        AnalysisDiagnostic(
+            DiagnosticSeverity.Info,
+            pos,
+            s"Dead branch: '$whichBranch' branch is unreachable because condition is always ${condValue}"
+        )
+
+    /** Code after a return or exit statement is unreachable */
+    def unreachableCode(pos: SourcePos): AnalysisDiagnostic =
+        AnalysisDiagnostic(
+            DiagnosticSeverity.Info,
+            pos,
+            "Unreachable code: statement follows a 'return' or 'exit' and will never execute"
         )
 }
