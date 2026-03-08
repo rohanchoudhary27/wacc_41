@@ -555,6 +555,10 @@ object CodeGenerator {
         case TAC.Mul(dest, src1, src2) => generateMul(dest, src1, src2)
         case TAC.Div(dest, src1, src2) => generateDivMod(dest, src1, src2, isMod = false)
         case TAC.Mod(dest, src1, src2) => generateDivMod(dest, src1, src2, isMod = true)
+        case TAC.DivUnchecked(dest, src1, src2) => 
+            generateDivMod(dest, src1, src2, isMod = false, isUnchecked = true)
+        case TAC.ModUnchecked(dest, src1, src2) => 
+            generateDivMod(dest, src1, src2, isMod = true, isUnchecked = true)
         case TAC.Neg(dest, src) => generateNeg(dest, src)
         
         /* Bitwise operations */
@@ -744,18 +748,22 @@ object CodeGenerator {
      * @param src1: first source virtual register
      * @param src1: second operand (can be an immediate  or virtual register)
      * @param isMod: flag to indicate whether integer division or modulo is to be carried out
+     * @param isUnchecked: flag to indicate whether a div by zero check should be included
      */
     private def generateDivMod(dest: TAC.VirtualReg,
                                src1: TAC.VirtualReg,
                                src2: TAC.Operand,
-                               isMod: Boolean)
+                               isMod: Boolean,
+                               isUnchecked: Boolean = false)
                               (using st: GenState): Unit = {
 
         /* Binary context handles  register loading, storing and widget */
-        generateComplexBinOp(dest, src1, src2, Some(DivByZeroErrorWidget)) {
+        val widget: Option[Widget] = if (isUnchecked) None else Some(DivByZeroErrorWidget)
+        generateComplexBinOp(dest, src1, src2, widget) {
             (resultReg, src1Reg, src2Reg) => 
                 /* Divide by zero check, if so jump to divide by zero widget */
-                emit(Arm.Cbz(dest.size, src2Reg, Arm.AddrLabel(DivByZeroErrorWidget.label)))
+                if (!isUnchecked)
+                    emit(Arm.Cbz(dest.size, src2Reg, Arm.AddrLabel(DivByZeroErrorWidget.label)))
 
                 /* Use flag to pick either integer division or modulo */
                 if (isMod) {
