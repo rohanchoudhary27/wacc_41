@@ -29,12 +29,24 @@ class AnalyserState {
     private val safePairAccesses: scala.collection.mutable.Set[PairElem[SemanticData]] =
         scala.collection.mutable.Set.empty
 
+    /* Set of BinaryExpr AST nodes (Div/Mod) where the divisor is provably
+       nonzero, so the runtime division by zero check can be skipped. */
+    private val safeDivisions: scala.collection.mutable.Set[BinaryExpr[SemanticData]] =
+        scala.collection.mutable.Set.empty
+
     /** Record a `PairElem` AST node whose base pointer is provably non null,
       * so the flattener can skip the runtime null check.
       *
       * @param pairElem The `PairElem` AST node with a proven-safe access
       */
     def markSafePairAccess(pairElem: PairElem[SemanticData]): Unit = safePairAccesses += pairElem
+
+    /** Record a `BinaryExpr` (Div/Mod) AST node whose divisor is provably
+      * nonzero, so the flattener can skip the runtime zero check.
+      *
+      * @param divExpr The `BinaryExpr` AST node with a proven-safe divisor
+      */
+    def markSafeDivision(divExpr: BinaryExpr[SemanticData]): Unit = safeDivisions += divExpr
 
     /** Emit a diagnostic finding. */
     def emit(diagnostic: AnalysisDiagnostic): Unit = diagnostics += diagnostic
@@ -44,6 +56,9 @@ class AnalyserState {
 
     /** Retrieve the set of `PairElem` nodes where null checks can be eliminated */
     def getSafePairAccesses: Set[PairElem[SemanticData]] = safePairAccesses.toSet
+
+    /** Retrieve the set of safe `BinaryExpr` (Div/Mod) nodes */
+    def getSafeDivisions: Set[BinaryExpr[SemanticData]] = safeDivisions.toSet
 
     /** Check whether any error level diagnostics have been emitted */
     def hasErrors: Boolean = diagnostics.exists(_.severity == DiagnosticSeverity.Error)
@@ -56,11 +71,14 @@ class AnalyserState {
   * @param safePairAccesses `PairElem` AST nodes where the base pointer is provably non-null.
   *                          The flattener can skip emitting `NullCheck` instructions for these
   *                          nodes. Follows the same pattern as `tailRecCalls` in `FrontendOptimState`.
+  * @param safeDivisions `BinaryExpr` AST nodes (Div/Mod) where the divisor is provably non-zero.
+  *                      The flattener can emit unchecked division/modulo for these nodes.
   */
 case class AnalysisResult(
     diagnostics: List[AnalysisDiagnostic],
     hasErrors: Boolean,
-    safePairAccesses: Set[PairElem[SemanticData]] = Set.empty
+    safePairAccesses: Set[PairElem[SemanticData]] = Set.empty,
+    safeDivisions: Set[BinaryExpr[SemanticData]] = Set.empty
 )
 
 /** The static analyser entry point */
@@ -78,11 +96,11 @@ object StaticAnalyser {
         prog.funcs.foreach(analyseFunc)
 
         analyseStmt(prog.stmt)(using AnalysisState.empty, analyserState)
-
         AnalysisResult(
             analyserState.getAllDiagnostics,
             analyserState.hasErrors,
-            analyserState.getSafePairAccesses
+            analyserState.getSafePairAccesses,
+            analyserState.getSafeDivisions
         )
     }
 
@@ -541,7 +559,7 @@ object StaticAnalyser {
                 VariableId.fromIdent(ident).map(state.lookup).getOrElse(Unknown)
 
             case UnaryExpr(op, inner, _) => evaluateUnaryExpr(op, inner)
-            case BinaryExpr(op, left, right, info) => evaluateBinaryExpr(op, left, right, info)
+            case b: BinaryExpr[SemanticData] => evaluateBinaryExpr(b)
             case ArrayElem(ident, indices, _) => 
                 indices.foreach(evaluateExpr)
                 Unknown /* do this later */
@@ -579,19 +597,14 @@ object StaticAnalyser {
       * operation. Division and modulo are special: they return `None` when
       * the divisor is provably zero, which triggers a diagnostic.
       *
-      * @param op The binary operator
-      * @param left The left operand expression
-      * @param right The right operand expression
-      * @param info The semantic data for the expression (used for source position)
+      * @param b The `BinaryExpr` AST node
       * 
       * @return The abstract value of the binary expression
       */
     private def evaluateBinaryExpr(
-        op: BinaryOperator,
-        left: Expr[SemanticData],
-        right: Expr[SemanticData],
-        info: SemanticData
+        b: BinaryExpr[SemanticData]
     )(using state: AnalysisState, analyserState: AnalyserState): AbstractValue = {
+        val BinaryExpr(op, left, right, info) = b
         val leftVal = evaluateExpr(left)
         val rightVal = evaluateExpr(right)
 
@@ -603,10 +616,10 @@ object StaticAnalyser {
 
             /* Division and modulo: check for division by zero */
             case BinaryOperator.Div =>
-                evaluateDivisionOp(leftVal, rightVal, right, info, AbstractValue.div)
+                evaluateDivisionOp(b, leftVal, rightVal, AbstractValue.div)
 
             case BinaryOperator.Mod =>
-                evaluateDivisionOp(leftVal, rightVal, right, info, AbstractValue.mod)
+                evaluateDivisionOp(b, leftVal, rightVal, AbstractValue.mod)
 
             /* Comparison operators */
             case BinaryOperator.GT  => AbstractValue.gt(leftVal, rightVal)
@@ -628,6 +641,7 @@ object StaticAnalyser {
       * Division and modulo return `Option[AbstractValue]` from `AbstractValue`,
       * `None` means provably zero divisor.
       *
+      * @param b The `BinaryExpr` AST node 
       * @param leftVal The abstract value of the dividend
       * @param rightVal The abstract value of the divisor
       * @param rightExpr The divisor expression (for extracting a name for diagnostics)
@@ -637,14 +651,18 @@ object StaticAnalyser {
       * @return The abstract value of the result, or `Unknown` if an error was emitted
       */
     private def evaluateDivisionOp(
+        b: BinaryExpr[SemanticData],
         leftVal: AbstractValue,
         rightVal: AbstractValue,
-        rightExpr: Expr[SemanticData],
-        info: SemanticData,
         divOp: (AbstractValue, AbstractValue) => Option[AbstractValue]
     )(using state: AnalysisState, analyserState: AnalyserState): AbstractValue = {
+        val BinaryExpr(_, _, rightExpr, info) = b
         divOp(leftVal, rightVal) match {
-            case Some(result) => result
+            case Some(result) => 
+                if (AbstractValue.isDefinitelyNonZero(rightVal)) {
+                    analyserState.markSafeDivision(b)
+                }
+                result
             case None =>
                 val divisorName = rightExpr match {
                     case ident: Ident[SemanticData] => ident.name
