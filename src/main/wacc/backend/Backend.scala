@@ -30,13 +30,15 @@ object WaccBackend {
       * @param outputFilename: .s file to write the Aarch64 assembly to
       * @param ast: the AST produced from the frontend
       * @param optimState: `FrontendOptimState` for extra info to the AST for WACC extensions
+      * @param optimiseFlag: flag for peephole optimisations (Intialised value to false for unit testing)
       * @return BackendCompilationResult: Compilation result
       */
     def run(outputFilename: String,
             ast: Program[SemanticData],
-            optimState: FrontendOptimState = FrontendOptimState.empty): BackendCompilationResult = {
+            optimState: FrontendOptimState = FrontendOptimState.empty, 
+            optimiseFlag: Boolean = false): BackendCompilationResult = {
 
-        compileToFile(outputFilename, ast, optimState) match
+        compileToFile(outputFilename, ast, optimState, optimiseFlag) match
             case Success(_) =>
                 BackendCompilationResult(CompilerSuccess, Some(outputFilename))
 
@@ -60,7 +62,8 @@ object WaccBackend {
       */
     private def compileToFile(outputFilename: String,
                               ast: Program[SemanticData],
-                              optimState: FrontendOptimState): Try[Unit] = for {
+                              optimState: FrontendOptimState,
+                              optimiseFlag: Boolean): Try[Unit] = for {
 
         /* Phase 1 - Flatten */
         highLevelIR <- Try(Flattener.flatten(ast, optimState))
@@ -71,7 +74,10 @@ object WaccBackend {
         /* Phase 3 - Code Generation */
         (lowLevelIR, runtimeDispatcher) <- Try(CodeGenerator.generate(highLevelIR, registerAllocation))
 
-        /* Phase 4 - Write assembly to file */
+        /* Phase 4 - Optimise assembly if flag is true */
+        lowLevelIR <- Try(if (optimiseFlag) PeepholeOptimisation.allOptimisations(lowLevelIR) else lowLevelIR)
+
+        /* Phase 5 - Write optimised assembly to file */
         _ <- {
             val filePath = Paths.get(outputFilename)
             Option(filePath.getParent).foreach(Files.createDirectories(_))
