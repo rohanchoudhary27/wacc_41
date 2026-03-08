@@ -5,19 +5,28 @@ import scala.io.Source
 import scala.collection.mutable
 
 /** Errors that can occur during import resolution. All contain the `SourcePos`
-  * of the import declaration that triggered the error. */
-sealed trait ImportError { val pos: SourcePos }
+  * of the import declaration that triggered the error, and the error message. */
+sealed trait ImportError {
+  val pos: SourcePos
+  def errMsg: String
+}
 
 /** The module file could not be found on the filesystem */
 case class FileNotFound(modulePath: String, resolvedPath: Path, pos: SourcePos)
-    extends ImportError
+    extends ImportError {
+  def errMsg: String = s"Module '$modulePath' not found (looked for '$resolvedPath')"
+}
 
 /** An import creates a cycle in the dependency graph */
-case class CyclicImport(cycle: List[String], pos: SourcePos) extends ImportError
+case class CyclicImport(cycle: List[String], pos: SourcePos) extends ImportError {
+  def errMsg: String = s"Circular import detected: ${cycle.mkString(" -> ")}"
+}
 
 /** A `from M import F` tries to import function `F` that does not appear in module `M` */
 case class FuncNotFound(modulePath: String, funcName: String, pos: SourcePos)
-    extends ImportError
+    extends ImportError {
+  def errMsg: String = s"Function '$funcName' not found in module '$modulePath'"
+}
 
 /** A successfully resolved module.
   *

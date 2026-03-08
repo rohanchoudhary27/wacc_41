@@ -82,6 +82,19 @@ case class ErrorLogger(val codeLines: Vector[String] = Vector.empty) {
     errors += SyntaxError(msg)
   }
 
+  /** Log an error that originated from import resolution (file not found, cycle,
+    * missing function). These are reported as syntax errors (exit code 100) because
+    * they are detected before semantic analysis begins.
+    *
+    * @param pos:
+    *   The source position of the import declaration that caused the error
+    * @param msg:
+    *   A string error message
+    */
+  def logImportError(pos: SourcePos, msg: String): Unit = {
+    errors += SyntaxError(s"(Line ${pos(0)}, column ${pos(1)}) Import error: $msg\n")
+  }
+
   /** Log a semantic error (from renamer or type checker).
     *
     * @param pos:

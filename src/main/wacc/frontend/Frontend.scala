@@ -40,17 +40,18 @@ object WaccFrontend {
 
   /** Compiles a WACC program, returning a Compilation with its exit code and
     * any errors logged in an ErrorLogger object.
-    * 
-    * 
-    * Stages: Sanitising: Source text checked for non-ASCII chars, Exit code 100
-    * on failure Parsing: Source text to a SyntacticAST, Exit code 100 on
-    * failure Additional Syntax Check: Check SyntacticAST for non-returning
-    * paths in functions, returning exit code 100 on failure Renaming:
-    * Transforms SyntacticAST to use SemanticData, Log errors on failure Type
-    * Checker: Verifies Type correctness and, Log errors on failure
     *
-    * Exit Codes: 0 - Success 100 - Syntactic Errors 200 - Semantic Errors -1 -
-    * System Error
+    * Stages:
+    *   Sanitising:      Source text checked for non-ASCII chars, Exit code 100 on failure
+    *   Parsing:         Source text to a SyntacticAST, Exit code 100 on failure
+    *   Import Resolution: Resolve imports & merge all imported Func nodes into the
+    *                    program AST, Exit code 100 on failure
+    *   Syntax Check:    Check SyntacticAST for non-returning paths in functions,
+    *                    Exit code 100 on failure
+    *   Renaming:        Transforms SyntacticAST to use SemanticData, Log errors on failure
+    *   Type Checker:    Verifies type correctness, Log errors on failure
+    *
+    * Exit Codes: 0 - Success  100 - Syntactic/Import Errors  200 - Semantic Errors
     *
     * @param path:
     *   The path of the file to compile
@@ -94,41 +95,62 @@ object WaccFrontend {
 
         case Right(syntacticAST) =>
 
-          /* (Phase 3 - Additional Syntax Check): Check more complex syntax
-                       rules (functions must have no non-returning paths) */
-          SyntaxPass.syntaxCheck(syntacticAST, syntacticErrors)
+          /* (Phase 3 - Import Resolution): Resolve all imports and merge their
+             Func nodes into the program. Imported functions already have their
+             names qualified by the resolver (i.e. fileName.func). */
+          val sourceDir = path.toAbsolutePath.getParent
 
-          if (syntacticErrors.hasErrors()) {
-            FrontendCompilationResult(SyntaxError, Some(syntacticErrors), None)
+          ImportResolver.resolveAll(syntacticAST.imports, sourceDir) match {
+            case Left(importErrors) =>
+              importErrors.foreach(err => syntacticErrors.logImportError(err.pos, err.errMsg))
+              FrontendCompilationResult(SyntaxError, Some(syntacticErrors), None)
 
-          } else {
+            case Right(resolvedModules) =>
+              /* Merge imported funcs (already name-qualified) with the main
+                 program's funcs. Imported funcs come first so their definitions
+                 are visible to each other and to the main body. */
+              val importedFuncs = resolvedModules.flatMap(_.funcs)
+              val mergedAST = syntacticAST.copy(
+                imports = Nil, // to signify that they've all been resolved
+                funcs   = importedFuncs ++ syntacticAST.funcs
+              )
 
-            /* Object to log semantic errors */
-            val semanticErrors = new ErrorLogger(codeLines)
+              /* (Phase 4 - Additional Syntax Check): Check more complex syntax
+                         rules (functions must have no non-returning paths) */
+              SyntaxPass.syntaxCheck(mergedAST, syntacticErrors)
 
-            /* (Phase 4 - Renamer) */
-            val renamedAST = Renamer.rename(syntacticAST, semanticErrors)
+              if (syntacticErrors.hasErrors()) {
+                FrontendCompilationResult(SyntaxError, Some(syntacticErrors), None)
 
-            /* Retrieve table of function signatures */
-            val funcTable = renamedAST.info match {
-              case wacc.frontend.SemanticData.TopLevel(ft) => ft
-              case _ => Map.empty[String, wacc.frontend.SemanticData.Func]
-            }
+              } else {
 
-            /* (Phase 5 - Type Checker) */
-            val typedAST = TypeChecker.check(renamedAST, semanticErrors, funcTable)
+                /* Object to log semantic errors */
+                val semanticErrors = new ErrorLogger(codeLines)
 
-            /* Log any semantic errors */
-            if (semanticErrors.hasErrors())
-              FrontendCompilationResult(SemanticError, Some(semanticErrors), None)
-            else {
+                /* (Phase 5 - Renamer) */
+                val renamedAST = Renamer.rename(mergedAST, semanticErrors)
 
-              /* Frontend optimisation passes */
-              val tailRecCalls = CheckTailRec.checkTailRec(typedAST.get)
-              val optimState = FrontendOptimState(tailRecCalls)
-              FrontendCompilationResult(CompilerSuccess, None, typedAST, Some(optimState))
-            }
+                /* Retrieve table of function signatures */
+                val funcTable = renamedAST.info match {
+                  case wacc.frontend.SemanticData.TopLevel(ft) => ft
+                  case _ => Map.empty[String, wacc.frontend.SemanticData.Func]
+                }
 
+                /* (Phase 6 - Type Checker) */
+                val typedAST = TypeChecker.check(renamedAST, semanticErrors, funcTable)
+
+                /* Log any semantic errors */
+                if (semanticErrors.hasErrors())
+                  FrontendCompilationResult(SemanticError, Some(semanticErrors), None)
+                else {
+
+                  /* Frontend optimisation passes */
+                  val tailRecCalls = CheckTailRec.checkTailRec(typedAST.get)
+                  val optimState = FrontendOptimState(tailRecCalls)
+                  FrontendCompilationResult(CompilerSuccess, None, typedAST, Some(optimState))
+                }
+
+              }
           }
       }
     }
