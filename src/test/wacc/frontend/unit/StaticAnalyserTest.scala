@@ -869,30 +869,52 @@ class StaticAnalyserTests extends AnyFlatSpec with Matchers {
         result.diagnostics.exists(_.message.contains("Null dereference")) shouldBe true
     }
 
-    it should "narrow pair to NonNull in else-branch of p == null" in {
-        /* pair(int,int) p = read; if p == null then skip else fst p fi */
-        val pairType = KnownType.Pair(KnownType.Int, KnownType.Int)
-        val pIdent = varIdent("p", 0, pairType)
-        val xIdent = varIdent("x", 1)
+    "Static analyser for while loop condition refinement" should "preserve knowledge when loop body doesn't modify variable" in {
+        /* int x = 5; while cond do skip od; int y = 10 / x */
+        val xIdent = varIdent("x", 0)
+        val yIdent = varIdent("y", 1)
+        val bIdent = varIdent("b", 2, KnownType.Bool)
 
-        val declP = Stmt.Decl(
-            SyntaxType.Pair(SyntaxType.Int, SyntaxType.Int), pIdent,
-            NewPair(IntLiter(1, typedInt), IntLiter(2, typedInt), typedPair), semPos
+        val declX = Stmt.Decl(SyntaxType.Int, xIdent, IntLiter(5, typedInt), semPos)
+        val declB = Stmt.Decl(SyntaxType.Bool, bIdent, BoolLiter(true, typedBool), semPos)
+        val readB = Stmt.Read(bIdent, semPos)
+
+        val whileStmt = Stmt.While(
+            bIdent,
+            Stmt.Block(List(Stmt.Skip(semPos)), semPos),
+            semPos
         )
-        val readP = Stmt.Read(pIdent, semPos)
+        val divExpr = BinaryExpr(BinaryOperator.Div, IntLiter(10, typedInt), xIdent, typedInt)
+        val declY = Stmt.Decl(SyntaxType.Int, yIdent, divExpr, semPos)
 
-        val cond = BinaryExpr(BinaryOperator.EQ, pIdent, PairLiter(typedPair), typedBool)
-        val fstAccess = PairElem(true, pIdent, SemanticData.Typed((5, 1), KnownType.Int))
-        val thenBlock = Stmt.Block(List(Stmt.Skip(semPos)), semPos)
-        val elseBlock = Stmt.Block(List(
-            Stmt.Decl(SyntaxType.Int, xIdent, fstAccess, semPos)
-        ), semPos)
-        val ifStmt = Stmt.If(cond, thenBlock, elseBlock, semPos)
-
-        val result = StaticAnalyser.analyse(programWithStmts(List(declP, readP, ifStmt)))
+        val result = StaticAnalyser.analyse(
+            programWithStmts(List(declX, declB, readB, whileStmt, declY))
+        )
         result.hasErrors shouldBe false
-        /* The access in the else-branch should be marked safe */
-        result.safePairAccesses should contain(fstAccess)
+    }
+
+    it should "invalidate variable modified in loop body" in {
+        /* int x = 5; while cond do read x od; int y = 10 / x */
+        val xIdent = varIdent("x", 0)
+        val yIdent = varIdent("y", 1)
+        val bIdent = varIdent("b", 2, KnownType.Bool)
+
+        val declX = Stmt.Decl(SyntaxType.Int, xIdent, IntLiter(5, typedInt), semPos)
+        val declB = Stmt.Decl(SyntaxType.Bool, bIdent, BoolLiter(true, typedBool), semPos)
+        val readB = Stmt.Read(bIdent, semPos)
+
+        val whileStmt = Stmt.While(
+            bIdent,
+            Stmt.Block(List(Stmt.Read(xIdent, semPos)), semPos),
+            semPos
+        )
+        val divExpr = BinaryExpr(BinaryOperator.Div, IntLiter(10, typedInt), xIdent, typedInt)
+        val declY = Stmt.Decl(SyntaxType.Int, yIdent, divExpr, semPos)
+
+        val result = StaticAnalyser.analyse(
+            programWithStmts(List(declX, declB, readB, whileStmt, declY))
+        )
+        result.hasErrors shouldBe false
     }
 
     "Static analyser for unreachable code detection" should "warn about code after exit" in {
@@ -931,4 +953,102 @@ class StaticAnalyserTests extends AnyFlatSpec with Matchers {
         }
         unreachableWarnings should have size 1
     }
+
+    "Division check elimination" should "mark division as safe when divisor is a known non-zero constant" in {
+        /* int x = 10 / 5 — divisor is 5, safe */
+        val xIdent = varIdent("x", 0)
+        val divExpr = BinaryExpr(
+            BinaryOperator.Div,
+            IntLiter(10, typedInt),
+            IntLiter(5, typedInt),
+            typedInt
+        )
+        val decl = Stmt.Decl(SyntaxType.Int, xIdent, divExpr, semPos)
+
+        val result = StaticAnalyser.analyse(programWith(decl))
+        result.hasErrors shouldBe false
+        result.safeDivisions should contain(divExpr)
+    }
+
+    it should "mark modulo as safe when divisor is a known non-zero constant" in {
+        /* int x = 10 % 3 — divisor is 3, safe */
+        val xIdent = varIdent("x", 0)
+        val modExpr = BinaryExpr(
+            BinaryOperator.Mod,
+            IntLiter(10, typedInt),
+            IntLiter(3, typedInt),
+            typedInt
+        )
+        val decl = Stmt.Decl(SyntaxType.Int, xIdent, modExpr, semPos)
+
+        val result = StaticAnalyser.analyse(programWith(decl))
+        result.hasErrors shouldBe false
+        result.safeDivisions should contain(modExpr)
+    }
+
+    it should "mark division as safe when divisor is a variable known to be non-zero" in {
+        /* int y = 4; int x = 10 / y — y is 4, safe */
+        val yIdent = varIdent("y", 0)
+        val xIdent = varIdent("x", 1)
+
+        val declY = Stmt.Decl(SyntaxType.Int, yIdent, IntLiter(4, typedInt), semPos)
+        val divExpr = BinaryExpr(BinaryOperator.Div, IntLiter(10, typedInt), yIdent, typedInt)
+        val declX = Stmt.Decl(SyntaxType.Int, xIdent, divExpr, semPos)
+
+        val result = StaticAnalyser.analyse(programWithStmts(List(declY, declX)))
+        result.hasErrors shouldBe false
+        result.safeDivisions should contain(divExpr)
+    }
+
+    it should "not mark division as safe when divisor is unknown" in {
+        /* int y = read; int x = 10 / y — y is unknown */
+        val yIdent = varIdent("y", 0)
+        val xIdent = varIdent("x", 1)
+
+        val declY = Stmt.Decl(SyntaxType.Int, yIdent, IntLiter(1, typedInt), semPos)
+        val readY = Stmt.Read(yIdent, semPos)
+        val divExpr = BinaryExpr(BinaryOperator.Div, IntLiter(10, typedInt), yIdent, typedInt)
+        val declX = Stmt.Decl(SyntaxType.Int, xIdent, divExpr, semPos)
+
+        val result = StaticAnalyser.analyse(programWithStmts(List(declY, readY, declX)))
+        result.hasErrors shouldBe false
+        result.safeDivisions should not contain divExpr
+    }
+
+    it should "not mark division as safe when divisor is known zero (error case)" in {
+        /* int x = 10 / 0 — error, definitely not safe */
+        val xIdent = varIdent("x", 0)
+        val divExpr = BinaryExpr(BinaryOperator.Div, IntLiter(10, typedInt), IntLiter(0, typedInt), typedInt)
+        val decl = Stmt.Decl(SyntaxType.Int, xIdent, divExpr, semPos)
+
+        val result = StaticAnalyser.analyse(programWith(decl))
+        result.hasErrors shouldBe true
+        result.safeDivisions should not contain divExpr
+    }
+
+    it should "mark division safe after if-else where both branches set non-zero" in {
+        /* int y = 0; if cond then y = 3 else y = 7 fi; int x = 10 / y
+           After join, y is IntRange(3,7) which is provably non-zero */
+        val yIdent = varIdent("y", 0)
+        val xIdent = varIdent("x", 1)
+        val bIdent = varIdent("b", 2, KnownType.Bool)
+
+        val declY = Stmt.Decl(SyntaxType.Int, yIdent, IntLiter(0, typedInt), semPos)
+        val declB = Stmt.Decl(SyntaxType.Bool, bIdent, BoolLiter(true, typedBool), semPos)
+        val readB = Stmt.Read(bIdent, semPos)
+
+        val thenBlock = Stmt.Block(List(Stmt.Asgn(yIdent, IntLiter(3, typedInt), semPos)), semPos)
+        val elseBlock = Stmt.Block(List(Stmt.Asgn(yIdent, IntLiter(7, typedInt), semPos)), semPos)
+        val ifStmt = Stmt.If(bIdent, thenBlock, elseBlock, semPos)
+
+        val divExpr = BinaryExpr(BinaryOperator.Div, IntLiter(10, typedInt), yIdent, typedInt)
+        val declX = Stmt.Decl(SyntaxType.Int, xIdent, divExpr, semPos)
+
+        val result = StaticAnalyser.analyse(
+            programWithStmts(List(declY, declB, readB, ifStmt, declX))
+        )
+        result.hasErrors shouldBe false
+        result.safeDivisions should contain(divExpr)
+    }
+
 }

@@ -451,9 +451,9 @@ object StaticAnalyser {
       */
     private def negateRefinement(varId: VariableId, value: AbstractValue): Refinement =
         value match {
-            case wacc.frontend.lsa.Null              => Some(varId -> NonNull)
-            case BoolConstant(v)   => Some(varId -> BoolConstant(!v))
-            case _                 => None
+            case wacc.frontend.lsa.Null => Some(varId -> NonNull)
+            case BoolConstant(v) => Some(varId -> BoolConstant(!v))
+            case _ => None
         }
 
     /** Apply a refinement to the state, narrowing a variable's abstract value
@@ -500,7 +500,13 @@ object StaticAnalyser {
         val modifiedVars = collectModifiedVariables(body)
 
         /* Invalidate all potentially modified variables */
-        state.invalidateAll(modifiedVars)
+        val postLoopState = state.invalidateAll(modifiedVars)
+
+        /* After the loop, we know the condition is false (otherwise the loop
+           would have continued). Extract the else refinement from the condition
+           and apply it to the post loop state  */
+        val (_, elseRefinement) = extractRefinements(cond)(using postLoopState)
+        applyRefinement(postLoopState, elseRefinement)
     }
 
     /** Analyse a block of statements
