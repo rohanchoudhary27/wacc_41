@@ -9,7 +9,6 @@ class NullCheckEliminationTests extends AnyFlatSpec with Matchers {
 
     private val semPos = SemanticData.Pos((1, 1))
     private val typedInt = SemanticData.Typed((1, 1), KnownType.Int)
-    private val typedBool = SemanticData.Typed((1, 1), KnownType.Bool)
     private val typedPair = SemanticData.Typed((1, 1), KnownType.Pair(KnownType.Int, KnownType.Int))
 
     private def programWithStmts(stmts: List[Stmt[SemanticData]]): Program[SemanticData] =

@@ -631,4 +631,304 @@ class StaticAnalyserTests extends AnyFlatSpec with Matchers {
         errorLogger.hasErrors() shouldBe true
         errorLogger.retrieveAllErrors() should include("Null dereference")
     }
+
+    "Static analyser for dead branch detection" should "emit warning when condition is always true" in {
+        /* if true then skip else skip fi */
+        val ifStmt = Stmt.If(
+            BoolLiter(true, typedBool),
+            Stmt.Block(List(Stmt.Skip(semPos)), semPos),
+            Stmt.Block(List(Stmt.Skip(SemanticData.Pos((3, 1)))), SemanticData.Pos((3, 1))),
+            semPos
+        )
+        val result = StaticAnalyser.analyse(programWithStmts(List(ifStmt)))
+        result.hasErrors shouldBe false
+        result.diagnostics.exists { d =>
+            d.severity == DiagnosticSeverity.Info && d.message.contains("Dead branch")
+        } shouldBe true
+    }
+
+    it should "emit warning when condition is always false" in {
+        /* if false then skip else skip fi */
+        val ifStmt = Stmt.If(
+            BoolLiter(false, typedBool),
+            Stmt.Block(List(Stmt.Skip(SemanticData.Pos((2, 1)))), SemanticData.Pos((2, 1))),
+            Stmt.Block(List(Stmt.Skip(semPos)), semPos),
+            semPos
+        )
+        val result = StaticAnalyser.analyse(programWithStmts(List(ifStmt)))
+        result.diagnostics.exists { d =>
+            d.severity == DiagnosticSeverity.Info && d.message.contains("Dead branch")
+        } shouldBe true
+    }
+
+    it should "emit warning when variable based condition is provably constant" in {
+        /* bool b = true; if b then skip else skip fi */
+        val bIdent = varIdent("b", 0, KnownType.Bool)
+        val declB = Stmt.Decl(SyntaxType.Bool, bIdent, BoolLiter(true, typedBool), semPos)
+        val ifStmt = Stmt.If(
+            bIdent,
+            Stmt.Block(List(Stmt.Skip(semPos)), semPos),
+            Stmt.Block(List(Stmt.Skip(SemanticData.Pos((3, 1)))), SemanticData.Pos((3, 1))),
+            semPos
+        )
+        val result = StaticAnalyser.analyse(programWithStmts(List(declB, ifStmt)))
+        result.diagnostics.exists { d =>
+            d.severity == DiagnosticSeverity.Info && d.message.contains("Dead branch")
+        } shouldBe true
+    }
+
+    it should "not emit warning when condition is unknown" in {
+        /* bool b = true; read b; if b then skip else skip fi */
+        val bIdent = varIdent("b", 0, KnownType.Bool)
+        val declB = Stmt.Decl(SyntaxType.Bool, bIdent, BoolLiter(true, typedBool), semPos)
+        val readB = Stmt.Read(bIdent, semPos)
+        val ifStmt = Stmt.If(
+            bIdent,
+            Stmt.Block(List(Stmt.Skip(semPos)), semPos),
+            Stmt.Block(List(Stmt.Skip(semPos)), semPos),
+            semPos
+        )
+        val result = StaticAnalyser.analyse(programWithStmts(List(declB, readB, ifStmt)))
+        result.diagnostics.exists { d =>
+            d.severity == DiagnosticSeverity.Info && d.message.contains("Dead branch")
+        } shouldBe false
+    }
+
+    "Static analyser for join across if-else" should "widen variable assigned differently in each branch" in {
+        /* int x = 0; if cond then x = 3 else x = 7 fi; int y = 10 / x
+           After join, x is unknown, so no division-by-zero error */
+        val xIdent = varIdent("x", 0)
+        val yIdent = varIdent("y", 1)
+        val bIdent = varIdent("b", 2, KnownType.Bool)
+
+        val declX = Stmt.Decl(SyntaxType.Int, xIdent, IntLiter(0, typedInt), semPos)
+        val declB = Stmt.Decl(SyntaxType.Bool, bIdent, BoolLiter(true, typedBool), semPos)
+        val readB = Stmt.Read(bIdent, semPos)
+
+        val thenBlock = Stmt.Block(List(
+            Stmt.Asgn(xIdent, IntLiter(3, typedInt), semPos)
+        ), semPos)
+        val elseBlock = Stmt.Block(List(
+            Stmt.Asgn(xIdent, IntLiter(7, typedInt), semPos)
+        ), semPos)
+        val ifStmt = Stmt.If(bIdent, thenBlock, elseBlock, semPos)
+
+        val divExpr = BinaryExpr(BinaryOperator.Div, IntLiter(10, typedInt), xIdent, semPos)
+        val declY = Stmt.Decl(SyntaxType.Int, yIdent, divExpr, semPos)
+
+        val result = StaticAnalyser.analyse(
+            programWithStmts(List(declX, declB, readB, ifStmt, declY))
+        )
+        /* x is widened to IntRange(3,7) which is nonzero, so no error */
+        result.hasErrors shouldBe false
+    }
+
+    it should "preserve variable assigned the same value in both branches" in {
+        /* int x = 0; if cond then x = 5 else x = 5 fi; int y = 10 / x */
+        val xIdent = varIdent("x", 0)
+        val yIdent = varIdent("y", 1)
+        val bIdent = varIdent("b", 2, KnownType.Bool)
+
+        val declX = Stmt.Decl(SyntaxType.Int, xIdent, IntLiter(0, typedInt), semPos)
+        val declB = Stmt.Decl(SyntaxType.Bool, bIdent, BoolLiter(true, typedBool), semPos)
+        val readB = Stmt.Read(bIdent, semPos)
+
+        val thenBlock = Stmt.Block(List(
+            Stmt.Asgn(xIdent, IntLiter(5, typedInt), semPos)
+        ), semPos)
+        val elseBlock = Stmt.Block(List(
+            Stmt.Asgn(xIdent, IntLiter(5, typedInt), semPos)
+        ), semPos)
+        val ifStmt = Stmt.If(bIdent, thenBlock, elseBlock, semPos)
+
+        val divExpr = BinaryExpr(BinaryOperator.Div, IntLiter(10, typedInt), xIdent, semPos)
+        val declY = Stmt.Decl(SyntaxType.Int, yIdent, divExpr, semPos)
+
+        val result = StaticAnalyser.analyse(
+            programWithStmts(List(declX, declB, readB, ifStmt, declY))
+        )
+        result.hasErrors shouldBe false
+    }
+
+    it should "retain variable not modified in either branch" in {
+        /* int x = 5; if cond then skip else skip fi; int y = 10 / x */
+        val xIdent = varIdent("x", 0)
+        val yIdent = varIdent("y", 1)
+        val bIdent = varIdent("b", 2, KnownType.Bool)
+
+        val declX = Stmt.Decl(SyntaxType.Int, xIdent, IntLiter(5, typedInt), semPos)
+        val declB = Stmt.Decl(SyntaxType.Bool, bIdent, BoolLiter(true, typedBool), semPos)
+        val readB = Stmt.Read(bIdent, semPos)
+
+        val ifStmt = Stmt.If(
+            bIdent,
+            Stmt.Block(List(Stmt.Skip(semPos)), semPos),
+            Stmt.Block(List(Stmt.Skip(semPos)), semPos),
+            semPos
+        )
+        val divExpr = BinaryExpr(BinaryOperator.Div, IntLiter(10, typedInt), xIdent, semPos)
+        val declY = Stmt.Decl(SyntaxType.Int, yIdent, divExpr, semPos)
+
+        val result = StaticAnalyser.analyse(
+            programWithStmts(List(declX, declB, readB, ifStmt, declY))
+        )
+        result.hasErrors shouldBe false
+    }
+
+    it should "use only the reachable branch state when one branch exits" in {
+        /* int x = 0; if cond then x = 5 else exit 1 fi; int y = 10 / x */
+        val xIdent = varIdent("x", 0)
+        val yIdent = varIdent("y", 1)
+        val bIdent = varIdent("b", 2, KnownType.Bool)
+
+        val declX = Stmt.Decl(SyntaxType.Int, xIdent, IntLiter(0, typedInt), semPos)
+        val declB = Stmt.Decl(SyntaxType.Bool, bIdent, BoolLiter(true, typedBool), semPos)
+        val readB = Stmt.Read(bIdent, semPos)
+
+        val thenBlock = Stmt.Block(List(
+            Stmt.Asgn(xIdent, IntLiter(5, typedInt), semPos)
+        ), semPos)
+        val elseBlock = Stmt.Block(List(
+            Stmt.Exit(IntLiter(1, typedInt), semPos)
+        ), semPos)
+        val ifStmt = Stmt.If(bIdent, thenBlock, elseBlock, semPos)
+
+        val divExpr = BinaryExpr(BinaryOperator.Div, IntLiter(10, typedInt), xIdent, semPos)
+        val declY = Stmt.Decl(SyntaxType.Int, yIdent, divExpr, semPos)
+
+        val result = StaticAnalyser.analyse(
+            programWithStmts(List(declX, declB, readB, ifStmt, declY))
+        )
+        result.hasErrors shouldBe false
+    }
+
+    "Static Analyser for condition refinement for equality" should "narrow variable to zero in then branch of x == 0" in {
+        /* int x = read; if x == 0 then int y = 10 / x else skip fi */
+        val xIdent = varIdent("x", 0)
+        val yIdent = varIdent("y", 1)
+
+        val declX = Stmt.Decl(SyntaxType.Int, xIdent, IntLiter(1, typedInt), semPos)
+        val readX = Stmt.Read(xIdent, semPos)
+
+        val cond = BinaryExpr(BinaryOperator.EQ, xIdent, IntLiter(0, typedInt), typedBool)
+        val divExpr = BinaryExpr(BinaryOperator.Div, IntLiter(10, typedInt), xIdent, typedInt)
+        val thenBlock = Stmt.Block(List(
+            Stmt.Decl(SyntaxType.Int, yIdent, divExpr, semPos)
+        ), semPos)
+        val elseBlock = Stmt.Block(List(Stmt.Skip(semPos)), semPos)
+        val ifStmt = Stmt.If(cond, thenBlock, elseBlock, semPos)
+
+        val result = StaticAnalyser.analyse(programWithStmts(List(declX, readX, ifStmt)))
+        result.hasErrors shouldBe true
+        result.diagnostics.exists(_.message.contains("Division by zero")) shouldBe true
+    }
+
+    it should "not flag division in else branch of x == 0" in {
+        /* int x = read; if x == 0 then skip else int y = 10 / x fi */
+        val xIdent = varIdent("x", 0)
+        val yIdent = varIdent("y", 1)
+
+        val declX = Stmt.Decl(SyntaxType.Int, xIdent, IntLiter(1, typedInt), semPos)
+        val readX = Stmt.Read(xIdent, semPos)
+
+        val cond = BinaryExpr(BinaryOperator.EQ, xIdent, IntLiter(0, typedInt), typedBool)
+        val divExpr = BinaryExpr(BinaryOperator.Div, IntLiter(10, typedInt), xIdent, typedInt)
+        val thenBlock = Stmt.Block(List(Stmt.Skip(semPos)), semPos)
+        val elseBlock = Stmt.Block(List(
+            Stmt.Decl(SyntaxType.Int, yIdent, divExpr, semPos)
+        ), semPos)
+        val ifStmt = Stmt.If(cond, thenBlock, elseBlock, semPos)
+
+        val result = StaticAnalyser.analyse(programWithStmts(List(declX, readX, ifStmt)))
+        result.hasErrors shouldBe false
+    }
+
+    "Static Analyser for condition refinement for null" should "narrow pair to Null in then-branch of p == null" in {
+        /* pair(int,int) p = read; if p == null then fst p else skip fi */
+        val pairType = KnownType.Pair(KnownType.Int, KnownType.Int)
+        val pIdent = varIdent("p", 0, pairType)
+        val xIdent = varIdent("x", 1)
+
+        val declP = Stmt.Decl(
+            SyntaxType.Pair(SyntaxType.Int, SyntaxType.Int), pIdent,
+            NewPair(IntLiter(1, typedInt), IntLiter(2, typedInt), typedPair), semPos
+        )
+        /* Invalidate to simulate unknown nullity */
+        val readP = Stmt.Read(pIdent, semPos)
+
+        val cond = BinaryExpr(BinaryOperator.EQ, pIdent, PairLiter(typedPair), typedBool)
+        val fstAccess = PairElem(true, pIdent, SemanticData.Typed((5, 1), KnownType.Int))
+        val thenBlock = Stmt.Block(List(
+            Stmt.Decl(SyntaxType.Int, xIdent, fstAccess, semPos)
+        ), semPos)
+        val elseBlock = Stmt.Block(List(Stmt.Skip(semPos)), semPos)
+        val ifStmt = Stmt.If(cond, thenBlock, elseBlock, semPos)
+
+        val result = StaticAnalyser.analyse(programWithStmts(List(declP, readP, ifStmt)))
+        result.hasErrors shouldBe true
+        result.diagnostics.exists(_.message.contains("Null dereference")) shouldBe true
+    }
+
+    it should "narrow pair to NonNull in else-branch of p == null" in {
+        /* pair(int,int) p = read; if p == null then skip else fst p fi */
+        val pairType = KnownType.Pair(KnownType.Int, KnownType.Int)
+        val pIdent = varIdent("p", 0, pairType)
+        val xIdent = varIdent("x", 1)
+
+        val declP = Stmt.Decl(
+            SyntaxType.Pair(SyntaxType.Int, SyntaxType.Int), pIdent,
+            NewPair(IntLiter(1, typedInt), IntLiter(2, typedInt), typedPair), semPos
+        )
+        val readP = Stmt.Read(pIdent, semPos)
+
+        val cond = BinaryExpr(BinaryOperator.EQ, pIdent, PairLiter(typedPair), typedBool)
+        val fstAccess = PairElem(true, pIdent, SemanticData.Typed((5, 1), KnownType.Int))
+        val thenBlock = Stmt.Block(List(Stmt.Skip(semPos)), semPos)
+        val elseBlock = Stmt.Block(List(
+            Stmt.Decl(SyntaxType.Int, xIdent, fstAccess, semPos)
+        ), semPos)
+        val ifStmt = Stmt.If(cond, thenBlock, elseBlock, semPos)
+
+        val result = StaticAnalyser.analyse(programWithStmts(List(declP, readP, ifStmt)))
+        result.hasErrors shouldBe false
+        /* The access in the else-branch should be marked safe */
+        result.safePairAccesses should contain(fstAccess)
+    }
+
+    "Static analyser for unreachable code detection" should "warn about code after exit" in {
+        /* exit 0; int x = 5 */
+        val exitStmt = Stmt.Exit(IntLiter(0, typedInt), semPos)
+        val xIdent = varIdent("x", 0)
+        val declX = Stmt.Decl(SyntaxType.Int, xIdent, IntLiter(5, typedInt), SemanticData.Pos((2, 1)))
+
+        val result = StaticAnalyser.analyse(programWithStmts(List(exitStmt, declX)))
+        result.diagnostics.exists { d =>
+            d.severity == DiagnosticSeverity.Info && d.message.contains("Unreachable")
+        } shouldBe true
+    }
+
+    it should "not warn when there is no unreachable code" in {
+        val result = StaticAnalyser.analyse(
+            programWithStmts(List(
+                Stmt.Decl(SyntaxType.Int, varIdent("x", 0), IntLiter(5, typedInt), semPos),
+                Stmt.Skip(semPos)
+            ))
+        )
+        result.diagnostics.exists { d =>
+            d.severity == DiagnosticSeverity.Info && d.message.contains("Unreachable")
+        } shouldBe false
+    }
+
+    it should "only warn once per unreachable section" in {
+        /* exit 0; int x = 5; int y = 10 — only one warning */
+        val exitStmt = Stmt.Exit(IntLiter(0, typedInt), semPos)
+        val declX = Stmt.Decl(SyntaxType.Int, varIdent("x", 0), IntLiter(5, typedInt), SemanticData.Pos((2, 1)))
+        val declY = Stmt.Decl(SyntaxType.Int, varIdent("y", 1), IntLiter(10, typedInt), SemanticData.Pos((3, 1)))
+
+        val result = StaticAnalyser.analyse(programWithStmts(List(exitStmt, declX, declY)))
+        val unreachableWarnings = result.diagnostics.filter { d =>
+            d.severity == DiagnosticSeverity.Info && d.message.contains("Unreachable")
+        }
+        unreachableWarnings should have size 1
+    }
 }

@@ -2,7 +2,6 @@ package wacc.frontend.unit
 
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import wacc.frontend.*
 import wacc.frontend.lsa.*
 
 class AbstractValueTests extends AnyFlatSpec with Matchers {
