@@ -1,0 +1,14 @@
+# Invalid: from-import of a function that does not exist in the module.
+# testLib/math.wacc exports `abs` and `max`.
+
+# Error:
+# Import error: Function 'sqrt' not found in module 'testLib.math'
+
+# Exit:
+# 100
+
+# Program:
+
+from testLib.math import sqrt
+
+begin skip end

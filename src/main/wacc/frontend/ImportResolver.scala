@@ -155,7 +155,8 @@ object ImportResolver {
 
         if (visited.contains(canonical)) {
           /* Cycle detection */
-          val cycleList = visited.toList.map(_.toString) :+ canonical.toString
+          val cycleList = 
+            visited.toList.map(_.getFileName.toString) :+ canonical.getFileName.toString
           Left(List(CyclicImport(cycleList, pos)))
         } else if (resolved.contains(canonical)) {
           /* Diamond deduplication — already resolved, skip silently */

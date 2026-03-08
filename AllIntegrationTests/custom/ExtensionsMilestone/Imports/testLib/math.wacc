@@ -1,0 +1,22 @@
+# A helper module used by the integration tests for imports.
+# Provides abs and max functions.
+
+begin
+  int abs(int x) is
+    if x < 0 then
+      return 0 - x
+    else
+      return x
+    fi
+  end
+
+  int max(int a, int b) is
+    if a > b then
+      return a
+    else
+      return b
+    fi
+  end
+
+  skip
+end

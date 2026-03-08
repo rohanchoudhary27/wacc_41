@@ -1,0 +1,9 @@
+# A helper module with a greeting function, used for testing imports.
+
+begin
+  int getAnswer(int unused) is
+    return 42
+  end
+
+  skip
+end
