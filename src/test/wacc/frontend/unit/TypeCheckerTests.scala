@@ -144,7 +144,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         errorLogger.hasErrors() shouldBe false
 
         val funcTable = renamedProgram.info match {
-            case SemanticData.TopLevel(ft) => ft
+            case SemanticData.TopLevel(ft, _) => ft
             case _                              => Map.empty
         }
         val typeCheckResult =
@@ -166,7 +166,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         errorLogger.hasErrors() shouldBe false
 
         val funcTable = renamedProgram.info match {
-            case SemanticData.TopLevel(ft) => ft
+            case SemanticData.TopLevel(ft, _) => ft
             case _                              => Map.empty
         }
         val typeCheckResult =
@@ -188,7 +188,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         errorLogger.hasErrors() shouldBe false
 
         val funcTable = renamedProgram.info match {
-            case SemanticData.TopLevel(ft) => ft
+            case SemanticData.TopLevel(ft, _) => ft
             case _                              => Map.empty
         }
         TypeChecker.check(renamedProgram, errorLogger, funcTable)
@@ -210,7 +210,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         errorLogger.hasErrors() shouldBe false
 
         val funcTable = renamedProgram.info match {
-            case SemanticData.TopLevel(ft) => ft
+            case SemanticData.TopLevel(ft, _) => ft
             case _                              => Map.empty
         }
 
@@ -678,7 +678,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         errorLogger.hasErrors() shouldBe false
 
         val funcTable = renamedProgram.info match {
-            case SemanticData.TopLevel(ft) => ft
+            case SemanticData.TopLevel(ft, _) => ft
             case _                              => Map.empty
         }
         val typeCheckResult =
@@ -700,7 +700,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         errorLogger.hasErrors() shouldBe false
 
         val funcTable = renamedProgram.info match {
-            case SemanticData.TopLevel(ft) => ft
+            case SemanticData.TopLevel(ft, _) => ft
             case _                              => Map.empty
         }
         val typeCheckResult =
@@ -722,7 +722,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         errorLogger.hasErrors() shouldBe false
 
         val funcTable = renamedProgram.info match {
-            case SemanticData.TopLevel(ft) => ft
+            case SemanticData.TopLevel(ft, _) => ft
             case _                              => Map.empty
         }
         val typeCheckResult =
@@ -745,7 +745,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         errorLogger.hasErrors() shouldBe false
 
         val funcTable = renamedProgram.info match {
-            case SemanticData.TopLevel(ft) => ft
+            case SemanticData.TopLevel(ft, _) => ft
             case _                              => Map.empty
         }
         val typeCheckResult =
@@ -767,7 +767,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         errorLogger.hasErrors() shouldBe false
 
         val funcTable = renamedProgram.info match {
-            case SemanticData.TopLevel(ft) => ft
+            case SemanticData.TopLevel(ft, _) => ft
             case _                              => Map.empty
         }
         val typeCheckResult =
@@ -789,7 +789,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         errorLogger.hasErrors() shouldBe false
 
         val funcTable = renamedProgram.info match {
-            case SemanticData.TopLevel(ft) => ft
+            case SemanticData.TopLevel(ft, _) => ft
             case _                              => Map.empty
         }
         val typeCheckResult =
@@ -811,7 +811,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         errorLogger.hasErrors() shouldBe false
 
         val funcTable = renamedProgram.info match {
-            case SemanticData.TopLevel(ft) => ft
+            case SemanticData.TopLevel(ft, _) => ft
             case _                              => Map.empty
         }
         TypeChecker.check(renamedProgram, errorLogger, funcTable)
@@ -833,7 +833,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         errorLogger.hasErrors() shouldBe false
 
         val funcTable = renamedProgram.info match {
-            case SemanticData.TopLevel(ft) => ft
+            case SemanticData.TopLevel(ft, _) => ft
             case _                              => Map.empty
         }
         TypeChecker.check(renamedProgram, errorLogger, funcTable)
@@ -856,7 +856,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         errorLogger.hasErrors() shouldBe false
 
         val funcTable = renamedProgram.info match {
-            case SemanticData.TopLevel(ft) => ft
+            case SemanticData.TopLevel(ft, _) => ft
             case _                              => Map.empty
         }
         TypeChecker.check(renamedProgram, errorLogger, funcTable)
@@ -878,7 +878,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         errorLogger.hasErrors() shouldBe false
 
         val funcTable = renamedProgram.info match {
-            case SemanticData.TopLevel(ft) => ft
+            case SemanticData.TopLevel(ft, _) => ft
             case _                              => Map.empty
         }
         TypeChecker.check(renamedProgram, errorLogger, funcTable)
@@ -900,7 +900,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         errorLogger.hasErrors() shouldBe false
 
         val funcTable = renamedProgram.info match {
-            case SemanticData.TopLevel(ft) => ft
+            case SemanticData.TopLevel(ft, _) => ft
             case _                              => Map.empty
         }
         TypeChecker.check(renamedProgram, errorLogger, funcTable)

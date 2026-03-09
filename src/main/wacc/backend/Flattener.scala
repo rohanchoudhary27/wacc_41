@@ -173,7 +173,7 @@ object Flattener {
     def flatten(typedAST: Program[SemanticData],
                 optimState: FrontendOptimState = FrontendOptimState.empty): TAC.RegProgram = {
 
-        val Program(_, funcs, stmt, _) = typedAST
+        val Program(_, _, funcs, stmt, _) = typedAST
 
         /* Initialise contexts */
         given funcState: FunctionState = FunctionState()

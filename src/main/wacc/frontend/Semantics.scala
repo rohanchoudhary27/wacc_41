@@ -18,6 +18,7 @@ sealed trait SemanticType {
       (a, b) match
         case (?, ?) => "pair"
         case _      => s"pair(${a.outputFormat}, ${b.outputFormat})"
+    case KnownType.Record(name, _) => s"struct $name"
     case PairAny    => "pair"
     case Null       => "null"
     case EmptyArray => "[]"
@@ -30,6 +31,7 @@ enum KnownType extends SemanticType {
   case Int, Bool, Char, String
   case Array(t: SemanticType)
   case Pair(fst: SemanticType, snd: SemanticType)
+  case Record(name: String, fields: List[(String, SemanticType)])
 }
 
 /* Polymorphic semantic types created and used in the typechecker */
@@ -102,7 +104,8 @@ enum SemanticData {
     *   A map of the functions in the program (name to signature) for the
     *   typechecker
     */
-  case TopLevel(funcTable: Map[String, Func])
+  case TopLevel(funcTable: Map[String, Func],
+                structTable: Map[String, KnownType.Record] = Map.empty)
 
   /** Annotating a node that caused a semantic error in the renamer so the tree
     * can still be built to catch more semantic errors.
@@ -126,7 +129,7 @@ object SemanticData {
       case SemanticData.Func(p, _, _, _) => p
       case SemanticData.Typed(p, _, _)   => p
       case SemanticData.Error(p)         => p
-      case SemanticData.TopLevel(_)      =>
+      case SemanticData.TopLevel(_, _)   =>
         (0, 0) /* TopLevel has initial position */
     }
 
@@ -162,5 +165,9 @@ def syntaxToSemantics(synType: SyntaxType): SemanticType = {
       KnownType.Pair(syntaxToSemantics(fst), syntaxToSemantics(snd))
     case SyntaxType.Array(arrType) =>
       KnownType.Array(syntaxToSemantics(arrType))
+    case SyntaxType.Record(name) =>
+      /* Record types are resolved by name during renaming/type checking;
+         here we create a placeholder with no fields */
+      KnownType.Record(name, Nil)
   }
 }

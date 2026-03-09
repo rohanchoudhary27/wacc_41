@@ -276,14 +276,14 @@ object ImportResolver {
   /** Parse a WACC source string and return just the `Func` nodes. */
   private def parseModuleFuncs(source: String): Either[String, List[Func[SyntacticData]]] =
     parser.parse(source) match {
-      case Right(Program(_, funcs, _, _)) => Right(funcs)
+      case Right(Program(_, _, funcs, _, _)) => Right(funcs)
       case Left(err)                      => Left(err.toString)
     }
 
   /** Parse a WACC source string and return just the `Import` nodes. */
   private def parseModuleImports(source: String): List[Import[SyntacticData]] =
     parser.parse(source) match {
-      case Right(Program(imports, _, _, _)) => imports
+      case Right(Program(imports, _, _, _, _)) => imports
       case Left(_)                          => Nil
     }
 }

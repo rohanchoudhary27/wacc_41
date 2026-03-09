@@ -36,8 +36,7 @@ trait TailRecPrebuiltTrees extends ASTBoilerplate {
         val func: Func[SemanticData] = Func(SyntaxType.Int, funcIdent, params, body, funcSignature)
 
         val ast =
-            Program(
-                Nil,
+            Program(Nil,
                 List(func),
                 Stmt.Block(List(), semPos),
                 SemanticData.TopLevel(funcTable)

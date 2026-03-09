@@ -72,6 +72,7 @@ object parser {
   private lazy val programParser = fully(program)
   private lazy val program = Program(
     many(importDecl) label "import declarations",
+    many(atomic(structDef)) label "struct definitions",
     "begin" ~> many(atomic(func)) label "function definitions",
     (stmt label "program body" explain "program must contain at least one statement") <~
       ("end" | _unclosedBegin)
@@ -95,6 +96,14 @@ object parser {
   private lazy val dottedIdent: Parsley[String] =
     sepBy1(ident, char('.')).map(_.mkString("."))
 
+  /* Struct definition grammar */
+  private lazy val structDef =
+    StructDef(
+      "struct" ~> identLit,
+      "is" ~> some(field <~ ";") <~ ("end" | _unclosedBegin)
+    ) label "struct definition"
+
+  private lazy val field = Field(waccType, identLit) label "field"
 
   private lazy val func =
     Func(
@@ -118,7 +127,10 @@ object parser {
       "string" #> SyntaxType.String
   ) label "type"
 
-  private lazy val arrayType = chain.postfix(baseType | atomic(pairType))(
+  private lazy val structType =
+    ("struct" ~> ident).map(SyntaxType.Record.apply) label "struct type"
+
+  private lazy val arrayType = chain.postfix(baseType | atomic(pairType) | structType)(
     (brackets(unit) label "array type") #> ((t: SyntaxType) =>
       SyntaxType.Array(t)
     )
@@ -205,18 +217,37 @@ object parser {
   ) label "expression"
 
   /* atomic(arrayElem) is tried before identLit since both start with ident */
-  private lazy val atom = intLit | boolLit | charLit | strLit | pairLit |
+  private lazy val baseAtom: Parsley[Expr[SyntacticData]] = intLit | boolLit | charLit | strLit | pairLit |
     _missingCall |
     atomic(arrayElem) | identLit |
     parens(
       expr label "expression" explain "expression required inside parentheses"
     ) label "bracketed expression"
 
+  /* Field access as a postfix operation: expr.field.field... */
+  private lazy val atom = chain.postfix(baseAtom)(
+    ("." ~> identLit <~> pos).map { case (fieldIdent, p) =>
+      (base: Expr[SyntacticData]) => FieldAccess(base, fieldIdent, SyntacticData.Pos(p))
+    }
+  )
+
   /* LValue grammar */
   private lazy val lvalue: Parsley[LValue[SyntacticData]] =
     (atomic(arrayElem) label "array element") |
       (pairElem label "pair element") |
+      (atomic(fieldAccessLValue) label "field access") |
       (identLit label "assignable variable")
+
+  /* Field access for lvalues: ident.field.field... (at least one dot) */
+  private lazy val fieldAccessLValue: Parsley[LValue[SyntacticData]] =
+    (identLit <~> some("." ~> identLit <~> pos)).map { case (base, accesses) =>
+      val first = accesses.head
+      val rest = accesses.tail
+      val init: FieldAccess[SyntacticData] = FieldAccess(base, first._1, SyntacticData.Pos(first._2))
+      rest.foldLeft[FieldAccess[SyntacticData]](init) { case (acc, (fieldIdent, p)) =>
+        FieldAccess(acc, fieldIdent, SyntacticData.Pos(p))
+      }: LValue[SyntacticData]
+    }
 
   private lazy val arrayElem = ArrayElem(
     identLit,
@@ -233,6 +264,7 @@ object parser {
   private lazy val rvalue = (arrayLiter label "array literal") |
     (expr | call label "value expression") |
     (newPair label "newpair expression") |
+    (newRecord label "new record expression") |
     (pairElem label "pair element expression")
 
   private lazy val arrayLiter = ArrayLiter(brackets(sepBy(expr, ",")))
@@ -242,6 +274,9 @@ object parser {
   )
   private lazy val call =
     Call("call" ~> qualifiedIdentLit, parens(sepBy(expr, ","))) label "function call"
+
+  private lazy val newRecord =
+    NewRecord("new" ~> identLit, parens(sepBy(expr, ","))) label "record constructor"
 
   /* Literal grammar */
   private lazy val intLit = IntLiter(int) label "integer"

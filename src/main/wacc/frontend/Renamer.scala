@@ -100,7 +100,7 @@ object Renamer {
     val newFuncs = prog.funcs.map(f => renameFunc(f)(using scope.newScope))
     val newStmt = renameStmt(prog.stmt)
 
-    Program(Nil, newFuncs, newStmt, SemanticData.TopLevel(state.allFuncs))
+    Program(Nil, Nil, newFuncs, newStmt, SemanticData.TopLevel(state.allFuncs))
   }
 
   /** Renames a `Func` AST node

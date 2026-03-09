@@ -52,7 +52,7 @@ object Size {
     def fromType(typ: KnownType): Size = typ match {
         case KnownType.Char | KnownType.Bool => Size.B
         case KnownType.Int => Size.W
-        case KnownType.String | _: KnownType.Array | _: KnownType.Pair => Size.X
+        case KnownType.String | _: KnownType.Array | _: KnownType.Pair | _: KnownType.Record => Size.X
     }
 
     /* Get the size of a semantic type */
@@ -104,4 +104,5 @@ enum PairPos {
 enum FreeType {
     case Pair
     case Array
+    case Record
 }

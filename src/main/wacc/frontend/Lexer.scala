@@ -55,7 +55,9 @@ object lexer {
     "null",
     "import",
     "from",
-    "as"
+    "as",
+    "struct",
+    "new"
   )
 
   /* Delimiters */
@@ -88,6 +90,7 @@ object lexer {
         "&&",
         "||",
         "=",
+        ".",
         "[",
         "]",
         "(",
@@ -166,7 +169,10 @@ object lexer {
         "!" -> Label("logical NOT"),
 
         /* Assignment */
-        "=" -> Label("assignment")
+        "=" -> Label("assignment"),
+
+        /* Field access */
+        "." -> Label("field access")
       )
 
       /* Generate labels for delimiters and keywords, which are shown as-is */

@@ -110,7 +110,8 @@ object TypeChecker {
     else
       Some(
         Program(
-          Nil,
+          prog.imports,
+          prog.structs,
           typedFuncs,
           typedStmt,
           info = SemanticData.TopLevel(funcTable = funcSignatureTable)
