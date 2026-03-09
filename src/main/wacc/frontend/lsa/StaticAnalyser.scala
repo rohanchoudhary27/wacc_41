@@ -39,6 +39,10 @@ class AnalyserState {
     private val safeArrayAccesses: scala.collection.mutable.Set[ArrayElem[SemanticData]] =
         scala.collection.mutable.Set.empty
 
+    /* Set of UnaryExpr AST nodes where the chr function provably received safe value */
+    private val safeChrCalls: scala.collection.mutable.Set[UnaryExpr[SemanticData]] =
+        scala.collection.mutable.Set.empty
+
     /** Record a `PairElem` AST node whose base pointer is provably non null,
       * so the flattener can skip the runtime null check.
       *
@@ -60,6 +64,13 @@ class AnalyserState {
       */
     def markSafeArrayAccess(arrayElem: ArrayElem[SemanticData]): Unit = safeArrayAccesses += arrayElem
 
+     /** Record an chr `UnaryExpr` AST node whose value is provably within ASCII bounds,
+      * so the flattener can skip the runtime bounds check.
+      *
+      * @param chrExpr The chr `UnaryExpr` AST node with a safe value
+      */
+    def markSafeChrCall(chrExpr: UnaryExpr[SemanticData]): Unit = safeChrCalls += chrExpr
+
     /** Emit a diagnostic finding. */
     def emit(diagnostic: AnalysisDiagnostic): Unit = diagnostics += diagnostic
 
@@ -74,6 +85,9 @@ class AnalyserState {
 
     /** Retrieve the set of `ArrayElem` nodes where bounds checks can be eliminated */
     def getSafeArrayAccesses: Set[ArrayElem[SemanticData]] = safeArrayAccesses.toSet
+
+    /** Retrieve the set of `UnaryExpr` nodes where bounds checks can be eliminated */
+    def getSafeChrCalls: Set[UnaryExpr[SemanticData]] = safeChrCalls.toSet  
 
     /** Check whether any error level diagnostics have been emitted */
     def hasErrors: Boolean = diagnostics.exists(_.severity == DiagnosticSeverity.Error)
@@ -95,7 +109,8 @@ case class AnalysisResult(
     hasErrors: Boolean,
     safePairAccesses: Set[PairElem[SemanticData]] = Set.empty,
     safeDivisions: Set[BinaryExpr[SemanticData]] = Set.empty,
-    safeArrayAccesses: Set[ArrayElem[SemanticData]] = Set.empty
+    safeArrayAccesses: Set[ArrayElem[SemanticData]] = Set.empty,
+    safeChrCalls: Set[UnaryExpr[SemanticData]] = Set.empty
 )
 
 /** The static analyser entry point */
@@ -118,7 +133,8 @@ object StaticAnalyser {
             analyserState.hasErrors,
             analyserState.getSafePairAccesses,
             analyserState.getSafeDivisions,
-            analyserState.getSafeArrayAccesses
+            analyserState.getSafeArrayAccesses,
+            analyserState.getSafeChrCalls
         )
     }
 
@@ -582,7 +598,7 @@ object StaticAnalyser {
             case ident: Ident[SemanticData] =>
                 VariableId.fromIdent(ident).map(state.lookup).getOrElse(Unknown)
 
-            case UnaryExpr(op, inner, _) => evaluateUnaryExpr(op, inner)
+            case u: UnaryExpr[SemanticData] => evaluateUnaryExpr(u)
             case b: BinaryExpr[SemanticData] => evaluateBinaryExpr(b)
             case a: ArrayElem[SemanticData] => evaluateArrayElem(a)
         }
@@ -593,15 +609,14 @@ object StaticAnalyser {
       * `AbstractValue`. The inner expression is evaluated first, then
       * the abstract operation is applied.
       *
-      * @param op The unary operator
-      * @param inner The operand expression
+      * @param u The unary expression node
       * 
       * @return The abstract value of the unary expression
       */
     private def evaluateUnaryExpr(
-        op: UnaryOperator,
-        inner: Expr[SemanticData]
+        u: UnaryExpr[SemanticData]
     )(using state: AnalysisState, analyserState: AnalyserState): AbstractValue = {
+        val UnaryExpr(op, inner, info) = u
         val operandVal = evaluateExpr(inner)
 
         op match {
@@ -609,7 +624,16 @@ object StaticAnalyser {
             case UnaryOperator.Not => AbstractValue.not(operandVal)
             case UnaryOperator.Len => AbstractValue.len(operandVal)
             case UnaryOperator.Ord => AbstractValue.ord(operandVal)
-            case UnaryOperator.Chr => AbstractValue.chr(operandVal)
+            case UnaryOperator.Chr =>
+                /* check chr argument for ASCII range */
+                if (AbstractValue.isProvablyInvalidChr(operandVal)) {
+                    analyserState.emit(
+                        AnalysisDiagnostic.invalidChrArgument(info.pos, operandVal)
+                    )
+                } else if (AbstractValue.isProvablyValidChr(operandVal)) {
+                    analyserState.markSafeChrCall(u)
+                }
+                AbstractValue.chr(operandVal)
         }
     }
     

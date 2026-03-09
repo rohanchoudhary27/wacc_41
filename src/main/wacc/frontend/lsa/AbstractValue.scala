@@ -190,6 +190,9 @@ case class PairInfo(
 
 object AbstractValue {
 
+    private val ASCII_MIN = 0
+    private val ASCII_MAX = 127
+
     /** no information known */
     val top: AbstractValue = Unknown
 
@@ -269,6 +272,18 @@ object AbstractValue {
             case _                => false
         }
 
+    /** Check whether the argument for `chr` is provably inside the ASCII range */
+    def isProvablyValidChr(av: AbstractValue): Boolean = av match
+        case IntConstant(v) => v >= ASCII_MIN && v <= ASCII_MAX
+        case IntRange(lo, hi) => lo >= ASCII_MIN && hi <= ASCII_MAX
+        case _ => false
+
+    /** Check whether the argument for `chr` is provably outside the ASCII range */
+    def isProvablyInvalidChr(av: AbstractValue): Boolean = av match
+        case IntConstant(v) => v < ASCII_MIN || v > ASCII_MAX
+        case IntRange(lo, hi) => hi < ASCII_MIN || lo > ASCII_MAX
+        case _ => false
+
     /** WACC uses signed 32 bit integers */
     private val IntMin: Long = Int.MinValue.toLong
     private val IntMax: Long = Int.MaxValue.toLong
@@ -297,22 +312,22 @@ object AbstractValue {
 
     def neg(operand: AbstractValue): AbstractValue = operand match {
         case IntConstant(v) => safeIntResult(-v.toLong)
-        case _              => Unknown
+        case _ => Unknown
     }
 
     def not(operand: AbstractValue): AbstractValue = operand match {
         case BoolConstant(v) => BoolConstant(!v)
-        case _               => Unknown
+        case _ => Unknown
     }
 
     def ord(operand: AbstractValue): AbstractValue = operand match {
         case c: IntConstant => c
-        case _              => Unknown
+        case _ => Unknown
     }
 
     def chr(operand: AbstractValue): AbstractValue = operand match {
         case c: IntConstant => c
-        case _              => Unknown
+        case _  => Unknown
     }
 
     def len(operand: AbstractValue): AbstractValue = operand match {

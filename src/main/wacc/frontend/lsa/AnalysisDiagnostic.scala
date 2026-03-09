@@ -130,4 +130,12 @@ object AnalysisDiagnostic {
             s"Unsound pair coercion: '$accessKind' access expects '${expectedType.outputFormat}' " +
                 s"but the pair actually stores '${actualType.outputFormat}'"
         )
+
+    /** chr called with an argument provably outside valid ASCII range [0, 127] */
+    def invalidChrArgument(pos: SourcePos, argValue: AbstractValue): AnalysisDiagnostic =
+        AnalysisDiagnostic(
+            DiagnosticSeverity.Error,
+            pos,
+            s"Invalid chr argument: value is ${argValue.describe} but must be in range [0, 127]"
+        )
 }

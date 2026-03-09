@@ -26,14 +26,16 @@ case class FrontendOptimState(
     tailRecCalls: Set[Call[SemanticData]],
     safePairAccesses: Set[PairElem[SemanticData]] = Set.empty,
     safeDivisions: Set[BinaryExpr[SemanticData]] = Set.empty,
-    safeArrayAccesses: Set[ArrayElem[SemanticData]] = Set.empty
+    safeArrayAccesses: Set[ArrayElem[SemanticData]] = Set.empty,
+    safeChrCalls: Set[UnaryExpr[SemanticData]] = Set.empty
 )
 
 /**
   * Companion object for `FrontendOptimState`
   */
 object FrontendOptimState {
-    val empty: FrontendOptimState = FrontendOptimState(Set.empty, Set.empty, Set.empty, Set.empty)
+    val empty: FrontendOptimState = 
+      FrontendOptimState(Set.empty, Set.empty, Set.empty, Set.empty, Set.empty)
 }
 
 /** The top level object of the WACC compiler frontend. Contains the `main`
@@ -138,7 +140,8 @@ object WaccFrontend {
                   tailRecCalls, 
                   analysisResult.safePairAccesses, 
                   analysisResult.safeDivisions,
-                  analysisResult.safeArrayAccesses
+                  analysisResult.safeArrayAccesses,
+                  analysisResult.safeChrCalls,
                 )
                 FrontendCompilationResult(CompilerSuccess, None, typedAST, Some(optimState))
               }
