@@ -28,6 +28,17 @@ class StaticAnalyserTests extends AnyFlatSpec with Matchers {
 
     private def varIdent(name: String, renameId: Int, semType: SemanticType = KnownType.Int): Ident[SemanticData] =
         Ident(name, SemanticData.Var((1, 1), renameId, semType))
+    
+    private def declArray(ident: Ident[SemanticData], elements: List[Expr[SemanticData]]): Stmt.Decl[SemanticData] = {
+        val arrType = KnownType.Array(KnownType.Int)
+        val typedArr = SemanticData.Typed((1, 1), arrType, Some(elements.length))
+        Stmt.Decl(
+            SyntaxType.Array(SyntaxType.Int),
+            ident,
+            ArrayLiter(elements, typedArr),
+            semPos
+        )
+    }
 
     "StaticAnalyser on declarations" should "track integer literal assignments" in {
         val xIdent = varIdent("x", 0)
@@ -954,7 +965,7 @@ class StaticAnalyserTests extends AnyFlatSpec with Matchers {
         unreachableWarnings should have size 1
     }
 
-    "Division check elimination" should "mark division as safe when divisor is a known non-zero constant" in {
+    "Static analysis for division check elimination" should "mark division as safe when divisor is a known non-zero constant" in {
         /* int x = 10 / 5 — divisor is 5, safe */
         val xIdent = varIdent("x", 0)
         val divExpr = BinaryExpr(
@@ -1051,4 +1062,83 @@ class StaticAnalyserTests extends AnyFlatSpec with Matchers {
         result.safeDivisions should contain(divExpr)
     }
 
+    "Static analysis for array bounds on empty array" should "detect any constant index as out of bounds" in {
+        /* int[] a = []; int x = a[0]*/
+        val aIdent = varIdent("a", 0, KnownType.Array(KnownType.Int))
+        val xIdent = varIdent("x", 1)
+
+        val declA = declArray(aIdent, List.empty)
+
+        val arrayAccess = ArrayElem(aIdent, List(IntLiter(0, typedInt)), SemanticData.Typed((2, 1), KnownType.Int))
+        val declX = Stmt.Decl(SyntaxType.Int, xIdent, arrayAccess, semPos)
+
+        val result = StaticAnalyser.analyse(programWithStmts(List(declA, declX)))
+        result.hasErrors shouldBe true
+        result.diagnostics.exists(_.message.contains("out of bounds")) shouldBe true
+    }
+
+    "Static analysis for array bounds with variable index" should "detect out of bounds when variable is known constant" in {
+        /* int[] a = [1, 2, 3]; int i = 5; int x = a[i] */
+        val aIdent = varIdent("a", 0, KnownType.Array(KnownType.Int))
+        val iIdent = varIdent("i", 1)
+        val xIdent = varIdent("x", 2)
+
+        val declA = declArray(aIdent, List(IntLiter(1, typedInt), IntLiter(2, typedInt), IntLiter(3, typedInt)))
+        val declI = Stmt.Decl(SyntaxType.Int, iIdent, IntLiter(5, typedInt), semPos)
+
+        val arrayAccess = ArrayElem(aIdent, List(iIdent), SemanticData.Typed((3, 1), KnownType.Int))
+        val declX = Stmt.Decl(SyntaxType.Int, xIdent, arrayAccess, semPos)
+
+        val result = StaticAnalyser.analyse(programWithStmts(List(declA, declI, declX)))
+        result.hasErrors shouldBe true
+    }
+
+    it should "mark safe when variable is known constant in bounds" in {
+        /* int[] a = [1, 2, 3]; int i = 2; int x = a[i] */
+        val aIdent = varIdent("a", 0, KnownType.Array(KnownType.Int))
+        val iIdent = varIdent("i", 1)
+        val xIdent = varIdent("x", 2)
+
+        val declA = declArray(aIdent, List(IntLiter(1, typedInt), IntLiter(2, typedInt), IntLiter(3, typedInt)))
+        val declI = Stmt.Decl(SyntaxType.Int, iIdent, IntLiter(2, typedInt), semPos)
+
+        val arrayAccess = ArrayElem(aIdent, List(iIdent), SemanticData.Typed((3, 1), KnownType.Int))
+        val declX = Stmt.Decl(SyntaxType.Int, xIdent, arrayAccess, semPos)
+
+        val result = StaticAnalyser.analyse(programWithStmts(List(declA, declI, declX)))
+        result.hasErrors shouldBe false
+        result.safeArrayAccesses should contain(arrayAccess)
+    }
+
+    "Static analysis for array bounds with arithmetic index" should "mark safe for a + b where result is in bounds" in {
+        /* int[] a = [1,2,3,4,5]; int x = a[1 + 2] */
+        val aIdent = varIdent("a", 0, KnownType.Array(KnownType.Int))
+        val xIdent = varIdent("x", 1)
+
+        val elems = (1 to 5).map(n => IntLiter(n, typedInt)).toList
+        val declA = declArray(aIdent, elems)
+
+        val addExpr = BinaryExpr(BinaryOperator.Add, IntLiter(1, typedInt), IntLiter(2, typedInt), typedInt)
+        val arrayAccess = ArrayElem(aIdent, List(addExpr), SemanticData.Typed((2, 1), KnownType.Int))
+        val declX = Stmt.Decl(SyntaxType.Int, xIdent, arrayAccess, semPos)
+
+        val result = StaticAnalyser.analyse(programWithStmts(List(declA, declX)))
+        result.hasErrors shouldBe false
+        result.safeArrayAccesses should contain(arrayAccess)
+    }
+
+    it should "detect out of bounds for a + b where result exceeds length" in {
+        /* int[] a = [1,2,3]; int x = a[2 + 3]*/
+        val aIdent = varIdent("a", 0, KnownType.Array(KnownType.Int))
+        val xIdent = varIdent("x", 1)
+
+        val declA = declArray(aIdent, List(IntLiter(1, typedInt), IntLiter(2, typedInt), IntLiter(3, typedInt)))
+
+        val addExpr = BinaryExpr(BinaryOperator.Add, IntLiter(2, typedInt), IntLiter(3, typedInt), typedInt)
+        val arrayAccess = ArrayElem(aIdent, List(addExpr), SemanticData.Typed((2, 1), KnownType.Int))
+        val declX = Stmt.Decl(SyntaxType.Int, xIdent, arrayAccess, semPos)
+
+        val result = StaticAnalyser.analyse(programWithStmts(List(declA, declX)))
+        result.hasErrors shouldBe true
+    }
 }

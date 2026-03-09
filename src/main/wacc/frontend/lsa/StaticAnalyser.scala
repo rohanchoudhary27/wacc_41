@@ -736,7 +736,7 @@ object StaticAnalyser {
                         )
                     )
                 } else if (AbstractValue.isProvablyInBounds(indexVal, length)) {
-                    analyserState.markSafeArrayAccess(node)
+                    analyserState.markSafeArrayAccess(array)
                 }
             case _ => () /* we keep runtime check for unkown cases */
         }
