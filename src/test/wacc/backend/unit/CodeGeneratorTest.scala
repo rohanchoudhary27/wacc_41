@@ -605,7 +605,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         val prog = TAC.RegProgram(
             List.empty,
             List.empty,
-            List(TAC.Chr(dest, src, BadCharWidgetError))
+            List(TAC.Chr(dest, src, Some(BadCharWidgetError)))
         )
 
         val alloc = RegisterAllocator.allocate(prog)
@@ -642,7 +642,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
             dest -> (PhysicalReg.argRegisters(1): Location)
         )
 
-        val result = programWith(List(TAC.Chr(dest, src, BadCharWidgetError)), alloc)
+        val result = programWith(List(TAC.Chr(dest, src, Some(BadCharWidgetError))), alloc)
 
         val cmpInstrs = result.body.collect { case c: Arm.CmpImm => c }
         cmpInstrs should have length 1

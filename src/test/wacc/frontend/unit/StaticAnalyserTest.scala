@@ -9,6 +9,7 @@ class StaticAnalyserTests extends AnyFlatSpec with Matchers {
 
     private val semPos = SemanticData.Pos((1, 1))
     private val typedInt = SemanticData.Typed((1, 1), KnownType.Int)
+    private val typedChar = SemanticData.Typed((1, 1), KnownType.Char)
     private val typedBool = SemanticData.Typed((1, 1), KnownType.Bool)
     private val typedPair = SemanticData.Typed((1, 1), KnownType.Pair(KnownType.Int, KnownType.Int))
 
@@ -1195,5 +1196,134 @@ class StaticAnalyserTests extends AnyFlatSpec with Matchers {
 
         val result = StaticAnalyser.analyse(programWithStmts(List(declP, declX)))
         result.safePairAccesses should contain(fstAccess)
+    }
+
+    "Static analyser for chrs" should "mark chr 65 as safe (valid ASCII)" in {
+        val chrExpr = UnaryExpr(UnaryOperator.Chr, IntLiter(65, typedInt), typedChar)
+        val xIdent = varIdent("x", 0, KnownType.Char)
+        val decl = Stmt.Decl(SyntaxType.Char, xIdent, chrExpr, semPos)
+
+        val result = StaticAnalyser.analyse(programWithStmts(List(decl)))
+        result.hasErrors shouldBe false
+        result.safeChrCalls should contain(chrExpr)
+    }
+
+    it should "error on chr 200 (above valid range)" in {
+        val chrExpr = UnaryExpr(UnaryOperator.Chr, IntLiter(200, typedInt), typedChar)
+        val xIdent = varIdent("x", 0, KnownType.Char)
+        val decl = Stmt.Decl(SyntaxType.Char, xIdent, chrExpr, semPos)
+
+        val result = StaticAnalyser.analyse(programWithStmts(List(decl)))
+        result.hasErrors shouldBe true
+        result.diagnostics.exists(_.message.contains("Invalid chr argument")) shouldBe true
+        result.safeChrCalls should not contain chrExpr
+    }
+
+    it should "error on chr with negative argument" in {
+        /* chr (-1) via negation: int x = 1; int y = -x; char c = chr y */
+        val xIdent = varIdent("x", 0)
+        val yIdent = varIdent("y", 1)
+        val cIdent = varIdent("c", 2, KnownType.Char)
+
+        val declX = Stmt.Decl(SyntaxType.Int, xIdent, IntLiter(1, typedInt), semPos)
+        val negExpr = UnaryExpr(UnaryOperator.Neg, xIdent, typedInt)
+        val declY = Stmt.Decl(SyntaxType.Int, yIdent, negExpr, semPos)
+        val chrExpr = UnaryExpr(UnaryOperator.Chr, yIdent, typedChar)
+        val declC = Stmt.Decl(SyntaxType.Char, cIdent, chrExpr, semPos)
+
+        val result = StaticAnalyser.analyse(programWithStmts(List(declX, declY, declC)))
+        result.hasErrors shouldBe true
+        result.diagnostics.exists(_.message.contains("Invalid chr argument")) shouldBe true
+    }
+
+
+    it should "not flag and not mark safe when argument is unknown" in {
+        /* int x = read; char c = chr x */
+        val xIdent = varIdent("x", 0)
+        val cIdent = varIdent("c", 1, KnownType.Char)
+
+        val declX = Stmt.Decl(SyntaxType.Int, xIdent, IntLiter(65, typedInt), semPos)
+        val readX = Stmt.Read(xIdent, semPos)
+        val chrExpr = UnaryExpr(UnaryOperator.Chr, xIdent, typedChar)
+        val declC = Stmt.Decl(SyntaxType.Char, cIdent, chrExpr, semPos)
+
+        val result = StaticAnalyser.analyse(programWithStmts(List(declX, readX, declC)))
+        result.hasErrors shouldBe false
+        result.safeChrCalls should not contain chrExpr
+    }
+
+    it should "mark safe when argument range is entirely within [0, 127]" in {
+        /* if cond then x = 10 else x = 100 fi; chr x — range [10, 100] is valid */
+        val xIdent = varIdent("x", 0)
+        val cIdent = varIdent("c", 1, KnownType.Char)
+        val bIdent = varIdent("b", 2, KnownType.Bool)
+
+        val declX = Stmt.Decl(SyntaxType.Int, xIdent, IntLiter(0, typedInt), semPos)
+        val declB = Stmt.Decl(SyntaxType.Bool, bIdent, BoolLiter(true, typedBool), semPos)
+        val readB = Stmt.Read(bIdent, semPos)
+        val ifStmt = Stmt.If(
+            bIdent,
+            Stmt.Block(List(Stmt.Asgn(xIdent, IntLiter(10, typedInt), semPos)), semPos),
+            Stmt.Block(List(Stmt.Asgn(xIdent, IntLiter(100, typedInt), semPos)), semPos),
+            semPos
+        )
+        val chrExpr = UnaryExpr(UnaryOperator.Chr, xIdent, typedChar)
+        val declC = Stmt.Decl(SyntaxType.Char, cIdent, chrExpr, semPos)
+
+        val result = StaticAnalyser.analyse(
+            programWithStmts(List(declX, declB, readB, ifStmt, declC))
+        )
+        result.hasErrors shouldBe false
+        result.safeChrCalls should contain(chrExpr)
+    }
+
+    it should "error when argument range is entirely above 127" in {
+        /* if cond then x = 128 else x = 255 fi; chr x — range [128, 255] invalid */
+        val xIdent = varIdent("x", 0)
+        val cIdent = varIdent("c", 1, KnownType.Char)
+        val bIdent = varIdent("b", 2, KnownType.Bool)
+
+        val declX = Stmt.Decl(SyntaxType.Int, xIdent, IntLiter(0, typedInt), semPos)
+        val declB = Stmt.Decl(SyntaxType.Bool, bIdent, BoolLiter(true, typedBool), semPos)
+        val readB = Stmt.Read(bIdent, semPos)
+        val ifStmt = Stmt.If(
+            bIdent,
+            Stmt.Block(List(Stmt.Asgn(xIdent, IntLiter(128, typedInt), semPos)), semPos),
+            Stmt.Block(List(Stmt.Asgn(xIdent, IntLiter(255, typedInt), semPos)), semPos),
+            semPos
+        )
+        val chrExpr = UnaryExpr(UnaryOperator.Chr, xIdent, typedChar)
+        val declC = Stmt.Decl(SyntaxType.Char, cIdent, chrExpr, semPos)
+
+        val result = StaticAnalyser.analyse(
+            programWithStmts(List(declX, declB, readB, ifStmt, declC))
+        )
+        result.hasErrors shouldBe true
+        result.diagnostics.exists(_.message.contains("Invalid chr argument")) shouldBe true
+    }
+
+    it should "not flag and not mark safe when range partially overlaps valid range" in {
+        /* if cond then x = 50 else x = 200 fi; chr x — range [50, 200] partially valid */
+        val xIdent = varIdent("x", 0)
+        val cIdent = varIdent("c", 1, KnownType.Char)
+        val bIdent = varIdent("b", 2, KnownType.Bool)
+
+        val declX = Stmt.Decl(SyntaxType.Int, xIdent, IntLiter(0, typedInt), semPos)
+        val declB = Stmt.Decl(SyntaxType.Bool, bIdent, BoolLiter(true, typedBool), semPos)
+        val readB = Stmt.Read(bIdent, semPos)
+        val ifStmt = Stmt.If(
+            bIdent,
+            Stmt.Block(List(Stmt.Asgn(xIdent, IntLiter(50, typedInt), semPos)), semPos),
+            Stmt.Block(List(Stmt.Asgn(xIdent, IntLiter(200, typedInt), semPos)), semPos),
+            semPos
+        )
+        val chrExpr = UnaryExpr(UnaryOperator.Chr, xIdent, typedChar)
+        val declC = Stmt.Decl(SyntaxType.Char, cIdent, chrExpr, semPos)
+
+        val result = StaticAnalyser.analyse(
+            programWithStmts(List(declX, declB, readB, ifStmt, declC))
+        )
+        result.hasErrors shouldBe false
+        result.safeChrCalls should not contain chrExpr
     }
 }
