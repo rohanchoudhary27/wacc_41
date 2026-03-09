@@ -96,6 +96,7 @@ private class FunctionState(
   * State class for managing directives.
   */
 private class GlobalFlattenContext(
+    val structTable: scala.collection.immutable.Map[String, KnownType.Record] = scala.collection.immutable.Map.empty
 ) {
     private val directives = ListBuffer[TAC.DataDirective]()
 
@@ -175,9 +176,14 @@ object Flattener {
 
         val Program(_, _, funcs, stmt, _) = typedAST
 
+        val structTable = typedAST.info match {
+            case SemanticData.TopLevel(_, st) => st
+            case _ => scala.collection.immutable.Map.empty[String, KnownType.Record]
+        }
+
         /* Initialise contexts */
         given funcState: FunctionState = FunctionState()
-        given directiveState: GlobalFlattenContext = GlobalFlattenContext()
+        given directiveState: GlobalFlattenContext = GlobalFlattenContext(structTable)
         given FrontendOptimState = optimState
 
         /* Flatten the main statement which populates the funcState
@@ -347,6 +353,11 @@ object Flattener {
             case a: ArrayElem[SemanticData] =>
                 val (arrayPtr, index) = resolveArrayElem(a)
                 emitArrayStore(arrayPtr, index, srcOperand, Size.fromSemType(a.info.semanticType), a)
+            case FieldAccess(expr, field, _) =>
+                val recordOp = flattenExpr(expr)
+                val recordPtr = toReg(recordOp, Size.X)
+                val fieldIndex = resolveFieldIndex(expr.expressionType, field.name)
+                funcState.emitInstruction(TAC.RecordStore(recordPtr, fieldIndex, srcOperand))
         }
     }
 
@@ -372,6 +383,14 @@ object Flattener {
 
         case a: ArrayElem[SemanticData] =>
             flattenArrayElem(a)
+
+        case FieldAccess(expr, field, _) =>
+            val recordOp = flattenExpr(expr)
+            val recordPtr = toReg(recordOp, Size.X)
+            val fieldIndex = resolveFieldIndex(expr.expressionType, field.name)
+            val dest = funcState.anonymousReg(Size.X)
+            funcState.emitInstruction(TAC.RecordLoad(recordPtr, fieldIndex, dest))
+            dest
     }
 
     /**
@@ -407,6 +426,16 @@ object Flattener {
             pairPtr
         case a: ArrayLiter[SemanticData] => flattenArrayLiter(a)
         case p: PairElem[SemanticData] => flattenPairElem(p)
+        case NewRecord(name, args, _) =>
+            val flatArgs = args.map(flattenExpr(_))
+            val numFields = flatArgs.length
+            val heapSize = numFields * MemoryLayout.PAIR_SLOT_SIZE
+            val recordPtr = funcState.anonymousReg(Size.X)
+            funcState.emitInstruction(TAC.HeapAlloc(recordPtr, TAC.Immediate(heapSize)))
+            flatArgs.zipWithIndex.foreach { case (src, idx) =>
+                funcState.emitInstruction(TAC.RecordStore(recordPtr, idx, src))
+            }
+            recordPtr
     }
 
     /**
@@ -539,6 +568,20 @@ object Flattener {
         (pairPtr, pos)
     }
 
+    /** Resolve the field index for a field name in a record type.
+      * Falls back to the struct table for placeholder record types.
+      */
+    private def resolveFieldIndex(recordType: SemanticType, fieldName: String)
+                                 (using directiveState: GlobalFlattenContext): Int = {
+        val fields = recordType match {
+            case KnownType.Record(_, fs) if fs.nonEmpty => fs
+            case KnownType.Record(name, Nil) =>
+                directiveState.structTable.get(name).map(_.fields).getOrElse(Nil)
+            case _ => Nil
+        }
+        fields.indexWhere(_._1 == fieldName)
+    }
+
     /**
      * Resolve the array pointer and final index for an `ArrayElem`.
      * Handles multi-dimensional arrays by applying all but the last index.
@@ -602,6 +645,7 @@ object Flattener {
             case ident: Ident[SemanticData] => ident.info.knownType
             case p: PairElem[SemanticData] => p.info.knownType
             case a: ArrayElem[SemanticData] => a.info.knownType
+            case f: FieldAccess[SemanticData] => f.info.knownType
         }
 
         /* Read ONLY supports int and char */
@@ -641,6 +685,16 @@ object Flattener {
                 val tempReg = funcState.anonymousReg(knownType)
                 funcState.emitInstruction(TAC.Read(tempReg, readWidget))
                 emitArrayStore(arrayPtr, index, tempReg, Size.fromSemType(knownType), a)
+
+            case FieldAccess(expr, field, _) =>
+                /* record fields are heap memory, so read into temp then store back */
+                val recordOp = flattenExpr(expr)
+                val recordPtr = toReg(recordOp, Size.X)
+                val fieldIndex = resolveFieldIndex(expr.expressionType, field.name)
+                val tempReg = funcState.anonymousReg(knownType)
+                funcState.emitInstruction(TAC.RecordLoad(recordPtr, fieldIndex, tempReg))
+                funcState.emitInstruction(TAC.Read(tempReg, readWidget))
+                funcState.emitInstruction(TAC.RecordStore(recordPtr, fieldIndex, tempReg))
         }
     }
 
@@ -659,13 +713,14 @@ object Flattener {
         require(
             expr.expressionType match {
                 /* null has type pair */
-                case KnownType.Pair(_, _) | KnownType.Array(_) | PairAny | Null => true
+                case KnownType.Pair(_, _) | KnownType.Array(_) | _: KnownType.Record | PairAny | Null => true
                 case _ => false
             },
             InternalCompilerError.invalidFreeType(expr.expressionType.outputFormat)
         )
         val freeType = expr.expressionType match {
-            case KnownType.Array(_) => FreeType.Array
+            case KnownType.Array(_)    => FreeType.Array
+            case _: KnownType.Record   => FreeType.Record
             case _ => FreeType.Pair
         }
         /* evaluate the expression to get the pointer. Since it's a pointer, we can
@@ -701,6 +756,7 @@ object Flattener {
             case KnownType.Pair(_, _) => PrintPointerWidget
             case KnownType.Array(KnownType.Char) => PrintStringWidget
             case KnownType.Array(_) => PrintPointerWidget
+            case _: KnownType.Record => PrintPointerWidget
             case Null | EmptyArray => PrintPointerWidget
         
 
@@ -796,6 +852,13 @@ object Flattener {
         case b: BinaryExpr[SemanticData] => flattenBinaryExpr(b)
         case u: UnaryExpr[SemanticData] => flattenUnaryExpr(u)
         case a: ArrayElem[SemanticData] => flattenArrayElem(a)
+        case FieldAccess(expr, field, _) =>
+            val recordOp = flattenExpr(expr)
+            val recordPtr = toReg(recordOp, Size.X)
+            val fieldIndex = resolveFieldIndex(expr.expressionType, field.name)
+            val dest = funcState.anonymousReg(Size.X)
+            funcState.emitInstruction(TAC.RecordLoad(recordPtr, fieldIndex, dest))
+            dest
     
     /**
       * Flatten a binary expression
