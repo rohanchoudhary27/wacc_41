@@ -289,7 +289,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         val armProg = CodeGenerator.generate(prog, alloc)
 
         /* Should contain: main label, prologue (stp, mov fp), mov w0 #7, bl exit, epilogue (ldp) */
-        armProg.body should contain (Arm.LabelDef(Arm.AddrLabel("main")))
+        armProg.body should contain (Arm.LabelDef(Arm.AddrLabel(LabelNameFormatter.mainLabel)))
         armProg.body should contain (Arm.Movz(Size.W, PhysicalReg.returnRegister, Arm.Immediate(7)))
         armProg.body should contain (Arm.Bl(Arm.AddrLabel("exit")))
     }
@@ -567,7 +567,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
 
         checkLabel(armProg.body, PrintIntWidget.label)
         checkLabel(armProg.body, PrintlnWidget.label)
-        checkBranchLinkLabel(armProg.body, "puts")
+        checkBranchLinkLabel(armProg.body, CLibLabels.putsLabel)
     }
 
     it should "NOT use register widgets that are not used" in {
@@ -596,7 +596,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         val armProg = CodeGenerator.generate(prog, alloc)
 
         checkLabel(armProg.body, ReadIntegerWidget.label)
-        checkBranchLinkLabel(armProg.body, "scanf")
+        checkBranchLinkLabel(armProg.body, CLibLabels.scanfLabel)
     }
 
     it should "register ReadCharWidget when Read instruction is used" in {
@@ -611,7 +611,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         val armProg = CodeGenerator.generate(prog, alloc)
 
         checkLabel(armProg.body, ReadCharWidget.label)
-        checkBranchLinkLabel(armProg.body, "scanf")
+        checkBranchLinkLabel(armProg.body, CLibLabels.scanfLabel)
     }
 
     "CodeGenerator for Chr widgets" should "register widget for invalid ascii int" in {

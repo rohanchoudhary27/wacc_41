@@ -5,6 +5,7 @@ import org.scalatest.matchers.should.Matchers
 import wacc.backend.Size.*
 import wacc.backend.PhysicalReg
 import wacc.backend.Arm.*
+import wacc.backend.LabelNameFormatter
 import wacc.backend.PeepholeOptimisation
 
 class PeepholeOptimisationTest extends AnyFlatSpec with Matchers {
@@ -31,11 +32,11 @@ class PeepholeOptimisationTest extends AnyFlatSpec with Matchers {
 
     it should "remove unconditional branches to the immediately following label" in {
         val input = List(
-            BranchUncond(AddrLabel("main")),
-            LabelDef(AddrLabel("main"))
+            BranchUncond(AddrLabel(LabelNameFormatter.mainLabel)),
+            LabelDef(AddrLabel(LabelNameFormatter.mainLabel))
         )
         val expected = List(
-            LabelDef(AddrLabel("main"))
+            LabelDef(AddrLabel(LabelNameFormatter.mainLabel))
         )
         
         optimise(input) shouldBe expected
