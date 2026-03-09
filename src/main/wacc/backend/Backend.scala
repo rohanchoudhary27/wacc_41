@@ -72,7 +72,7 @@ object WaccBackend {
         registerAllocation <- Try(RegisterAllocator.allocate(highLevelIR))
 
         /* Phase 3 - Code Generation */
-        (lowLevelIR, runtimeDispatcher) <- Try(CodeGenerator.generate(highLevelIR, registerAllocation))
+        lowLevelIR <- Try(CodeGenerator.generate(highLevelIR, registerAllocation))
 
         /* Phase 4 - Optimise assembly if flag is true */
         lowLevelIR <- Try(if (optimiseFlag) PeepholeOptimisation.allOptimisations(lowLevelIR) else lowLevelIR)
@@ -84,8 +84,6 @@ object WaccBackend {
 
             Using(BufferedWriter(FileWriter(filePath.toFile))) { bw =>
                 Outputter.emit(lowLevelIR, bw)
-                bw.write("\n\n")
-                runtimeDispatcher.writeCollectedAssembly(bw)
                 bw.write("\n")
             }
         }

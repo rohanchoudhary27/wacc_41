@@ -387,12 +387,10 @@ class OutputterTest extends AnyFlatSpec with Matchers {
                 Arm.LabelDef(Arm.AddrLabel("main")), 
                 Arm.Bl(Arm.AddrLabel(PrintIntWidget.label)), 
                 Arm.Ret
-            )
+            ) ++ PrintIntWidget.instrs
         )
 
-        val mainOutput = emitToString(prog)
-        val widgetOutput = PrintIntWidget.source
-        val fullOutput = s"$mainOutput\n\n$widgetOutput"
+        val fullOutput = emitToString(prog)
 
         fullOutput should include (PrintIntWidget.label) // check for label
         fullOutput should include ("bl printf") // check for implementation detail
@@ -406,12 +404,10 @@ class OutputterTest extends AnyFlatSpec with Matchers {
                 Arm.LabelDef(Arm.AddrLabel("main")),
                 Arm.Bl(Arm.AddrLabel(ReadIntegerWidget.label)),
                 Arm.Ret
-            )
+            ) ++ ReadIntegerWidget.instrs
         )
 
-        val mainOutput = emitToString(prog)
-        val widgetOutput = ReadIntegerWidget.source
-        val fullOutput = s"$mainOutput\n\n$widgetOutput"
+        val fullOutput = emitToString(prog)
 
         fullOutput should include (ReadIntegerWidget.label) // check for label
         fullOutput should include ("bl scanf") // check for implementation detail
@@ -425,12 +421,10 @@ class OutputterTest extends AnyFlatSpec with Matchers {
                 Arm.LabelDef(Arm.AddrLabel("main")),
                 Arm.Bl(Arm.AddrLabel(ReadCharWidget.label)),
                 Arm.Ret
-            )
+            ) ++ ReadCharWidget.instrs
         )
 
-        val mainOutput = emitToString(prog)
-        val widgetOutput = ReadCharWidget.source
-        val fullOutput = s"$mainOutput\n\n$widgetOutput"
+        val fullOutput = emitToString(prog)
 
         fullOutput should include (ReadCharWidget.label) // check for label
         fullOutput should include ("bl scanf") // check for implementation detail

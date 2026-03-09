@@ -14,11 +14,13 @@ private class GlobalGenContext {
     private var labelCounter = 0
     private val dataDirectives = ListBuffer[Arm.DataDirective]()
     
-    /** Get the final directive list */
-    def finalDirectives: List[Arm.DataDirective] = dataDirectives.toList
-
     /** Widget management */
-    val dispatcher = RuntimeLibraryDispatcher()
+    val dispatcher = WidgetLibraryDispatcher()
+
+    /** Get the final directive list */
+    def finalDirectives: List[Arm.DataDirective] = {
+        dataDirectives.toList ++ dispatcher.collectWidgetDirectiveIR
+    }
 
     /** Generate a fresh unique label for compiler-generated code */
     def freshLabel(): Arm.AddrLabel = {
@@ -330,7 +332,7 @@ object CodeGenerator {
       * @return the complete ARM program with data section and text section
       */
     def generate(regProgram: TAC.RegProgram,
-                 allocs: AllocationResult): (Arm.Program, RuntimeLibraryDispatcher) = {
+                 allocs: AllocationResult): Arm.Program = {
 
         /* Init global context for directives and labels and populate directives */
         val globalCtx = new GlobalGenContext()
@@ -359,10 +361,13 @@ object CodeGenerator {
         generateMovImmediate(Size.W, PhysicalReg.returnRegister, Arm.Immediate(code(CompilerSuccess)))
         generateFuncEpilogue(st.localsSize, st.savedRegs)
 
-        /* Final low-level IR for the program */
-        val program = Arm.Program(globalCtx.finalDirectives, st.finalInstrs)
+        /* Final low-level IR for the program with the collected widgets */
+        val program = Arm.Program(
+            globalCtx.finalDirectives, 
+            st.finalInstrs ++ globalCtx.dispatcher.collectWidgetInstrIR
+        )
 
-        (program, globalCtx.dispatcher)
+        program
     }
 
     /**
