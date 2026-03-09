@@ -23,17 +23,37 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         armProg
     }
 
-    private def checkLabel(body: List[Arm.Instruction], labelName: String, shouldExist: Boolean = true): Assertion = {
+    /** Helper to check if a list contains or doesn't contain a string */
+    private def checkStringListContains(list: List[String],
+                                        target: String,
+                                        shouldExist: Boolean): Assertion = {
+        if (shouldExist) {
+            list should contain (target)
+        } else {
+            list shouldNot contain (target)
+        }
+    }
+
+    /** Check that a label exists/doesn't exist in the widget IR in a test */
+    private def checkLabel(body: List[Arm.Instruction],
+                           labelName: String,
+                           shouldExist: Boolean = true): Assertion = {
         val extractedLabels = body.collect { 
             case Arm.LabelDef(Arm.AddrLabel(extractedLabel)) => extractedLabel 
         }
+        checkStringListContains(extractedLabels, labelName, shouldExist)
+    }
 
-        if (shouldExist) {
-            extractedLabels should contain (labelName)
-        } else {
-            extractedLabels shouldNot contain (labelName)
+    /** Check that a bl instruction to a label exists/doesn't exist in the widget IR in a test */
+    private def checkBranchLinkLabel(body: List[Arm.Instruction],
+                                     labelName: String,
+                                     shouldExist: Boolean = true) = {
+
+        val branchLinkLabels = body.collect { 
+            case Arm.Bl(Arm.AddrLabel(label)) => label 
         }
-}
+        checkStringListContains(branchLinkLabels, labelName, shouldExist)
+    }
 
     /** Scratch register 0 used by the code generator */
     private val scratch0 = PhysicalReg.ipcScratch1
@@ -533,7 +553,6 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         val armProg = CodeGenerator.generate(prog, alloc)
         
         checkLabel(armProg.body, PrintIntWidget.label)
-        // widgetAssembly should include ("%d") 
     }
 
     it should "register PrintlnWidget when Print instruction has newline=true" in {
@@ -548,8 +567,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
 
         checkLabel(armProg.body, PrintIntWidget.label)
         checkLabel(armProg.body, PrintlnWidget.label)
-
-        // widgetAssembly should include ("puts") // what println uses to make the new line
+        checkBranchLinkLabel(armProg.body, "puts")
     }
 
     it should "NOT use register widgets that are not used" in {
@@ -578,9 +596,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         val armProg = CodeGenerator.generate(prog, alloc)
 
         checkLabel(armProg.body, ReadIntegerWidget.label)
-
-        // widgetAssembly should include ("%d")
-        // widgetAssembly should include ("scanf")
+        checkBranchLinkLabel(armProg.body, "scanf")
     }
 
     it should "register ReadCharWidget when Read instruction is used" in {
@@ -595,9 +611,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         val armProg = CodeGenerator.generate(prog, alloc)
 
         checkLabel(armProg.body, ReadCharWidget.label)
-
-        // widgetAssembly should include ("%c")
-        // widgetAssembly should include ("scanf")
+        checkBranchLinkLabel(armProg.body, "scanf")
     }
 
     "CodeGenerator for Chr widgets" should "register widget for invalid ascii int" in {
@@ -615,7 +629,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         
         checkLabel(armProg.body, BadCharWidgetError.label)
 
-        // widgetAssembly should include ("bl exit") 
+        checkBranchLinkLabel(armProg.body, LabelNameFormatter.exitLabel)
     }
 
     /* ==================== Unary Operator Tests ==================== */
