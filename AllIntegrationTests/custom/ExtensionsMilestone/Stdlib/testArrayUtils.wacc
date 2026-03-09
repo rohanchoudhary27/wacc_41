@@ -1,0 +1,47 @@
+# Test: wacc.arrayUtils standard library module
+#
+# Output:
+# 9
+# 1
+# 20
+# 2
+# true
+# false
+# 1
+# 2
+# 3
+# 5
+# 9
+#
+# Exit:
+# 0
+
+# Program:
+
+import wacc.arrayUtils
+
+begin
+  int[] arr = [3, 1, 5, 9, 2];
+
+  int a = call arrayUtils.max(arr);
+  println a;
+  int b = call arrayUtils.min(arr);
+  println b;
+  int c = call arrayUtils.sum(arr);
+  println c;
+  int d = call arrayUtils.find(arr, 5);
+  println d;
+  bool e = call arrayUtils.containsVal(arr, 9);
+  println e;
+  bool f = call arrayUtils.containsVal(arr, 7);
+  println f;
+
+  int[] sorted = call arrayUtils.sort(arr);
+  int i = 0;
+  while i < len sorted do
+    println sorted[i];
+    i = i + 1
+  done;
+
+  free arr
+end

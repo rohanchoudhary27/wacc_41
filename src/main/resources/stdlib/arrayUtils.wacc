@@ -1,0 +1,123 @@
+# wacc.arrayUtils - (int) Array utility functions for WACC
+#
+# Since WACC doesn't have generics, these are specialised for int[].
+
+begin
+
+  # Returns the maximum element in a non-empty int array.
+  int max(int[] arr) is
+    int length = len arr;
+    int result = arr[0];
+    int i = 1;
+    while i < length do
+      if arr[i] > result then
+        result = arr[i]
+      else
+        skip
+      fi;
+      i = i + 1
+    done;
+    return result
+  end
+
+  # Returns the minimum element in a non-empty int array.
+  int min(int[] arr) is
+    int length = len arr;
+    int result = arr[0];
+    int i = 1;
+    while i < length do
+      if arr[i] < result then
+        result = arr[i]
+      else
+        skip
+      fi;
+      i = i + 1
+    done;
+    return result
+  end
+
+  # Returns the sum of all elements in an int array.
+  int sum(int[] arr) is
+    int length = len arr;
+    int result = 0;
+    int i = 0;
+    while i < length do
+      result = result + arr[i];
+      i = i + 1
+    done;
+    return result
+  end
+
+  # Returns the index of the first occurrence of val in arr, or -1 if not found.
+  int find(int[] arr, int val) is
+    int length = len arr;
+    int i = 0;
+    while i < length do
+      if arr[i] == val then
+        return i
+      else
+        skip
+      fi;
+      i = i + 1
+    done;
+    return 0 - 1
+  end
+
+  # Returns true if arr contains val.
+  bool containsVal(int[] arr, int val) is
+    int length = len arr;
+    int i = 0;
+    while i < length do
+      if arr[i] == val then
+        return true
+      else
+        skip
+      fi;
+      i = i + 1
+    done;
+    return false
+  end
+
+  # Reverses array arr.
+  int[] reverse(int[] arr) is
+    int length = len arr;
+    int lo = 0;
+    int hi = length - 1;
+    while lo < hi do
+      int tmp = arr[lo];
+      arr[lo] = arr[hi];
+      arr[hi] = tmp;
+      lo = lo + 1;
+      hi = hi - 1
+    done;
+    return arr
+  end
+
+  # Sorts array arr using insertion sort.
+  int[] sort(int[] arr) is
+    int length = len arr;
+    int i = 1;
+    while i < length do
+      int key = arr[i];
+      int j = i - 1;
+      bool shifting = true;
+      while shifting do
+        if j >= 0 then
+          if arr[j] > key then
+            arr[j + 1] = arr[j];
+            j = j - 1
+          else
+            shifting = false
+          fi
+        else
+          shifting = false
+        fi
+      done;
+      arr[j + 1] = key;
+      i = i + 1
+    done;
+    return arr
+  end
+
+  skip
+end
