@@ -384,11 +384,12 @@ object Flattener {
         case a: ArrayElem[SemanticData] =>
             flattenArrayElem(a)
 
-        case FieldAccess(expr, field, _) =>
+        case FieldAccess(expr, field, info) =>
             val recordOp = flattenExpr(expr)
             val recordPtr = toReg(recordOp, Size.X)
             val fieldIndex = resolveFieldIndex(expr.expressionType, field.name)
-            val dest = funcState.anonymousReg(Size.X)
+            val fieldSize = Size.fromSemType(info.semanticType)
+            val dest = funcState.anonymousReg(fieldSize)
             funcState.emitInstruction(TAC.RecordLoad(recordPtr, fieldIndex, dest))
             dest
     }
@@ -852,11 +853,12 @@ object Flattener {
         case b: BinaryExpr[SemanticData] => flattenBinaryExpr(b)
         case u: UnaryExpr[SemanticData] => flattenUnaryExpr(u)
         case a: ArrayElem[SemanticData] => flattenArrayElem(a)
-        case FieldAccess(expr, field, _) =>
+        case FieldAccess(expr, field, info) =>
             val recordOp = flattenExpr(expr)
             val recordPtr = toReg(recordOp, Size.X)
             val fieldIndex = resolveFieldIndex(expr.expressionType, field.name)
-            val dest = funcState.anonymousReg(Size.X)
+            val fieldSize = Size.fromSemType(info.semanticType)
+            val dest = funcState.anonymousReg(fieldSize)
             funcState.emitInstruction(TAC.RecordLoad(recordPtr, fieldIndex, dest))
             dest
     

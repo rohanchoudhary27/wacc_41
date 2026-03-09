@@ -1,0 +1,25 @@
+# record passed to function and field access within function
+
+# Output:
+# 30
+#
+
+# Exit:
+# 0
+
+struct Point is
+  int x;
+  int y;
+end
+
+begin
+  int sumPoint(struct Point p) is
+    int result = p.x + p.y ;
+    return result
+  end
+
+  struct Point p = new Point(10, 20) ;
+  int s = call sumPoint(p) ;
+  println s ;
+  free p
+end

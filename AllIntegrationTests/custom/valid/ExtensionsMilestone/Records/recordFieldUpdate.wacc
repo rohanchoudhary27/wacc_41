@@ -1,0 +1,27 @@
+# record field update and read back
+
+# Output:
+# 1
+# 2
+# 10
+# 20
+#
+
+# Exit:
+# 0
+
+struct Point is
+  int x;
+  int y;
+end
+
+begin
+  struct Point p = new Point(1, 2) ;
+  println p.x ;
+  println p.y ;
+  p.x = 10 ;
+  p.y = 20 ;
+  println p.x ;
+  println p.y ;
+  free p
+end

@@ -1,0 +1,24 @@
+# record with multiple field types
+
+# Output:
+# 10
+# a
+# true
+#
+
+# Exit:
+# 0
+
+struct Mixed is
+  int num;
+  char letter;
+  bool flag;
+end
+
+begin
+  struct Mixed m = new Mixed(10, 'a', true) ;
+  println m.num ;
+  println m.letter ;
+  println m.flag ;
+  free m
+end

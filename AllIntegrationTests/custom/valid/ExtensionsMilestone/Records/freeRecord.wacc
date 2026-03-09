@@ -1,0 +1,16 @@
+# free a record
+
+# Output:
+#
+
+# Exit:
+# 0
+
+struct Wrapper is
+  int value;
+end
+
+begin
+  struct Wrapper w = new Wrapper(42) ;
+  free w
+end
