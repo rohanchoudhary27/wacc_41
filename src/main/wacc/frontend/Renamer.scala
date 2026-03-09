@@ -10,6 +10,7 @@ import SyntacticData.*
 class RenamerState(
     val variableIdMap: mutable.Map[String, Int],
     val funcSignatureTable: mutable.Map[String, SemanticData.Func],
+    val structSignatureTable: mutable.Map[String, KnownType.Record],
     val errorLogger: ErrorLogger
 ) {
 
@@ -60,11 +61,43 @@ object Renamer {
     given state: RenamerState = RenamerState(
       mutable.Map.empty,
       mutable.Map.empty,
+      mutable.Map.empty,
       errorLogger
     )
 
     /* The current scope table */
     given scope: RenamerScope = RenamerScope.empty
+
+    /* Set for finding duplicate struct names */
+    val seenStructNames: mutable.Set[String] = mutable.Set()
+
+    /* Process struct definitions */
+    prog.structs.foreach { s =>
+      val structName = s.ident.name
+
+      if (seenStructNames.contains(structName)) {
+        val errorMsg =
+          s"Scope error: '${structName}' is already defined as a struct"
+        state.emit(s.ident.info.pos, errorMsg)
+      } else {
+        seenStructNames += structName
+      }
+
+      val fieldNames = mutable.Set[String]()
+      val fields = s.fields.map { f =>
+        val fieldName = f.ident.name
+        if (fieldNames.contains(fieldName)) {
+          val errorMsg =
+            s"Scope error: Field '${fieldName}' is already defined in struct '${structName}'"
+          state.emit(f.ident.info.pos, errorMsg)
+        }
+        fieldNames += fieldName
+        (fieldName, syntaxToSemantics(f.typ))
+      }
+
+      val recordType: KnownType.Record = KnownType.Record(structName, fields)
+      state.structSignatureTable += (structName -> recordType)
+    }
 
     /* Set for finding duplicate function names */
     val seenFuncNames: mutable.Set[String] = mutable.Set()
@@ -97,10 +130,17 @@ object Renamer {
     }
 
     /* Rename the functions and program statement */
+    val newStructs = prog.structs.map(renameStructDef)
     val newFuncs = prog.funcs.map(f => renameFunc(f)(using scope.newScope))
     val newStmt = renameStmt(prog.stmt)
 
-    Program(Nil, Nil, newFuncs, newStmt, SemanticData.TopLevel(state.allFuncs))
+    Program(
+      Nil,
+      newStructs,
+      newFuncs,
+      newStmt,
+      SemanticData.TopLevel(state.allFuncs, state.structSignatureTable.toMap)
+    )
   }
 
   /** Renames a `Func` AST node
@@ -135,6 +175,17 @@ object Renamer {
       renamedBody,
       synPos.toSemanticPos
     )
+  }
+
+  private def renameStructDef(
+      structDef: StructDef[SyntacticData]
+  )(using state: RenamerState): StructDef[SemanticData] = {
+    val StructDef(ident, fields, synPos) = structDef
+    val renamedIdent = Ident[SemanticData](ident.name, synPos.toSemanticPos)
+    val renamedFields = fields.map { f =>
+      Field(f.typ, Ident[SemanticData](f.ident.name, f.ident.info.toSemanticPos), f.info.toSemanticPos)
+    }
+    StructDef(renamedIdent, renamedFields, synPos.toSemanticPos)
   }
 
   /** Renames a `Param` AST node
@@ -448,6 +499,38 @@ object Renamer {
     Call(funcIdent, exprList.map(renameExpr), semInfo)
   }
 
+  private def renameNewRecord(
+      name: Ident[SyntacticData],
+      args: Args[SyntacticData],
+      synPos: SyntacticData
+  )(using scope: RenamerScope, state: RenamerState): RValue[SemanticData] = {
+    val structName = name.name
+    val semInfo = state.structSignatureTable.get(structName) match {
+      case Some(recordType) =>
+        val numFields = recordType.fields.length
+        val numArgs = args.length
+        if (numFields != numArgs) {
+          val errorMsg =
+            s"Argument error: Struct '${structName}' has ${numFields}" +
+              s" fields but ${numArgs} arguments were given"
+          state.emit(name.info.pos, errorMsg)
+          SemanticData.Error(name.info.pos)
+        } else {
+          synPos.toSemanticPos
+        }
+      case None =>
+        val errorMsg =
+          s"Scope error: Struct '${structName}' is not defined"
+        state.emit(name.info.pos, errorMsg)
+        SemanticData.Error(name.info.pos)
+    }
+    NewRecord(
+      Ident[SemanticData](structName, name.info.toSemanticPos),
+      args.map(renameExpr),
+      semInfo
+    )
+  }
+
   /** Renames an `RValue` AST node
     *
     * @param rvalue:
@@ -475,6 +558,8 @@ object Renamer {
         PairElem(isFst, renameLValue(lval), info.toSemanticPos)
       case NewPair(e1, e2, info) =>
         NewPair(renameExpr(e1), renameExpr(e2), info.toSemanticPos)
+      case NewRecord(name, args, info) =>
+        renameNewRecord(name, args, info)
     }
 
   /** Renames an `LValue` AST node
@@ -502,6 +587,12 @@ object Renamer {
         ArrayElem(
           renameIdent(ident),
           indices.map(renameExpr),
+          info.toSemanticPos
+        )
+      case FieldAccess(expr, field, info) =>
+        FieldAccess(
+          renameExpr(expr),
+          Ident[SemanticData](field.name, field.info.toSemanticPos),
           info.toSemanticPos
         )
     }
@@ -727,6 +818,14 @@ object Renamer {
         ArrayElem(
           renameIdent(ident),
           indices.map(renameExpr),
+          info.toSemanticPos
+        )
+
+      /* Field access */
+      case FieldAccess(expr, field, info) =>
+        FieldAccess(
+          renameExpr(expr),
+          Ident[SemanticData](field.name, field.info.toSemanticPos),
           info.toSemanticPos
         )
     }
