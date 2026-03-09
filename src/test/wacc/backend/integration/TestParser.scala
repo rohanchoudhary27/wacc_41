@@ -104,6 +104,7 @@ object TestParser {
                     t.nonEmpty && 
                     !startsWithHeader(t, "# Input:") && 
                     !startsWithHeader(t, "# Output:") &&
+                    !startsWithHeader(t, "# Exit:") &&
                     !startsWithHeader(t, "# Program:")
                 }
                 .filter(_.startsWith("#"))
