@@ -1,5 +1,7 @@
 package wacc.frontend.lsa
 
+import wacc.frontend.SemanticType
+
 /**
   * Defines the abstract values used by the static analyser to represent
   * compile time knowledge about program variables. Each value lives in a
@@ -63,6 +65,17 @@ sealed trait AbstractValue {
                 case _                            => None
             }
             ArrayInfo(mergedLen)
+
+        /* Pair info: if both agree on inner types keep them
+           if not widen to NonNull (still non null but lose type info) */
+        case (PairInfo(fst1, snd1), PairInfo(fst2, snd2)) =>
+            if (fst1 == fst2 && snd1 == snd2) PairInfo(fst1, snd1)
+            else NonNull
+
+        case (PairInfo(_, _), NonNull) | (NonNull, PairInfo(_, _)) => NonNull
+
+        case (PairInfo(_, _), Null) | (Null, PairInfo(_, _)) => Unknown
+
 
         /* Cross-domain disagreements widen to Unknown */
         case _ => Unknown
@@ -158,6 +171,23 @@ case class ArrayInfo(
     }
 }
 
+/** Tracks the actual types stored in a pair's fst and snd slots.
+  *
+  * Created when we see `newpair(e1, e2)`. The types of e1 and e2
+  * are recorded so we can detect unsound coercions when the pair is
+  * later accessed.
+  * 
+  * @param fstType The actual `SemanticType` stored in the fst slot
+  * @param sndType The actual `SemanticType` stored in the snd slot
+  */
+case class PairInfo(
+    fstType: SemanticType,
+    sndType: SemanticType
+) extends AbstractValue {
+    override def describe: String =
+        s"pair(${fstType.outputFormat}, ${sndType.outputFormat}), non-null"
+}
+
 object AbstractValue {
 
     /** no information known */
@@ -174,6 +204,14 @@ object AbstractValue {
       * @param length The number of elements in the array literal
       */
     def fromArrayLiteral(length: Int): ArrayInfo = ArrayInfo(knownLength = Some(length))
+
+    /** `newpair` always produces a valid, non null pointer. 
+      *
+      * @param fstType The semantic type of the first element
+      * @param sndType The semantic type of the second element
+      */
+    def fromNewPair(fstType: SemanticType, sndType: SemanticType): AbstractValue =
+        PairInfo(fstType, sndType)
 
     /** Create the initial abstract value for a `newpair` allocation.
       *
@@ -208,6 +246,7 @@ object AbstractValue {
     def isDefinitelyNonNull(av: AbstractValue): Boolean = av match {
         case NonNull => true
         case ArrayInfo(_) => true
+        case _: PairInfo => true
         case _  => false
     }
 
