@@ -2,6 +2,7 @@ package wacc.frontend.lsa
 
 import wacc.frontend.*
 import wacc.frontend.lsa.*
+import wacc.frontend.TypeChecker.~
 
 import scala.collection.mutable.ListBuffer
 
@@ -676,7 +677,7 @@ object StaticAnalyser {
         leftVal: AbstractValue,
         rightVal: AbstractValue,
         divOp: (AbstractValue, AbstractValue) => Option[AbstractValue]
-    )(using state: AnalysisState, analyserState: AnalyserState): AbstractValue = {
+    )(using analyserState: AnalyserState): AbstractValue = {
         val BinaryExpr(_, _, rightExpr, info) = b
         divOp(leftVal, rightVal) match {
             case Some(result) => 
@@ -756,16 +757,41 @@ object StaticAnalyser {
     )(using state: AnalysisState, analyserState: AnalyserState): AbstractValue =
         rval match {
             case expr: Expr[SemanticData] => evaluateExpr(expr)
-            case NewPair(_, _, _) => NonNull /* newpair is always nonnull */
+            case NewPair(e1, e2, _) => 
+                AbstractValue.fromNewPair(e1.expressionType, e2.expressionType)
             case ArrayLiter(elements, _) =>
                 /* Array literals have a known length and are nonnull */
                 AbstractValue.fromArrayLiteral(elements.length)
             case Call(_, _, _) => Unknown /* we do local analysis, can't know function returns */
-            case p: PairElem[SemanticData] => 
+            case p @ PairElem(isFst, lval, info) => 
                 /* Checks if the pair pointer being accessed via fst/snd is provably
                     Null (emits null dereference error) or Freed (emits use after free error) */
                 checkPairElemSafety(p)
-                Unknown /* we don't track pair contents */
+
+                /* Check for unsound pair coercion: if we know the actual types
+                   stored in the pair slots, verify that the expected type from
+                   the type checker's annotation matches the actual stored type */
+                val (_, ptrVal) = evaluateLValue(lval)
+
+                ptrVal match {
+                    case PairInfo(fstType, sndType) =>
+                        val actualType = if (isFst) fstType else sndType
+                        val expectedType = info match {
+                            case SemanticData.Typed(_, t, _) => t
+                            case _  => ?
+                        }
+                        if (!((actualType ~ expectedType).isDefined)) {
+                            val accessKind = if (isFst) "fst" else "snd"
+                            analyserState.emit(
+                                AnalysisDiagnostic.unsoundPairCoercion(
+                                    info.pos, accessKind, actualType, expectedType
+                                )
+                            )
+                        }
+                    case _ => () 
+                }
+
+                Unknown /* we don't track heap pair contents */
         }
 
     /** Extract a descriptive name and abstract value from an lvalue.
@@ -834,7 +860,7 @@ object StaticAnalyser {
      */
     private def emitPointerErrorIfStale(
         ptrName: String, ptrVal: AbstractValue, info: SemanticData
-    )(using state: AnalysisState, analyserState: AnalyserState): Unit = {
+    )(using analyserState: AnalyserState): Unit = {
         if (AbstractValue.isDefinitelyNull(ptrVal)) {
             analyserState.emit(AnalysisDiagnostic.nullDereference(info.pos, ptrName))
         } else if (ptrVal == Freed) {
@@ -890,17 +916,17 @@ object StaticAnalyser {
 
 extension [A](stmt: Stmt[A]) {
     def info: A = stmt match
-        case Stmt.Skip(infoParam)                  => infoParam
-        case Stmt.Decl(_, _, _, infoParam)         => infoParam
-        case Stmt.Asgn(_, _, infoParam)            => infoParam
-        case Stmt.Read(_, infoParam)               => infoParam
-        case Stmt.Free(_, infoParam)               => infoParam
-        case Stmt.Return(_, infoParam)             => infoParam
-        case Stmt.Exit(_, infoParam)               => infoParam
-        case Stmt.Print(_, infoParam)              => infoParam
-        case Stmt.Println(_, infoParam)            => infoParam
-        case Stmt.If(_, _, _, infoParam)           => infoParam
-        case Stmt.While(_, _, infoParam)           => infoParam
-        case Stmt.Block(_, infoParam)              => infoParam
+        case Stmt.Skip(infoParam) => infoParam
+        case Stmt.Decl(_, _, _, infoParam) => infoParam
+        case Stmt.Asgn(_, _, infoParam) => infoParam
+        case Stmt.Read(_, infoParam) => infoParam
+        case Stmt.Free(_, infoParam) => infoParam
+        case Stmt.Return(_, infoParam) => infoParam
+        case Stmt.Exit(_, infoParam) => infoParam
+        case Stmt.Print(_, infoParam) => infoParam
+        case Stmt.Println(_, infoParam) => infoParam
+        case Stmt.If(_, _, _, infoParam) => infoParam
+        case Stmt.While(_, _, infoParam) => infoParam
+        case Stmt.Block(_, infoParam) => infoParam
 
 }

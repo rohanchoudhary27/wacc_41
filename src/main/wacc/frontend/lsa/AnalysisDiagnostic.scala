@@ -116,4 +116,18 @@ object AnalysisDiagnostic {
             pos,
             "Unreachable code: statement follows a 'return' or 'exit' and will never execute"
         )
+
+    /** Accessing a pair element with a type different from what was actually stored */
+    def unsoundPairCoercion(
+        pos: SourcePos,
+        accessKind: String,
+        actualType: SemanticType,
+        expectedType: SemanticType
+    ): AnalysisDiagnostic =
+        AnalysisDiagnostic(
+            DiagnosticSeverity.Warning,
+            pos,
+            s"Unsound pair coercion: '$accessKind' access expects '${expectedType.outputFormat}' " +
+                s"but the pair actually stores '${actualType.outputFormat}'"
+        )
 }

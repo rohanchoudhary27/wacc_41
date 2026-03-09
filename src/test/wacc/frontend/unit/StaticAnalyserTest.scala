@@ -1141,4 +1141,59 @@ class StaticAnalyserTests extends AnyFlatSpec with Matchers {
         val result = StaticAnalyser.analyse(programWithStmts(List(declA, declX)))
         result.hasErrors shouldBe true
     }
+
+    "Static analyser for pair inner type tracking" should "track inner types from newpair and not warn on matching access" in {
+        /* pair(int, int) p = newpair(1, 2); int x = fst p */
+        val pairType = KnownType.Pair(KnownType.Int, KnownType.Int)
+        val pIdent = varIdent("p", 0, pairType)
+        val xIdent = varIdent("x", 1)
+        val typedPair = SemanticData.Typed((1, 1), pairType)
+
+        val declP = Stmt.Decl(
+            SyntaxType.Pair(SyntaxType.Int, SyntaxType.Int), pIdent,
+            NewPair(IntLiter(1, typedInt), IntLiter(2, typedInt), typedPair), semPos
+        )
+        val fstAccess = PairElem(true, pIdent, SemanticData.Typed((2, 1), KnownType.Int))
+        val declX = Stmt.Decl(SyntaxType.Int, xIdent, fstAccess, semPos)
+
+        val result = StaticAnalyser.analyse(programWithStmts(List(declP, declX)))
+        result.diagnostics.exists(_.message.contains("Unsound pair coercion")) shouldBe false
+    }
+
+    it should "warn when fst access expects different type than stored" in {
+        /* pair(int, int) p = newpair(1, 2) */
+        val pairType = KnownType.Pair(KnownType.Int, KnownType.Int)
+        val pIdent = varIdent("p", 0, pairType)
+        val xIdent = varIdent("x", 1, KnownType.Bool)
+        val typedPair = SemanticData.Typed((1, 1), pairType)
+
+        val declP = Stmt.Decl(
+            SyntaxType.Pair(SyntaxType.Int, SyntaxType.Int), pIdent,
+            NewPair(IntLiter(1, typedInt), IntLiter(2, typedInt), typedPair), semPos
+        )
+
+        val fstAccess = PairElem(true, pIdent, SemanticData.Typed((2, 1), KnownType.Bool))
+        val declX = Stmt.Decl(SyntaxType.Bool, xIdent, fstAccess, semPos)
+
+        val result = StaticAnalyser.analyse(programWithStmts(List(declP, declX)))
+        result.diagnostics.exists(_.message.contains("Unsound pair coercion")) shouldBe true
+    }
+
+    it should "still mark pair access as safe for null check elimination" in {
+        /* PairInfo implies non-null, so fst access on a newpair should be safe */
+        val pairType = KnownType.Pair(KnownType.Int, KnownType.Int)
+        val pIdent = varIdent("p", 0, pairType)
+        val xIdent = varIdent("x", 1)
+        val typedPair = SemanticData.Typed((1, 1), pairType)
+
+        val declP = Stmt.Decl(
+            SyntaxType.Pair(SyntaxType.Int, SyntaxType.Int), pIdent,
+            NewPair(IntLiter(1, typedInt), IntLiter(2, typedInt), typedPair), semPos
+        )
+        val fstAccess = PairElem(true, pIdent, SemanticData.Typed((2, 1), KnownType.Int))
+        val declX = Stmt.Decl(SyntaxType.Int, xIdent, fstAccess, semPos)
+
+        val result = StaticAnalyser.analyse(programWithStmts(List(declP, declX)))
+        result.safePairAccesses should contain(fstAccess)
+    }
 }
