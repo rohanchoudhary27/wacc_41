@@ -102,7 +102,7 @@ object TAC {
     case class Neg(reg: VirtualReg, src: VirtualReg) extends UnOp(reg, src)
     case class Not(reg: VirtualReg, src: VirtualReg) extends UnOp(reg, src)
     case class Mov(reg: VirtualReg, src: Operand) extends UnOp(reg, src)
-    case class Chr(reg: VirtualReg, src: VirtualReg, widget: Widget) extends UnOp(reg, src)
+    case class Chr(reg: VirtualReg, src: VirtualReg, widget: Option[Widget]) extends UnOp(reg, src)
 
     /* Branching instructions */
     case class Cmp(src1: VirtualReg, src2: Operand) extends CmpOp(src1, src2)

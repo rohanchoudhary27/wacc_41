@@ -1189,18 +1189,21 @@ object CodeGenerator {
       * @param widget
       * @param st
       */
-    private def generateChr(dest: TAC.VirtualReg, src: TAC.VirtualReg, widget: Widget)
+    private def generateChr(dest: TAC.VirtualReg, src: TAC.VirtualReg, widget: Option[Widget])
                            (using st: GenState): Unit = {
 
-        generateUnaryOp(dest, src, Some(widget), {(d, s) => {
+        generateUnaryOp(dest, src, widget, {(d, s) => {
 
             /* Move the operand into w0 for the error function */
             emit(Arm.MovReg(Size.W, PhysicalReg.returnRegister, s))
-
-            /* If the int value is not 0-127 inclusive, runtime error */
-            emit(Arm.CmpImm(Size.W, s, Arm.Immediate(Constants.ASCII_MAX)))
-            emit(Arm.BranchCond(Condition.HI, Arm.AddrLabel(widget.label)))
-
+            
+            /* if the widget is None we won't emit checks */
+            widget.foreach(w => {
+                /* If the int value is not 0-127 inclusive, runtime error */
+                emit(Arm.CmpImm(Size.W, s, Arm.Immediate(Constants.ASCII_MAX)))
+                emit(Arm.BranchCond(Condition.HI, Arm.AddrLabel(w.label)))
+            })
+            
             if (d != s) {
                 emit(Arm.MovReg(Size.W, d, s))
             }

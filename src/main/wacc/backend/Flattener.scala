@@ -825,7 +825,7 @@ object Flattener {
         case PairLiter(_) => TAC.Immediate(MemoryLayout.NULL_PTR)
         case i: Ident[SemanticData] => funcState.lookupReg(i.name, i.renameId)
         case b: BinaryExpr[SemanticData] => flattenBinaryExpr(b)
-        case UnaryExpr(op, expr, _) => flattenUnaryExpr(op, expr)
+        case u: UnaryExpr[SemanticData] => flattenUnaryExpr(u)
         case a: ArrayElem[SemanticData] => flattenArrayElem(a)
     
     /**
@@ -921,16 +921,17 @@ object Flattener {
       * @param directiveState The global directive state
       * @return The virtual register containing the result
       */
-    private def flattenUnaryExpr(op: UnaryOperator,
-                                 expr: Expr[SemanticData])
-                                 (using funcState: FunctionState,
-                                        directiveState: GlobalFlattenContext,
-                                        optimState: FrontendOptimState): TAC.VirtualReg = {
+    private def flattenUnaryExpr(
+        u: UnaryExpr[SemanticData]
+    )(using funcState: FunctionState,
+            directiveState: GlobalFlattenContext, 
+            optimState: FrontendOptimState): TAC.VirtualReg = {
+        val UnaryExpr(op, expr, _) = u
         val operand = flattenExpr(expr)
 
         op match {
             case UnaryOperator.Not => flattenNot(operand)
-            case UnaryOperator.Chr => flattenChr(operand)
+            case UnaryOperator.Chr => flattenChr(u, operand)
             case UnaryOperator.Ord => flattenOrd(operand)
             case UnaryOperator.Neg => flattenNeg(operand)
             case UnaryOperator.Len => flattenLen(operand)
@@ -961,19 +962,26 @@ object Flattener {
       * because the code generator needs have logic for the runtime error check (must be a valid
       * ascii char not just any int).
       *
+      * @param u The unary expression node to check if the value is safe
       * @param operand The operand to the chr function
       * @param funcState The current scope function state
+      * 
       * @return The virtual register containing the result
       */
-    private def flattenChr(operand: TAC.Operand)
-                          (using funcState: FunctionState): TAC.VirtualReg = {
+    private def flattenChr(
+        u: UnaryExpr[SemanticData],
+        operand: TAC.Operand
+    )(using funcState: FunctionState, optimState: FrontendOptimState): TAC.VirtualReg = {
 
         /* Chr input is an int so we use KnownType.Int */
         val srcReg = toReg(operand, KnownType.Int)
 
         /* Emit Chr high level IR instruction with matching reg sizes (both W) */
         val chrIntReg = funcState.anonymousReg(KnownType.Int)
-        funcState.emitInstruction(TAC.Chr(chrIntReg, srcReg, BadCharWidgetError))
+        if (optimState.safeChrCalls.contains(u))
+            funcState.emitInstruction(TAC.Chr(chrIntReg, srcReg, None))
+        else
+            funcState.emitInstruction(TAC.Chr(chrIntReg, srcReg, Some(BadCharWidgetError)))
 
         /* Downcast Char reg to Bool reg */
         val chrCharReg = funcState.anonymousReg(KnownType.Char)
