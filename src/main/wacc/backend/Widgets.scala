@@ -73,6 +73,177 @@ class WidgetLibraryDispatcher {
     def collectWidgetInstrIR: List[Instruction]  = activeWidgets.toList.flatMap(w => w.instrs)
 }
 
+/**
+  * Helper functions (templates) for the widget classes to reduce repeated IR
+  */
+object WidgetHelpers {
+
+    /**
+      * IR template for an array load or store with bounds checking 
+      *
+      * @param label The label pointing to the start of the widget
+      * @param actionInstr The specific load/store instruction
+      * @return A template list of `Arm.Instruction` for array load/store with bounds checking
+      */
+    def buildArrayBoundsCall(label: String, actionInstr: Arm.Instruction): List[Arm.Instruction] = {
+        List(
+            LabelDef(AddrLabel(label)),
+            StorePair(Size.X,
+                      PhysicalReg.linkReg,
+                      PhysicalReg.returnRegister,
+                      AddrPreIndex(PhysicalReg.stackPointer, Immediate(-AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
+            
+            MovReg(Size.X, PhysicalReg.argRegisters(1), PhysicalReg.ipcScratch2),
+            
+            CmpImm(Size.W, PhysicalReg.ipcScratch2, Immediate(0)),
+            BranchCond(Condition.LT, AddrLabel(ArrayBoundsErrorWidget.label)),
+            
+            Ldur(Size.W, PhysicalReg.linkReg, AddrImmOffset(PhysicalReg.widgetResultRegister, Immediate(-4))),
+            CmpReg(Size.W, PhysicalReg.ipcScratch2, PhysicalReg.linkReg),
+            BranchCond(Condition.GE, AddrLabel(ArrayBoundsErrorWidget.label)),
+            
+            actionInstr,
+            
+            LoadPair(Size.X,
+                     PhysicalReg.linkReg,
+                     PhysicalReg.returnRegister,
+                     AddrPostIndex(PhysicalReg.stackPointer, Immediate(AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
+            Ret
+        )
+    }
+
+    /**
+      * IR template for a heap allocation
+      *
+      * @param label The label pointing to the start of the widget
+      * @param setupInstrs The specific instructions before the CLib call to malloc/free
+      * @return A template list of `Arm.Instruction` for heap allocation
+      */
+    def buildAllocationCall(label: String,
+                            setupInstrs: List[Arm.Instruction]): List[Arm.Instruction] = {
+        List(
+            LabelDef(AddrLabel(label)),
+            StorePair(Size.X,
+                      PhysicalReg.linkReg,
+                      PhysicalReg.ipcScratch1,
+                      AddrPreIndex(PhysicalReg.stackPointer,
+                                   Immediate(-AARch64Limits.ARM_STACK_ALIGNMENT_BYTES)))
+        ) ++ setupInstrs ++ List(
+            LoadPair(Size.X,
+                     PhysicalReg.linkReg,
+                     PhysicalReg.ipcScratch1,
+                     AddrPostIndex(PhysicalReg.stackPointer,
+                                   Immediate(AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
+            Ret
+        )
+    }
+
+    /**
+      * IR template for a error widgets
+      *
+      * @param label The label pointing to the start of the widget
+      * @param errorPrintLabel The label string pointing to the string directive error message
+      * @return A template list of `Arm.Instruction` for error widgets
+      */
+    def bulidStandardErrorCall(label: String,
+                               errorPrintLabel: String): List[Arm.Instruction] = {
+        List(
+            LabelDef(AddrLabel(label)),
+            Lea(PhysicalReg.returnRegister,
+                AddrLabel(errorPrintLabel)),
+            Bl(AddrLabel(PrintStringWidget.label)),
+            Movz(Size.W,
+                PhysicalReg.returnRegister,
+                Immediate(ExitCodes.code(ExitCodes.RuntimeErrorCode))),
+            Bl(AddrLabel(CLibLabels.exitLabel))
+        )
+    }
+
+    /**
+      * IR template for read clib calls
+      *
+      * @param label The label pointing to the start of the widget
+      * @param formatStrLabel The label string pointing to the format string directive
+      * @return A template list of `Arm.Instruction` for reads
+      */
+    def buildStandardReadCall(
+        label: String,
+        formatStrLabel: String
+    ): List[Arm.Instruction] = {
+        List(
+            LabelDef(AddrLabel(label)),
+            StorePair(Size.X,
+                      PhysicalReg.returnRegister,
+                      PhysicalReg.linkReg,
+                      AddrPreIndex(PhysicalReg.stackPointer, Immediate(-AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
+            
+            MovReg(Size.X, PhysicalReg.argRegisters(1), PhysicalReg.stackPointer),
+            
+            Lea(PhysicalReg.returnRegister, AddrLabel(formatStrLabel)),
+            
+            Bl(AddrLabel(CLibLabels.scanfLabel)),
+            
+            LoadPair(Size.X,
+                     PhysicalReg.returnRegister,
+                     PhysicalReg.linkReg,
+                     AddrPostIndex(PhysicalReg.stackPointer, Immediate(AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
+            Ret
+        )
+    }
+
+    /**
+      * IR template for standard same-line print clib calls
+      *
+      * @param label The label pointing to the start of the widget
+      * @param formatStrLabel The label string pointing to the format string directive
+      * @return A template list of `Arm.Instruction` for same-line prints
+      */
+    def buildStandardPrintCall(
+        label: String,
+        formatStrLabel: String
+    ): List[Arm.Instruction] = {
+        buildCLibIOCall(
+            label = label,
+            cLibFunc = CLibLabels.printfLabel,
+            setupInstrs = List(
+                MovReg(Size.X, PhysicalReg.argRegisters(1), PhysicalReg.returnRegister),
+                Lea(PhysicalReg.returnRegister, AddrLabel(formatStrLabel))
+            )
+        )
+    }
+
+    /**
+      * IR template for line print clib calls, templating both println and other same-line prints
+      *
+      * @param label The label pointing to the start of the widget
+      * @param cLibFunc The string label name of the clib print function being called for printing
+      * @return A template list of `Arm.Instruction` for prints
+      */
+    def buildCLibIOCall(label: String,
+                        cLibFunc: String,
+                        setupInstrs: List[Arm.Instruction]): List[Arm.Instruction] = {
+        List(
+            LabelDef(AddrLabel(label)),
+            StorePair(Size.X,
+                      PhysicalReg.linkReg,
+                      PhysicalReg.returnRegister,
+                      AddrPreIndex(PhysicalReg.stackPointer,
+                                   Immediate(-AARch64Limits.ARM_STACK_ALIGNMENT_BYTES)))
+        ) ++ setupInstrs ++ List(
+            Bl(AddrLabel(cLibFunc)),
+            Movz(Size.X, PhysicalReg.returnRegister, Immediate(0)),
+            Bl(AddrLabel(CLibLabels.fflushLabel)),
+            LoadPair(Size.X,
+                     PhysicalReg.linkReg,
+                     PhysicalReg.returnRegister,
+                     AddrPostIndex(PhysicalReg.stackPointer,
+                                   Immediate(AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
+            Ret
+        )
+    }
+}
+
+
 // =============================================================================
 //  IO WIDGETS
 // =============================================================================
@@ -84,27 +255,13 @@ object PrintlnWidget extends Widget {
     private val str0Label = ".L._println_str0"
     override val dataDirectives = List(DataDirective(AddrLabel(str0Label), ""))
 
-    override val instrs = List(
-        LabelDef(AddrLabel(label)),
-        StorePair(Size.X,
-                  PhysicalReg.linkReg,
-                  PhysicalReg.returnRegister,
-                  AddrPreIndex(PhysicalReg.stackPointer,
-                               Immediate(-AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
-        Lea(PhysicalReg.returnRegister,
-            AddrLabel(str0Label)),
-        Bl(AddrLabel(CLibLabels.putsLabel)),
-        Movz(Size.X,
-             PhysicalReg.returnRegister,
-             Immediate(0)),
-        Bl(AddrLabel(CLibLabels.fflushLabel)),
-        LoadPair(Size.X,
-                 PhysicalReg.linkReg,
-                 PhysicalReg.returnRegister,
-                 AddrPostIndex(PhysicalReg.stackPointer,
-                               Immediate(AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
-        Ret
-    )
+    override val instrs = WidgetHelpers.buildCLibIOCall(
+            label = label,
+            cLibFunc = CLibLabels.putsLabel,
+            setupInstrs = List(
+                Lea(PhysicalReg.returnRegister, AddrLabel(str0Label))
+            )
+        )
 }
 
 object PrintIntWidget extends Widget {
@@ -114,30 +271,7 @@ object PrintIntWidget extends Widget {
     private val printStr = ".L._printi_str0"
     override val dataDirectives = List(DataDirective(AddrLabel(printStr), "%d"))
 
-    override val instrs = List(
-        LabelDef(AddrLabel(label)),
-        StorePair(Size.X,
-                  PhysicalReg.linkReg,
-                  PhysicalReg.returnRegister,
-                  AddrPreIndex(PhysicalReg.stackPointer,
-                               Immediate(-AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
-        MovReg(Size.X,
-               PhysicalReg.argRegisters(1),
-               PhysicalReg.returnRegister),
-        Lea(PhysicalReg.returnRegister,
-            AddrLabel(printStr)),
-        Bl(AddrLabel(CLibLabels.printfLabel)),
-        Movz(Size.X,
-             PhysicalReg.returnRegister,
-             Immediate(0)),
-        Bl(AddrLabel(CLibLabels.fflushLabel)),
-        LoadPair(Size.X,
-                 PhysicalReg.linkReg,
-                 PhysicalReg.returnRegister,
-                 AddrPostIndex(PhysicalReg.stackPointer,
-                               Immediate(AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
-        Ret
-    )
+    override val instrs = WidgetHelpers.buildStandardPrintCall(label, printStr)
 }
 
 object PrintStringWidget extends Widget {
@@ -147,33 +281,16 @@ object PrintStringWidget extends Widget {
     private val printStr = ".L._prints_str0"
     override val dataDirectives = List(DataDirective(AddrLabel(printStr), "%.*s"))
 
-    override val instrs = List(
-        LabelDef(AddrLabel(label)),
-        StorePair(Size.X,
-                  PhysicalReg.linkReg,
-                  PhysicalReg.returnRegister,
-                  AddrPreIndex(PhysicalReg.stackPointer,
-                               Immediate(-AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
-        MovReg(Size.X,
-               PhysicalReg.argRegisters(2),
-               PhysicalReg.returnRegister),
-        Ldur(Size.W,
-             PhysicalReg.argRegisters(1),
-             AddrImmOffset(PhysicalReg.returnRegister, Immediate(-4))),
-        Lea(PhysicalReg.returnRegister,
-            AddrLabel(printStr)),
-        Bl(AddrLabel(CLibLabels.printfLabel)),
-        Movz(Size.X,
-             PhysicalReg.returnRegister,
-             Immediate(0)),
-        Bl(AddrLabel(CLibLabels.fflushLabel)),
-        LoadPair(Size.X,
-                 PhysicalReg.linkReg,
-                 PhysicalReg.returnRegister,
-                 AddrPostIndex(PhysicalReg.stackPointer,
-                               Immediate(AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
-        Ret
+    override val instrs = WidgetHelpers.buildCLibIOCall(
+        label = label,
+        cLibFunc = CLibLabels.printfLabel,
+        setupInstrs = List(
+            MovReg(Size.X, PhysicalReg.argRegisters(2), PhysicalReg.returnRegister),
+            Ldur(Size.W, PhysicalReg.argRegisters(1), AddrImmOffset(PhysicalReg.returnRegister, Immediate(-4))),
+            Lea(PhysicalReg.returnRegister, AddrLabel(printStr))
+        )
     )
+
 }
 
 object PrintBoolWidget extends Widget {
@@ -192,41 +309,28 @@ object PrintBoolWidget extends Widget {
         DataDirective(AddrLabel(formatSpecifier), "%.*s")
     )
 
-    override val instrs = List(
-        LabelDef(AddrLabel(label)),
-        StorePair(Size.X,
-                  PhysicalReg.linkReg,
-                  PhysicalReg.returnRegister,
-                  AddrPreIndex(PhysicalReg.stackPointer,
-                               Immediate(-AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
-        CmpImm(Size.W,
-               PhysicalReg.returnRegister,
-               Immediate(0)),
-        BranchCond(Condition.NE,
-                   AddrLabel(falseStrPrint)),
-        Lea(PhysicalReg.argRegisters(2),
-            AddrLabel(falseStr)),
-        BranchUncond(AddrLabel(trueStrPrint)),
-        LabelDef(AddrLabel(falseStrPrint)),
-        Lea(PhysicalReg.argRegisters(2),
-            AddrLabel(trueStr)),
-        LabelDef(AddrLabel(trueStrPrint)),
-        Ldur(Size.W,
-             PhysicalReg.argRegisters(1),
-             AddrImmOffset(PhysicalReg.argRegisters(2), Immediate(-4))),
-        Lea(PhysicalReg.returnRegister,
-            AddrLabel(formatSpecifier)),
-        Bl(AddrLabel(CLibLabels.printfLabel)),
-        Movz(Size.X,
-             PhysicalReg.returnRegister,
-             Immediate(0)),
-        Bl(AddrLabel(CLibLabels.fflushLabel)),
-        LoadPair(Size.X,
-                 PhysicalReg.linkReg,
-                 PhysicalReg.returnRegister,
-                 AddrPostIndex(PhysicalReg.stackPointer,
-                               Immediate(AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
-        Ret
+    override val instrs = WidgetHelpers.buildCLibIOCall(
+        label = label,
+        cLibFunc = CLibLabels.printfLabel,
+        setupInstrs = List(
+            CmpImm(Size.W,
+                   PhysicalReg.returnRegister,
+                   Immediate(0)),
+            BranchCond(Condition.NE,
+                       AddrLabel(falseStrPrint)),
+            Lea(PhysicalReg.argRegisters(2),
+                AddrLabel(falseStr)),
+            BranchUncond(AddrLabel(trueStrPrint)),
+            LabelDef(AddrLabel(falseStrPrint)),
+            Lea(PhysicalReg.argRegisters(2),
+                AddrLabel(trueStr)),
+            LabelDef(AddrLabel(trueStrPrint)),
+            Ldur(Size.W,
+                 PhysicalReg.argRegisters(1),
+                 AddrImmOffset(PhysicalReg.argRegisters(2), Immediate(-4))),
+            Lea(PhysicalReg.returnRegister,
+                AddrLabel(formatSpecifier))
+        )
     )
 }
 
@@ -237,30 +341,7 @@ object PrintCharWidget extends Widget {
     private val printStr = ".L._printc_str0"
     override val dataDirectives = List(DataDirective(AddrLabel(printStr), "%c"))
 
-    override val instrs = List(
-        LabelDef(AddrLabel(label)),
-        StorePair(Size.X,
-                  PhysicalReg.linkReg,
-                  PhysicalReg.returnRegister,
-                  AddrPreIndex(PhysicalReg.stackPointer,
-                               Immediate(-AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
-        MovReg(Size.X,
-               PhysicalReg.argRegisters(1),
-               PhysicalReg.returnRegister),
-        Lea(PhysicalReg.returnRegister,
-            AddrLabel(printStr)),
-        Bl(AddrLabel(CLibLabels.printfLabel)),
-        Movz(Size.X,
-             PhysicalReg.returnRegister,
-             Immediate(0)),
-        Bl(AddrLabel(CLibLabels.fflushLabel)),
-        LoadPair(Size.X,
-                 PhysicalReg.linkReg,
-                 PhysicalReg.returnRegister,
-                 AddrPostIndex(PhysicalReg.stackPointer,
-                               Immediate(AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
-        Ret
-    )
+    override val instrs = WidgetHelpers.buildStandardPrintCall(label, printStr)
 }
 
 object PrintPointerWidget extends Widget {
@@ -270,30 +351,7 @@ object PrintPointerWidget extends Widget {
     private val printStr = ".L._printp_str0"
     override val dataDirectives = List(DataDirective(AddrLabel(printStr), "%p"))
 
-    override val instrs = List(
-        LabelDef(AddrLabel(label)),
-        StorePair(Size.X,
-                  PhysicalReg.linkReg,
-                  PhysicalReg.returnRegister,
-                  AddrPreIndex(PhysicalReg.stackPointer,
-                               Immediate(-AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
-        MovReg(Size.X,
-               PhysicalReg.argRegisters(1),
-               PhysicalReg.returnRegister),
-        Lea(PhysicalReg.returnRegister,
-            AddrLabel(printStr)),
-        Bl(AddrLabel(CLibLabels.printfLabel)),
-        Movz(Size.X,
-             PhysicalReg.returnRegister,
-             Immediate(0)),
-        Bl(AddrLabel(CLibLabels.fflushLabel)),
-        LoadPair(Size.X,
-                 PhysicalReg.linkReg,
-                 PhysicalReg.returnRegister,
-                 AddrPostIndex(PhysicalReg.stackPointer,
-                               Immediate(AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
-        Ret
-    )
+    override val instrs = WidgetHelpers.buildStandardPrintCall(label, printStr)
 }
 
 object ReadIntegerWidget extends Widget {
@@ -302,27 +360,7 @@ object ReadIntegerWidget extends Widget {
 
     private val readLabel = ".L._readi_str0"
     override val dataDirectives = List(DataDirective(AddrLabel(readLabel), "%d"))
-
-    override val instrs = List(
-        LabelDef(AddrLabel(label)),
-        StorePair(Size.X,
-                  PhysicalReg.returnRegister,
-                  PhysicalReg.linkReg,
-                  AddrPreIndex(PhysicalReg.stackPointer,
-                               Immediate(-AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
-        MovReg(Size.X,
-               PhysicalReg.argRegisters(1),
-               PhysicalReg.stackPointer),
-        Lea(PhysicalReg.returnRegister,
-            AddrLabel(readLabel)),
-        Bl(AddrLabel(CLibLabels.scanfLabel)),
-        LoadPair(Size.X,
-                 PhysicalReg.returnRegister,
-                 PhysicalReg.linkReg,
-                 AddrPostIndex(PhysicalReg.stackPointer,
-                               Immediate(AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
-        Ret
-    )
+    override val instrs = WidgetHelpers.buildStandardReadCall(label, readLabel)
 }
 
 object ReadCharWidget extends Widget {
@@ -332,26 +370,7 @@ object ReadCharWidget extends Widget {
     private val readLabel = ".L._readc_str0"
     override val dataDirectives = List(DataDirective(AddrLabel(readLabel), " %c"))
 
-    override val instrs = List(
-        LabelDef(AddrLabel(label)),
-        StorePair(Size.X,
-                  PhysicalReg.returnRegister,
-                  PhysicalReg.linkReg,
-                  AddrPreIndex(PhysicalReg.stackPointer,
-                               Immediate(-AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
-        MovReg(Size.X,
-               PhysicalReg.argRegisters(1),
-               PhysicalReg.stackPointer),
-        Lea(PhysicalReg.returnRegister,
-            AddrLabel(readLabel)),
-        Bl(AddrLabel(CLibLabels.scanfLabel)),
-        LoadPair(Size.X,
-                 PhysicalReg.returnRegister,
-                 PhysicalReg.linkReg,
-                 AddrPostIndex(PhysicalReg.stackPointer,
-                               Immediate(AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
-        Ret
-    )
+    override val instrs = WidgetHelpers.buildStandardReadCall(label, readLabel)
 }
 
 // =============================================================================
@@ -363,19 +382,10 @@ object DivByZeroErrorWidget extends Widget {
     override val description: String = "division or modulo by zero error handler"
     override val dependencies: Set[Widget] = Set(PrintStringWidget)
 
-    private val errorLabel = ".L._errDivZero_str0"
-    override val dataDirectives = List(DataDirective(AddrLabel(errorLabel), RuntimeError.divByZero))
+    private val errorPrintLabel = ".L._errDivZero_str0"
+    override val dataDirectives = List(DataDirective(AddrLabel(errorPrintLabel), RuntimeError.divByZero))
 
-    override val instrs = List(
-        LabelDef(AddrLabel(label)),
-        Lea(PhysicalReg.returnRegister,
-            AddrLabel(errorLabel)),
-        Bl(AddrLabel(PrintStringWidget.label)),
-        Movz(Size.W,
-             PhysicalReg.returnRegister,
-             Immediate(ExitCodes.code(ExitCodes.RuntimeErrorCode))),
-        Bl(AddrLabel(CLibLabels.exitLabel))
-    )
+    override val instrs = WidgetHelpers.bulidStandardErrorCall(label, errorPrintLabel)
 }
 
 object IntOverflowErrorWidget extends Widget {
@@ -383,20 +393,11 @@ object IntOverflowErrorWidget extends Widget {
     override val description: String = "integer overflow or underflow error handler"
     override val dependencies: Set[Widget] = Set(PrintStringWidget)
 
-    private val errorLabel = ".L._errOverflow_str0"
+    private val errorPrintLabel = ".L._errOverflow_str0"
 
-    override val dataDirectives = List(DataDirective(AddrLabel(errorLabel), RuntimeError.intOverflow))
+    override val dataDirectives = List(DataDirective(AddrLabel(errorPrintLabel), RuntimeError.intOverflow))
 
-    override val instrs = List(
-        LabelDef(AddrLabel(label)),
-        Lea(PhysicalReg.returnRegister,
-            AddrLabel(errorLabel)),
-        Bl(AddrLabel(PrintStringWidget.label)),
-        Movz(Size.W,
-             PhysicalReg.returnRegister,
-             Immediate(ExitCodes.code(ExitCodes.RuntimeErrorCode))),
-        Bl(AddrLabel(CLibLabels.exitLabel))
-    )
+    override val instrs = WidgetHelpers.bulidStandardErrorCall(label, errorPrintLabel)
 }
 
 object NullDerefErrorWidget extends Widget {
@@ -404,20 +405,11 @@ object NullDerefErrorWidget extends Widget {
     override val description: String = "null pair dereference or free error handler"
     override val dependencies: Set[Widget] = Set(PrintStringWidget)
 
-    private val errorLabel = ".L._errNull_str0"
+    private val errorPrintLabel = ".L._errNull_str0"
 
-    override val dataDirectives = List(DataDirective(AddrLabel(errorLabel), RuntimeError.nullDeref))
+    override val dataDirectives = List(DataDirective(AddrLabel(errorPrintLabel), RuntimeError.nullDeref))
 
-    override val instrs = List(
-        LabelDef(AddrLabel(label)),
-        Lea(PhysicalReg.returnRegister,
-            AddrLabel(errorLabel)),
-        Bl(AddrLabel(PrintStringWidget.label)),
-        Movz(Size.W,
-             PhysicalReg.returnRegister,
-             Immediate(ExitCodes.code(ExitCodes.RuntimeErrorCode))),
-        Bl(AddrLabel(CLibLabels.exitLabel))
-    )
+    override val instrs = WidgetHelpers.bulidStandardErrorCall(label, errorPrintLabel)
 }
 
 object OutOfMemoryErrorWidget extends Widget {
@@ -425,58 +417,36 @@ object OutOfMemoryErrorWidget extends Widget {
     override val description: String = "heap allocation failure error handler"
     override val dependencies: Set[Widget] = Set(PrintStringWidget)
 
-    private val errorLabel = ".L._errOutOfMemory_str0"
+    private val errorPrintLabel = ".L._errOutOfMemory_str0"
 
-    override val dataDirectives = List(DataDirective(AddrLabel(errorLabel), RuntimeError.outOfMemory))
+    override val dataDirectives = List(DataDirective(AddrLabel(errorPrintLabel), RuntimeError.outOfMemory))
 
-    override val instrs = List(
-        LabelDef(AddrLabel(label)),
-        Lea(PhysicalReg.returnRegister,
-            AddrLabel(errorLabel)),
-        Bl(AddrLabel(PrintStringWidget.label)),
-        Movz(Size.W,
-             PhysicalReg.returnRegister,
-             Immediate(ExitCodes.code(ExitCodes.RuntimeErrorCode))),
-        Bl(AddrLabel(CLibLabels.exitLabel))
-    )
+    override val instrs = WidgetHelpers.bulidStandardErrorCall(label, errorPrintLabel)
 }
 
 object ArrayBoundsErrorWidget extends Widget {
     override val label: String = "_errOutOfBounds"
     override val description: String = "array index out of bounds error handler"
 
-    private val errorLabel = ".L._errOutOfBounds_str0"
+    private val errorPrintLabel = ".L._errOutOfBounds_str0"
 
-    override val dataDirectives = List(DataDirective(AddrLabel(errorLabel), RuntimeError.outOfBounds))
+    override val dataDirectives = List(DataDirective(AddrLabel(errorPrintLabel), RuntimeError.outOfBounds))
 
-    override val instrs = List(
-        LabelDef(AddrLabel(label)),
-        Lea(PhysicalReg.returnRegister,
-            AddrLabel(errorLabel)),
-        Bl(AddrLabel(PrintStringWidget.label)),
-        Movz(Size.X,
-             PhysicalReg.returnRegister,
-             Immediate(0)),
-        Bl(AddrLabel(CLibLabels.fflushLabel)),
-        Movz(Size.W,
-             PhysicalReg.returnRegister,
-             Immediate(ExitCodes.code(ExitCodes.RuntimeErrorCode))),
-        Bl(AddrLabel(CLibLabels.exitLabel))
-    )
+    override val instrs = WidgetHelpers.bulidStandardErrorCall(label, errorPrintLabel)
 }
 
 object BadCharWidgetError extends Widget {
     override val label: String = "_errBadChar"
     override val description: String = "A char integer value must be between 0 and 127 inclusive"
 
-    private val errorLabel = ".L._errBadChar_str0"
+    private val errorPrintLabel = ".L._errBadChar_str0"
 
-    override val dataDirectives = List(DataDirective(AddrLabel(errorLabel), RuntimeError.badChar))
+    override val dataDirectives = List(DataDirective(AddrLabel(errorPrintLabel), RuntimeError.badChar))
 
     override val instrs = List(
         LabelDef(AddrLabel(label)),
         Lea(PhysicalReg.returnRegister,
-            AddrLabel(errorLabel)),
+            AddrLabel(errorPrintLabel)),
         Bl(AddrLabel(CLibLabels.printfLabel)),
         Movz(Size.X,
              PhysicalReg.returnRegister,
@@ -498,23 +468,14 @@ object MallocWidget extends Widget {
     override val description: String = "allocate heap memory with out-of-memory checking"
     override val dependencies: Set[Widget] = Set(OutOfMemoryErrorWidget)
 
-    override val instrs = List(
-        LabelDef(AddrLabel(label)),
-        StorePair(Size.X,
-                  PhysicalReg.linkReg,
-                  PhysicalReg.ipcScratch1,
-                  AddrPreIndex(PhysicalReg.stackPointer,
-                               Immediate(-AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
-        Bl(AddrLabel(CLibLabels.mallocLabel)),
-        Cbz(Size.X,
-            PhysicalReg.returnRegister,
-            AddrLabel(OutOfMemoryErrorWidget.label)),
-        LoadPair(Size.X,
-                 PhysicalReg.linkReg,
-                 PhysicalReg.ipcScratch1,
-                 AddrPostIndex(PhysicalReg.stackPointer,
-                               Immediate(AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
-        Ret
+    override val instrs = WidgetHelpers.buildAllocationCall(
+        label = label,
+        setupInstrs = List(
+            Bl(AddrLabel(CLibLabels.mallocLabel)),
+            Cbz(Size.X,
+                PhysicalReg.returnRegister,
+                AddrLabel(OutOfMemoryErrorWidget.label)),
+        )
     )
 }
 
@@ -523,23 +484,14 @@ object FreePairWidget extends Widget {
     override val description: String = "free a pair with null checking"
     override val dependencies: Set[Widget] = Set(NullDerefErrorWidget)
 
-    override val instrs = List(
-        LabelDef(AddrLabel(label)),
-        StorePair(Size.X,
-                  PhysicalReg.linkReg,
-                  PhysicalReg.returnRegister,
-                  AddrPreIndex(PhysicalReg.stackPointer,
-                               Immediate(-AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
-        Cbz(Size.X,
-            PhysicalReg.returnRegister,
-            AddrLabel(NullDerefErrorWidget.label)),
-        Bl(AddrLabel(CLibLabels.freeLabel)),
-        LoadPair(Size.X,
-                 PhysicalReg.linkReg,
-                 PhysicalReg.returnRegister,
-                 AddrPostIndex(PhysicalReg.stackPointer,
-                               Immediate(AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
-        Ret
+    override val instrs = WidgetHelpers.buildAllocationCall(
+        label = label,
+        setupInstrs = List(
+            Cbz(Size.X,
+                PhysicalReg.returnRegister,
+                AddrLabel(NullDerefErrorWidget.label)),
+            Bl(AddrLabel(CLibLabels.freeLabel)),
+        )
     )
 }
 
@@ -547,24 +499,15 @@ object FreeArrayWidget extends Widget {
     override val label: String = "_freearray"
     override val description: String = "free an array by adjusting pointer past length header"
 
-    override val instrs = List(
-        LabelDef(AddrLabel(label)),
-        StorePair(Size.X,
-                  PhysicalReg.linkReg,
-                  PhysicalReg.returnRegister,
-                  AddrPreIndex(PhysicalReg.stackPointer,
-                               Immediate(-AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
-        SubImm(Size.X,
-               PhysicalReg.returnRegister,
-               PhysicalReg.returnRegister,
-               Immediate(4)),
-        Bl(AddrLabel(CLibLabels.freeLabel)),
-        LoadPair(Size.X,
-                 PhysicalReg.linkReg,
-                 PhysicalReg.returnRegister,
-                 AddrPostIndex(PhysicalReg.stackPointer,
-                               Immediate(AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
-        Ret
+    override val instrs = WidgetHelpers.buildAllocationCall(
+        label = label,
+        setupInstrs = List(
+            SubImm(Size.X,
+                PhysicalReg.returnRegister,
+                PhysicalReg.returnRegister,
+                Immediate(4)),
+            Bl(AddrLabel(CLibLabels.freeLabel)),
+        )
     )
 }
 
@@ -577,39 +520,9 @@ object ArrayLoad1Widget extends Widget {
     override val description: String = "bounds-checked array load for 1-byte elements (char/bool)"
     override val dependencies: Set[Widget] = Set(ArrayBoundsErrorWidget)
 
-    override val instrs = List(
-        LabelDef(AddrLabel(label)),
-        StorePair(Size.X,
-                  PhysicalReg.linkReg,
-                  PhysicalReg.returnRegister,
-                  AddrPreIndex(PhysicalReg.stackPointer,
-                               Immediate(-AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
-        
-        MovReg(Size.X, PhysicalReg.argRegisters(1), PhysicalReg.ipcScratch2),
-        
-        CmpImm(Size.W, PhysicalReg.ipcScratch2, Immediate(0)),
-        BranchCond(Condition.LT, AddrLabel(ArrayBoundsErrorWidget.label)),
-        
-        Ldur(Size.W,
-             PhysicalReg.linkReg,
-             AddrImmOffset(PhysicalReg.widgetResultRegister,
-                           Immediate(-4))),
-        CmpReg(Size.W,
-               PhysicalReg.ipcScratch2,
-               PhysicalReg.linkReg),
-        BranchCond(Condition.GE, AddrLabel(ArrayBoundsErrorWidget.label)),
-        
-        LoadByte(Size.W,
-                 PhysicalReg.widgetResultRegister,
-                 AddrRegOffset(PhysicalReg.widgetResultRegister,
-                               PhysicalReg.ipcScratch2)),
-        
-        LoadPair(Size.X,
-                 PhysicalReg.linkReg,
-                 PhysicalReg.returnRegister,
-                 AddrPostIndex(PhysicalReg.stackPointer,
-                               Immediate(AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
-        Ret
+    override val instrs = WidgetHelpers.buildArrayBoundsCall(label, 
+        LoadByte(Size.W, PhysicalReg.widgetResultRegister, 
+                 AddrRegOffset(PhysicalReg.widgetResultRegister, PhysicalReg.ipcScratch2))
     )
 }
 
@@ -618,47 +531,9 @@ object ArrayStore1Widget extends Widget {
     override val description: String = "bounds-checked array store for 1-byte elements (char/bool)"
     override val dependencies: Set[Widget] = Set(ArrayBoundsErrorWidget)
 
-    override val instrs = List(
-        LabelDef(AddrLabel(label)),
-        StorePair(Size.X,
-                  PhysicalReg.linkReg,
-                  PhysicalReg.returnRegister,
-                  AddrPreIndex(PhysicalReg.stackPointer,
-                               Immediate(-AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
-        CmpImm(Size.W,
-               PhysicalReg.ipcScratch2,
-               Immediate(0)),
-        Csel(Size.X,
-             PhysicalReg.argRegisters(1),
-             PhysicalReg.ipcScratch2,
-             PhysicalReg.argRegisters(1),
-             Condition.LT),
-        BranchCond(Condition.LT,
-                   AddrLabel(ArrayBoundsErrorWidget.label)),
-        Ldur(Size.W,
-             PhysicalReg.linkReg,
-             AddrImmOffset(PhysicalReg.widgetResultRegister,
-                           Immediate(-4))),
-        CmpReg(Size.W,
-               PhysicalReg.ipcScratch2,
-               PhysicalReg.linkReg),
-        Csel(Size.X,
-             PhysicalReg.argRegisters(1),
-             PhysicalReg.ipcScratch2,
-             PhysicalReg.argRegisters(1),
-             Condition.GE),
-        BranchCond(Condition.GE,
-                   AddrLabel(ArrayBoundsErrorWidget.label)),
-        StoreByte(Size.W,
-                  PhysicalReg.mathScratch,
-                  AddrRegOffset(PhysicalReg.widgetResultRegister,
-                                PhysicalReg.ipcScratch2)),
-        LoadPair(Size.X,
-                 PhysicalReg.linkReg,
-                 PhysicalReg.returnRegister,
-                 AddrPostIndex(PhysicalReg.stackPointer,
-                               Immediate(AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
-        Ret
+    override val instrs = WidgetHelpers.buildArrayBoundsCall(label, 
+        StoreByte(Size.W, PhysicalReg.mathScratch, 
+                  AddrRegOffset(PhysicalReg.widgetResultRegister, PhysicalReg.ipcScratch2))
     )
 }
 
@@ -667,48 +542,9 @@ object ArrayLoad4Widget extends Widget {
     override val description: String = "bounds-checked array load for 4-byte elements (int)"
     override val dependencies: Set[Widget] = Set(ArrayBoundsErrorWidget)
 
-    override val instrs = List(
-        LabelDef(AddrLabel(label)),
-        StorePair(Size.X,
-                  PhysicalReg.linkReg,
-                  PhysicalReg.returnRegister,
-                  AddrPreIndex(PhysicalReg.stackPointer,
-                               Immediate(-AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
-        CmpImm(Size.W,
-               PhysicalReg.ipcScratch2,
-               Immediate(0)),
-        Csel(Size.X,
-             PhysicalReg.argRegisters(1),
-             PhysicalReg.ipcScratch2,
-             PhysicalReg.argRegisters(1),
-             Condition.LT),
-        BranchCond(Condition.LT,
-                   AddrLabel(ArrayBoundsErrorWidget.label)),
-        Ldur(Size.W,
-             PhysicalReg.linkReg,
-             AddrImmOffset(PhysicalReg.widgetResultRegister,
-                           Immediate(-4))),
-        CmpReg(Size.W,
-               PhysicalReg.ipcScratch2,
-               PhysicalReg.linkReg),
-        Csel(Size.X,
-             PhysicalReg.argRegisters(1),
-             PhysicalReg.ipcScratch2,
-             PhysicalReg.argRegisters(1),
-             Condition.GE),
-        BranchCond(Condition.GE,
-                   AddrLabel(ArrayBoundsErrorWidget.label)),
-        Load(Size.W,
-             PhysicalReg.widgetResultRegister,
-             AddrRegShift(PhysicalReg.widgetResultRegister,
-                          PhysicalReg.ipcScratch2,
-                          ShiftAmounts._2)),
-        LoadPair(Size.X,
-                 PhysicalReg.linkReg,
-                 PhysicalReg.returnRegister,
-                 AddrPostIndex(PhysicalReg.stackPointer,
-                               Immediate(AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
-        Ret
+    override val instrs = WidgetHelpers.buildArrayBoundsCall(label, 
+        Load(Size.W, PhysicalReg.widgetResultRegister, 
+             AddrRegShift(PhysicalReg.widgetResultRegister, PhysicalReg.ipcScratch2, ShiftAmounts._2))
     )
 }
 
@@ -717,48 +553,9 @@ object ArrayStore4Widget extends Widget {
     override val description: String = "bounds-checked array store for 4-byte elements (int)"
     override val dependencies: Set[Widget] = Set(ArrayBoundsErrorWidget)
 
-    override val instrs = List(
-        LabelDef(AddrLabel(label)),
-        StorePair(Size.X,
-                  PhysicalReg.linkReg,
-                  PhysicalReg.returnRegister,
-                  AddrPreIndex(PhysicalReg.stackPointer,
-                               Immediate(-AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
-        CmpImm(Size.W,
-               PhysicalReg.ipcScratch2,
-               Immediate(0)),
-        Csel(Size.X,
-             PhysicalReg.argRegisters(1),
-             PhysicalReg.ipcScratch2,
-             PhysicalReg.argRegisters(1),
-             Condition.LT),
-        BranchCond(Condition.LT,
-                   AddrLabel(ArrayBoundsErrorWidget.label)),
-        Ldur(Size.W,
-             PhysicalReg.linkReg,
-             AddrImmOffset(PhysicalReg.widgetResultRegister,
-                           Immediate(-4))),
-        CmpReg(Size.W,
-               PhysicalReg.ipcScratch2,
-               PhysicalReg.linkReg),
-        Csel(Size.X,
-             PhysicalReg.argRegisters(1),
-             PhysicalReg.ipcScratch2,
-             PhysicalReg.argRegisters(1),
-             Condition.GE),
-        BranchCond(Condition.GE,
-                   AddrLabel(ArrayBoundsErrorWidget.label)),
-        Store(Size.W,
-              PhysicalReg.mathScratch,
-              AddrRegShift(PhysicalReg.widgetResultRegister,
-                           PhysicalReg.ipcScratch2,
-                           ShiftAmounts._2)),
-        LoadPair(Size.X,
-                 PhysicalReg.linkReg,
-                 PhysicalReg.returnRegister,
-                 AddrPostIndex(PhysicalReg.stackPointer,
-                               Immediate(AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
-        Ret
+    override val instrs = WidgetHelpers.buildArrayBoundsCall(label, 
+        Store(Size.W, PhysicalReg.mathScratch, 
+              AddrRegShift(PhysicalReg.widgetResultRegister, PhysicalReg.ipcScratch2, ShiftAmounts._2))
     )
 }
 
@@ -767,48 +564,9 @@ object ArrayLoad8Widget extends Widget {
     override val description: String = "bounds-checked array load for 8-byte elements (pointers)"
     override val dependencies: Set[Widget] = Set(ArrayBoundsErrorWidget)
 
-    override val instrs = List(
-        LabelDef(AddrLabel(label)),
-        StorePair(Size.X,
-                  PhysicalReg.linkReg,
-                  PhysicalReg.returnRegister,
-                  AddrPreIndex(PhysicalReg.stackPointer,
-                               Immediate(-AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
-        CmpImm(Size.W,
-               PhysicalReg.ipcScratch2,
-               Immediate(0)),
-        Csel(Size.X,
-             PhysicalReg.argRegisters(1),
-             PhysicalReg.ipcScratch2,
-             PhysicalReg.argRegisters(1),
-             Condition.LT),
-        BranchCond(Condition.LT,
-                   AddrLabel(ArrayBoundsErrorWidget.label)),
-        Ldur(Size.W,
-             PhysicalReg.linkReg,
-             AddrImmOffset(PhysicalReg.widgetResultRegister,
-                           Immediate(-4))),
-        CmpReg(Size.W,
-               PhysicalReg.ipcScratch2,
-               PhysicalReg.linkReg),
-        Csel(Size.X,
-             PhysicalReg.argRegisters(1),
-             PhysicalReg.ipcScratch2,
-             PhysicalReg.argRegisters(1),
-             Condition.GE),
-        BranchCond(Condition.GE,
-                   AddrLabel(ArrayBoundsErrorWidget.label)),
-        Load(Size.X,
-             PhysicalReg.widgetResultRegister,
-             AddrRegShift(PhysicalReg.widgetResultRegister,
-                          PhysicalReg.ipcScratch2,
-                          ShiftAmounts._3)),
-        LoadPair(Size.X,
-                 PhysicalReg.linkReg,
-                 PhysicalReg.returnRegister,
-                 AddrPostIndex(PhysicalReg.stackPointer,
-                               Immediate(AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
-        Ret
+    override val instrs = WidgetHelpers.buildArrayBoundsCall(label, 
+        Load(Size.X, PhysicalReg.widgetResultRegister, 
+             AddrRegShift(PhysicalReg.widgetResultRegister, PhysicalReg.ipcScratch2, ShiftAmounts._3))
     )
 }
 
@@ -817,47 +575,8 @@ object ArrayStore8Widget extends Widget {
     override val description: String = "bounds-checked array store for 8-byte elements (pointers)"
     override val dependencies: Set[Widget] = Set(ArrayBoundsErrorWidget)
 
-    override val instrs = List(
-        LabelDef(AddrLabel(label)),
-        StorePair(Size.X,
-                  PhysicalReg.linkReg,
-                  PhysicalReg.returnRegister,
-                  AddrPreIndex(PhysicalReg.stackPointer,
-                               Immediate(-AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
-        CmpImm(Size.W,
-               PhysicalReg.ipcScratch2,
-               Immediate(0)),
-        Csel(Size.X,
-             PhysicalReg.argRegisters(1),
-             PhysicalReg.ipcScratch2,
-             PhysicalReg.argRegisters(1),
-             Condition.LT),
-        BranchCond(Condition.LT,
-                   AddrLabel(ArrayBoundsErrorWidget.label)),
-        Ldur(Size.W,
-             PhysicalReg.linkReg,
-             AddrImmOffset(PhysicalReg.widgetResultRegister,
-                           Immediate(-4))),
-        CmpReg(Size.W,
-               PhysicalReg.ipcScratch2,
-               PhysicalReg.linkReg),
-        Csel(Size.X,
-             PhysicalReg.argRegisters(1),
-             PhysicalReg.ipcScratch2,
-             PhysicalReg.argRegisters(1),
-             Condition.GE),
-        BranchCond(Condition.GE,
-                   AddrLabel(ArrayBoundsErrorWidget.label)),
-        Store(Size.X,
-              PhysicalReg.mathScratch,
-              AddrRegShift(PhysicalReg.widgetResultRegister,
-                           PhysicalReg.ipcScratch2,
-                           ShiftAmounts._3)),
-        LoadPair(Size.X,
-                 PhysicalReg.linkReg,
-                 PhysicalReg.returnRegister,
-                 AddrPostIndex(PhysicalReg.stackPointer,
-                               Immediate(AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
-        Ret
+    override val instrs = WidgetHelpers.buildArrayBoundsCall(label, 
+        Store(Size.X, PhysicalReg.mathScratch, 
+              AddrRegShift(PhysicalReg.widgetResultRegister, PhysicalReg.ipcScratch2, ShiftAmounts._3))
     )
 }
