@@ -80,7 +80,9 @@ class WidgetLibraryDispatcher {
 object PrintlnWidget extends Widget {
     override val label: String = "_println"
     override val description: String = "prints a new line to stdout"
-    override val dataDirectives = List(DataDirective(AddrLabel(".L._println_str0"), ""))
+
+    private val str0Label = ".L._println_str0"
+    override val dataDirectives = List(DataDirective(AddrLabel(str0Label), ""))
 
     override val instrs = List(
         LabelDef(AddrLabel(label)),
@@ -90,12 +92,12 @@ object PrintlnWidget extends Widget {
                   AddrPreIndex(PhysicalReg.stackPointer,
                                Immediate(-AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
         Lea(PhysicalReg.returnRegister,
-            AddrLabel(".L._println_str0")),
-        Bl(AddrLabel("puts")),
+            AddrLabel(str0Label)),
+        Bl(AddrLabel(CLibLabels.putsLabel)),
         Movz(Size.X,
              PhysicalReg.returnRegister,
              Immediate(0)),
-        Bl(AddrLabel("fflush")),
+        Bl(AddrLabel(CLibLabels.fflushLabel)),
         LoadPair(Size.X,
                  PhysicalReg.linkReg,
                  PhysicalReg.returnRegister,
@@ -108,7 +110,9 @@ object PrintlnWidget extends Widget {
 object PrintIntWidget extends Widget {
     override val label: String = "_printi"
     override val description: String = "prints an integer value to stdout"
-    override val dataDirectives = List(DataDirective(AddrLabel(".L._printi_str0"), "%d"))
+
+    private val printStr = ".L._printi_str0"
+    override val dataDirectives = List(DataDirective(AddrLabel(printStr), "%d"))
 
     override val instrs = List(
         LabelDef(AddrLabel(label)),
@@ -121,12 +125,12 @@ object PrintIntWidget extends Widget {
                PhysicalReg.argRegisters(1),
                PhysicalReg.returnRegister),
         Lea(PhysicalReg.returnRegister,
-            AddrLabel(".L._printi_str0")),
-        Bl(AddrLabel("printf")),
+            AddrLabel(printStr)),
+        Bl(AddrLabel(CLibLabels.printfLabel)),
         Movz(Size.X,
              PhysicalReg.returnRegister,
              Immediate(0)),
-        Bl(AddrLabel("fflush")),
+        Bl(AddrLabel(CLibLabels.fflushLabel)),
         LoadPair(Size.X,
                  PhysicalReg.linkReg,
                  PhysicalReg.returnRegister,
@@ -139,7 +143,9 @@ object PrintIntWidget extends Widget {
 object PrintStringWidget extends Widget {
     override val label: String = "_prints"
     override val description: String = "prints a string value to stdout"
-    override val dataDirectives = List(DataDirective(AddrLabel(".L._prints_str0"), "%.*s"))
+
+    private val printStr = ".L._prints_str0"
+    override val dataDirectives = List(DataDirective(AddrLabel(printStr), "%.*s"))
 
     override val instrs = List(
         LabelDef(AddrLabel(label)),
@@ -155,12 +161,12 @@ object PrintStringWidget extends Widget {
              PhysicalReg.argRegisters(1),
              AddrImmOffset(PhysicalReg.returnRegister, Immediate(-4))),
         Lea(PhysicalReg.returnRegister,
-            AddrLabel(".L._prints_str0")),
-        Bl(AddrLabel("printf")),
+            AddrLabel(printStr)),
+        Bl(AddrLabel(CLibLabels.printfLabel)),
         Movz(Size.X,
              PhysicalReg.returnRegister,
              Immediate(0)),
-        Bl(AddrLabel("fflush")),
+        Bl(AddrLabel(CLibLabels.fflushLabel)),
         LoadPair(Size.X,
                  PhysicalReg.linkReg,
                  PhysicalReg.returnRegister,
@@ -173,10 +179,17 @@ object PrintStringWidget extends Widget {
 object PrintBoolWidget extends Widget {
     override val label: String = "_printb"
     override val description: String = "prints a boolean value to stdout"
+
+    private val falseStrPrint = ".L_printb0"
+    private val trueStrPrint = ".L_printb1"
+
+    private val falseStr = ".L._printb_str0"
+    private val trueStr = ".L._printb_str1"
+    private val formatSpecifier = ".L._printb_str2"
     override val dataDirectives = List(
-        DataDirective(AddrLabel(".L._printb_str0"), "false"),
-        DataDirective(AddrLabel(".L._printb_str1"), "true"),
-        DataDirective(AddrLabel(".L._printb_str2"), "%.*s")
+        DataDirective(AddrLabel(falseStr), "false"),
+        DataDirective(AddrLabel(trueStr), "true"),
+        DataDirective(AddrLabel(formatSpecifier), "%.*s")
     )
 
     override val instrs = List(
@@ -190,24 +203,24 @@ object PrintBoolWidget extends Widget {
                PhysicalReg.returnRegister,
                Immediate(0)),
         BranchCond(Condition.NE,
-                   AddrLabel(".L_printb0")),
+                   AddrLabel(falseStrPrint)),
         Lea(PhysicalReg.argRegisters(2),
-            AddrLabel(".L._printb_str0")),
-        BranchUncond(AddrLabel(".L_printb1")),
-        LabelDef(AddrLabel(".L_printb0")),
+            AddrLabel(falseStr)),
+        BranchUncond(AddrLabel(trueStrPrint)),
+        LabelDef(AddrLabel(falseStrPrint)),
         Lea(PhysicalReg.argRegisters(2),
-            AddrLabel(".L._printb_str1")),
-        LabelDef(AddrLabel(".L_printb1")),
+            AddrLabel(trueStr)),
+        LabelDef(AddrLabel(trueStrPrint)),
         Ldur(Size.W,
              PhysicalReg.argRegisters(1),
              AddrImmOffset(PhysicalReg.argRegisters(2), Immediate(-4))),
         Lea(PhysicalReg.returnRegister,
-            AddrLabel(".L._printb_str2")),
-        Bl(AddrLabel("printf")),
+            AddrLabel(formatSpecifier)),
+        Bl(AddrLabel(CLibLabels.printfLabel)),
         Movz(Size.X,
              PhysicalReg.returnRegister,
              Immediate(0)),
-        Bl(AddrLabel("fflush")),
+        Bl(AddrLabel(CLibLabels.fflushLabel)),
         LoadPair(Size.X,
                  PhysicalReg.linkReg,
                  PhysicalReg.returnRegister,
@@ -220,7 +233,9 @@ object PrintBoolWidget extends Widget {
 object PrintCharWidget extends Widget {
     override val label: String = "_printc"
     override val description: String = "prints a char value to stdout"
-    override val dataDirectives = List(DataDirective(AddrLabel(".L._printc_str0"), "%c"))
+
+    private val printStr = ".L._printc_str0"
+    override val dataDirectives = List(DataDirective(AddrLabel(printStr), "%c"))
 
     override val instrs = List(
         LabelDef(AddrLabel(label)),
@@ -233,12 +248,12 @@ object PrintCharWidget extends Widget {
                PhysicalReg.argRegisters(1),
                PhysicalReg.returnRegister),
         Lea(PhysicalReg.returnRegister,
-            AddrLabel(".L._printc_str0")),
-        Bl(AddrLabel("printf")),
+            AddrLabel(printStr)),
+        Bl(AddrLabel(CLibLabels.printfLabel)),
         Movz(Size.X,
              PhysicalReg.returnRegister,
              Immediate(0)),
-        Bl(AddrLabel("fflush")),
+        Bl(AddrLabel(CLibLabels.fflushLabel)),
         LoadPair(Size.X,
                  PhysicalReg.linkReg,
                  PhysicalReg.returnRegister,
@@ -251,7 +266,9 @@ object PrintCharWidget extends Widget {
 object PrintPointerWidget extends Widget {
     override val label: String = "_printp"
     override val description: String = "prints a pointer value to stdout"
-    override val dataDirectives = List(DataDirective(AddrLabel(".L._printp_str0"), "%p"))
+
+    private val printStr = ".L._printp_str0"
+    override val dataDirectives = List(DataDirective(AddrLabel(printStr), "%p"))
 
     override val instrs = List(
         LabelDef(AddrLabel(label)),
@@ -264,12 +281,12 @@ object PrintPointerWidget extends Widget {
                PhysicalReg.argRegisters(1),
                PhysicalReg.returnRegister),
         Lea(PhysicalReg.returnRegister,
-            AddrLabel(".L._printp_str0")),
-        Bl(AddrLabel("printf")),
+            AddrLabel(printStr)),
+        Bl(AddrLabel(CLibLabels.printfLabel)),
         Movz(Size.X,
              PhysicalReg.returnRegister,
              Immediate(0)),
-        Bl(AddrLabel("fflush")),
+        Bl(AddrLabel(CLibLabels.fflushLabel)),
         LoadPair(Size.X,
                  PhysicalReg.linkReg,
                  PhysicalReg.returnRegister,
@@ -282,7 +299,9 @@ object PrintPointerWidget extends Widget {
 object ReadIntegerWidget extends Widget {
     override val label: String = "_readi"
     override val description: String = "reads an int value from stdin"
-    override val dataDirectives = List(DataDirective(AddrLabel(".L._readi_str0"), "%d"))
+
+    private val readLabel = ".L._readi_str0"
+    override val dataDirectives = List(DataDirective(AddrLabel(readLabel), "%d"))
 
     override val instrs = List(
         LabelDef(AddrLabel(label)),
@@ -295,8 +314,8 @@ object ReadIntegerWidget extends Widget {
                PhysicalReg.argRegisters(1),
                PhysicalReg.stackPointer),
         Lea(PhysicalReg.returnRegister,
-            AddrLabel(".L._readi_str0")),
-        Bl(AddrLabel("scanf")),
+            AddrLabel(readLabel)),
+        Bl(AddrLabel(CLibLabels.scanfLabel)),
         LoadPair(Size.X,
                  PhysicalReg.returnRegister,
                  PhysicalReg.linkReg,
@@ -309,7 +328,9 @@ object ReadIntegerWidget extends Widget {
 object ReadCharWidget extends Widget {
     override val label: String = "_readc"
     override val description: String = "reads a char value from stdin"
-    override val dataDirectives = List(DataDirective(AddrLabel(".L._readc_str0"), " %c"))
+
+    private val readLabel = ".L._readc_str0"
+    override val dataDirectives = List(DataDirective(AddrLabel(readLabel), " %c"))
 
     override val instrs = List(
         LabelDef(AddrLabel(label)),
@@ -322,8 +343,8 @@ object ReadCharWidget extends Widget {
                PhysicalReg.argRegisters(1),
                PhysicalReg.stackPointer),
         Lea(PhysicalReg.returnRegister,
-            AddrLabel(".L._readc_str0")),
-        Bl(AddrLabel("scanf")),
+            AddrLabel(readLabel)),
+        Bl(AddrLabel(CLibLabels.scanfLabel)),
         LoadPair(Size.X,
                  PhysicalReg.returnRegister,
                  PhysicalReg.linkReg,
@@ -341,17 +362,19 @@ object DivByZeroErrorWidget extends Widget {
     override val label: String = "_errDivZero"
     override val description: String = "division or modulo by zero error handler"
     override val dependencies: Set[Widget] = Set(PrintStringWidget)
-    override val dataDirectives = List(DataDirective(AddrLabel(".L._errDivZero_str0"), RuntimeError.divByZero))
+
+    private val errorLabel = ".L._errDivZero_str0"
+    override val dataDirectives = List(DataDirective(AddrLabel(errorLabel), RuntimeError.divByZero))
 
     override val instrs = List(
         LabelDef(AddrLabel(label)),
         Lea(PhysicalReg.returnRegister,
-            AddrLabel(".L._errDivZero_str0")),
-        Bl(AddrLabel("_prints")),
+            AddrLabel(errorLabel)),
+        Bl(AddrLabel(PrintStringWidget.label)),
         Movz(Size.W,
              PhysicalReg.returnRegister,
              Immediate(ExitCodes.code(ExitCodes.RuntimeErrorCode))),
-        Bl(AddrLabel("exit"))
+        Bl(AddrLabel(CLibLabels.exitLabel))
     )
 }
 
@@ -359,17 +382,20 @@ object IntOverflowErrorWidget extends Widget {
     override val label: String = "_errOverflow"
     override val description: String = "integer overflow or underflow error handler"
     override val dependencies: Set[Widget] = Set(PrintStringWidget)
-    override val dataDirectives = List(DataDirective(AddrLabel(".L._errOverflow_str0"), RuntimeError.intOverflow))
+
+    private val errorLabel = ".L._errOverflow_str0"
+
+    override val dataDirectives = List(DataDirective(AddrLabel(errorLabel), RuntimeError.intOverflow))
 
     override val instrs = List(
         LabelDef(AddrLabel(label)),
         Lea(PhysicalReg.returnRegister,
-            AddrLabel(".L._errOverflow_str0")),
-        Bl(AddrLabel("_prints")),
+            AddrLabel(errorLabel)),
+        Bl(AddrLabel(PrintStringWidget.label)),
         Movz(Size.W,
              PhysicalReg.returnRegister,
              Immediate(ExitCodes.code(ExitCodes.RuntimeErrorCode))),
-        Bl(AddrLabel("exit"))
+        Bl(AddrLabel(CLibLabels.exitLabel))
     )
 }
 
@@ -377,17 +403,20 @@ object NullDerefErrorWidget extends Widget {
     override val label: String = "_errNull"
     override val description: String = "null pair dereference or free error handler"
     override val dependencies: Set[Widget] = Set(PrintStringWidget)
-    override val dataDirectives = List(DataDirective(AddrLabel(".L._errNull_str0"), RuntimeError.nullDeref))
+
+    private val errorLabel = ".L._errNull_str0"
+
+    override val dataDirectives = List(DataDirective(AddrLabel(errorLabel), RuntimeError.nullDeref))
 
     override val instrs = List(
         LabelDef(AddrLabel(label)),
         Lea(PhysicalReg.returnRegister,
-            AddrLabel(".L._errNull_str0")),
-        Bl(AddrLabel("_prints")),
+            AddrLabel(errorLabel)),
+        Bl(AddrLabel(PrintStringWidget.label)),
         Movz(Size.W,
              PhysicalReg.returnRegister,
              Immediate(ExitCodes.code(ExitCodes.RuntimeErrorCode))),
-        Bl(AddrLabel("exit"))
+        Bl(AddrLabel(CLibLabels.exitLabel))
     )
 }
 
@@ -395,63 +424,74 @@ object OutOfMemoryErrorWidget extends Widget {
     override val label: String = "_errOutOfMemory"
     override val description: String = "heap allocation failure error handler"
     override val dependencies: Set[Widget] = Set(PrintStringWidget)
-    override val dataDirectives = List(DataDirective(AddrLabel(".L._errOutOfMemory_str0"), RuntimeError.outOfMemory))
+
+    private val errorLabel = ".L._errOutOfMemory_str0"
+
+    override val dataDirectives = List(DataDirective(AddrLabel(errorLabel), RuntimeError.outOfMemory))
 
     override val instrs = List(
         LabelDef(AddrLabel(label)),
         Lea(PhysicalReg.returnRegister,
-            AddrLabel(".L._errOutOfMemory_str0")),
-        Bl(AddrLabel("_prints")),
+            AddrLabel(errorLabel)),
+        Bl(AddrLabel(PrintStringWidget.label)),
         Movz(Size.W,
              PhysicalReg.returnRegister,
              Immediate(ExitCodes.code(ExitCodes.RuntimeErrorCode))),
-        Bl(AddrLabel("exit"))
+        Bl(AddrLabel(CLibLabels.exitLabel))
     )
 }
 
 object ArrayBoundsErrorWidget extends Widget {
     override val label: String = "_errOutOfBounds"
     override val description: String = "array index out of bounds error handler"
-    override val dataDirectives = List(DataDirective(AddrLabel(".L._errOutOfBounds_str0"), RuntimeError.outOfBounds))
+
+    private val errorLabel = ".L._errOutOfBounds_str0"
+
+    override val dataDirectives = List(DataDirective(AddrLabel(errorLabel), RuntimeError.outOfBounds))
 
     override val instrs = List(
         LabelDef(AddrLabel(label)),
         Lea(PhysicalReg.returnRegister,
-            AddrLabel(".L._errOutOfBounds_str0")),
-        Bl(AddrLabel("printf")),
+            AddrLabel(errorLabel)),
+        Bl(AddrLabel(PrintStringWidget.label)),
         Movz(Size.X,
              PhysicalReg.returnRegister,
              Immediate(0)),
-        Bl(AddrLabel("fflush")),
+        Bl(AddrLabel(CLibLabels.fflushLabel)),
         Movz(Size.W,
              PhysicalReg.returnRegister,
              Immediate(ExitCodes.code(ExitCodes.RuntimeErrorCode))),
-        Bl(AddrLabel("exit"))
+        Bl(AddrLabel(CLibLabels.exitLabel))
     )
 }
 
 object BadCharWidgetError extends Widget {
     override val label: String = "_errBadChar"
     override val description: String = "A char integer value must be between 0 and 127 inclusive"
-    override val dataDirectives = List(DataDirective(AddrLabel(".L._errBadChar_str0"), RuntimeError.badChar))
+
+    private val errorLabel = ".L._errBadChar_str0"
+
+    override val dataDirectives = List(DataDirective(AddrLabel(errorLabel), RuntimeError.badChar))
 
     override val instrs = List(
         LabelDef(AddrLabel(label)),
         Lea(PhysicalReg.returnRegister,
-            AddrLabel(".L._errBadChar_str0")),
-        Bl(AddrLabel("printf")),
+            AddrLabel(errorLabel)),
+        Bl(AddrLabel(CLibLabels.printfLabel)),
         Movz(Size.X,
              PhysicalReg.returnRegister,
              Immediate(0)),
-        Bl(AddrLabel("fflush")),
+        Bl(AddrLabel(CLibLabels.fflushLabel)),
         Movz(Size.W,
              PhysicalReg.returnRegister,
              Immediate(ExitCodes.code(ExitCodes.RuntimeErrorCode))),
-        Bl(AddrLabel("exit"))
+        Bl(AddrLabel(CLibLabels.exitLabel))
     )
 }
 
-// --- MEMORY ALLOCATION WIDGETS ---
+// =============================================================================
+// MEMORY ALLOC WIDGETS
+// =============================================================================
 
 object MallocWidget extends Widget {
     override val label: String = "_malloc"
@@ -465,10 +505,10 @@ object MallocWidget extends Widget {
                   PhysicalReg.ipcScratch1,
                   AddrPreIndex(PhysicalReg.stackPointer,
                                Immediate(-AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
-        Bl(AddrLabel("malloc")),
+        Bl(AddrLabel(CLibLabels.mallocLabel)),
         Cbz(Size.X,
             PhysicalReg.returnRegister,
-            AddrLabel("_errOutOfMemory")),
+            AddrLabel(OutOfMemoryErrorWidget.label)),
         LoadPair(Size.X,
                  PhysicalReg.linkReg,
                  PhysicalReg.ipcScratch1,
@@ -492,8 +532,8 @@ object FreePairWidget extends Widget {
                                Immediate(-AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
         Cbz(Size.X,
             PhysicalReg.returnRegister,
-            AddrLabel("_errNull")),
-        Bl(AddrLabel("free")),
+            AddrLabel(NullDerefErrorWidget.label)),
+        Bl(AddrLabel(CLibLabels.freeLabel)),
         LoadPair(Size.X,
                  PhysicalReg.linkReg,
                  PhysicalReg.returnRegister,
@@ -518,7 +558,7 @@ object FreeArrayWidget extends Widget {
                PhysicalReg.returnRegister,
                PhysicalReg.returnRegister,
                Immediate(4)),
-        Bl(AddrLabel("free")),
+        Bl(AddrLabel(CLibLabels.freeLabel)),
         LoadPair(Size.X,
                  PhysicalReg.linkReg,
                  PhysicalReg.returnRegister,
@@ -548,7 +588,7 @@ object ArrayLoad1Widget extends Widget {
         MovReg(Size.X, PhysicalReg.argRegisters(1), PhysicalReg.ipcScratch2),
         
         CmpImm(Size.W, PhysicalReg.ipcScratch2, Immediate(0)),
-        BranchCond(Condition.LT, AddrLabel("_errOutOfBounds")),
+        BranchCond(Condition.LT, AddrLabel(ArrayBoundsErrorWidget.label)),
         
         Ldur(Size.W,
              PhysicalReg.linkReg,
@@ -557,7 +597,7 @@ object ArrayLoad1Widget extends Widget {
         CmpReg(Size.W,
                PhysicalReg.ipcScratch2,
                PhysicalReg.linkReg),
-        BranchCond(Condition.GE, AddrLabel("_errOutOfBounds")),
+        BranchCond(Condition.GE, AddrLabel(ArrayBoundsErrorWidget.label)),
         
         LoadByte(Size.W,
                  PhysicalReg.widgetResultRegister,
@@ -594,7 +634,7 @@ object ArrayStore1Widget extends Widget {
              PhysicalReg.argRegisters(1),
              Condition.LT),
         BranchCond(Condition.LT,
-                   AddrLabel("_errOutOfBounds")),
+                   AddrLabel(ArrayBoundsErrorWidget.label)),
         Ldur(Size.W,
              PhysicalReg.linkReg,
              AddrImmOffset(PhysicalReg.widgetResultRegister,
@@ -608,7 +648,7 @@ object ArrayStore1Widget extends Widget {
              PhysicalReg.argRegisters(1),
              Condition.GE),
         BranchCond(Condition.GE,
-                   AddrLabel("_errOutOfBounds")),
+                   AddrLabel(ArrayBoundsErrorWidget.label)),
         StoreByte(Size.W,
                   PhysicalReg.mathScratch,
                   AddrRegOffset(PhysicalReg.widgetResultRegister,
@@ -643,7 +683,7 @@ object ArrayLoad4Widget extends Widget {
              PhysicalReg.argRegisters(1),
              Condition.LT),
         BranchCond(Condition.LT,
-                   AddrLabel("_errOutOfBounds")),
+                   AddrLabel(ArrayBoundsErrorWidget.label)),
         Ldur(Size.W,
              PhysicalReg.linkReg,
              AddrImmOffset(PhysicalReg.widgetResultRegister,
@@ -657,7 +697,7 @@ object ArrayLoad4Widget extends Widget {
              PhysicalReg.argRegisters(1),
              Condition.GE),
         BranchCond(Condition.GE,
-                   AddrLabel("_errOutOfBounds")),
+                   AddrLabel(ArrayBoundsErrorWidget.label)),
         Load(Size.W,
              PhysicalReg.widgetResultRegister,
              AddrRegShift(PhysicalReg.widgetResultRegister,
@@ -693,7 +733,7 @@ object ArrayStore4Widget extends Widget {
              PhysicalReg.argRegisters(1),
              Condition.LT),
         BranchCond(Condition.LT,
-                   AddrLabel("_errOutOfBounds")),
+                   AddrLabel(ArrayBoundsErrorWidget.label)),
         Ldur(Size.W,
              PhysicalReg.linkReg,
              AddrImmOffset(PhysicalReg.widgetResultRegister,
@@ -707,7 +747,7 @@ object ArrayStore4Widget extends Widget {
              PhysicalReg.argRegisters(1),
              Condition.GE),
         BranchCond(Condition.GE,
-                   AddrLabel("_errOutOfBounds")),
+                   AddrLabel(ArrayBoundsErrorWidget.label)),
         Store(Size.W,
               PhysicalReg.mathScratch,
               AddrRegShift(PhysicalReg.widgetResultRegister,
@@ -743,7 +783,7 @@ object ArrayLoad8Widget extends Widget {
              PhysicalReg.argRegisters(1),
              Condition.LT),
         BranchCond(Condition.LT,
-                   AddrLabel("_errOutOfBounds")),
+                   AddrLabel(ArrayBoundsErrorWidget.label)),
         Ldur(Size.W,
              PhysicalReg.linkReg,
              AddrImmOffset(PhysicalReg.widgetResultRegister,
@@ -757,7 +797,7 @@ object ArrayLoad8Widget extends Widget {
              PhysicalReg.argRegisters(1),
              Condition.GE),
         BranchCond(Condition.GE,
-                   AddrLabel("_errOutOfBounds")),
+                   AddrLabel(ArrayBoundsErrorWidget.label)),
         Load(Size.X,
              PhysicalReg.widgetResultRegister,
              AddrRegShift(PhysicalReg.widgetResultRegister,
@@ -793,7 +833,7 @@ object ArrayStore8Widget extends Widget {
              PhysicalReg.argRegisters(1),
              Condition.LT),
         BranchCond(Condition.LT,
-                   AddrLabel("_errOutOfBounds")),
+                   AddrLabel(ArrayBoundsErrorWidget.label)),
         Ldur(Size.W,
              PhysicalReg.linkReg,
              AddrImmOffset(PhysicalReg.widgetResultRegister,
@@ -807,7 +847,7 @@ object ArrayStore8Widget extends Widget {
              PhysicalReg.argRegisters(1),
              Condition.GE),
         BranchCond(Condition.GE,
-                   AddrLabel("_errOutOfBounds")),
+                   AddrLabel(ArrayBoundsErrorWidget.label)),
         Store(Size.X,
               PhysicalReg.mathScratch,
               AddrRegShift(PhysicalReg.widgetResultRegister,
