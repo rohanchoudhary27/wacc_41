@@ -1,0 +1,37 @@
+# Test: wacc.math standard library module
+#
+# Output:
+# 42
+# 20
+# 10
+# 50
+# 1024
+# -1
+# 4
+# 2
+#
+# Exit:
+# 0
+
+# Program:
+
+import wacc.math
+
+begin
+  int a = call math.abs(0 - 42);
+  println a;
+  int b = call math.max(10, 20);
+  println b;
+  int c = call math.min(10, 20);
+  println c;
+  int d = call math.clamp(100, 0, 50);
+  println d;
+  int e = call math.pow(2, 10);
+  println e;
+  int f = call math.sign(0 - 7);
+  println f;
+  int g = call math.gcd(12, 8);
+  println g;
+  int h = call math.mod(0 - 7, 3);
+  println h
+end

@@ -1,0 +1,102 @@
+# wacc.math - Numeric utility functions for WACC
+
+begin
+
+  # Returns the absolute value of x.
+  int abs(int x) is
+    if x < 0 then
+      return 0 - x
+    else
+      return x
+    fi
+  end
+
+  # Returns the greater of a and b.
+  int max(int a, int b) is
+    if a > b then
+      return a
+    else
+      return b
+    fi
+  end
+
+  # Returns the lesser of a and b.
+  int min(int a, int b) is
+    if a < b then
+      return a
+    else
+      return b
+    fi
+  end
+
+  # Clamps x to be within [lo, hi].
+  int clamp(int x, int lo, int hi) is
+    if x < lo then
+      return lo
+    else
+      if x > hi then
+        return hi
+      else
+        return x
+      fi
+    fi
+  end
+
+  # Returns base raised to the power of exp (exp must be >= 0).
+  int pow(int base, int exp) is
+    int result = 1;
+    int i = 0;
+    while i < exp do
+      result = result * base;
+      i = i + 1
+    done;
+    return result
+  end
+
+  # Returns -1 if x < 0, 0 if x == 0, 1 if x > 0.
+  int sign(int x) is
+    if x < 0 then
+      return 0 - 1
+    else
+      if x > 0 then
+        return 1
+      else
+        return 0
+      fi
+    fi
+  end
+
+  # Returns the greatest common divisor of a and b.
+  int gcd(int a, int b) is
+    if a < 0 then
+      a = 0 - a
+    else
+      skip
+    fi;
+    if b < 0 then
+      b = 0 - b
+    else
+      skip
+    fi;
+    while b != 0 do
+      int temp = b;
+      b = a % b;
+      a = temp
+    done;
+    return a
+  end
+
+  # Always-positive modulo: the result has the same sign as m.
+  # Unlike %, which follows the dividend's sign.
+  int mod(int a, int m) is
+    int r = a % m;
+    if r < 0 then
+      r = r + m
+    else
+      skip
+    fi;
+    return r
+  end
+
+  skip
+end
