@@ -53,6 +53,8 @@ case class ResolvedModule(
   */
 object ImportResolver {
 
+  private val StdlibPath = "/stdlib/" /* Folder for bundled stdlib resources. */
+
   /** Resolve a sequence of import declarations, recursively resolving any
     * nested imports found inside imported files.
     *
@@ -96,7 +98,7 @@ object ImportResolver {
     segments match {
       case "wacc" :: rest =>
         // Bundled stdlib resource. Actual reading is done via classloader in readSource().
-        Paths.get(s"/stdlib/${rest.mkString("/")}.wacc")
+        Paths.get(s"$StdlibPath${rest.mkString("/")}.wacc")
       case _ =>
         // Relative to the importing file's directory.
         val relPath = (segments.init :+ (segments.last + ".wacc")).mkString("/")
@@ -210,7 +212,7 @@ object ImportResolver {
   /** Read the source of a module file. */
   private def readSource(filePath: Path): Option[String] = {
     val pathStr = filePath.toString
-    if (pathStr.startsWith("/stdlib/")) {
+    if (pathStr.startsWith(StdlibPath)) {
       // Classloader resource
       Option(getClass.getResourceAsStream(pathStr)).map { resource =>
         val src = Source.fromInputStream(resource)

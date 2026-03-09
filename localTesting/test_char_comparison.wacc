@@ -1,0 +1,8 @@
+# Test character comparisons
+# Expected output: true\nfalse\ntrue\n
+
+begin
+    println 'a' < 'z' ;
+    println 'z' < 'a' ;
+    println 'a' == 'a'
+end
