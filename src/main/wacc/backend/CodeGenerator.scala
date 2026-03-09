@@ -1071,7 +1071,9 @@ object CodeGenerator {
         
         /* load the length from offset -4 */
         val destScratch = PhysicalReg.ipcScratch2
-        emit(Arm.Ldur(Size.W, destScratch, Arm.AddrImmOffset(ptrReg, Arm.Immediate(-4))))
+        emit(Arm.Ldur(Size.W,
+                      destScratch,
+                      Arm.AddrImmOffset(ptrReg, Arm.Immediate(-MemoryLayout.ARRAY_LEN_HEADER_SIZE_B))))
         
         /* store to destination location */
         storeToLoc(destScratch, locOf(dest), dest.size)

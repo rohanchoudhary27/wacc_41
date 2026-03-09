@@ -98,7 +98,10 @@ object WidgetHelpers {
             CmpImm(Size.W, PhysicalReg.ipcScratch2, Immediate(0)),
             BranchCond(Condition.LT, AddrLabel(ArrayBoundsErrorWidget.label)),
             
-            Ldur(Size.W, PhysicalReg.linkReg, AddrImmOffset(PhysicalReg.widgetResultRegister, Immediate(-4))),
+            Ldur(Size.W,
+                 PhysicalReg.linkReg,
+                 AddrImmOffset(PhysicalReg.widgetResultRegister,
+                               Immediate(-MemoryLayout.ARRAY_LEN_HEADER_SIZE_B))),
             CmpReg(Size.W, PhysicalReg.ipcScratch2, PhysicalReg.linkReg),
             BranchCond(Condition.GE, AddrLabel(ArrayBoundsErrorWidget.label)),
             
@@ -286,7 +289,10 @@ object PrintStringWidget extends Widget {
         cLibFunc = CLibLabels.printfLabel,
         setupInstrs = List(
             MovReg(Size.X, PhysicalReg.argRegisters(2), PhysicalReg.returnRegister),
-            Ldur(Size.W, PhysicalReg.argRegisters(1), AddrImmOffset(PhysicalReg.returnRegister, Immediate(-4))),
+            Ldur(Size.W,
+                 PhysicalReg.argRegisters(1),
+                 AddrImmOffset(PhysicalReg.returnRegister,
+                 Immediate(-MemoryLayout.ARRAY_LEN_HEADER_SIZE_B))),
             Lea(PhysicalReg.returnRegister, AddrLabel(printStr))
         )
     )
@@ -327,7 +333,8 @@ object PrintBoolWidget extends Widget {
             LabelDef(AddrLabel(trueStrPrint)),
             Ldur(Size.W,
                  PhysicalReg.argRegisters(1),
-                 AddrImmOffset(PhysicalReg.argRegisters(2), Immediate(-4))),
+                 AddrImmOffset(PhysicalReg.argRegisters(2),
+                               Immediate(-MemoryLayout.ARRAY_LEN_HEADER_SIZE_B))),
             Lea(PhysicalReg.returnRegister,
                 AddrLabel(formatSpecifier))
         )
@@ -505,7 +512,7 @@ object FreeArrayWidget extends Widget {
             SubImm(Size.X,
                 PhysicalReg.returnRegister,
                 PhysicalReg.returnRegister,
-                Immediate(4)),
+                Immediate(MemoryLayout.ARRAY_LEN_HEADER_SIZE_B)),
             Bl(AddrLabel(CLibLabels.freeLabel)),
         )
     )
