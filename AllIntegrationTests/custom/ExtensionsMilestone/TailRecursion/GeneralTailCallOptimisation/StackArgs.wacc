@@ -1,0 +1,26 @@
+# Tests general tail calls with stack arguments
+# The program delegates with two functions that have >8 args
+
+# Output:
+# 108
+#
+
+# Program:
+
+begin
+    int takes10(int v1, int v2, int v3, int v4, int v5, int v6, int v7, int v8, int v9, int v10) is
+        return v1 + v2 + v3 + v4 + v5 + v6 + v7 + v8 + v9 + v10
+    end
+
+    int noWayAlsoTakes10(int v1, int v2, int v3, int v4, int v5, int v6, int v7, int v8, int v9, int v10) is
+        v1 = v1 * 10;
+        v2 = v1 + v2;
+        v10 = v9 - v8;
+        
+        int result = call takes10(v1, v2, v3, v4, v5, v6, v7, v8, v9, v10);
+        return result
+    end
+
+    int ans = call noWayAlsoTakes10(5, 1, 1, 1, 1, 1, 1, 1, 1, 1);
+    println ans
+end

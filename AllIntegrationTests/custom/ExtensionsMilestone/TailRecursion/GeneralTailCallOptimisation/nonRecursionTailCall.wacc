@@ -1,0 +1,23 @@
+# Tests a non-recursive tail call from a delegation
+# The program doubles and adds one to a number
+
+# Output:
+# 11
+#
+
+# Program:
+
+begin
+    int incr(int x) is
+        return x + 1
+    end
+
+    int doubleAndIncr(int x) is
+        int doubled = x * 2;
+        int result = call incr(doubled);
+        return result
+    end
+
+    int ans = call doubleAndIncr (5);
+    println ans
+end

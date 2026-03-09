@@ -1,0 +1,32 @@
+# Mutual recursive parity checker with a large number of mutual tailrec
+# calls which would segfault without generalised tail recursion.
+
+# Output:
+# true
+#
+
+# Program:
+
+begin
+  bool isEven(int n) is
+    if n == 0 then
+	  return true
+    else
+      bool isItOdd = call isOdd (n - 1);
+      return isItOdd
+    fi
+  end
+
+  bool isOdd(int n) is
+    if n == 1 then
+	  return true
+    else
+      bool isItEven = call isEven (n - 1);
+      return isItEven
+    fi
+  end
+
+  int num = 10000000;
+  bool parity = call isEven (num);
+  println(parity)
+end
