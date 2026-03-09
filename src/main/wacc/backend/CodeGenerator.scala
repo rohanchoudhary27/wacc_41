@@ -22,7 +22,7 @@ private class GlobalGenContext {
 
     /** Generate a fresh unique label for compiler-generated code */
     def freshLabel(): Arm.AddrLabel = {
-        val l = s".L$labelCounter"
+        val l = LabelNameFormatter.generalPurpose(labelCounter)
         labelCounter += 1
         Arm.AddrLabel(l)
     }
@@ -43,13 +43,19 @@ private class GlobalGenContext {
 }
 
 /**
-  * State class managing code generation.
+  * State class managing code generation for a single function context (with the main
+  * function being treated as a top-level function)
   * Tracks the allocation map and generated instructions.
   *
   * @param global the global context for labels and data directives
   * @param alloc the register allocation map (VirtualReg -> Location)
   */
 private class GenState(val global: GlobalGenContext, val alloc: Map[TAC.VirtualReg, Location]) {
+
+    /* Calculate local variables size needed to put onto stack 
+        and the calle-saved registers used */
+    val localsSize: Int = CodeGenerator.getLocalsSize(alloc)
+    val savedRegs: List[PhysicalReg] = CodeGenerator.getUsedCalleeSaved(alloc)
 
     /* The current return label to branch to at the end of the current function */
     var currEpilogueLabel: Option[Arm.AddrLabel] = None
@@ -99,7 +105,7 @@ object CodeGenerator {
       * Helper to get the set of callee-saved registers (x19-x28) used in a function.
       * We only need to save the ones we actually assign
       */
-    private def getUsedCalleeSaved(alloc: Map[TAC.VirtualReg, Location]): List[PhysicalReg] = {
+    def getUsedCalleeSaved(alloc: Map[TAC.VirtualReg, Location]): List[PhysicalReg] = {
         val used = alloc.values.collect { 
             case r: PhysicalReg if PhysicalReg.calleeSaved.contains(r) => r 
         }.toSet
@@ -111,7 +117,7 @@ object CodeGenerator {
       * Helper to calculate the size of the local variables area.
       * Scans for the lowest StackSlot offset and aligns the size to 16 bytes.
       */
-    private def getLocalsSize(alloc: Map[TAC.VirtualReg, Location]): Int = {
+    def getLocalsSize(alloc: Map[TAC.VirtualReg, Location]): Int = {
         val minOffset = alloc.values.collect { 
             case StackSlot(offset) => offset 
         }.minOption.getOrElse(0)
@@ -339,12 +345,7 @@ object CodeGenerator {
         }
 
         /* Emit code for the main function */
-        emit(Arm.LabelDef(Arm.AddrLabel("main")))
-
-        /* Calculate local variables size needed to put onto stack 
-            and the calle-saved registers used */
-        val localsSize = getLocalsSize(allocs.mainAlloc)
-        val savedRegs = getUsedCalleeSaved(allocs.mainAlloc)
+        emit(Arm.LabelDef(Arm.AddrLabel(LabelNameFormatter.mainLabel)))
 
         /* To ensure compatibility with the register allocator's offset calculations,
             the stack frame is organized such that the FP remains adjacent to the LR
@@ -352,11 +353,11 @@ object CodeGenerator {
             Callee-saved registers are pushed to the bottom of the stack. This layout 
             preserves the relative offsets of local variables to the FP regardless of
             the number of callee-saved registers saved in the stack. */
-        generateFuncPrologue(localsSize, savedRegs)
+        generateFuncPrologue(st.localsSize, st.savedRegs)
         generateInstrs(regProgram.body)
         /* main return 0 */
         generateMovImmediate(Size.W, PhysicalReg.returnRegister, Arm.Immediate(code(CompilerSuccess)))
-        generateFuncEpilogue(localsSize, savedRegs)
+        generateFuncEpilogue(st.localsSize, st.savedRegs)
 
         /* Final low-level IR for the program */
         val program = Arm.Program(globalCtx.finalDirectives, st.finalInstrs)
@@ -424,7 +425,7 @@ object CodeGenerator {
       * @param savedRegs  The list of callee-saved registers to restore
       */
     private def generateFuncEpilogue(
-        localsSize: Int, savedRegs: List[PhysicalReg]
+        localsSize: Int, savedRegs: List[PhysicalReg], emitRet: Boolean = true
     )(using GenState) = {
 
         val postIndexOffset = Arm.Immediate(AARch64Limits.ARM_STACK_ALIGNMENT_BYTES)
@@ -455,12 +456,17 @@ object CodeGenerator {
                 Arm.AddrPostIndex(PhysicalReg.stackPointer, postIndexOffset)
             )
         )
-        emit(Arm.Ret)
+
+        /* We skip the ret instruction if this epilogue is being inlined during
+           a generalised tail recursive call */
+        if (emitRet) {
+            emit(Arm.Ret)
+        }
     }
 
     /** Create a function body (post prologue) label */
     def formatFuncBodyLabel(funcLabelName: String) =
-        Arm.AddrLabel(s".L_${funcLabelName}_body")
+        Arm.AddrLabel(LabelNameFormatter.funcBody(funcLabelName))
 
     /**
       * Generate Low-Level IR for a function definition.
@@ -501,7 +507,7 @@ object CodeGenerator {
         }
 
         /* Register the epilogue label */
-        val epilogueLabel = Arm.AddrLabel(s".L_${func.name}_epilogue")
+        val epilogueLabel = Arm.AddrLabel(LabelNameFormatter.funcEpilogue(func.name))
         st.currEpilogueLabel = Some(epilogueLabel)
 
         /* Generate function body */
@@ -587,7 +593,8 @@ object CodeGenerator {
         case TAC.LabelDef(label) => emit(Arm.LabelDef(Arm.AddrLabel(label.name)))
         
         /* Function calls */
-        case TAC.TailCall(label, args) => generateTailCall(label, args)
+        case TAC.SelfTailCall(label, args) => generateSelfTailCall(label, args)
+        case TAC.GeneralTailCall(label, args) => generateGeneralTailCall(label, args)
         case TAC.Call(label, args, destOpt) => generateCall(label, args, destOpt)
         case TAC.Ret => generateReturn()
         
@@ -1321,13 +1328,13 @@ object CodeGenerator {
     }
 
     /**
-      * Generate the low level IR for a TailCall high level IR instruction. This is a
+      * Generate the low level IR for a SelfTailCall high level IR instruction. This is a
       * tail recurion optimised Call instruction. Part of the WACC Extensions milestone.
       *
       * @param label The label of the function
       * @param args The argument operands to the function
       */
-    private def generateTailCall(label: TAC.Label,
+    private def generateSelfTailCall(label: TAC.Label,
                                  args: List[TAC.Operand])
                                 (using GenState) = {
 
@@ -1349,6 +1356,43 @@ object CodeGenerator {
 
         /* Branch back to the function body code */
         emit(Arm.BranchUncond(formatFuncBodyLabel(label.name)))
+    }
+
+
+    /**
+      * Generate the low level IR for a GeneralTailCall high level IR instruction. This is a
+      * tail recurion optimised Call instruction for generalised tail recursion.
+      * Part of the WACC Extensions milestone to extend the medium difficulty extension to hard.
+      *
+      * @param label The label of the function
+      * @param args The argument operands to the function
+      */
+    private def generateGeneralTailCall(label: TAC.Label,
+                                        args: List[TAC.Operand])
+                                       (using st: GenState) = {
+
+        val stackArgs = args.drop(AARch64Limits.ARM_NUM_REGS_FOR_FUNC_ARGS)
+        val regArgs = args.take(AARch64Limits.ARM_NUM_REGS_FOR_FUNC_ARGS)
+
+        /* Overwrite the old stack args */
+        if (stackArgs.nonEmpty) {
+            storeArgsToStack(stackArgs,
+                             PhysicalReg.framePointer,
+                             baseOffset = AARch64Limits.ARM_STACK_ALIGNMENT_BYTES)
+        }
+
+        /* Store new registers in the arg registers */
+        regArgs.zipWithIndex.foreach { case (arg, i) =>
+            val targetReg = PhysicalReg.argRegisters(i)
+            loadOperandToTarget(arg, operandSize(arg), targetReg, strict = true)
+        }
+
+        /* Inline the epilogue to destroy the frame without returning (which
+           would happen if we jumped to the function's actual epilogue */
+        generateFuncEpilogue(st.localsSize, st.savedRegs, emitRet = false) 
+
+        /* Branch back to the function body code */
+        emit(Arm.BranchUncond(Arm.AddrLabel(label.name)))
     }
 
     /**

@@ -1355,24 +1355,39 @@ class FlattenerTest extends AnyFlatSpec with Matchers with TailRecPrebuiltTrees 
     /* ================================= EXTENSION TESTS ======================================== */
     /* ========================================================================================== */
 
-    "The flattener for tail recursion" should "make a TailCall node instead of a Call" in {
+    "The flattener for tail recursion" should "for a self tailrec make a SelfTailCall node instead of a Call" in {
         val (inputAST, callsThatAreTailrec) = threeCallsTwoTailRec()
 
-        val optimState = FrontendOptimState(callsThatAreTailrec.toSet)
+        val optimState = FrontendOptimState(callsThatAreTailrec.toSet, Set.empty)
         val flatOutput = Flattener.flatten(inputAST, optimState)
 
         val testFunc = flatOutput.funcs.find(_.name == "f_f").getOrElse(
             fail("couldn't find function 'f_f' in flattened output")
         )
 
-        val tailCallNodes = testFunc.body.collect { case call: TAC.TailCall => call }
-        tailCallNodes.length shouldBe 2
+        val selfTailCallNodes = testFunc.body.collect { case call: TAC.SelfTailCall => call }
+        selfTailCallNodes.length shouldBe 2
 
-        tailCallNodes.foreach { tacCall =>
+        selfTailCallNodes.foreach { tacCall =>
             tacCall.label.name should include ("f_f") 
         }
         
         val normalCallNodes = testFunc.body.collect { case call: TAC.Call => call }
         normalCallNodes.length shouldBe 1
     }
+
+    it should "for a generalised tailrec make a GeneralTailCall node instead of a Call" in {
+        val (inputAST, callsThatAreTailrec) = safeManyArgsGeneralTailRec()
+
+        val optimState = FrontendOptimState(Set.empty, callsThatAreTailrec.toSet)
+        val flatOutput = Flattener.flatten(inputAST, optimState)
+
+        val testFunc = flatOutput.funcs.find(_.name == "f_f").getOrElse(
+            fail("couldn't find function 'f_f' in flattened output")
+        )
+
+        val generalTailCallNodes = testFunc.body.collect { case call: TAC.GeneralTailCall => call }
+        generalTailCallNodes.length shouldBe 1
+    }
 }
+

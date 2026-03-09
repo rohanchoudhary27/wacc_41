@@ -249,4 +249,86 @@ trait TailRecPrebuiltTrees extends ASTBoilerplate {
 
         (ast, List(call1, call3))
     }
+
+    /* general tailrec AST with stack args but still safe to tailrec optimise */
+    def safeManyArgsGeneralTailRec(): (Program[SemanticData], List[Call[SemanticData]]) = {
+        val funcFSignature: SemanticData.Func =
+            SemanticData.Func(synPos.pos, "f", KnownType.Int, List.fill(10)(KnownType.Int))
+        val funcGSignature: SemanticData.Func =
+            SemanticData.Func(synPos.pos, "g", KnownType.Int, List.fill(9)(KnownType.Int))
+        val funcFIdent: Ident[SemanticData] = Ident("f", funcFSignature)
+        val funcGIdent: Ident[SemanticData] = Ident("g", funcGSignature)
+        
+        val argsG: List[Ident[SemanticData]] =
+            (0 until 9).map(i => Ident(s"p$i", SemanticData.Var(synPos.pos, i, KnownType.Int))).toList
+        val callG = Call(funcGIdent, argsG, typedInt)
+        
+        val zIdent = Ident("z", SemanticData.Var(synPos.pos, 10, KnownType.Int))
+        val declZ = Stmt.Decl(SyntaxType.Int, zIdent, callG, semPos)
+        val returnZ = Stmt.Return(zIdent, semPos)
+        val body = Stmt.Block(List(declZ, returnZ), semPos)
+        
+        val paramsF = (0 until 10).map(i => Param(SyntaxType.Int,
+                                                  Ident(s"p$i",
+                                                        SemanticData.Var(synPos.pos, i, KnownType.Int)), semPos)).toList
+        val funcF: Func[SemanticData] = Func(SyntaxType.Int, funcFIdent, paramsF, body, funcFSignature)
+        val ast = Program(List(funcF),
+                          Stmt.Block(List(), semPos),
+                          SemanticData.TopLevel(Map("f" -> funcFSignature, "g" -> funcGSignature)))
+        
+        (ast, List(callG))
+    }
+
+    /* general tailrec AST with stack args but still unsafe to tailrec optimise */
+    def unsafeManyArgsGeneralTailRec(): (Program[SemanticData], List[Call[SemanticData]]) = {
+        val funcFSignature: SemanticData.Func =
+            SemanticData.Func(synPos.pos, "f", KnownType.Int, List.fill(2)(KnownType.Int))
+        val funcGSignature: SemanticData.Func =
+            SemanticData.Func(synPos.pos, "g", KnownType.Int, List.fill(10)(KnownType.Int))
+        val funcFIdent: Ident[SemanticData] = Ident("f", funcFSignature)
+        val funcGIdent: Ident[SemanticData] = Ident("g", funcGSignature)
+        
+        val argsG = (0 until 10).map(i => IntLiter(i, typedInt)).toList
+        val callG = Call(funcGIdent, argsG, typedInt)
+        
+        val zIdent = Ident("z", SemanticData.Var(synPos.pos, 2, KnownType.Int))
+        val declZ = Stmt.Decl(SyntaxType.Int, zIdent, callG, semPos)
+        val returnZ = Stmt.Return(zIdent, semPos)
+        val body = Stmt.Block(List(declZ, returnZ), semPos)
+        
+        val paramsF = (0 until 2).map(i => Param(SyntaxType.Int,
+                                                 Ident(s"p$i", SemanticData.Var(synPos.pos, i, KnownType.Int)), semPos)).toList
+        val funcF = Func(SyntaxType.Int, funcFIdent, paramsF, body, funcFSignature)
+        val ast = Program(List(funcF),
+                          Stmt.Block(List(), semPos),
+                          SemanticData.TopLevel(Map("f" -> funcFSignature, "g" -> funcGSignature)))
+        
+        (ast, List(callG))
+    }
+
+
+    /* general tailrec AST with no stack args */
+    def exactlyEightArgsGeneralTailRec(): (Program[SemanticData], List[Call[SemanticData]]) = {
+        val funcFSignature: SemanticData.Func =
+            SemanticData.Func(synPos.pos, "f", KnownType.Int, List())
+        val funcGSignature: SemanticData.Func =
+            SemanticData.Func(synPos.pos, "g", KnownType.Int, List.fill(8)(KnownType.Int))
+        val funcFIdent: Ident[SemanticData] = Ident("f", funcFSignature)
+        val funcGIdent: Ident[SemanticData] = Ident("g", funcGSignature)
+        
+        val argsG = (0 until 8).map(i => IntLiter(i, typedInt)).toList
+        val callG = Call(funcGIdent, argsG, typedInt)
+        
+        val zIdent = Ident("z", SemanticData.Var(synPos.pos, 0, KnownType.Int))
+        val declZ = Stmt.Decl(SyntaxType.Int, zIdent, callG, semPos)
+        val returnZ = Stmt.Return(zIdent, semPos)
+        val body = Stmt.Block(List(declZ, returnZ), semPos)
+        
+        val funcF = Func(SyntaxType.Int, funcFIdent, List(), body, funcFSignature)
+        val ast = Program(List(funcF),
+                          Stmt.Block(List(), semPos),
+                          SemanticData.TopLevel(Map("f" -> funcFSignature, "g" -> funcGSignature)))
+        
+        (ast, List(callG))
+    }
 }

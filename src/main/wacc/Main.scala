@@ -31,13 +31,18 @@ object WaccCompiler {
       */
     def main(args: Array[String]): Unit = {
 
-        /* Expect a singular argument */
-        if (args.length != 1) {
+        /* Check optimisation flag and remove */
+        val optimisationFlag = args.contains("-O")
+        val filteredArgs = args.filterNot(_ == "-O")
+
+        /* Expect one argument for file name */
+        if (filteredArgs.length != 1) {
             Console.err.println(TopLevelError.FileSystemError("Requires a file").outputFormat)
             sys.exit(code(CompilerFailure))
         }
 
-        val path = Paths.get(args(0))
+        /* Remaining arguments should just be path name */
+        val path = Paths.get(filteredArgs(0))
 
         /* Validate file exists */
         if (!Files.exists(path)) {
@@ -46,7 +51,7 @@ object WaccCompiler {
         }
 
         /* Run the compiler */
-        val finalExitCode = compilePipeline(path)
+        val finalExitCode = compilePipeline(path, optimisationFlag) 
 
         /* Exit with exit code and message */
         if (finalExitCode == CompilerSuccess) {
@@ -65,9 +70,9 @@ object WaccCompiler {
       * @param path The path of the wacc file to compile
       * @return An `ExitCode` representing the success/failure status of the compilation
       */
-    private def compilePipeline(path: Path): ExitCode = runFrontend(path) match {
+    private def compilePipeline(path: Path, optimisationFlag: Boolean): ExitCode = runFrontend(path) match {
         case Left(frontendErrorCode) => frontendErrorCode
-        case Right(ast, optimState) => runBackend(path, ast, optimState)
+        case Right(ast, optimState) => runBackend(path, ast, optimState, optimisationFlag)
     }
 
     /**
@@ -127,13 +132,16 @@ object WaccCompiler {
       */
     private def runBackend(path: Path,
                            ast: Program[SemanticData],
-                           optimState: FrontendOptimState): ExitCode = {
+                           optimState: FrontendOptimState,
+                           optimisationFlag: Boolean): ExitCode = {
 
         /* Change the filename to a .s assembly file but keep the name the same */
-        val outFilename = path.getFileName.toString.replaceAll("\\.wacc$", ".s")
+        val outFilename = if (optimisationFlag)
+                then path.getFileName.toString.replaceAll("\\.wacc$", "_O.s")
+                else path.getFileName.toString.replaceAll("\\.wacc$", ".s")
 
         /* Run the ast through the backend of the compiler */
-        val backendResult = WaccBackend.run(outFilename, ast, optimState)
+        val backendResult = WaccBackend.run(outFilename, ast, optimState, optimisationFlag)
 
         backendResult.error.foreach { 
             errMsg => Console.err.println(TopLevelError.BackendPipelineError(errMsg).outputFormat)

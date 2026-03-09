@@ -158,7 +158,7 @@ private class GlobalFlattenContext(
     def addString(str: String): TAC.Label = {
         strMap.get(str) match
             case None => {
-                val strLabel = TAC.Label(s"string_${strCount}")
+                val strLabel = TAC.Label(LabelNameFormatter.stringName(strCount))
 
                 /* Escape chars must be written with backslashes in the assembly */
                 val escapedStr = str
@@ -612,7 +612,7 @@ object Flattener {
                                   directiveState: GlobalFlattenContext,
                                   optimState: FrontendOptimState) = {
         val exitCode = flattenExpr(expr)
-        val callInstr = TAC.Call(TAC.Label("exit"), List(exitCode), dest=None)
+        val callInstr = TAC.Call(TAC.Label(LabelNameFormatter.exitLabel), List(exitCode), dest=None)
         funcState.emitInstruction(callInstr)
     }
 
@@ -748,8 +748,8 @@ object Flattener {
         val flatCondition = flattenExpr(cond)
 
         /* Define labels */
-        val elseLabel = directiveState.getNextLabel(".L_else")
-        val endLabel = directiveState.getNextLabel(".L_end")
+        val elseLabel = directiveState.getNextLabel(LabelNameFormatter.elseLabel)
+        val endLabel = directiveState.getNextLabel(LabelNameFormatter.ifEndLabel)
 
         /* If the condition is false, jump to the else case*/
         funcState.emitInstruction(TAC.Cmp(toReg(flatCondition), TAC.Immediate(Constants.FALSE)))
@@ -774,8 +774,8 @@ object Flattener {
                                    optimState: FrontendOptimState) = {
         
         /* Define labels */
-        val bodyLabel = directiveState.getNextLabel(".L_body")
-        val condLabel = directiveState.getNextLabel(".L_cond")
+        val bodyLabel = directiveState.getNextLabel(LabelNameFormatter.whileBodyLabel)
+        val condLabel = directiveState.getNextLabel(LabelNameFormatter.whileCondLabel)
 
         /* Jump to the condition */
         funcState.emitInstruction(TAC.BranchUncond(condLabel))
@@ -1069,7 +1069,7 @@ object Flattener {
         
         resultReg
     }
-                                  
+          
     /**
       * Flattens a function AST node. Internally, it creates its own `FunctionState`
       * which it then passes to any other flatten function calls.
@@ -1087,7 +1087,7 @@ object Flattener {
         val Func(typ, ident, params, stmt, _) = typedFunc
 
         /* Function label */
-        val funcLabel = TAC.Label(s"f_${ident.name}")
+        val funcLabel = TAC.Label(LabelNameFormatter.funcEntry(ident.name))
 
         val flatParams = params.map(flattenParam)
         flattenStmt(stmt)
@@ -1152,14 +1152,15 @@ object Flattener {
         val resultReg = funcState.anonymousReg(knownReturnType)
 
         /* Emit call instruction */
-        val funcLabel = TAC.Label(s"f_${ident.name}")
+        val funcLabel = TAC.Label(LabelNameFormatter.funcEntry(ident.name))
 
-        /* Make the flat call node. If the optimState says it's a tail recursive node, 
-           a `TailCall` node is made for the code generator to optimise. */
-        val isTailRec = optimState.tailRecCalls.contains(callInstr)
+        /* Make the flat call node. If it is marked as self tail recursive, `TAC.SelfTailCall` is
+           emitted. If it is marked as general tail recursive, `TAC.GeneralTailCall` is emitted */
         val flatCallInstr =
-            if (isTailRec) {
-                TAC.TailCall(funcLabel, flatArgs)
+            if (optimState.selfTailRecCalls.contains(callInstr)) {
+                TAC.SelfTailCall(funcLabel, flatArgs)
+            } else if (optimState.generalTailRecCalls.contains(callInstr)) {
+                TAC.GeneralTailCall(funcLabel, flatArgs)
             } else {
                 TAC.Call(funcLabel, flatArgs, Some(resultReg))
             }
