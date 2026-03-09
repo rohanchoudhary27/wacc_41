@@ -603,6 +603,10 @@ object CodeGenerator {
             generateArrayLoad(array, index, dest)
         case TAC.ArrayStore(array, index, src, elemSize) => 
             generateArrayStore(array, index, src, elemSize)
+         case TAC.ArrayLoadUnchecked(array, index, dest) => 
+            generateArrayLoad(array, index, dest, checked = false)
+        case TAC.ArrayStoreUnchecked(array, index, src, elemSize) => 
+            generateArrayStore(array, index, src, elemSize, checked = false)
         case TAC.ArrayLen(array, dest) => generateArrayLen(array, dest)
         
         /* Pair operations */
@@ -1027,11 +1031,14 @@ object CodeGenerator {
       * @param array the virtual register holding the array pointer
       * @param index the operand specifying the index to load from
       * @param dest the destination virtual register to store the loaded value
+      * @param checked whether the load operation is bounds-checked
       */
-    private def generateArrayLoad(array: TAC.VirtualReg, index: TAC.Operand, dest: TAC.VirtualReg)
-                                 (using st: GenState): Unit = {
+    private def generateArrayLoad(
+        array: TAC.VirtualReg, index: TAC.Operand, dest: TAC.VirtualReg, checked: Boolean = true
+    )(using st: GenState): Unit = {
         emitArrayWidgetCall(array, index, dest.size, isStore = false)
-        
+        if (!checked)
+            println("array load is unchecked but there's nothing we can do atm...")
         /* Result is in X7, move to destination */
         storeToLoc(PhysicalReg.widgetResultRegister, locOf(dest), dest.size)
     }
@@ -1042,11 +1049,17 @@ object CodeGenerator {
       *
       * Calling convention: array ptr in X7, index in X17, value in X8.
       */
-    private def generateArrayStore(array: TAC.VirtualReg, index: TAC.Operand, src: TAC.Operand, elemSize: Size)
-                                  (using st: GenState): Unit = {
+    private def generateArrayStore(
+        array: TAC.VirtualReg,
+        index: TAC.Operand,
+        src: TAC.Operand,
+        elemSize: Size,
+        checked: Boolean = true
+    )(using st: GenState): Unit = {
         val valueReg = PhysicalReg.mathScratch // x8
         loadOperandToTarget(src, elemSize, valueReg, strict = true)
-        
+        if (!checked)
+            println("array load is unchecked but there's nothing we can do atm...")
         /* setup x7, x17, and call the store widget */
         emitArrayWidgetCall(array, index, elemSize, isStore = true)
     }

@@ -259,6 +259,31 @@ object Flattener {
             newReg
     }
 
+    /* Helper to emit array load instruction based on the optimstate */
+    private def emitArrayLoad(
+        array: TAC.VirtualReg,
+        index: TAC.Operand,
+        dest: TAC.VirtualReg,
+        astNode: ArrayElem[SemanticData]
+    )(using funcState: FunctionState, optimState: FrontendOptimState): Unit =
+        if (optimState.safeArrayAccesses.contains(astNode))
+            funcState.emitInstruction(TAC.ArrayLoadUnchecked(array, index, dest))
+        else
+            funcState.emitInstruction(TAC.ArrayLoad(array, index, dest))
+
+    /* Helper to emit array store instruction based on the optimstate */
+    private def emitArrayStore(
+        array: TAC.VirtualReg,
+        index: TAC.Operand,
+        src: TAC.Operand,
+        elemSize: Size,
+        astNode: ArrayElem[SemanticData]
+    )(using funcState: FunctionState, optimState: FrontendOptimState): Unit =
+        if (optimState.safeArrayAccesses.contains(astNode))
+            funcState.emitInstruction(TAC.ArrayStoreUnchecked(array, index, src, elemSize))
+        else
+            funcState.emitInstruction(TAC.ArrayStore(array, index, src, elemSize))
+
 
     /**
       * Flattens a statment into a list of high level IR instructions. Uses the buffer passed
@@ -352,9 +377,7 @@ object Flattener {
                 funcState.emitInstruction(TAC.PairStore(pairPtr, pos, srcOperand))
             case a: ArrayElem[SemanticData] =>
                 val (arrayPtr, index) = resolveArrayElem(a)
-                funcState.emitInstruction(
-                    TAC.ArrayStore(arrayPtr, index, srcOperand, Size.fromSemType(a.info.semanticType))
-                )
+                emitArrayStore(arrayPtr, index, srcOperand, Size.fromSemType(a.info.semanticType), a)
         }
     }
 
@@ -524,8 +547,7 @@ object Flattener {
         val finalIndex = flattenExpr(indices.last)
         val elemSize = Size.fromSemType(elemType)
         val resultReg = funcState.anonymousReg(elemSize)
-        funcState.emitInstruction(TAC.ArrayLoad(arrayPtr, finalIndex, resultReg))
-        
+        emitArrayLoad(arrayPtr, finalIndex, resultReg, a)
         resultReg
     }
     
@@ -649,9 +671,7 @@ object Flattener {
                 
                 val tempReg = funcState.anonymousReg(knownType)
                 funcState.emitInstruction(TAC.Read(tempReg, readWidget))
-                funcState.emitInstruction(
-                    TAC.ArrayStore(arrayPtr, index, tempReg, Size.fromSemType(knownType))
-                )
+                emitArrayStore(arrayPtr, index, tempReg, Size.fromSemType(knownType), a)
         }
     }
 

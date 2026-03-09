@@ -129,7 +129,14 @@ object TAC {
     case class ArrayLoad(array: VirtualReg,
                         index: Operand,
                         dest: VirtualReg) extends ArrayInstr(array, index)
+    case class ArrayLoadUnchecked(array: VirtualReg,
+                        index: Operand,
+                        dest: VirtualReg) extends ArrayInstr(array, index)
     case class ArrayStore(array: VirtualReg,
+                        index: Operand,
+                        src: Operand,
+                        elemSize: Size) extends ArrayInstr(array, index)
+    case class ArrayStoreUnchecked(array: VirtualReg,
                         index: Operand,
                         src: Operand,
                         elemSize: Size) extends ArrayInstr(array, index)
