@@ -272,7 +272,7 @@ object StaticAnalyser {
       */
     private def analyseRead(
         lval: LValue[SemanticData]
-    )(using state: AnalysisState): AnalysisState =
+    )(using state: AnalysisState, analyserState: AnalyserState): AnalysisState =
         lval match {
             case ident: Ident[SemanticData] =>
                 VariableId.fromIdent(ident) match {
@@ -280,6 +280,9 @@ object StaticAnalyser {
                     case None        => state
                 }
             /* reading into array/pair elements doesn't affect local variable state */
+            case p: PairElem[SemanticData] => 
+                checkPairElemSafety(p) /* prevent `read fst/snd p` when `p` is null */
+                state
             case _ => state
         }
 
