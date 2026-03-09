@@ -95,33 +95,21 @@ class AbstractValueTests extends AnyFlatSpec with Matchers {
         NonNull.join(Freed) shouldBe Unknown
     }
 
-    it should "preserve ArrayInfo when both sides agree on length and nullity" in {
-        val arr = ArrayInfo(Some(3), NonNull)
+    it should "preserve ArrayInfo when both sides agree on length" in {
+        val arr = ArrayInfo(Some(3))
         arr.join(arr) shouldBe arr
     }
 
     it should "lose length when two ArrayInfos disagree on length" in {
-        val arr1 = ArrayInfo(Some(3), NonNull)
-        val arr2 = ArrayInfo(Some(5), NonNull)
-        arr1.join(arr2) shouldBe ArrayInfo(None, NonNull)
-    }
-
-    it should "widen to Unknown when two ArrayInfos disagree on nullity" in {
-        val arr1 = ArrayInfo(Some(3), NonNull)
-        val arr2 = ArrayInfo(Some(3), wacc.frontend.lsa.Null)
-        arr1.join(arr2) shouldBe Unknown
-    }
-
-    it should "widen to Unknown when both length and nullity disagree" in {
-        val arr1 = ArrayInfo(Some(3), NonNull)
-        val arr2 = ArrayInfo(Some(5), wacc.frontend.lsa.Null)
-        arr1.join(arr2) shouldBe Unknown
+        val arr1 = ArrayInfo(Some(3))
+        val arr2 = ArrayInfo(Some(5))
+        arr1.join(arr2) shouldBe ArrayInfo(None)
     }
 
     it should "preserve unknown length when both have unknown length" in {
-        val arr1 = ArrayInfo(None, NonNull)
-        val arr2 = ArrayInfo(None, NonNull)
-        arr1.join(arr2) shouldBe ArrayInfo(None, NonNull)
+        val arr1 = ArrayInfo(None)
+        val arr2 = ArrayInfo(None)
+        arr1.join(arr2) shouldBe ArrayInfo(None)
     }
 
     it should "widen to Unknown when joining int with bool" in {
@@ -196,9 +184,6 @@ class AbstractValueTests extends AnyFlatSpec with Matchers {
         AbstractValue.isDefinitelyNull(wacc.frontend.lsa.Null) shouldBe true
     }
 
-    it should "return true for ArrayInfo with Null nullity" in {
-        AbstractValue.isDefinitelyNull(ArrayInfo(Some(3), wacc.frontend.lsa.Null)) shouldBe true
-    }
 
     it should "return false for NonNull" in {
         AbstractValue.isDefinitelyNull(NonNull) shouldBe false
@@ -213,7 +198,7 @@ class AbstractValueTests extends AnyFlatSpec with Matchers {
     }
 
     it should "return true for ArrayInfo with NonNull nullity" in {
-        AbstractValue.isDefinitelyNonNull(ArrayInfo(Some(3), NonNull)) shouldBe true
+        AbstractValue.isDefinitelyNonNull(ArrayInfo(Some(3))) shouldBe true
     }
 
     it should "return false for Null" in {
@@ -363,11 +348,11 @@ class AbstractValueTests extends AnyFlatSpec with Matchers {
     }
 
     "AbstractValue.len" should "extract known length from ArrayInfo" in {
-        AbstractValue.len(ArrayInfo(Some(5), NonNull)) shouldBe IntConstant(5)
+        AbstractValue.len(ArrayInfo(Some(5))) shouldBe IntConstant(5)
     }
 
     it should "return Unknown for ArrayInfo with unknown length" in {
-        AbstractValue.len(ArrayInfo(None, NonNull)) shouldBe Unknown
+        AbstractValue.len(ArrayInfo(None)) shouldBe Unknown
     }
 
     it should "return Unknown for non-array values" in {

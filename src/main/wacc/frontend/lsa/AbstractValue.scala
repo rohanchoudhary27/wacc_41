@@ -49,21 +49,20 @@ sealed trait AbstractValue {
             IntRange(math.min(lo1, lo2), math.max(hi1, hi2))
 
         /* Nullity values */
-        case (Null, NonNull) | (NonNull, Null)       => Unknown
+        case (Null, NonNull) | (NonNull, Null)  => Unknown
 
         /* Freed pointers: joining freed with any pointer state is unsafe,
            so we widen to Unknown */
         case (Freed, _: PointerValue) | (_: PointerValue, Freed) => Unknown
-        case (Freed, _) | (_, Freed)                             => Unknown
+        case (Freed, _) | (_, Freed) => Unknown
 
         /* Array info: merge lengths and nullity separately */
-        case (ArrayInfo(len1, null1), ArrayInfo(len2, null2)) =>
+        case (ArrayInfo(len1), ArrayInfo(len2)) =>
             val mergedLen = (len1, len2) match {
                 case (Some(a), Some(b)) if a == b => Some(a)
                 case _                            => None
             }
-            if (null1 == null2) ArrayInfo(mergedLen, null1)
-            else Unknown
+            ArrayInfo(mergedLen)
 
         /* Cross-domain disagreements widen to Unknown */
         case _ => Unknown
@@ -73,11 +72,7 @@ sealed trait AbstractValue {
     def describe: String
 }
 
-/** Abstract values specifically about pointer nullity.
-  *
-  * This is a sub-trait so that `ArrayInfo` can embed a `PointerValue` for
-  * its own nullity without allowing arbitrary abstract values in that slot.
-  */
+/** Abstract values specifically about pointer nullity. */
 sealed trait PointerValue extends AbstractValue
 
 
@@ -149,19 +144,17 @@ case object Freed extends PointerValue {
     override def describe: String = "freed"
 }
 
-/** Tracks both the known length and the nullity of an array reference.
+/** Tracks the known length of an array reference.
   *
   * @param knownLength `Some(n)` if the array was created from a literal of `n` elements
   *                     or its length is otherwise statically determinable, `None` if unknown
-  * @param nullity The pointer nullity of the array reference itself
   */
 case class ArrayInfo(
-    knownLength: Option[Int],
-    nullity: PointerValue
+    knownLength: Option[Int]
 ) extends AbstractValue {
     override def describe: String = {
         val lenStr = knownLength.map(n => s"length $n").getOrElse("unknown length")
-        s"$lenStr, ${nullity.describe}"
+        s"$lenStr"
     }
 }
 
@@ -178,13 +171,9 @@ object AbstractValue {
 
     /** Create the initial abstract value for an array literal of known size.
       *
-      * Array literals are always freshly allocated, so they are `NonNull`.
-      *
-      * @param length
-      *   The number of elements in the array literal
+      * @param length The number of elements in the array literal
       */
-    def fromArrayLiteral(length: Int): ArrayInfo =
-        ArrayInfo(knownLength = Some(length), nullity = NonNull)
+    def fromArrayLiteral(length: Int): ArrayInfo = ArrayInfo(knownLength = Some(length))
 
     /** Create the initial abstract value for a `newpair` allocation.
       *
@@ -212,14 +201,13 @@ object AbstractValue {
     /** Check whether an abstract value represents a definite null */
     def isDefinitelyNull(av: AbstractValue): Boolean = av match {
         case Null  => true
-        case ArrayInfo(_, Null)  => true
         case _ => false
     }
 
     /** Check whether an abstract value represents a definite non-null */
     def isDefinitelyNonNull(av: AbstractValue): Boolean = av match {
         case NonNull => true
-        case ArrayInfo(_, NonNull) => true
+        case ArrayInfo(_) => true
         case _  => false
     }
 
@@ -289,8 +277,8 @@ object AbstractValue {
     }
 
     def len(operand: AbstractValue): AbstractValue = operand match {
-        case ArrayInfo(Some(n), _) => IntConstant(n)
-        case _                     => Unknown
+        case ArrayInfo(Some(n)) => IntConstant(n)
+        case _ => Unknown
     }
 
     /** Abstract greater-than */

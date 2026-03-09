@@ -728,7 +728,7 @@ object StaticAnalyser {
            After the first indexing, we get an inner value whose length is
            unknown (we don't track array contents). */
         (arrayVal, indexVals.headOption) match {
-            case (ArrayInfo(Some(length), _), Some(indexVal)) =>
+            case (ArrayInfo(Some(length)), Some(indexVal)) =>
                 if (AbstractValue.isProvablyOutOfBounds(indexVal, length)) {
                     analyserState.emit(
                         AnalysisDiagnostic.arrayOutOfBounds(
