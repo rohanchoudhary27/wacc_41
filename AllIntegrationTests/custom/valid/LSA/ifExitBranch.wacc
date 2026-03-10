@@ -1,5 +1,5 @@
 # If one branch exits, post-if state uses only the other branch
-# Input: true
+# Input: 9
 # Output: 2
 # Exit: 0
 

@@ -1,6 +1,8 @@
 # Both fst and snd access on newpair, both null-check-safe
-# Output: 42
-# Output: 99
+# Output: 
+# 42
+# 99
+
 # Exit: 0
 
 # Program:

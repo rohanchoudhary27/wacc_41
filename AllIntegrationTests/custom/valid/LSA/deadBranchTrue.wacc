@@ -1,5 +1,5 @@
 # Dead branch: condition is always true so only then runs
-# Output: 5
+# Output: 2
 # Exit: 0
 
 # Program:
