@@ -161,7 +161,7 @@ object ImportResolver {
             visited.toList.map(_.getFileName.toString) :+ canonical.getFileName.toString
           Left(List(CyclicImport(cycleList, pos)))
         } else if (resolved.contains(canonical)) {
-          /* Diamond deduplication — already resolved, skip silently */
+          /* Diamond deduplication - already resolved, skip silently */
           Right(List.empty)
         } else {
           /* Parse the module file: */

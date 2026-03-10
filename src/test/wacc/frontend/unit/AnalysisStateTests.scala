@@ -47,7 +47,7 @@ class AnalysisStateTests extends AnyFlatSpec with Matchers {
         state.lookup(y) shouldBe BoolConstant(true)
     }
 
-    it should "be immutable — original state is not modified" in {
+    it should "be immutable - original state is not modified" in {
         val original = AnalysisState.empty.update(x, IntConstant(5))
         val updated = original.update(x, IntConstant(10))
 

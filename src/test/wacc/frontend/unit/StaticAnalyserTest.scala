@@ -382,7 +382,7 @@ class StaticAnalyserTests extends AnyFlatSpec with Matchers {
     }
 
     it should "detect division by negated zero" in {
-        /* int x = 0; int y = -x; int z = 10 / y — y is -0 = 0, so error */
+        /* int x = 0; int y = -x; int z = 10 / y - y is -0 = 0, so error */
         val xIdent = varIdent("x", 0)
         val yIdent = varIdent("y", 1)
         val zIdent = varIdent("z", 2)
@@ -595,7 +595,7 @@ class StaticAnalyserTests extends AnyFlatSpec with Matchers {
     }
 
     "StaticAnalyser.run" should "report errors to ErrorLogger" in {
-        /* int x = 10 / 0 — should route error to ErrorLogger */
+        /* int x = 10 / 0 - should route error to ErrorLogger */
         val xIdent = varIdent("x", 0)
         val divExpr = BinaryExpr(
             BinaryOperator.Div,
@@ -957,7 +957,7 @@ class StaticAnalyserTests extends AnyFlatSpec with Matchers {
     }
 
     it should "only warn once per unreachable section" in {
-        /* exit 0; int x = 5; int y = 10 — only one warning */
+        /* exit 0; int x = 5; int y = 10 - only one warning */
         val exitStmt = Stmt.Exit(IntLiter(0, typedInt), semPos)
         val declX = Stmt.Decl(SyntaxType.Int, varIdent("x", 0), IntLiter(5, typedInt), SemanticData.Pos((2, 1)))
         val declY = Stmt.Decl(SyntaxType.Int, varIdent("y", 1), IntLiter(10, typedInt), SemanticData.Pos((3, 1)))
@@ -970,7 +970,7 @@ class StaticAnalyserTests extends AnyFlatSpec with Matchers {
     }
 
     "Static analysis for division check elimination" should "mark division as safe when divisor is a known non-zero constant" in {
-        /* int x = 10 / 5 — divisor is 5, safe */
+        /* int x = 10 / 5 - divisor is 5, safe */
         val xIdent = varIdent("x", 0)
         val divExpr = BinaryExpr(
             BinaryOperator.Div,
@@ -986,7 +986,7 @@ class StaticAnalyserTests extends AnyFlatSpec with Matchers {
     }
 
     it should "mark modulo as safe when divisor is a known non-zero constant" in {
-        /* int x = 10 % 3 — divisor is 3, safe */
+        /* int x = 10 % 3 - divisor is 3, safe */
         val xIdent = varIdent("x", 0)
         val modExpr = BinaryExpr(
             BinaryOperator.Mod,
@@ -1002,7 +1002,7 @@ class StaticAnalyserTests extends AnyFlatSpec with Matchers {
     }
 
     it should "mark division as safe when divisor is a variable known to be non-zero" in {
-        /* int y = 4; int x = 10 / y — y is 4, safe */
+        /* int y = 4; int x = 10 / y - y is 4, safe */
         val yIdent = varIdent("y", 0)
         val xIdent = varIdent("x", 1)
 
@@ -1016,7 +1016,7 @@ class StaticAnalyserTests extends AnyFlatSpec with Matchers {
     }
 
     it should "not mark division as safe when divisor is unknown" in {
-        /* int y = read; int x = 10 / y — y is unknown */
+        /* int y = read; int x = 10 / y - y is unknown */
         val yIdent = varIdent("y", 0)
         val xIdent = varIdent("x", 1)
 
@@ -1031,7 +1031,7 @@ class StaticAnalyserTests extends AnyFlatSpec with Matchers {
     }
 
     it should "not mark division as safe when divisor is known zero (error case)" in {
-        /* int x = 10 / 0 — error, definitely not safe */
+        /* int x = 10 / 0 - error, definitely not safe */
         val xIdent = varIdent("x", 0)
         val divExpr = BinaryExpr(BinaryOperator.Div, IntLiter(10, typedInt), IntLiter(0, typedInt), typedInt)
         val decl = Stmt.Decl(SyntaxType.Int, xIdent, divExpr, semPos)
@@ -1256,7 +1256,7 @@ class StaticAnalyserTests extends AnyFlatSpec with Matchers {
     }
 
     it should "mark safe when argument range is entirely within [0, 127]" in {
-        /* if cond then x = 10 else x = 100 fi; chr x — range [10, 100] is valid */
+        /* if cond then x = 10 else x = 100 fi; chr x - range [10, 100] is valid */
         val xIdent = varIdent("x", 0)
         val cIdent = varIdent("c", 1, KnownType.Char)
         val bIdent = varIdent("b", 2, KnownType.Bool)
@@ -1281,7 +1281,7 @@ class StaticAnalyserTests extends AnyFlatSpec with Matchers {
     }
 
     it should "error when argument range is entirely above 127" in {
-        /* if cond then x = 128 else x = 255 fi; chr x — range [128, 255] invalid */
+        /* if cond then x = 128 else x = 255 fi; chr x - range [128, 255] invalid */
         val xIdent = varIdent("x", 0)
         val cIdent = varIdent("c", 1, KnownType.Char)
         val bIdent = varIdent("b", 2, KnownType.Bool)
@@ -1306,7 +1306,7 @@ class StaticAnalyserTests extends AnyFlatSpec with Matchers {
     }
 
     it should "not flag and not mark safe when range partially overlaps valid range" in {
-        /* if cond then x = 50 else x = 200 fi; chr x — range [50, 200] partially valid */
+        /* if cond then x = 50 else x = 200 fi; chr x - range [50, 200] partially valid */
         val xIdent = varIdent("x", 0)
         val cIdent = varIdent("c", 1, KnownType.Char)
         val bIdent = varIdent("b", 2, KnownType.Bool)
@@ -1329,4 +1329,121 @@ class StaticAnalyserTests extends AnyFlatSpec with Matchers {
         result.hasErrors shouldBe false
         result.safeChrCalls should not contain chrExpr
     }
+
+    "Static analyser for overflow detection for add" should "error on Int.MaxValue + 1" in {
+        val xIdent = varIdent("x", 0)
+        val addExpr = BinaryExpr(
+            BinaryOperator.Add,
+            IntLiter(Int.MaxValue, typedInt),
+            IntLiter(1, typedInt),
+            typedInt
+        )
+        val decl = Stmt.Decl(SyntaxType.Int, xIdent, addExpr, semPos)
+
+        val result = StaticAnalyser.analyse(programWithStmts(List(decl)))
+        result.hasErrors shouldBe true
+        result.diagnostics.exists(_.message.contains("Integer overflow")) shouldBe true
+    }
+
+    it should "mark safe for small constant addition" in {
+        val xIdent = varIdent("x", 0)
+        val addExpr = BinaryExpr(
+            BinaryOperator.Add,
+            IntLiter(3, typedInt),
+            IntLiter(5, typedInt),
+            typedInt
+        )
+        val decl = Stmt.Decl(SyntaxType.Int, xIdent, addExpr, semPos)
+
+        val result = StaticAnalyser.analyse(programWithStmts(List(decl)))
+        result.hasErrors shouldBe false
+        result.safeOverflowOps should contain(addExpr)
+    }
+
+    "Static analyser for overflow detection for sub" should "error on Int.MinValue - 1" in {
+        val xIdent = varIdent("x", 0)
+        val subExpr = BinaryExpr(
+            BinaryOperator.Sub,
+            IntLiter(Int.MinValue, typedInt),
+            IntLiter(1, typedInt),
+            typedInt
+        )
+        val decl = Stmt.Decl(SyntaxType.Int, xIdent, subExpr, semPos)
+
+        val result = StaticAnalyser.analyse(programWithStmts(List(decl)))
+        result.hasErrors shouldBe true
+        result.diagnostics.exists(_.message.contains("Integer overflow")) shouldBe true
+    }
+
+    it should "mark safe for small constant subtraction" in {
+        val xIdent = varIdent("x", 0)
+        val subExpr = BinaryExpr(
+            BinaryOperator.Sub,
+            IntLiter(10, typedInt),
+            IntLiter(3, typedInt),
+            typedInt
+        )
+        val decl = Stmt.Decl(SyntaxType.Int, xIdent, subExpr, semPos)
+
+        val result = StaticAnalyser.analyse(programWithStmts(List(decl)))
+        result.hasErrors shouldBe false
+        result.safeOverflowOps should contain(subExpr)
+    }
+
+    "Static analyser for overflow detection for mul" should "error on Int.MaxValue * 2" in {
+        val xIdent = varIdent("x", 0)
+        val mulExpr = BinaryExpr(
+            BinaryOperator.Mul,
+            IntLiter(Int.MaxValue, typedInt),
+            IntLiter(2, typedInt),
+            typedInt
+        )
+        val decl = Stmt.Decl(SyntaxType.Int, xIdent, mulExpr, semPos)
+
+        val result = StaticAnalyser.analyse(programWithStmts(List(decl)))
+        result.hasErrors shouldBe true
+        result.diagnostics.exists(_.message.contains("Integer overflow")) shouldBe true
+    }
+
+    it should "mark safe for small constant multiplication" in {
+        val xIdent = varIdent("x", 0)
+        val mulExpr = BinaryExpr(
+            BinaryOperator.Mul,
+            IntLiter(100, typedInt),
+            IntLiter(200, typedInt),
+            typedInt
+        )
+        val decl = Stmt.Decl(SyntaxType.Int, xIdent, mulExpr, semPos)
+
+        val result = StaticAnalyser.analyse(programWithStmts(List(decl)))
+        result.hasErrors shouldBe false
+        result.safeOverflowOps should contain(mulExpr)
+    }
+
+    "Static analysis for overflow detection for neg" should "error on -Int.MinValue" in {
+        val xIdent = varIdent("x", 0)
+        val yIdent = varIdent("y", 1)
+
+        val declX = Stmt.Decl(SyntaxType.Int, xIdent, IntLiter(Int.MinValue, typedInt), semPos)
+        val negExpr = UnaryExpr(UnaryOperator.Neg, xIdent, typedInt)
+        val declY = Stmt.Decl(SyntaxType.Int, yIdent, negExpr, semPos)
+
+        val result = StaticAnalyser.analyse(programWithStmts(List(declX, declY)))
+        result.hasErrors shouldBe true
+        result.diagnostics.exists(_.message.contains("overflow")) shouldBe true
+    }
+
+    it should "mark safe for negation of small constant" in {
+        val xIdent = varIdent("x", 0)
+        val yIdent = varIdent("y", 1)
+
+        val declX = Stmt.Decl(SyntaxType.Int, xIdent, IntLiter(42, typedInt), semPos)
+        val negExpr = UnaryExpr(UnaryOperator.Neg, xIdent, typedInt)
+        val declY = Stmt.Decl(SyntaxType.Int, yIdent, negExpr, semPos)
+
+        val result = StaticAnalyser.analyse(programWithStmts(List(declX, declY)))
+        result.hasErrors shouldBe false
+        result.safeOverflowOps should contain(negExpr)
+    }
+
 }
