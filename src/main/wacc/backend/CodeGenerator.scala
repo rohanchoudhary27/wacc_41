@@ -625,9 +625,9 @@ object CodeGenerator {
         case TAC.ArrayStore(array, index, src, elemSize) => 
             generateArrayStore(array, index, src, elemSize)
          case TAC.ArrayLoadUnchecked(array, index, dest) => 
-            generateArrayLoad(array, index, dest, checked = false)
+            generateArrayLoad(array, index, dest, isUnchecked = true)
         case TAC.ArrayStoreUnchecked(array, index, src, elemSize) => 
-            generateArrayStore(array, index, src, elemSize, checked = false)
+            generateArrayStore(array, index, src, elemSize, isUnchecked = true)
         case TAC.ArrayLen(array, dest) => generateArrayLen(array, dest)
         
         /* Pair operations */
@@ -1029,9 +1029,24 @@ object CodeGenerator {
         case (true, Size.X)  => ArrayStore8Widget
     }
 
+    /* Retrieves the appropriate array runtime widget based on size and operation. */
+    private def getArrayWidgetUnchecked(elemSize: Size, isStore: Boolean): Widget = (isStore, elemSize) match {
+        case (false, Size.B) => ArrayLoad1UncheckedWidget
+        case (false, Size.W) => ArrayLoad4UncheckedWidget
+        case (false, Size.X) => ArrayLoad8UncheckedWidget
+        case (true, Size.B)  => ArrayStore1UncheckedWidget
+        case (true, Size.W)  => ArrayStore4UncheckedWidget
+        case (true, Size.X)  => ArrayStore8UncheckedWidget
+    }
+
     /* Loads the array pointer into x7, the index into x17, and calls the appropriate widget. */
-    private def emitArrayWidgetCall(array: TAC.VirtualReg, index: TAC.Operand, elemSize: Size, isStore: Boolean)
-                                   (using st: GenState): Unit = {
+    private def emitArrayWidgetCall(
+        array: TAC.VirtualReg,
+        index: TAC.Operand,
+        elemSize: Size,
+        isStore: Boolean,
+        isUnchecked: Boolean = false
+    )(using st: GenState): Unit = {
         val arrayPtrReg = PhysicalReg.widgetResultRegister  // x7
         val indexReg = PhysicalReg.ipcScratch2       // x17
 
@@ -1040,7 +1055,8 @@ object CodeGenerator {
         loadOperandToTarget(index, Size.W, indexReg, strict = true)
 
         /* retrieve, register, and call the correct widget */
-        val widget = getArrayWidget(elemSize, isStore)
+        val widget = if (isUnchecked) getArrayWidgetUnchecked(elemSize, isStore) 
+                     else getArrayWidget(elemSize, isStore)
         useWidget(widget)
         emit(Arm.Bl(Arm.AddrLabel(widget.label)))
     }
@@ -1054,14 +1070,12 @@ object CodeGenerator {
       * @param array the virtual register holding the array pointer
       * @param index the operand specifying the index to load from
       * @param dest the destination virtual register to store the loaded value
-      * @param checked whether the load operation is bounds-checked
+      * @param isUnchecked whether the load operation is bounds-checked
       */
     private def generateArrayLoad(
-        array: TAC.VirtualReg, index: TAC.Operand, dest: TAC.VirtualReg, checked: Boolean = true
+        array: TAC.VirtualReg, index: TAC.Operand, dest: TAC.VirtualReg, isUnchecked: Boolean = false
     )(using st: GenState): Unit = {
-        emitArrayWidgetCall(array, index, dest.size, isStore = false)
-        if (!checked)
-            println("array load is unchecked but there's nothing we can do atm...")
+        emitArrayWidgetCall(array, index, dest.size, isStore = false, isUnchecked = isUnchecked)
         /* Result is in X7, move to destination */
         storeToLoc(PhysicalReg.widgetResultRegister, locOf(dest), dest.size)
     }
@@ -1077,14 +1091,12 @@ object CodeGenerator {
         index: TAC.Operand,
         src: TAC.Operand,
         elemSize: Size,
-        checked: Boolean = true
+        isUnchecked: Boolean = false
     )(using st: GenState): Unit = {
         val valueReg = PhysicalReg.mathScratch // x8
         loadOperandToTarget(src, elemSize, valueReg, strict = true)
-        if (!checked)
-            println("array load is unchecked but there's nothing we can do atm...")
         /* setup x7, x17, and call the store widget */
-        emitArrayWidgetCall(array, index, elemSize, isStore = true)
+        emitArrayWidgetCall(array, index, elemSize, isStore = true, isUnchecked = isUnchecked)
     }
 
     /**
