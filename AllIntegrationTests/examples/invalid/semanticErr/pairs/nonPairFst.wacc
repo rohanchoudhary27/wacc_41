@@ -1,0 +1,14 @@
+# Trying to extract from a non-pair
+
+# Output:
+# #semantic_error#
+
+# Exit:
+# 200
+
+# Program:
+
+begin
+  int x = 7;
+  char y = fst x
+end
