@@ -1,8 +1,0 @@
-# Test complex boolean expressions
-# Expected output: true\nfalse\ntrue\n
-
-begin
-    println (5 > 3) && (10 < 20) ;
-    println (5 > 10) || (20 < 10) ;
-    println !(5 == 10) && (7 >= 7)
-end
