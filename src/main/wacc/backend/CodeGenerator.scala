@@ -569,7 +569,7 @@ object CodeGenerator {
             generateStandardBinOp(dest, src1, src2, Arm.SubsReg.apply, Arm.SubsImm.apply, None)
 
         case TAC.Mul(dest, src1, src2) => generateMul(dest, src1, src2)
-        case TAC.MulUnchecked(dest, src1, src2) => generateMul(dest, src1, src2, checked = false)
+        case TAC.MulUnchecked(dest, src1, src2) => generateMul(dest, src1, src2, isUnchecked = true)
 
 
         case TAC.Div(dest, src1, src2) => generateDivMod(dest, src1, src2, isMod = false)
@@ -579,6 +579,7 @@ object CodeGenerator {
         case TAC.ModUnchecked(dest, src1, src2) => 
             generateDivMod(dest, src1, src2, isMod = true, isUnchecked = true)
         case TAC.Neg(dest, src) => generateNeg(dest, src)
+        case TAC.NegUnchecked(dest, src) => generateNeg(dest, src, isUnchecked = true)
         
         /* Bitwise operations */
         case TAC.And(dest, src1, src2) => 
@@ -740,14 +741,14 @@ object CodeGenerator {
      * @param dest: destination virtual register to store result to
      * @param src1: first source virtual register
      * @param src1: second operand (can be an immediate  or virtual register)
-     * @param checked: whether the result is checked for overflow/underflow
+     * @param isUnchecked: whether the result is unchecked/checked for overflow/underflow
      */
     private def generateMul(dest: TAC.VirtualReg,
                             src1: TAC.VirtualReg,
                             src2: TAC.Operand,
-                            checked: Boolean = true)
+                            isUnchecked: Boolean = false)
                            (using st: GenState): Unit = {
-        val widget = if (checked) Some(IntOverflowErrorWidget) else None
+        val widget = if (isUnchecked) None else Some(IntOverflowErrorWidget)
         /* Binary context handles  register loading, storing and widget */
         generateComplexBinOp(dest, src1, src2, widget) {
             (resultReg, src1Reg, src2Reg) =>
@@ -761,7 +762,7 @@ object CodeGenerator {
                 val scratch3 = PhysicalReg.mathScratch
                 emit(Arm.Sxtw(scratch3, resultReg))
                 emit(Arm.CmpReg(Size.X, resultReg, scratch3))
-                if (checked)
+                if (!isUnchecked)
                     /* If comparison not equal then an overflow occured, so branch to error widget */
                     emit(Arm.BranchCond(Condition.NE, Arm.AddrLabel(IntOverflowErrorWidget.label)))
         }
@@ -1491,11 +1492,18 @@ object CodeGenerator {
       *
       * @param dest the destination virtual register
       * @param src the source virtual register to not
+      * @param checked whether to check for overflows
       */
-    private def generateNeg(dest: TAC.VirtualReg, src: TAC.VirtualReg)(using st: GenState): Unit = {
-        generateUnaryOp(dest, src, Some(IntOverflowErrorWidget), { (destReg, srcReg) =>
+    private def generateNeg(
+        dest: TAC.VirtualReg, 
+        src: TAC.VirtualReg, 
+        isUnchecked: Boolean = false
+    )(using st: GenState): Unit = {
+        val widget = if (isUnchecked) None else Some(IntOverflowErrorWidget)
+        generateUnaryOp(dest, src, widget, { (destReg, srcReg) =>
             emit(Arm.Negs(dest.size, destReg, srcReg))
-            emit(Arm.BranchCond(Condition.VS, Arm.AddrLabel(IntOverflowErrorWidget.label)))
+            if (!isUnchecked)
+                emit(Arm.BranchCond(Condition.VS, Arm.AddrLabel(IntOverflowErrorWidget.label)))
         })
     }
 }
