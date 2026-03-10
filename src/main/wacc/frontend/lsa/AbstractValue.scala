@@ -294,8 +294,87 @@ object AbstractValue {
       * since at runtime this would trigger an overflow error.
       */
     private def safeIntResult(result: Long): AbstractValue =
-        if (result >= IntMin && result <= IntMax) IntConstant(result.toInt)
+        if (!wouldOverflow(result)) IntConstant(result.toInt)
         else Unknown
+
+    /** Check if the result from arithmetic expression overflows or underflows */
+    def wouldOverflow(result: Long): Boolean = result < IntMin || result > IntMax
+
+    /** Check whether an addition of two abstract values is provably safe
+      * (no overflow possible) */
+    def isProvablySafeAdd(left: AbstractValue, right: AbstractValue): Boolean =
+        (left, right) match {
+            case (IntConstant(a), IntConstant(b)) => !wouldOverflow(a.toLong + b.toLong)
+            case (IntConstant(0), _) | (_, IntConstant(0)) => true
+            case (IntRange(lo1, hi1), IntRange(lo2, hi2)) => /* extremes */
+                !wouldOverflow(lo1.toLong + lo2.toLong) && !wouldOverflow(hi1.toLong + hi2.toLong)
+            case (IntConstant(a), IntRange(lo, hi)) =>
+                !wouldOverflow(a.toLong + lo.toLong) && !wouldOverflow(a.toLong + hi.toLong)
+            case (IntRange(lo, hi), IntConstant(b)) =>
+                !wouldOverflow(lo.toLong + b.toLong) && !wouldOverflow(hi.toLong + b.toLong)
+            case _ => false
+        }
+
+    /** Check whether a subtraction of two abstract values is provably safe */
+    def isProvablySafeSub(left: AbstractValue, right: AbstractValue): Boolean =
+        (left, right) match {
+            case (IntConstant(a), IntConstant(b)) => !wouldOverflow(a.toLong - b.toLong)
+            case (_, IntConstant(0)) => true
+            case (IntRange(lo1, hi1), IntRange(lo2, hi2)) =>
+                !wouldOverflow(lo1.toLong - hi2.toLong) && !wouldOverflow(hi1.toLong - lo2.toLong)
+            case (IntConstant(a), IntRange(lo, hi)) =>
+                !wouldOverflow(a.toLong - hi.toLong) && !wouldOverflow(a.toLong - lo.toLong)
+            case (IntRange(lo, hi), IntConstant(b)) =>
+                !wouldOverflow(lo.toLong - b.toLong) && !wouldOverflow(hi.toLong - b.toLong)
+            case _ => false
+        }
+
+    /** Check whether a multiplication of two abstract values is provably safe */
+    def isProvablySafeMul(left: AbstractValue, right: AbstractValue): Boolean =
+        (left, right) match {
+            case (IntConstant(-1), IntConstant(v)) => !wouldOverflow(-v.toLong)
+            case (IntConstant(v), IntConstant(-1)) => !wouldOverflow(-v.toLong)
+            case (IntConstant(1), _) | (_, IntConstant(1)) => true
+            case (IntConstant(0), _) | (_, IntConstant(0)) => true
+            case (IntConstant(a), IntConstant(b)) => !wouldOverflow(a.toLong * b.toLong)
+            case _ => false
+        }
+
+    /** Check whether a negation is provably safe (no overflow) */
+    def isProvablySafeNeg(operand: AbstractValue): Boolean = operand match {
+        case IntConstant(v) => !wouldOverflow(-v.toLong)
+        case IntRange(lo, hi) =>
+            !wouldOverflow(-lo.toLong) && !wouldOverflow(-hi.toLong)
+        case _ => false
+    }
+
+    /** Check whether an addition provably overflows for possible values */
+    def doesProvablyOverflowAdd(left: AbstractValue, right: AbstractValue): Boolean =
+        (left, right) match {
+            case (IntConstant(a), IntConstant(b)) => wouldOverflow(a.toLong + b.toLong)
+            case _ => false
+        }
+
+    /** Check whether a subtraction provably overflows for possible values */
+    def doesProvablyOverflowSub(left: AbstractValue, right: AbstractValue): Boolean =
+        (left, right) match {
+            case (IntConstant(a), IntConstant(b)) => wouldOverflow(a.toLong - b.toLong)
+            case _ => false
+        }
+
+    /** Check whether a multiplication provably overflows for possible values */
+    def doesProvablyOverflowMul(left: AbstractValue, right: AbstractValue): Boolean =
+        (left, right) match {
+            case (IntConstant(a), IntConstant(b)) => wouldOverflow(a.toLong * b.toLong)
+            case _ => false
+        }
+
+    /** Check whether a negation provably overflows */
+    def doesProvablyOverflowNeg(operand: AbstractValue): Boolean = operand match {
+        case IntConstant(v) => wouldOverflow(-v.toLong)
+        case _ => false
+    }
+
 
     def add(l: AbstractValue, r: AbstractValue) = intBinaryOp(l, r, _ + _)
     def sub(l: AbstractValue, r: AbstractValue) = intBinaryOp(l, r, _ - _)

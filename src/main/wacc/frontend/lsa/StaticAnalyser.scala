@@ -43,6 +43,11 @@ class AnalyserState {
     private val safeChrCalls: scala.collection.mutable.Set[UnaryExpr[SemanticData]] =
         scala.collection.mutable.Set.empty
 
+    /* Set of Expr AST nodes (BinaryExpr for + - *, UnaryExpr for -)
+       where the operation provably cannot overflow 32 bit signed range */
+    private val safeOverflowOps: scala.collection.mutable.Set[Expr[SemanticData]] =
+        scala.collection.mutable.Set.empty
+
     /** Record a `PairElem` AST node whose base pointer is provably non null,
       * so the flattener can skip the runtime null check.
       *
@@ -71,6 +76,12 @@ class AnalyserState {
       */
     def markSafeChrCall(chrExpr: UnaryExpr[SemanticData]): Unit = safeChrCalls += chrExpr
 
+    /** Record a `Expr` AST node where we don't need to check for integer overflow.
+     * 
+     * @param expr The `Expr` AST node that is proven to not overflow or underflow
+     */
+    def markSafeOverflowOp(expr: Expr[SemanticData]): Unit = safeOverflowOps += expr
+
     /** Emit a diagnostic finding. */
     def emit(diagnostic: AnalysisDiagnostic): Unit = diagnostics += diagnostic
 
@@ -88,6 +99,9 @@ class AnalyserState {
 
     /** Retrieve the set of `UnaryExpr` nodes where bounds checks can be eliminated */
     def getSafeChrCalls: Set[UnaryExpr[SemanticData]] = safeChrCalls.toSet  
+
+    /** Retrieve the set of `Expr` nodes where overflow checks can be eliminated */
+    def getSafeOverflowOps: Set[Expr[SemanticData]] = safeOverflowOps.toSet
 
     /** Check whether any error level diagnostics have been emitted */
     def hasErrors: Boolean = diagnostics.exists(_.severity == DiagnosticSeverity.Error)
@@ -110,7 +124,8 @@ case class AnalysisResult(
     safePairAccesses: Set[PairElem[SemanticData]] = Set.empty,
     safeDivisions: Set[BinaryExpr[SemanticData]] = Set.empty,
     safeArrayAccesses: Set[ArrayElem[SemanticData]] = Set.empty,
-    safeChrCalls: Set[UnaryExpr[SemanticData]] = Set.empty
+    safeChrCalls: Set[UnaryExpr[SemanticData]] = Set.empty,
+    safeOverflowOps: Set[Expr[SemanticData]] = Set.empty
 )
 
 /** The static analyser entry point */
@@ -134,7 +149,8 @@ object StaticAnalyser {
             analyserState.getSafePairAccesses,
             analyserState.getSafeDivisions,
             analyserState.getSafeArrayAccesses,
-            analyserState.getSafeChrCalls
+            analyserState.getSafeChrCalls,
+            analyserState.getSafeOverflowOps
         )
     }
 
@@ -623,7 +639,14 @@ object StaticAnalyser {
         val operandVal = evaluateExpr(inner)
 
         op match {
-            case UnaryOperator.Neg => AbstractValue.neg(operandVal)
+            case UnaryOperator.Neg => 
+                if (AbstractValue.doesProvablyOverflowNeg(operandVal))
+                    analyserState.emit(
+                        AnalysisDiagnostic.negationOverflow(u.info.pos, operandVal)
+                    )
+                else if (AbstractValue.isProvablySafeNeg(operandVal))
+                    analyserState.markSafeOverflowOp(u)
+                AbstractValue.neg(operandVal)
             case UnaryOperator.Not => AbstractValue.not(operandVal)
             case UnaryOperator.Len => AbstractValue.len(operandVal)
             case UnaryOperator.Ord => AbstractValue.ord(operandVal)
@@ -659,9 +682,24 @@ object StaticAnalyser {
 
         op match {
             /* Arithmetic operators */
-            case BinaryOperator.Add => AbstractValue.add(leftVal, rightVal)
-            case BinaryOperator.Sub => AbstractValue.sub(leftVal, rightVal)
-            case BinaryOperator.Mul => AbstractValue.mul(leftVal, rightVal)
+            case BinaryOperator.Add => 
+                handleOverflow(b, leftVal, rightVal, "+",
+                    AbstractValue.doesProvablyOverflowAdd, 
+                    AbstractValue.isProvablySafeAdd
+                )
+                AbstractValue.add(leftVal, rightVal)
+            case BinaryOperator.Sub => 
+                handleOverflow(b, leftVal, rightVal, "-",
+                    AbstractValue.doesProvablyOverflowSub, 
+                    AbstractValue.isProvablySafeSub
+                )
+                AbstractValue.sub(leftVal, rightVal)
+            case BinaryOperator.Mul => 
+                handleOverflow(b, leftVal, rightVal, "*",
+                    AbstractValue.doesProvablyOverflowMul, 
+                    AbstractValue.isProvablySafeMul
+                )
+                AbstractValue.mul(leftVal, rightVal)
 
             /* Division and modulo: check for division by zero */
             case BinaryOperator.Div =>
@@ -739,7 +777,7 @@ object StaticAnalyser {
       *
       * @param array The `ArrayElem` AST node (for recording in safe set)
       * @return
-      *   Always `Unknown` — we don't track individual array element values
+      *   Always `Unknown` - we don't track individual array element values
       */
     private def evaluateArrayElem(
         array: ArrayElem[SemanticData]
@@ -939,6 +977,23 @@ object StaticAnalyser {
             case PairElem(_, innerLval, _) =>
                 collectLValueTarget(innerLval)
         }
+     
+    /* Helper to check if the binary expression for +, -, * overflows and handle it */
+    private def handleOverflow(
+        e: BinaryExpr[SemanticData],
+        leftVal: AbstractValue,
+        rightVal: AbstractValue,
+        sym: String,
+        doesOverflow: (AbstractValue, AbstractValue) => Boolean,
+        isSafe: (AbstractValue, AbstractValue) => Boolean,
+    )(using analyserState: AnalyserState): Unit = {
+        if (doesOverflow(leftVal, rightVal))
+            analyserState.emit(
+                AnalysisDiagnostic.integerOverflow(e.info.pos, sym, leftVal, rightVal)
+            )
+        else if (isSafe(leftVal, rightVal))
+            analyserState.markSafeOverflowOp(e)
+    }
 }
 
 extension [A](stmt: Stmt[A]) {

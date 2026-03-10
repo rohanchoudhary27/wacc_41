@@ -85,22 +85,6 @@ object AnalysisDiagnostic {
             s"Use after free: '$ptrName' has already been freed"
         )
 
-    /** A null check can be safely removed because the pointer is provably non-null */
-    def redundantNullCheck(pos: SourcePos, ptrName: String): AnalysisDiagnostic =
-        AnalysisDiagnostic(
-            DiagnosticSeverity.Info,
-            pos,
-            s"Null check on '$ptrName' is redundant: pointer is non-null"
-        )
-
-    /** A bounds check can be safely removed because the index is provably in range */
-    def redundantBoundsCheck(pos: SourcePos, arrayName: String): AnalysisDiagnostic =
-        AnalysisDiagnostic(
-            DiagnosticSeverity.Info,
-            pos,
-            s"Bounds check on '$arrayName' is redundant: index is provably in range"
-        )
-
     /** A branch of an if-else is unreachable because the condition is a known constant */
     def deadBranch(pos: SourcePos, whichBranch: String, condValue: Boolean): AnalysisDiagnostic =
         AnalysisDiagnostic(
@@ -137,5 +121,24 @@ object AnalysisDiagnostic {
             DiagnosticSeverity.Error,
             pos,
             s"Invalid chr argument: value is ${argValue.describe} but must be in range [0, 127]"
+        )
+
+    /** Integer arithmetic that provably overflows 32-bit signed range */
+    def integerOverflow(
+        pos: SourcePos, operation: String, leftVal: AbstractValue, rightVal: AbstractValue
+    ): AnalysisDiagnostic =
+        AnalysisDiagnostic(
+            DiagnosticSeverity.Error,
+            pos,
+            s"Integer overflow: '$operation' on ${leftVal.describe} and ${rightVal.describe} " +
+                "exceeds 32-bit signed integer range"
+        )
+
+    /** Negation that provably overflows (negating Int.MinValue) */
+    def negationOverflow(pos: SourcePos, operandVal: AbstractValue): AnalysisDiagnostic =
+        AnalysisDiagnostic(
+            DiagnosticSeverity.Error,
+            pos,
+            s"Integer overflow: negation of ${operandVal.describe} exceeds 32-bit signed integer range"
         )
 }

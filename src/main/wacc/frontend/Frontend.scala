@@ -23,20 +23,20 @@ case class FrontendCompilationResult(
   * @param tailRecCalls A set of `Call` AST nodes which are tail recursive
   */
 case class FrontendOptimState(
-    selfTailRecCalls: Set[Call[SemanticData]],
-    generalTailRecCalls: Set[Call[SemanticData]],
+    selfTailRecCalls: Set[Call[SemanticData]] = Set.empty,
+    generalTailRecCalls: Set[Call[SemanticData]] = Set.empty,
     safePairAccesses: Set[PairElem[SemanticData]] = Set.empty,
     safeDivisions: Set[BinaryExpr[SemanticData]] = Set.empty,
     safeArrayAccesses: Set[ArrayElem[SemanticData]] = Set.empty,
-    safeChrCalls: Set[UnaryExpr[SemanticData]] = Set.empty
+    safeChrCalls: Set[UnaryExpr[SemanticData]] = Set.empty,
+    safeOverflowExprs: Set[Expr[SemanticData]] = Set.empty
 )
 
 /**
   * Companion object for `FrontendOptimState`
   */
 object FrontendOptimState {
-    val empty: FrontendOptimState = 
-      FrontendOptimState(Set.empty, Set.empty, Set.empty, Set.empty, Set.empty, Set.empty)
+    val empty: FrontendOptimState = FrontendOptimState()
 }
 
 /** The top level object of the WACC compiler frontend. Contains the `main`
@@ -164,6 +164,7 @@ object WaccFrontend {
                       analysisResult.safeDivisions,
                       analysisResult.safeArrayAccesses,
                       analysisResult.safeChrCalls,
+                      analysisResult.safeOverflowOps
                     )
                     FrontendCompilationResult(CompilerSuccess, None, typedAST, Some(optimState))
                   }
