@@ -1,10 +1,11 @@
 #!/bin/bash
 
 BENCHMARK_DIR="benchmark_tests"
-UNOPT_DIR="assembly_unoptimised"
-OPT_DIR="assembly_optimised"
+BASE_OUT_DIR="assembly"
+UNOPT_DIR="${BASE_OUT_DIR}/unoptimised"
+OPT_DIR="${BASE_OUT_DIR}/optimised"
 
-rm -rf "$UNOPT_DIR" "$OPT_DIR"
+rm -rf "$BASE_OUT_DIR"
 mkdir -p "$UNOPT_DIR"
 mkdir -p "$OPT_DIR"
 
@@ -13,29 +14,39 @@ echo "Generating Benchmark Assembly Files..."
 echo "========================================"
 
 for FILE in "$BENCHMARK_DIR"/*.wacc; do
-    
     [ -e "$FILE" ] || { echo "No .wacc files found in $BENCHMARK_DIR!"; exit 1; }
     
     BASENAME=$(basename "$FILE" .wacc)
     echo "Processing: $BASENAME"
 
+    # 1. Compile Unoptimised
     ./compile "$FILE" > /dev/null 2>&1
+    
     if [ -f "${BASENAME}.s" ]; then
         mv "${BASENAME}.s" "${UNOPT_DIR}/${BASENAME}.s"
+    elif [ -f "${BENCHMARK_DIR}/${BASENAME}.s" ]; then
+        mv "${BENCHMARK_DIR}/${BASENAME}.s" "${UNOPT_DIR}/${BASENAME}.s"
     else
-        echo "  [!] Unoptimised compilation failed for $BASENAME"
+        echo "  [!] Could not find unoptimised .s file for $BASENAME"
     fi
 
+    # 2. Compile Optimised
     ./compile -O "$FILE" > /dev/null 2>&1
-    if [ -f "${BASENAME}.s" ]; then
-        mv "${BASENAME}.s" "${OPT_DIR}/${BASENAME}.s"
+    
+    # Check for the optimized file with the _O suffix!
+    if [ -f "${BASENAME}_O.s" ]; then
+        mv "${BASENAME}_O.s" "${OPT_DIR}/${BASENAME}.s"
+    elif [ -f "${BENCHMARK_DIR}/${BASENAME}_O.s" ]; then
+        mv "${BENCHMARK_DIR}/${BASENAME}_O.s" "${OPT_DIR}/${BASENAME}.s"
     else
-        echo "  [!] Optimised compilation failed for $BASENAME"
+        echo "  [!] Could not find optimised .s file for $BASENAME. Looking for ${BASENAME}_O.s"
     fi
 
 done
 
 echo "========================================"
-echo "Done!"
-echo "Unoptimised files: ./${UNOPT_DIR}/"
-echo "Optimised files:   ./${OPT_DIR}/"
+echo "Done! Ready for the Raspberry Pi."
+echo "Output directory structure:"
+echo "  ./${BASE_OUT_DIR}/"
+echo "  ├── unoptimised/"
+echo "  └── optimised/"
