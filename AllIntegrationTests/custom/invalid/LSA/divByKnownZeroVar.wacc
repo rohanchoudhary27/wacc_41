@@ -1,0 +1,11 @@
+# Division by a variable known to be zero - caught at compile time
+# Output:
+# Exit: 200
+
+# Program:
+begin
+  int x = 0;
+  int y = 10 / x;
+  println y;
+  exit 0
+end

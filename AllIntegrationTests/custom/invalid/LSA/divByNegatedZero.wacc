@@ -1,0 +1,12 @@
+# Division by negated zero: -0 is still 0 - caught at compile time
+# Output:
+# Exit: 200
+
+# Program:
+begin
+  int x = 0;
+  int y = -x;
+  int z = 10 / y;
+  println z;
+  exit 0
+end

@@ -1,0 +1,12 @@
+# Use after free: accessing pair after free - caught at compile time
+# Output:
+# Exit: 200
+
+# Program:
+begin
+  pair(int, int) p = newpair(1, 2);
+  free p;
+  int x = fst p;
+  println x;
+  exit 0
+end

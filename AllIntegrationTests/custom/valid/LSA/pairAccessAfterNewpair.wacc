@@ -1,0 +1,11 @@
+# Newpair always produces valid pairs
+# Output: 42
+# Exit: 0
+
+# Program:
+begin
+  pair(int, int) p = newpair(42, 0);
+  int x = fst p;
+  println x;
+  exit 0
+end

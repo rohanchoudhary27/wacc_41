@@ -1,0 +1,20 @@
+# If one branch exits, post-if state uses only the other branch
+# Input: true
+# Output: 2
+# Exit: 0
+
+# Program:
+begin
+  int x = 0;
+  int bb = 3;
+  read bb;
+  bool b = bb == 9;
+  if b then
+    x = 5
+  else
+    exit 1
+  fi;
+  int y = 10 / x;
+  println y;
+  exit 0
+end

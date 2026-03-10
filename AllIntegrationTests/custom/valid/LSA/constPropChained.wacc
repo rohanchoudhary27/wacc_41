@@ -1,0 +1,14 @@
+# Constant propagation through arithmetic: all values are known
+# Output: 8
+# Exit: 0
+
+# Program:
+begin
+  int a = 3;
+  int b = 5;
+  int c = a + b;
+  int d = c * 2;
+  int e = d / 2;
+  println e;
+  exit 0
+end

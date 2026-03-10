@@ -1,0 +1,20 @@
+# While loop invalidates x (read inside loop), no false div-by-zero alarm
+# Input: 9
+# Input: false
+# Output: 2
+# Exit: 0
+
+# Program:
+begin
+  int x = 0;
+  int bb = 3;
+  read bb;
+  bool b = bb == 9;
+  while b do
+    read x;
+    b = false
+  done;
+  int y = 10 / x;
+  println y;
+  exit 0
+end

@@ -1,0 +1,11 @@
+# Array out of bounds: any access on empty array, caught at compile time
+# Output:
+# Exit: 200
+
+# Program:
+begin
+  int[] a = [];
+  int x = a[0];
+  println x;
+  exit 0
+end

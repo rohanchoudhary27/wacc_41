@@ -1,0 +1,10 @@
+# Null dereference: writing to fst of null pair - caught at compile time
+# Output:
+# Exit: 200
+
+# Program:
+begin
+  pair(int, int) p = null;
+  fst p = 5;
+  exit 0
+end

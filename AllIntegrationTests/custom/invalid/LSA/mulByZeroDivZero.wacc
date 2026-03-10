@@ -1,0 +1,15 @@
+# Multiplication by zero: x * 0 is always 0 even if x is unknown
+# This program will hit a runtime div-by-zero but the analyser should
+# detect that y is definitely zero at compile time
+# Output:
+# Exit: 200
+
+# Program:
+begin
+  int x = 1;
+  read x;
+  int y = x * 0;
+  int z = 10 / y;
+  println z;
+  exit 0
+end
