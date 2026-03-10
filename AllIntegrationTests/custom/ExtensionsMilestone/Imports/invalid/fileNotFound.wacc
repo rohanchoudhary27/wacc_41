@@ -1,0 +1,13 @@
+# Invalid: module file does not exist on the filesystem.
+
+# Error:
+# Import error: Module 'nonExistentModule' not found
+
+# Exit:
+# 100
+
+# Program:
+
+import nonExistentModule
+
+begin skip end

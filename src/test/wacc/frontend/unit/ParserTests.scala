@@ -560,7 +560,7 @@ class ParserTests extends AnyFlatSpec with Matchers {
     "The function parser" should "parse valid function definitions with params" in {
         val input = "begin int f(int x, char y) is return x + 1 end println \"hello\" end"
         parseOk(input) match {
-            case Program(Func(typ, ident, params, stmt, _) :: tail, _, _) =>
+            case Program(_, Func(typ, ident, params, stmt, _) :: tail, _, _) =>
                 tail.length shouldBe 0
 
                 typ shouldBe SyntaxType.Int
@@ -582,7 +582,7 @@ class ParserTests extends AnyFlatSpec with Matchers {
                     " int y = call f(3) end"
                     
         parseOk(input) match {
-            case Program(_, Stmt.Block(List(Stmt.Decl(_, _, Call(ident, argList, _), _)), _), _) =>
+            case Program(_, _, Stmt.Block(List(Stmt.Decl(_, _, Call(ident, argList, _), _)), _), _) =>
                 ident.name shouldBe "f"
                 argList.length shouldBe 1
                 argList(0) match {
@@ -612,7 +612,7 @@ class ParserTests extends AnyFlatSpec with Matchers {
     "Scope parsing" should "allow scopes to be nested" in {
         val input = "begin begin int x = 1 end end"
         parseOk(input) match {
-            case Program(funcs, Stmt.Block(List(Stmt.Block(innerStmts, _)), _), _) =>
+            case Program(_, funcs, Stmt.Block(List(Stmt.Block(innerStmts, _)), _), _) =>
                 innerStmts.length shouldBe 1
             
             case other => fail("Expected a scope containing another scope" +
@@ -623,7 +623,7 @@ class ParserTests extends AnyFlatSpec with Matchers {
     it should "allow scopes inside of statements" in {
         val input = "begin while true do begin skip end done end"
         parseOk(input) match {
-            case Program(_,
+            case Program(_, _,
                         Stmt.Block(List(Stmt.While(_,
                                                    Stmt.Block(List(Stmt.Block(stmts, _)), _),
                                                     _)), _), _) =>
@@ -644,7 +644,7 @@ class ParserTests extends AnyFlatSpec with Matchers {
     "String parsing" should "parse escaped characters" in {
         val input = """begin string x = "\thel\flo\n" end"""
         parseOk(input) match {
-            case Program(_, Stmt.Block(List(Stmt.Decl(_, _, StrLiter(strValue, _), _)), _), _) =>
+            case Program(_, _, Stmt.Block(List(Stmt.Decl(_, _, StrLiter(strValue, _), _)), _), _) =>
                 strValue shouldBe "\thel\flo\n"
                 
             case other => fail("Expected a string with escape characters" +

@@ -24,8 +24,8 @@ trait SyntacticASTMatchers {
          * @return A `MatchResult`` indicating whether the two programs are structurally equivalent
          */
         def apply(left: Program[SyntacticData]) = {
-            val Program(lFuncs, lStmt, _) = left
-            val Program(rFuncs, rStmt, _) = expectedAst
+            val Program(_, lFuncs, lStmt, _) = left
+            val Program(_, rFuncs, rStmt, _) = expectedAst
             MatchResult(
                 compareFuncs(lFuncs, rFuncs) && compareStmt(lStmt, rStmt),
                 s"${left} did NOT match AST-wise with program ${expectedAst}", 

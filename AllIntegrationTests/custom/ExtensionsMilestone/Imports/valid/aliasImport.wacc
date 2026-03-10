@@ -1,0 +1,10 @@
+# Valid: importing a module using an alias
+
+# Program:
+
+import testLib.math as m
+
+begin
+  int result = call m.max(3, 7);
+  println result
+end

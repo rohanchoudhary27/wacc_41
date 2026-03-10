@@ -52,7 +52,10 @@ object lexer {
     "chr",
     "true",
     "false",
-    "null"
+    "null",
+    "import",
+    "from",
+    "as"
   )
 
   /* Delimiters */

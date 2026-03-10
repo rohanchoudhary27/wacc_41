@@ -37,6 +37,7 @@ trait TailRecPrebuiltTrees extends ASTBoilerplate {
 
         val ast =
             Program(
+                Nil,
                 List(func),
                 Stmt.Block(List(), semPos),
                 SemanticData.TopLevel(funcTable)
@@ -73,7 +74,7 @@ trait TailRecPrebuiltTrees extends ASTBoilerplate {
                         List(Param(SyntaxType.Int,
                                    Ident("x", typedInt), semPos)),
                                    body, funcSignature)
-        val ast = Program(List(func),
+        val ast = Program(Nil, List(func),
                                Stmt.Block(List(), semPos),
                                SemanticData.TopLevel(Map("f" -> funcSignature)))
 
@@ -105,7 +106,7 @@ trait TailRecPrebuiltTrees extends ASTBoilerplate {
                         funcIdent,
                         List(Param(SyntaxType.Int, Ident("x", typedInt), semPos)),
                         body, funcSignature)
-        val ast = Program(List(func),
+        val ast = Program(Nil, List(func),
                                Stmt.Block(List(), semPos),
                                SemanticData.TopLevel(Map("f" -> funcSignature)))
 
@@ -138,7 +139,7 @@ trait TailRecPrebuiltTrees extends ASTBoilerplate {
         val funcF = Func(SyntaxType.Int, funcFIdent, List(param), body, funcFSignature)
         val funcTable = Map("f" -> funcFSignature, "g" -> funcGSignature)
         val ast =
-            Program(List(funcF), Stmt.Block(List(), semPos), SemanticData.TopLevel(funcTable))
+            Program(Nil, List(funcF), Stmt.Block(List(), semPos), SemanticData.TopLevel(funcTable))
 
         (ast, List())
     }
@@ -167,7 +168,7 @@ trait TailRecPrebuiltTrees extends ASTBoilerplate {
                         List(Param(SyntaxType.Int, Ident("x", typedInt), semPos)),
                         body, funcSignature)
 
-        val ast = Program(List(func),
+        val ast = Program(Nil, List(func),
                                Stmt.Block(List(), semPos),
                                SemanticData.TopLevel(Map("f" -> funcSignature)))
 
@@ -197,7 +198,7 @@ trait TailRecPrebuiltTrees extends ASTBoilerplate {
                         List(Param(SyntaxType.Int, Ident("x", typedInt), semPos)),
                         body, funcSignature)
 
-        val ast = Program(List(func),
+        val ast = Program(Nil, List(func),
                                Stmt.Block(List(), semPos),
                                SemanticData.TopLevel(Map("f" -> funcSignature)))
         
@@ -244,7 +245,7 @@ trait TailRecPrebuiltTrees extends ASTBoilerplate {
         )
 
         val ast = Program(
-            List(func), Stmt.Block(List(), semPos), SemanticData.TopLevel(Map("f" -> funcSignature))
+            Nil, List(func), Stmt.Block(List(), semPos), SemanticData.TopLevel(Map("f" -> funcSignature))
         )
 
         (ast, List(call1, call3))
@@ -272,7 +273,7 @@ trait TailRecPrebuiltTrees extends ASTBoilerplate {
                                                   Ident(s"p$i",
                                                         SemanticData.Var(synPos.pos, i, KnownType.Int)), semPos)).toList
         val funcF: Func[SemanticData] = Func(SyntaxType.Int, funcFIdent, paramsF, body, funcFSignature)
-        val ast = Program(List(funcF),
+        val ast = Program(Nil, List(funcF),
                           Stmt.Block(List(), semPos),
                           SemanticData.TopLevel(Map("f" -> funcFSignature, "g" -> funcGSignature)))
         
@@ -299,7 +300,7 @@ trait TailRecPrebuiltTrees extends ASTBoilerplate {
         val paramsF = (0 until 2).map(i => Param(SyntaxType.Int,
                                                  Ident(s"p$i", SemanticData.Var(synPos.pos, i, KnownType.Int)), semPos)).toList
         val funcF = Func(SyntaxType.Int, funcFIdent, paramsF, body, funcFSignature)
-        val ast = Program(List(funcF),
+        val ast = Program(Nil, List(funcF),
                           Stmt.Block(List(), semPos),
                           SemanticData.TopLevel(Map("f" -> funcFSignature, "g" -> funcGSignature)))
         
@@ -325,7 +326,7 @@ trait TailRecPrebuiltTrees extends ASTBoilerplate {
         val body = Stmt.Block(List(declZ, returnZ), semPos)
         
         val funcF = Func(SyntaxType.Int, funcFIdent, List(), body, funcFSignature)
-        val ast = Program(List(funcF),
+        val ast = Program(Nil, List(funcF),
                           Stmt.Block(List(), semPos),
                           SemanticData.TopLevel(Map("f" -> funcFSignature, "g" -> funcGSignature)))
         

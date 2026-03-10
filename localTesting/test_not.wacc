@@ -1,0 +1,7 @@
+# Test boolean NOT operator
+# Expected output: false\ntrue\n
+
+begin
+    println !true ;
+    println !false
+end

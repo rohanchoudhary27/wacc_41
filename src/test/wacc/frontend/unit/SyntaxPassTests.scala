@@ -12,7 +12,7 @@ class SyntaxPassTests extends AnyFlatSpec with Matchers {
         val ifStmt = Stmt.If(BoolLiter(false, pos), Stmt.Skip(pos), returnStmt, pos)
         val func = Func(SyntaxType.Int, Ident("f", pos), List(), ifStmt, pos)
 
-        val inputAST = Program(List(func), Stmt.Skip(pos), pos)
+        val inputAST = Program(Nil, List(func), Stmt.Skip(pos), pos)
 
         val errorLogger = ErrorLogger()
         SyntaxPass.syntaxCheck(inputAST, errorLogger)

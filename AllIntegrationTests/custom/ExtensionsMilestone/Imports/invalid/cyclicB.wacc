@@ -1,0 +1,15 @@
+# Invalid: part of a mutual import cycle.
+# cyclicB imports cyclicA, which imports cyclicB - a direct cycle.
+
+# Error:
+# Import error: Circular import detected:
+# cyclicA.wacc -> cyclicB.wacc -> cyclicA.wacc
+
+# Exit:
+# 100
+
+# Program:
+
+import cyclicA
+
+begin skip end

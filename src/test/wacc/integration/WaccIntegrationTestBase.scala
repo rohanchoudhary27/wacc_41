@@ -19,13 +19,18 @@ abstract class WaccIntegrationTestBase(
      /* Valid and invalid test scopes */
     private val validDir = rootTestPath.resolve("examples/valid")
     private val invalidDir = rootTestPath.resolve("examples/invalid")
-    private val customValidDir = rootTestPath.resolve("custom/valid")
+    private val customDir = rootTestPath.resolve("custom")
+
+    /* Directories under custom/ that have their own dedicated test specs */
+    private val customExcludedDirs: Set[Path] = Set(
+        rootTestPath.resolve("custom/ExtensionsMilestone/Imports")
+    )
       
     /* All the example WACC programs in the examples dir */
     private val allPrograms: Seq[Path] =
         getWaccProgramsUnder(validDir) ++
         getWaccProgramsUnder(invalidDir) ++
-        getWaccProgramsUnder(customValidDir)
+        getWaccProgramsUnder(customDir, customExcludedDirs)
 
     protected val enabledScopes: Set[String]
         = readScopes(configurationPath)
@@ -67,7 +72,7 @@ abstract class WaccIntegrationTestBase(
         /* Make the file relative to examples root to get the scope */
         val rel = rootTestPath.relativize(file).toString 
 
-        if (rel.startsWith("examples/valid/") || rel.startsWith("custom/valid/")) code(CompilerSuccess)
+        if (rel.startsWith("examples/valid/") || rel.startsWith("custom/")) code(CompilerSuccess)
         else if (rel.startsWith("examples/invalid/syntaxErr/") ||
                  rel.startsWith("examples/invalid/whack/")) code(SyntaxError)
         else if (rel.startsWith("examples/invalid/semanticErr/")) code(SemanticError)
@@ -139,10 +144,11 @@ abstract class WaccIntegrationTestBase(
      * 
      * @return: A sequence of paths pointing to WACC files
      */
-    private def getWaccProgramsUnder(dir: Path): Seq[Path] = {
+    private def getWaccProgramsUnder(dir: Path, excludeDirs: Set[Path] = Set.empty): Seq[Path] = {
         if (!Files.isDirectory(dir)) Seq.empty
         else Files.walk(dir).toScala(List)
-            .filter(p => Files.isRegularFile(p)) 
+            .filter(p => Files.isRegularFile(p))
+            .filter(p => !excludeDirs.exists(ex => p.startsWith(ex)))
             .filter(p => extensionOf(p).contains(programExtension))
     }
 

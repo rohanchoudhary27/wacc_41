@@ -1,0 +1,55 @@
+# Test: wacc.charArrUtils standard library module
+#
+# Output:
+# true
+# false
+# true
+# false
+# 1
+# -1
+# true
+# false
+# true
+# false
+#
+# Exit:
+# 0
+
+# Program:
+
+import wacc.charArrUtils
+
+begin
+  char[] s1 = ['h', 'e', 'l', 'l', 'o'];
+  char[] s2 = ['h', 'e', 'l', 'l', 'o'];
+  char[] s3 = ['w', 'o', 'r', 'l', 'd'];
+  char[] s4 = ['h', 'e', 'l', 'l', 'o', ' ', 'w', 'o', 'r', 'l', 'd'];
+  char[] s5 = ['h', 'e', 'l'];
+
+  bool a = call charArrUtils.equals(s1, s2);
+  println a;
+  bool b = call charArrUtils.equals(s1, s3);
+  println b;
+  bool c = call charArrUtils.contains(s1, 'l');
+  println c;
+  bool d = call charArrUtils.contains(s1, 'z');
+  println d;
+  int e = call charArrUtils.indexOf(s1, 'e');
+  println e;
+  int f = call charArrUtils.indexOf(s1, 'z');
+  println f;
+  bool g = call charArrUtils.startsWith(s4, s5);
+  println g;
+  bool h = call charArrUtils.startsWith(s1, s4);
+  println h;
+  bool i = call charArrUtils.endsWith(s4, s3);
+  println i;
+  bool j = call charArrUtils.endsWith(s1, s4);
+  println j;
+
+  free s1;
+  free s2;
+  free s3;
+  free s4;
+  free s5
+end

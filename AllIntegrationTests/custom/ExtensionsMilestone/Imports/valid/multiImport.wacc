@@ -1,0 +1,13 @@
+# Valid: importing multiple modules
+
+# Program:
+
+import testLib.math
+import testLib.greet
+
+begin
+  int a = call math.abs(0 - 3);
+  int b = call greet.getAnswer(0);
+  println a;
+  println b
+end

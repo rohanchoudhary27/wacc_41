@@ -1,0 +1,13 @@
+# Valid: importing a module and using its functions qualified by module name
+
+# Exit:
+# 0
+
+# Program:
+
+import testLib.math
+
+begin
+  int result = call math.abs(0 - 5);
+  println result
+end

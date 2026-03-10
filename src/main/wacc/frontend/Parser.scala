@@ -4,6 +4,7 @@ import parsley.{Parsley, Success, Failure}
 import parsley.combinator.*
 import parsley.Parsley.*
 import parsley.position.pos
+import parsley.character.char
 
 import parsley.expr.{precedence, Ops, InfixL, InfixN, InfixR, Prefix, chain}
 import parsley.errors.combinator.ErrorMethods
@@ -70,10 +71,30 @@ object parser {
   /* Top-level grammar */
   private lazy val programParser = fully(program)
   private lazy val program = Program(
+    many(importDecl) label "import declarations",
     "begin" ~> many(atomic(func)) label "function definitions",
     (stmt label "program body" explain "program must contain at least one statement") <~
       ("end" | _unclosedBegin)
   )
+
+  /* Import grammar */
+  private lazy val importDecl: Parsley[Import[SyntacticData]] =
+    fromImport | moduleImport
+
+  private lazy val moduleImport = ModuleImport(
+    "import" ~> dottedIdent,
+    option("as" ~> ident)
+  )
+
+  private lazy val fromImport = FromImport(
+    "from" ~> dottedIdent,
+    "import" ~> ident
+  )
+
+  /* Dotted identifier for module paths and qualified calls */
+  private lazy val dottedIdent: Parsley[String] =
+    sepBy1(ident, char('.')).map(_.mkString("."))
+
 
   private lazy val func =
     Func(
@@ -220,7 +241,7 @@ object parser {
     (expr label "second element") <~ ")"
   )
   private lazy val call =
-    Call("call" ~> identLit, parens(sepBy(expr, ","))) label "function call"
+    Call("call" ~> qualifiedIdentLit, parens(sepBy(expr, ","))) label "function call"
 
   /* Literal grammar */
   private lazy val intLit = IntLiter(int) label "integer"
@@ -229,6 +250,7 @@ object parser {
   private lazy val strLit = StrLiter(string) label "string"
   private lazy val pairLit = (PairLiter from nullLiter) label "pair literal"
   private lazy val identLit = Ident(ident) label "identifier"
+  private lazy val qualifiedIdentLit = Ident(dottedIdent) label "qualified identifier"
 
   /* Operator grammar */
   private lazy val unaryOps = {

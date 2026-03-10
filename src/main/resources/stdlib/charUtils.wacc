@@ -1,0 +1,68 @@
+# wacc.charUtils - Character classification and conversion utilities for WACC
+
+begin
+
+  # Returns true if c is a decimal digit ('0'-'9').
+  bool isDigit(char c) is
+    return ord c >= ord '0' && ord c <= ord '9'
+  end
+
+  # Returns true if c is a lowercase letter ('a'-'z').
+  bool isLower(char c) is
+    return ord c >= ord 'a' && ord c <= ord 'z'
+  end
+
+  # Returns true if c is an uppercase letter ('A'-'Z').
+  bool isUpper(char c) is
+    return ord c >= ord 'A' && ord c <= ord 'Z'
+  end
+
+  # Returns true if c is an alphabetic character.
+  bool isAlpha(char c) is
+    bool lo = ord c >= ord 'a' && ord c <= ord 'z';
+    bool up = ord c >= ord 'A' && ord c <= ord 'Z';
+    return lo || up
+  end
+
+  # Returns true if c is alphanumeric.
+  bool isAlphaNum(char c) is
+    bool al = ord c >= ord 'a' && ord c <= ord 'z';
+    bool au = ord c >= ord 'A' && ord c <= ord 'Z';
+    bool d = ord c >= ord '0' && ord c <= ord '9';
+    return al || au || d
+  end
+
+  # Returns true if c is whitespace (space, tab, newline, carriage return, form feed).
+  bool isSpace(char c) is
+    return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f'
+  end
+
+  # Converts an uppercase letter to lowercase. Non-uppercase chars are returned unchanged.
+  char toLower(char c) is
+    if ord c >= ord 'A' && ord c <= ord 'Z' then
+      return chr (ord c + 32)
+    else
+      return c
+    fi
+  end
+
+  # Converts a lowercase letter to uppercase. Non-lowercase chars are returned unchanged.
+  char toUpper(char c) is
+    if ord c >= ord 'a' && ord c <= ord 'z' then
+      return chr (ord c - 32)
+    else
+      return c
+    fi
+  end
+
+  # Converts a digit character to its integer value. Returns -1 for non-digits.
+  int digitToInt(char c) is
+    if ord c >= ord '0' && ord c <= ord '9' then
+      return ord c - ord '0'
+    else
+      return 0 - 1
+    fi
+  end
+
+  skip
+end
