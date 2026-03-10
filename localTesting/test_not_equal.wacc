@@ -1,8 +1,0 @@
-# Test not equal operator
-# Expected output: true\nfalse\ntrue\n
-
-begin
-    println 5 != 10 ;
-    println 7 != 7 ;
-    println true != false
-end
