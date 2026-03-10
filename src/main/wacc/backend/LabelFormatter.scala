@@ -26,3 +26,16 @@ object LabelNameFormatter {
     /** Global string directive names */
     def stringName(strCount: Int) = s"string_${strCount}"
 }
+
+/**
+  * Label names for CLib function calls
+  */
+object CLibLabels {
+    val exitLabel = "exit"
+    val putsLabel = "puts"
+    val scanfLabel = "scanf"
+    val mallocLabel = "malloc"
+    val freeLabel = "free"
+    val fflushLabel = "fflush"
+    val printfLabel = "printf"
+} 

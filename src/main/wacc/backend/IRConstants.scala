@@ -68,10 +68,16 @@ object Size {
   */
 object ShiftAmounts {
     opaque type ShiftAmount = Int
+
+    /* MOVK/MOVZ shifts */
     val _0: ShiftAmount = 0
     val _16: ShiftAmount = 16
     val _32: ShiftAmount = 32 
     val _48: ShiftAmount = 48
+
+    /* Shift amounts for logical shifts */
+    val _2: ShiftAmount = 2
+    val _3: ShiftAmount = 3
 
     def value(shift: ShiftAmount): Int = shift
 }

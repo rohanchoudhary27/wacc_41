@@ -125,7 +125,7 @@ class LowLevelIRTest extends AnyFlatSpec with Matchers {
     "Arm.Program" should "hold data directives and body instructions" in {
         val dir = Arm.DataDirective(Arm.AddrLabel(".msg_0"), "hello")
         val body = List(
-            Arm.LabelDef(Arm.AddrLabel("main")),
+            Arm.LabelDef(Arm.AddrLabel(LabelNameFormatter.mainLabel)),
             Arm.StorePair(Size.X, PhysicalReg.framePointer, PhysicalReg.linkReg,
                 Arm.AddrPreIndex(PhysicalReg.stackPointer,
                                  Arm.Immediate(-AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
