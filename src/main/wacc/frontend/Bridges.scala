@@ -17,6 +17,10 @@ object Bridges {
   val Func = bridge[Func[SyntacticData]]
   val Param = bridge[Param[SyntacticData]]
 
+  /* Import declarations */
+  val ModuleImport = bridge[ModuleImport[SyntacticData]]
+  val FromImport = bridge[FromImport[SyntacticData]]
+
   /* Statements */
   val Skip = bridge[Stmt.Skip[SyntacticData]]
   val Decl = bridge[Stmt.Decl[SyntacticData]]

@@ -110,8 +110,8 @@ class OutputterTest extends AnyFlatSpec with Matchers {
     /* ==================== Branch and Link Tests ==================== */
 
     "Outputter bl" should "emit bl instruction" in {
-        val output = emitInstr(Arm.Bl(Arm.AddrLabel("exit")))
-        output should include ("bl exit")
+        val output = emitInstr(Arm.Bl(Arm.AddrLabel("testLabel")))
+        output should include ("bl testLabel")
     }
 
     it should "emit ret instruction" in {
@@ -122,7 +122,7 @@ class OutputterTest extends AnyFlatSpec with Matchers {
     /* ==================== Label Tests ==================== */
 
     "Outputter label outputting" should "emit label definition without indentation" in {
-        val output = emitInstr(Arm.LabelDef(Arm.AddrLabel("main")))
+        val output = emitInstr(Arm.LabelDef(Arm.AddrLabel(LabelNameFormatter.mainLabel)))
         output should include ("main:")
     }
 
@@ -318,7 +318,7 @@ class OutputterTest extends AnyFlatSpec with Matchers {
         val prog = Arm.Program(
             List.empty,
             List(
-                Arm.LabelDef(Arm.AddrLabel("main")),
+                Arm.LabelDef(Arm.AddrLabel(LabelNameFormatter.mainLabel)),
                 Arm.StorePair(Size.X, PhysicalReg.framePointer, PhysicalReg.linkReg,
                               Arm.AddrPreIndex(PhysicalReg.stackPointer,
                               Arm.Immediate(-AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
@@ -338,14 +338,14 @@ class OutputterTest extends AnyFlatSpec with Matchers {
         output should include (s"stp fp, lr, [sp, #${-AARch64Limits.ARM_STACK_ALIGNMENT_BYTES}]!")
         output should include ("mov fp, sp")
         output should include ("movz w0, #7")
-        output should include ("bl exit")
+        output should include (s"bl ${CLibLabels.exitLabel}")
         output should include (s"ldp fp, lr, [sp], #${AARch64Limits.ARM_STACK_ALIGNMENT_BYTES}")
     }
 
     it should "emit data directives when present" in {
         val prog = Arm.Program(
             List(Arm.DataDirective(Arm.AddrLabel(".msg_0"), "hello")),
-            List(Arm.LabelDef(Arm.AddrLabel("main")), Arm.Ret)
+            List(Arm.LabelDef(Arm.AddrLabel(LabelNameFormatter.mainLabel)), Arm.Ret)
         )
         val output = emitToString(prog)
 
@@ -357,7 +357,7 @@ class OutputterTest extends AnyFlatSpec with Matchers {
     it should "not emit data section when no directives" in {
         val prog = Arm.Program(
             List.empty,
-            List(Arm.LabelDef(Arm.AddrLabel("main")), Arm.Ret)
+            List(Arm.LabelDef(Arm.AddrLabel(LabelNameFormatter.mainLabel)), Arm.Ret)
         )
         val output = emitToString(prog)
 
@@ -369,7 +369,7 @@ class OutputterTest extends AnyFlatSpec with Matchers {
         
         val prog = Arm.Program(
             List(Arm.DataDirective(Arm.AddrLabel(BadCharWidgetError.label), errorMsg)),
-            List(Arm.LabelDef(Arm.AddrLabel("main")), Arm.Ret)
+            List(Arm.LabelDef(Arm.AddrLabel(LabelNameFormatter.mainLabel)), Arm.Ret)
         )
 
         val output = emitToString(prog)
@@ -384,18 +384,16 @@ class OutputterTest extends AnyFlatSpec with Matchers {
         val prog = Arm.Program(
             List.empty,
             List(
-                Arm.LabelDef(Arm.AddrLabel("main")), 
+                Arm.LabelDef(Arm.AddrLabel(LabelNameFormatter.mainLabel)), 
                 Arm.Bl(Arm.AddrLabel(PrintIntWidget.label)), 
                 Arm.Ret
-            )
+            ) ++ PrintIntWidget.instrs
         )
 
-        val mainOutput = emitToString(prog)
-        val widgetOutput = PrintIntWidget.source
-        val fullOutput = s"$mainOutput\n\n$widgetOutput"
+        val fullOutput = emitToString(prog)
 
         fullOutput should include (PrintIntWidget.label) // check for label
-        fullOutput should include ("bl printf") // check for implementation detail
+        fullOutput should include (s"bl ${CLibLabels.printfLabel}") // check for implementation detail
     }
 
     "Outputter for read" should "include the correct read integer widget" in {
@@ -403,18 +401,16 @@ class OutputterTest extends AnyFlatSpec with Matchers {
         val prog = Arm.Program(
             List.empty,
             List(
-                Arm.LabelDef(Arm.AddrLabel("main")),
+                Arm.LabelDef(Arm.AddrLabel(LabelNameFormatter.mainLabel)),
                 Arm.Bl(Arm.AddrLabel(ReadIntegerWidget.label)),
                 Arm.Ret
-            )
+            ) ++ ReadIntegerWidget.instrs
         )
 
-        val mainOutput = emitToString(prog)
-        val widgetOutput = ReadIntegerWidget.source
-        val fullOutput = s"$mainOutput\n\n$widgetOutput"
+        val fullOutput = emitToString(prog)
 
         fullOutput should include (ReadIntegerWidget.label) // check for label
-        fullOutput should include ("bl scanf") // check for implementation detail
+        fullOutput should include (s"bl ${CLibLabels.scanfLabel}") // check for implementation detail
     }
 
     it should "include the correct read char widget" in {
@@ -422,18 +418,16 @@ class OutputterTest extends AnyFlatSpec with Matchers {
         val prog = Arm.Program(
             List.empty,
             List(
-                Arm.LabelDef(Arm.AddrLabel("main")),
+                Arm.LabelDef(Arm.AddrLabel(LabelNameFormatter.mainLabel)),
                 Arm.Bl(Arm.AddrLabel(ReadCharWidget.label)),
                 Arm.Ret
-            )
+            ) ++ ReadCharWidget.instrs
         )
 
-        val mainOutput = emitToString(prog)
-        val widgetOutput = ReadCharWidget.source
-        val fullOutput = s"$mainOutput\n\n$widgetOutput"
+        val fullOutput = emitToString(prog)
 
         fullOutput should include (ReadCharWidget.label) // check for label
-        fullOutput should include ("bl scanf") // check for implementation detail
+        fullOutput should include (s"bl ${CLibLabels.scanfLabel}") // check for implementation detail
     }
 
     "Outputter for ldur/stur" should "emit ldur with signed immediate offset" in {

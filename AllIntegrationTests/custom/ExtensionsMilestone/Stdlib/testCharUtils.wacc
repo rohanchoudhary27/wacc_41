@@ -1,0 +1,43 @@
+# Test: wacc.charUtils standard library module
+#
+# Output:
+# true
+# false
+# true
+# true
+# false
+# true
+# a
+# Z
+# 7
+# -1
+#
+# Exit:
+# 0
+
+# Program:
+
+import wacc.charUtils
+
+begin
+  bool a = call charUtils.isDigit('5');
+  println a;
+  bool b = call charUtils.isDigit('x');
+  println b;
+  bool c = call charUtils.isAlpha('H');
+  println c;
+  bool d = call charUtils.isSpace(' ');
+  println d;
+  bool e = call charUtils.isSpace('q');
+  println e;
+  bool f = call charUtils.isAlphaNum('3');
+  println f;
+  char g = call charUtils.toLower('A');
+  println g;
+  char h = call charUtils.toUpper('z');
+  println h;
+  int i = call charUtils.digitToInt('7');
+  println i;
+  int j = call charUtils.digitToInt('x');
+  println j
+end

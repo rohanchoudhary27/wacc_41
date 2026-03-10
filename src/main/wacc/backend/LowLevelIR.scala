@@ -135,6 +135,8 @@ object Arm {
    case class Store(size: Size, reg: PhysicalReg, src: Address) extends Instruction
    case class Ldur(size: Size, reg: PhysicalReg, src: Address) extends Instruction
    case class Stur(size: Size, reg: PhysicalReg, src: Address) extends Instruction
+   case class LoadByte(size: Size, dest: PhysicalReg, addr: Address) extends Instruction
+   case class StoreByte(size: Size, src: PhysicalReg, addr: Address) extends Instruction
    case class Lea(destReg: PhysicalReg, label: AddrLabel) extends Instruction
 
    /* Conditionals */
@@ -193,6 +195,13 @@ object Arm {
 
    /* Branch if the test register is not equal to 0 (prevents cmp + branch) */
    case class Cbnz(size: Size, reg: PhysicalReg, label: AddrLabel) extends Instruction 
+
+   /* Conditional Select */
+   case class Csel(size: Size,
+                   dest: PhysicalReg,
+                   src1: PhysicalReg,
+                   src2: PhysicalReg,
+                   cond: Condition) extends Instruction
 
    /* ------------------------------------------------------------------------------------------- */
 

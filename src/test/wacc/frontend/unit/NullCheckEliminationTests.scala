@@ -14,6 +14,7 @@ class NullCheckEliminationTests extends AnyFlatSpec with Matchers {
     private def programWithStmts(stmts: List[Stmt[SemanticData]]): Program[SemanticData] =
         Program(
             List(),
+            List(),
             Stmt.Block(stmts, semPos),
             SemanticData.TopLevel(Map.empty)
         )

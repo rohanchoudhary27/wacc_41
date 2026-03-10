@@ -150,8 +150,8 @@ given Shrink[Program[SyntacticData]] = Shrink(programShrink)
   * and simplifies the main statement block (main body must stay a Block)
   */
 @nowarn def programShrink(p: Program[SyntacticData]): Stream[Program[SyntacticData]] = {
-    val Program(funcs, stmt, pos) = p
-    val shrunkFuncs = shrink(funcs).map(Program(_, stmt, pos))
-    val shrunkBody = shrinkBlockBody(stmt).map(Program(funcs, _, pos))
+    val Program(imports, funcs, stmt, pos) = p
+    val shrunkFuncs = shrink(funcs).map(Program(imports, _, stmt, pos))
+    val shrunkBody = shrinkBlockBody(stmt).map(Program(imports, funcs, _, pos))
     shrunkFuncs #::: shrunkBody
 }

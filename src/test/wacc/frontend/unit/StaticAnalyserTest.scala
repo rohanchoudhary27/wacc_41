@@ -16,12 +16,14 @@ class StaticAnalyserTests extends AnyFlatSpec with Matchers {
     private def programWith(stmt: Stmt[SemanticData]): Program[SemanticData] =
         Program(
             List(),
+            List(),
             Stmt.Block(List(stmt), semPos),
             SemanticData.TopLevel(Map.empty)
         )
 
     private def programWithStmts(stmts: List[Stmt[SemanticData]]): Program[SemanticData] =
         Program(
+            List(),
             List(),
             Stmt.Block(stmts, semPos),
             SemanticData.TopLevel(Map.empty)
@@ -191,6 +193,7 @@ class StaticAnalyserTests extends AnyFlatSpec with Matchers {
         )
 
         val ast = Program(
+            List(),
             List(func),
             Stmt.Block(List(Stmt.Skip(semPos)), semPos),
             SemanticData.TopLevel(funcTable)

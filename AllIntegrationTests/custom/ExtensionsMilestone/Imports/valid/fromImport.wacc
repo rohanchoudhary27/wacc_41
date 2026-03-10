@@ -1,0 +1,10 @@
+# Valid: importing a specific function from a module (unqualified)
+
+# Program:
+
+from testLib.math import abs
+
+begin
+  int result = call abs(0 - 10);
+  println result
+end

@@ -104,11 +104,21 @@ object Outputter {
         case Arm.Store(size, src, addr) => emitMemOp("str", size, src, addr)
         case Arm.Ldur(size, dest, addr) => emitMemOp("ldur", size, dest, addr)
         case Arm.Stur(size, src, addr) => emitMemOp("stur", size, src, addr)
+        case Arm.LoadByte(size, dest, addr) => emitMemOp("ldrb", size, dest, addr)
+        case Arm.StoreByte(size, src, addr) => emitMemOp("strb", size, src, addr)
         case Arm.Lea(dest, label) => emitLea(dest, label)
         
         /* Comparison */
         case Arm.CmpReg(size, src1, src2) => emitCompare(size, src1, src2)
         case Arm.CmpImm(size, src1, imm) => emitCompare(size, src1, imm)
+        case Arm.CSet(size, dest, cond) => 
+            indented(s"cset ${formatReg(dest, size)}, ${formatCondition(cond)}")
+        case Arm.Csel(size, dest, src1, src2, cond) =>
+            val d = formatReg(dest, size)
+            val s1 = formatReg(src1, size)
+            val s2 = formatReg(src2, size)
+            val c = formatCondition(cond)
+            indented(s"csel $d, $s1, $s2, $c")
         
         /* Control Flow */
         case Arm.BranchUncond(label) => indented(s"b ${label.name}")
@@ -128,9 +138,6 @@ object Outputter {
             val m2 = formatReg(mult2, size)
             val s = formatReg(sub, size)
             indented(s"msub $d, $m1, $m2, $s")
-
-        case Arm.CSet(size, dest, cond) => 
-            indented(s"cset ${formatReg(dest, size)}, ${formatCondition(cond)}")
 
         case Arm.SMull(dest, src1, src2) => 
             indented(
@@ -207,8 +214,8 @@ object Outputter {
     /** Format a register with the appropriate size prefix */
     private def formatReg(reg: PhysicalReg, size: Size): String = {
         reg.index match {
-            case PhysicalReg.SP_INDEX => if (size == Size.X) then "sp" else "wsp"
-            case PhysicalReg.LR_INDEX => "lr"
+            case PhysicalReg.SP_INDEX => if (size == Size.X) "sp" else "wsp"
+            case PhysicalReg.LR_INDEX => if (size == Size.X) "lr" else "w30"
             case PhysicalReg.FP_INDEX => "fp"
             case _ => size match {
                 case Size.X => s"x${reg.index}"

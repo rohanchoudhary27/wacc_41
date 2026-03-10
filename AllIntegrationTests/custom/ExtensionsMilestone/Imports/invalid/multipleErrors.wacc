@@ -1,0 +1,15 @@
+# Invalid: multiple imports, all of which fail.
+
+# Error:
+# Import error: Module 'missing1' not found
+# Import error: Module 'missing2' not found
+
+# Exit:
+# 100
+
+# Program:
+
+import missing1
+import missing2
+
+begin skip end

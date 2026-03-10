@@ -45,7 +45,22 @@ enum UnaryOperator {
 }
 
 /* The top-level program */
-case class Program[A](funcs: List[Func[A]], stmt: Stmt[A], @isMeta info: A)
+case class Program[A](imports: List[Import[A]], funcs: List[Func[A]], stmt: Stmt[A], @isMeta info: A)
+
+/* Import declarations */
+sealed trait Import[A] { val info: A }
+
+case class ModuleImport[A](
+    modulePath: String,
+    alias: Option[String],
+    @isMeta info: A
+) extends Import[A]
+
+case class FromImport[A](
+    modulePath: String,
+    funcName: String,
+    @isMeta info: A
+) extends Import[A]
 
 /* Function nodes */
 case class Func[A](

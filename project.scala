@@ -1,5 +1,6 @@
 //> using scala 3.7
 //> using platform jvm
+//> using resourceDir ./src/main/resources
 
 // dependencies
 //> using dep com.github.j-mie6::parsley::5.0.0-M17

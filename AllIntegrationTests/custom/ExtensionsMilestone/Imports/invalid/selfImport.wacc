@@ -1,0 +1,14 @@
+# Invalid: a file that imports itself, creating a self-cycle.
+
+# Error:
+# Import error: Circular import detected:
+# selfImport.wacc -> selfImport.wacc
+
+# Exit:
+# 100
+
+# Program:
+
+import selfImport
+
+begin skip end
