@@ -858,20 +858,39 @@ object Flattener {
                 flattenBinaryOp(leftOp, rightOp, TAC.And.apply, KnownType.Bool)
             case BinaryOperator.Or => 
                 flattenBinaryOp(leftOp, rightOp, TAC.Or.apply, KnownType.Bool)
-            case BinaryOperator.Add => flattenBinaryOp(leftOp, rightOp, TAC.Add.apply, KnownType.Int)
-            case BinaryOperator.Sub => flattenBinaryOp(leftOp, rightOp, TAC.Sub.apply, KnownType.Int)
-            case BinaryOperator.Mul => flattenBinaryOp(leftOp, rightOp, TAC.Mul.apply, KnownType.Int)
+            case BinaryOperator.Add => 
+                flattenArithmetic(binaryExpr, leftOp, rightOp, TAC.Add.apply, TAC.AddUnchecked.apply) 
+            case BinaryOperator.Sub =>
+                flattenArithmetic(binaryExpr, leftOp, rightOp, TAC.Sub.apply, TAC.SubUnchecked.apply) 
+            case BinaryOperator.Mul => 
+                flattenArithmetic(binaryExpr, leftOp, rightOp, TAC.Mul.apply, TAC.MulUnchecked.apply) 
             case BinaryOperator.Div => 
-                if (optimState.safeDivisions.contains(binaryExpr))
-                    flattenBinaryOp(leftOp, rightOp, TAC.DivUnchecked.apply, KnownType.Int)
-                else
-                    flattenBinaryOp(leftOp, rightOp, TAC.Div.apply, KnownType.Int)
+                flattenArithmetic(binaryExpr, leftOp, rightOp, TAC.Div.apply, TAC.DivUnchecked.apply) 
             case BinaryOperator.Mod => 
-                if (optimState.safeDivisions.contains(binaryExpr))
-                    flattenBinaryOp(leftOp, rightOp, TAC.ModUnchecked.apply, KnownType.Int)
-                else
-                    flattenBinaryOp(leftOp, rightOp, TAC.Mod.apply, KnownType.Int)
+                flattenArithmetic(binaryExpr, leftOp, rightOp, TAC.Mod.apply, TAC.ModUnchecked.apply) 
         }
+    }
+
+    /** 
+     * Flatten an arithmetic (+, -, *, /, %) operation with overflow
+     * 
+     */ 
+    private def flattenArithmetic(
+        b: BinaryExpr[SemanticData], 
+        leftOp: TAC.Operand, 
+        rightOp: TAC.Operand, 
+        constr: (TAC.VirtualReg, TAC.VirtualReg, TAC.VirtualReg) => TAC.Instruction,
+        constrUnchecked: (TAC.VirtualReg, TAC.VirtualReg, TAC.VirtualReg) => TAC.Instruction
+    )(using funcState: FunctionState,
+            optimState: FrontendOptimState): TAC.VirtualReg = {
+        val checkedOptimSet = b.op match {
+            case BinaryOperator.Div | BinaryOperator.Mod => optimState.safeDivisions 
+            case _ => optimState.safeOverflowExprs
+        }
+        if (checkedOptimSet.contains(b))
+            flattenBinaryOp(leftOp, rightOp, constrUnchecked, KnownType.Int)
+        else
+            flattenBinaryOp(leftOp, rightOp, constr, KnownType.Int)
     }
 
     /**
@@ -933,7 +952,7 @@ object Flattener {
             case UnaryOperator.Not => flattenNot(operand)
             case UnaryOperator.Chr => flattenChr(u, operand)
             case UnaryOperator.Ord => flattenOrd(operand)
-            case UnaryOperator.Neg => flattenNeg(operand)
+            case UnaryOperator.Neg => flattenNeg(u, operand)
             case UnaryOperator.Len => flattenLen(operand)
         }
     }
@@ -1017,15 +1036,20 @@ object Flattener {
     /**
       * Flatten a negation statement
       *
+      * @param u The unary expression node to check if neg overflows or not
       * @param operand The operand passed to the negation statement
       * @param funcState The current scope function state
       * @return The virtual register with the negation result
       */
-    private def flattenNeg(operand: TAC.Operand)
-                          (using funcState: FunctionState): TAC.VirtualReg = {
+    private def flattenNeg(
+        u: UnaryExpr[SemanticData], operand: TAC.Operand
+    )(using funcState: FunctionState, optimState: FrontendOptimState): TAC.VirtualReg = {
         val reg = toReg(operand)
         val negReg = funcState.anonymousReg(KnownType.Int)
-        funcState.emitInstruction(TAC.Neg(negReg, reg))
+        if (optimState.safeOverflowExprs.contains(u))
+            funcState.emitInstruction(TAC.NegUnchecked(negReg, reg))
+        else
+            funcState.emitInstruction(TAC.Neg(negReg, reg))
         negReg
     }
 

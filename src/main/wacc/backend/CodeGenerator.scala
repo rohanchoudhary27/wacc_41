@@ -557,13 +557,21 @@ object CodeGenerator {
                 /* Post main operation instruction emission*/
                 emit(Arm.BranchCond(Condition.VS, Arm.AddrLabel(IntOverflowErrorWidget.label)))
             })
+        case TAC.AddUnchecked(dest, src1, src2) => 
+            generateStandardBinOp(dest, src1, src2, Arm.AddsReg.apply, Arm.AddsImm.apply, None)
+
         case TAC.Sub(dest, src1, src2) => 
             generateStandardBinOp(dest, src1, src2, Arm.SubsReg.apply, Arm.SubsImm.apply, Some(IntOverflowErrorWidget), {
                 /* Post main operation instruction emission*/
                 emit(Arm.BranchCond(Condition.VS, Arm.AddrLabel(IntOverflowErrorWidget.label)))
             })
+        case TAC.SubUnchecked(dest, src1, src2) => 
+            generateStandardBinOp(dest, src1, src2, Arm.SubsReg.apply, Arm.SubsImm.apply, None)
 
         case TAC.Mul(dest, src1, src2) => generateMul(dest, src1, src2)
+        case TAC.MulUnchecked(dest, src1, src2) => generateMul(dest, src1, src2, checked = false)
+
+
         case TAC.Div(dest, src1, src2) => generateDivMod(dest, src1, src2, isMod = false)
         case TAC.Mod(dest, src1, src2) => generateDivMod(dest, src1, src2, isMod = true)
         case TAC.DivUnchecked(dest, src1, src2) => 
@@ -732,14 +740,16 @@ object CodeGenerator {
      * @param dest: destination virtual register to store result to
      * @param src1: first source virtual register
      * @param src1: second operand (can be an immediate  or virtual register)
+     * @param checked: whether the result is checked for overflow/underflow
      */
     private def generateMul(dest: TAC.VirtualReg,
                             src1: TAC.VirtualReg,
-                            src2: TAC.Operand)
+                            src2: TAC.Operand,
+                            checked: Boolean = true)
                            (using st: GenState): Unit = {
-
+        val widget = if (checked) Some(IntOverflowErrorWidget) else None
         /* Binary context handles  register loading, storing and widget */
-        generateComplexBinOp(dest, src1, src2, Some(IntOverflowErrorWidget)) {
+        generateComplexBinOp(dest, src1, src2, widget) {
             (resultReg, src1Reg, src2Reg) =>
 
                 /* Take two 32 bit (w) numbers and multiply, store as a 64 bit (x) register */
@@ -751,9 +761,9 @@ object CodeGenerator {
                 val scratch3 = PhysicalReg.mathScratch
                 emit(Arm.Sxtw(scratch3, resultReg))
                 emit(Arm.CmpReg(Size.X, resultReg, scratch3))
-
-                /* If comparison not equal then an overflow occured, so branch to error widget */
-                emit(Arm.BranchCond(Condition.NE, Arm.AddrLabel(IntOverflowErrorWidget.label)))
+                if (checked)
+                    /* If comparison not equal then an overflow occured, so branch to error widget */
+                    emit(Arm.BranchCond(Condition.NE, Arm.AddrLabel(IntOverflowErrorWidget.label)))
         }
     }
 
