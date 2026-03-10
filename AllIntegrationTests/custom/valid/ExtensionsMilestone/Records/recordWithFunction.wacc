@@ -14,12 +14,12 @@ end
 
 begin
   int sumPoint(struct Point p) is
-    int result = p.x + p.y ;
+    int result = p.x + p.y;
     return result
   end
 
-  struct Point p = new Point(10, 20) ;
-  int s = call sumPoint(p) ;
-  println s ;
+  struct Point p = new Point(10, 20);
+  int s = call sumPoint(p);
+  println s;
   free p
 end

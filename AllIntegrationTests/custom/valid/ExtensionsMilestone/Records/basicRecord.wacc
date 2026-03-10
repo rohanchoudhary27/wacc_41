@@ -13,13 +13,13 @@ struct Point is
 end
 
 begin
-  struct Point p = new Point(42, 100) ;
-  int x = p.x ;
-  println x ;
-  free p ;
+  struct Point p = new Point(42, 100);
+  int x = p.x;
+  println x;
+  free p;
 
-  struct Point q = new Point(0, 0) ;
-  q.x = 99 ;
-  q.y = 200 ;
+  struct Point q = new Point(0, 0);
+  q.x = 99;
+  q.y = 200;
   free q
 end

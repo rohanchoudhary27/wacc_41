@@ -11,6 +11,6 @@ struct Wrapper is
 end
 
 begin
-  struct Wrapper w = new Wrapper(42) ;
+  struct Wrapper w = new Wrapper(42);
   free w
 end

@@ -16,12 +16,12 @@ struct Point is
 end
 
 begin
-  struct Point p = new Point(1, 2) ;
-  println p.x ;
-  println p.y ;
-  p.x = 10 ;
-  p.y = 20 ;
-  println p.x ;
-  println p.y ;
+  struct Point p = new Point(1, 2);
+  println p.x;
+  println p.y;
+  p.x = 10;
+  p.y = 20;
+  println p.x;
+  println p.y;
   free p
 end
