@@ -16,6 +16,26 @@ private enum CompilerExitStatus {
         case Info(m, c)  => s"\n$m - finished with exit code $c"
 }
 
+/** Constants for the compiler CLI. */
+private object CompilerCLI {
+
+    /** The CLI flag that enables backend optimisations */
+    val OptimisationFlag: String = "-O"
+
+    /** Expected number of non flag arguments (just the source file path) */
+    val ExpectedArgCount: Int = 1
+
+    /** File extension suffix of every WACC source file */
+    val WaccExtension: String = ".wacc"
+
+    /** File extension suffix of unoptimised assembly output files */
+    val AsmExtension: String = ".s"
+
+    /** File extension suffix of optimised assembly output files */
+    val OptimisedAsmExtension: String = "_O.s"
+}
+
+
 /** 
   * Main entry point for the WACC compiler which runs the frontend and backend.
   */
@@ -32,11 +52,11 @@ object WaccCompiler {
     def main(args: Array[String]): Unit = {
 
         /* Check optimisation flag and remove */
-        val optimisationFlag = args.contains("-O")
-        val filteredArgs = args.filterNot(_ == "-O")
+        val optimisationFlag = args.contains(CompilerCLI.OptimisationFlag)
+        val filteredArgs = args.filterNot(_ == CompilerCLI.OptimisationFlag)
 
         /* Expect one argument for file name */
-        if (filteredArgs.length != 1) {
+        if (filteredArgs.length != CompilerCLI.ExpectedArgCount) {
             Console.err.println(TopLevelError.FileSystemError("Requires a file").outputFormat)
             sys.exit(code(CompilerFailure))
         }
@@ -103,7 +123,9 @@ object WaccCompiler {
       * Right(Program[SemanticData], FrontendOptimState) for the typed AST and additional
       * WACC Extension annotations
       */
-    private def runFrontend(path: Path): Either[ExitCode, (Program[SemanticData], FrontendOptimState)] = {
+    private def runFrontend(
+        path: Path
+    ): Either[ExitCode, (Program[SemanticData], FrontendOptimState)] = {
 
         /* Run the WACC code through the front end of the compiler */
         val frontendResult: FrontendCompilationResult = WaccFrontend.run(path)
@@ -136,9 +158,11 @@ object WaccCompiler {
                            optimisationFlag: Boolean): ExitCode = {
 
         /* Change the filename to a .s assembly file but keep the name the same */
-        val outFilename = if (optimisationFlag)
-                then path.getFileName.toString.replaceAll("\\.wacc$", "_O.s")
-                else path.getFileName.toString.replaceAll("\\.wacc$", ".s")
+        val outputSuffix = if optimisationFlag then CompilerCLI.OptimisationFlag
+                            else CompilerCLI.AsmExtension
+        val outFilename = path.getFileName.toString().replaceAll(
+            s"\\${CompilerCLI.WaccExtension}", outputSuffix
+        )
 
         /* Run the ast through the backend of the compiler */
         val backendResult = WaccBackend.run(outFilename, ast, optimState, optimisationFlag)
