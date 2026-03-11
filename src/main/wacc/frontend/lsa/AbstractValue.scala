@@ -190,62 +190,118 @@ case class PairInfo(
 
 object AbstractValue {
 
+    /* Limits to the `chr` function argument. */
     private val ASCII_MIN = 0
     private val ASCII_MAX = 127
 
-    /** no information known */
-    val top: AbstractValue = Unknown
+     /** The inclusive lower bound for valid array indices. */
+    private val ArrayIndexStart = 0
 
-    /** Create the initial abstract value for an integer literal */
+    /** Inclusive lower/upper bound of the WACC 32-bit signed integer type. */
+    private val IntMin: Long = Int.MinValue.toLong
+    private val IntMax: Long = Int.MaxValue.toLong
+
+    /* ============================ CONSTRUCTORS ============================ */
+
+    /**
+      * Creates the initial abstract value for an integer literal.
+      *
+      * @param n The concrete integer value.
+      * @return An `IntConstant` wrapping `n`.
+      */
     def fromInt(n: Int): IntConstant = IntConstant(n)
 
-    /** Create the initial abstract value for a boolean literal */
+    /**
+      * Creates the initial abstract value for a boolean literal.
+      *
+      * @param b The concrete boolean value.
+      * @return A `BoolConstant` wrapping `b`.
+      */
     def fromBool(b: Boolean): BoolConstant = BoolConstant(b)
 
-    /** Create the initial abstract value for an array literal of known size.
+    /**
+      * Creates the initial abstract value for an array literal of known size.
       *
-      * @param length The number of elements in the array literal
+      * The resulting `ArrayInfo` records the length so that bounds checks
+      * on constant indices can be eliminated at compile time.
+      *
+      * @param length The number of elements in the array literal.
+      * @return An `ArrayInfo` whose `knownLength` is `Some(length)`.
       */
     def fromArrayLiteral(length: Int): ArrayInfo = ArrayInfo(knownLength = Some(length))
 
-    /** `newpair` always produces a valid, non null pointer. 
+    /**
+      * Creates the initial abstract value for a `newpair` allocation.
       *
-      * @param fstType The semantic type of the first element
-      * @param sndType The semantic type of the second element
+      * `newpair` always produces a valid, non-null pointer, so the pair's
+      * type information is preserved for later narrowing.
+      *
+      * @param fstType The semantic type of the first element.
+      * @param sndType The semantic type of the second element.
+      * @return A `PairInfo` recording the element types.
       */
     def fromNewPair(fstType: SemanticType, sndType: SemanticType): AbstractValue =
         PairInfo(fstType, sndType)
 
     /** Create the initial abstract value for a `newpair` allocation.
       *
-      * `newpair` always produces a valid, non-null pointer.
+      * `newpair` always produces a valid, non-null pointer. Unlike `fromNewPair`, 
+      * this discards element type detail and simply asserts that the pointer
+      * is non-null.
       */
     val freshPair: AbstractValue = NonNull
 
-    /** Create the initial abstract value for a `null` literal */
-    val nullValue: AbstractValue = Null
 
-    /** Check whether an abstract value is definitely zero */
+    /* ============================ PREDICATES ============================ */
+
+    /**
+      * Returns `true` when `av` is provably equal to zero.
+      *
+      * Used by the division-by-zero checker to detect statically safe
+      * (or unsafe) divisors without emitting a runtime check.
+      *
+      * @param av The abstract value to test.
+      */
     def isDefinitelyZero(av: AbstractValue): Boolean = av match {
         case IntConstant(0) => true
         case IntRange(lo, hi) if lo == 0 && hi == 0 => true
         case _ => false
     }
 
-    /** Check whether an abstract value is definitely non-zero */
+    /**
+      * Returns `true` when `av` is provably not equal to zero.
+      *
+      * A safe divisor eliminates the need for a runtime divide-by-zero guard.
+      *
+      * @param av The abstract value to test.
+      */
     def isDefinitelyNonZero(av: AbstractValue): Boolean = av match {
         case IntConstant(v) => v != 0
         case IntRange(lo, hi)  => lo > 0 || hi < 0
         case _ => false
     }
 
-    /** Check whether an abstract value represents a definite null */
+    /**
+      * Returns `true` when `av` is provably the null pointer.
+      *
+      * A definite null allows the static analyser to report a guaranteed
+      * null-dereference error without running the program.
+      *
+      * @param av The abstract value to test.
+      */
     def isDefinitelyNull(av: AbstractValue): Boolean = av match {
         case Null  => true
         case _ => false
     }
 
-    /** Check whether an abstract value represents a definite non-null */
+    /**
+      * Returns `true` when `av` is provably a non-null pointer.
+      *
+      * A proven non-null result eliminates the null-dereference
+      * guard on pair accesses and `free` calls.
+      *
+      * @param av The abstract value to test.
+      */
     def isDefinitelyNonNull(av: AbstractValue): Boolean = av match {
         case NonNull => true
         case ArrayInfo(_) => true
@@ -253,40 +309,69 @@ object AbstractValue {
         case _  => false
     }
 
-    /** Check whether an index is provably within bounds `[0, length)` */
+    /**
+      * Returns `true` when `indexVal` is provably within the valid index range
+      * `[0, length)` for a statically known array length.
+      *
+      * When this returns `true` the corresponding bounds-check instruction can
+      * be omitted entirely.
+      *
+      * @param indexVal The abstract value of the index expression.
+      * @param length   The statically-known length of the array.
+      */
     def isProvablyInBounds(indexVal: AbstractValue, length: Int): Boolean =
         indexVal match {
-            case IntConstant(i)   => i >= 0 && i < length
-            case IntRange(lo, hi) => lo >= 0 && hi < length
+            case IntConstant(i)   => i >= ArrayIndexStart && i < length
+            case IntRange(lo, hi) => lo >= ArrayIndexStart && hi < length
             case _                => false
         }
 
-    /** Check whether an index is provably outside bounds `[0, length)`.
+    /**
+      * Returns `true` when `indexVal` is provably outside the valid index range
+      * `[0, length)` for a statically-known array length.
       *
-      * For `IntRange`, the entire range must be outside bounds for this to return true
+      * For an `IntRange`, the entire range must lie outside the bounds for
+      * this to return `true`.
+      *
+      * When this returns `true` the analyser can emit a guaranteed
+      * out of bounds diagnostic error at compile time.
+      *
+      * @param indexVal The abstract value of the index expression.
+      * @param length   The statically-known length of the array.
       */
     def isProvablyOutOfBounds(indexVal: AbstractValue, length: Int): Boolean =
         indexVal match {
-            case IntConstant(i)   => i < 0 || i >= length
-            case IntRange(lo, hi) => hi < 0 || lo >= length
+            case IntConstant(i)   => i < ArrayIndexStart || i >= length
+            case IntRange(lo, hi) => hi < ArrayIndexStart || lo >= length
             case _                => false
         }
 
-    /** Check whether the argument for `chr` is provably inside the ASCII range */
+    /**
+      * Returns `true` when the `chr` argument is provably within the ASCII range
+      * `[0, 127]`.
+      *
+      * When this returns `true` the runtime bad-character guard can be removed.
+      *
+      * @param av The abstract value of the `chr` argument.
+      */
     def isProvablyValidChr(av: AbstractValue): Boolean = av match
         case IntConstant(v) => v >= ASCII_MIN && v <= ASCII_MAX
         case IntRange(lo, hi) => lo >= ASCII_MIN && hi <= ASCII_MAX
         case _ => false
 
-    /** Check whether the argument for `chr` is provably outside the ASCII range */
+    /**
+      * Returns `true` when the `chr` argument is provably outside the ASCII range
+      * `[0, 127]`.
+      *
+      * When this returns `true` the analyser can emit a guaranteed bad-character
+      * diagnostic error at compile time.
+      *
+      * @param av The abstract value of the `chr` argument.
+      */
     def isProvablyInvalidChr(av: AbstractValue): Boolean = av match
         case IntConstant(v) => v < ASCII_MIN || v > ASCII_MAX
         case IntRange(lo, hi) => hi < ASCII_MIN || lo > ASCII_MAX
         case _ => false
-
-    /** WACC uses signed 32 bit integers */
-    private val IntMin: Long = Int.MinValue.toLong
-    private val IntMax: Long = Int.MaxValue.toLong
 
     /** Attempt to wrap a Long result back to a 32 bit IntConstant.
       *
@@ -297,11 +382,28 @@ object AbstractValue {
         if (!wouldOverflow(result)) IntConstant(result.toInt)
         else Unknown
 
-    /** Check if the result from arithmetic expression overflows or underflows */
+    /**
+      * Returns `true` when `result` overflows or underflows the 32-bit signed range.
+      *
+      * All arithmetic helpers pass their intermediate 64-bit results through this
+      * predicate before narrowing back to `Int`, ensuring that overflow is never
+      * silently wrapped.
+      *
+      * @param result The 64-bit intermediate arithmetic result to validate.
+      */
     def wouldOverflow(result: Long): Boolean = result < IntMin || result > IntMax
 
-    /** Check whether an addition of two abstract values is provably safe
-      * (no overflow possible) */
+    /**
+      * Returns `true` when adding `left` and `right` is provably safe (no overflow
+      * possible for any concrete value in the represented ranges).
+      *
+      * Only the extremes of each range need to be tested:
+      *   - minimum + minimum gives the most negative possible result.
+      *   - maximum + maximum gives the most positive possible result.
+      *
+      * @param left  Abstract value of the left operand.
+      * @param right Abstract value of the right operand.
+      */
     def isProvablySafeAdd(left: AbstractValue, right: AbstractValue): Boolean =
         (left, right) match {
             case (IntConstant(a), IntConstant(b)) => !wouldOverflow(a.toLong + b.toLong)
@@ -315,7 +417,15 @@ object AbstractValue {
             case _ => false
         }
 
-    /** Check whether a subtraction of two abstract values is provably safe */
+    /**
+      * Returns `true` when subtracting `right` from `left` is provably safe (no
+      * overflow possible for any concrete value in the represented ranges).
+      *
+      * The extremes to check are lo1-hi2 (most negative) and hi1-lo2 (most positive).
+      *
+      * @param left  Abstract value of the left operand.
+      * @param right Abstract value of the right operand.
+      */
     def isProvablySafeSub(left: AbstractValue, right: AbstractValue): Boolean =
         (left, right) match {
             case (IntConstant(a), IntConstant(b)) => !wouldOverflow(a.toLong - b.toLong)
@@ -329,7 +439,13 @@ object AbstractValue {
             case _ => false
         }
 
-    /** Check whether a multiplication of two abstract values is provably safe */
+    /**
+      * Returns `true` when multiplying `left` by `right` is provably safe (no
+      * overflow possible for any value in the represented ranges).
+      *
+      * @param left  Abstract value of the left operand.
+      * @param right Abstract value of the right operand.
+      */
     def isProvablySafeMul(left: AbstractValue, right: AbstractValue): Boolean =
         (left, right) match {
             case (IntConstant(-1), IntConstant(v)) => !wouldOverflow(-v.toLong)
@@ -340,7 +456,14 @@ object AbstractValue {
             case _ => false
         }
 
-    /** Check whether a negation is provably safe (no overflow) */
+    /**
+      * Returns `true` when negating `operand` is provably safe (no overflow).
+      *
+      * The only extreme case is `Int.MinValue`, whose negation exceeds
+      * `Int.MaxValue` in the 32-bit signed representation.
+      *
+      * @param operand Abstract value of the unary `-` argument.
+      */
     def isProvablySafeNeg(operand: AbstractValue): Boolean = operand match {
         case IntConstant(v) => !wouldOverflow(-v.toLong)
         case IntRange(lo, hi) =>
@@ -348,36 +471,83 @@ object AbstractValue {
         case _ => false
     }
 
-    /** Check whether an addition provably overflows for possible values */
+    /**
+      * Returns `true` when adding `left` and `right` provably overflows for their
+      * concrete values.
+      *
+      * @param left  Abstract value of the left operand.
+      * @param right Abstract value of the right operand.
+      */
     def doesProvablyOverflowAdd(left: AbstractValue, right: AbstractValue): Boolean =
         (left, right) match {
             case (IntConstant(a), IntConstant(b)) => wouldOverflow(a.toLong + b.toLong)
             case _ => false
         }
 
-    /** Check whether a subtraction provably overflows for possible values */
+    /**
+      * Returns `true` when subtracting `right` from `left` provably overflows.
+      *
+      * @param left  Abstract value of the left operand.
+      * @param right Abstract value of the right operand.
+      */
     def doesProvablyOverflowSub(left: AbstractValue, right: AbstractValue): Boolean =
         (left, right) match {
             case (IntConstant(a), IntConstant(b)) => wouldOverflow(a.toLong - b.toLong)
             case _ => false
         }
 
-    /** Check whether a multiplication provably overflows for possible values */
+    /**
+      * Returns `true` when multiplying `left` by `right` provably overflows.
+      *
+      * @param left  Abstract value of the left operand.
+      * @param right Abstract value of the right operand.
+      */
     def doesProvablyOverflowMul(left: AbstractValue, right: AbstractValue): Boolean =
         (left, right) match {
             case (IntConstant(a), IntConstant(b)) => wouldOverflow(a.toLong * b.toLong)
             case _ => false
         }
 
-    /** Check whether a negation provably overflows */
+    /**
+      * Returns `true` when negating `operand` provably overflows.
+      *
+      * @param operand Abstract value of the unary `-` argument.
+      */
     def doesProvablyOverflowNeg(operand: AbstractValue): Boolean = operand match {
         case IntConstant(v) => wouldOverflow(-v.toLong)
         case _ => false
     }
 
+    /* ============================ ARITHMETIC OPERATIONS ============================ */
+    
+    /**
+      * Abstract addition of two values.
+      *
+      * Returns `Unknown` on overflow or when operands are not concrete integers.
+      *
+      * @param l Abstract value of the left operand.
+      * @param r Abstract value of the right operand.
+      */
     def add(l: AbstractValue, r: AbstractValue) = intBinaryOp(l, r, _ + _)
+
+    /**
+      * Abstract subtraction of two values.
+      *
+      * Returns `Unknown` on overflow or when operands are not concrete integers.
+      *
+      * @param l Abstract value of the left operand.
+      * @param r Abstract value of the right operand.
+      */
     def sub(l: AbstractValue, r: AbstractValue) = intBinaryOp(l, r, _ - _)
 
+    /**
+      * Abstract multiplication of two values.
+      *
+      * Returns `Unknown` on overflow or for non-concrete operand pairs.
+      *
+      * @param left  Abstract value of the left operand.
+      * @param right Abstract value of the right operand.
+      */
     def mul(left: AbstractValue, right: AbstractValue): AbstractValue =
         (left, right) match {
             /* anything multiplied by 0 is just 0, we don't care if the other side is unkown */
@@ -385,46 +555,132 @@ object AbstractValue {
             case _ => intBinaryOp(left, right, _ * _)
         }
 
+    /**
+      * Abstract integer division of two values.
+      *
+      * @param l Abstract value of the dividend.
+      * @param r Abstract value of the divisor.
+      * @return `None` on definite division by zero; `Some(result)` otherwise.
+      */
     def div(l: AbstractValue, r: AbstractValue) = checkedDivOp(l, r, _ / _)
+
+    /**
+      * Abstract modulo of two values.
+      *
+      * @param l Abstract value of the dividend.
+      * @param r Abstract value of the divisor.
+      * @return `None` on definite division by zero; `Some(result)` otherwise.
+      */
     def mod(l: AbstractValue, r: AbstractValue) = checkedDivOp(l, r, _ % _)
 
+    /**
+      * Abstract negation of a value.
+      *
+      * Returns `Unknown` when the operand is not a concrete integer or when
+      * negating it would overflow the 32-bit signed range
+      *
+      * @param operand Abstract value of the unary `-` argument.
+      */
     def neg(operand: AbstractValue): AbstractValue = operand match {
         case IntConstant(v) => safeIntResult(-v.toLong)
         case _ => Unknown
     }
 
-    def not(operand: AbstractValue): AbstractValue = operand match {
-        case BoolConstant(v) => BoolConstant(!v)
-        case _ => Unknown
-    }
-
+    /**
+      * Abstract evaluation of the `ord` built-in.
+      *
+      * @param operand Abstract value of the `ord` argument.
+      */
     def ord(operand: AbstractValue): AbstractValue = operand match {
         case c: IntConstant => c
         case _ => Unknown
     }
+
+    /**
+      * Abstract evaluation of the `chr` built-in.
+      *
+      * Callers should separately verify the argument
+      * is in the valid ASCII range using `isProvablyValidChr`.
+      *
+      * @param operand Abstract value of the `chr` argument.
+      */
 
     def chr(operand: AbstractValue): AbstractValue = operand match {
         case c: IntConstant => c
         case _  => Unknown
     }
 
+    /**
+      * Abstract evaluation of the `len` built-in.
+      *
+      * Returns an `IntConstant` when the array length is statically known
+      *
+      * @param operand Abstract value of the `len` argument.
+      */
     def len(operand: AbstractValue): AbstractValue = operand match {
         case ArrayInfo(Some(n)) => IntConstant(n)
         case _ => Unknown
     }
 
+    /* ============================ LOGICAL OPERATIONS ============================ */
+
+    /**
+      * Abstract logical NOT of a value.
+      *
+      * Returns `Unknown` when the operand is not a concrete boolean.
+      *
+      * @param operand Abstract value of the `!` argument.
+      */
+    def not(operand: AbstractValue): AbstractValue = operand match {
+        case BoolConstant(v) => BoolConstant(!v)
+        case _ => Unknown
+    }
+
+    /**
+      * Abstract greater-than comparison.
+      *
+      * @param left  Abstract value of the left operand.
+      * @param right Abstract value of the right operand.
+      */
     def gt(left: AbstractValue, right: AbstractValue): AbstractValue =
         compareInts(left, right, _ > _)
 
+    /**
+      * Abstract greater-than-or-equal comparison.
+      *
+      * @param left  Abstract value of the left operand.
+      * @param right Abstract value of the right operand.
+      */
     def gte(left: AbstractValue, right: AbstractValue): AbstractValue =
         compareInts(left, right, _ >= _)
 
+    /**
+      * Abstract less-than comparison.
+      *
+      * @param left  Abstract value of the left operand.
+      * @param right Abstract value of the right operand.
+      */
     def lt(left: AbstractValue, right: AbstractValue): AbstractValue =
         compareInts(left, right, _ < _)
 
+    /**
+      * Abstract less-than-or-equal comparison.
+      *
+      * @param left  Abstract value of the left operand.
+      * @param right Abstract value of the right operand.
+      */
     def lte(left: AbstractValue, right: AbstractValue): AbstractValue =
         compareInts(left, right, _ <= _)
 
+    /**
+      * Abstract equality comparison.
+      *
+      * Returns `Unknown` for any pair of operands whose equality cannot be
+      * determined statically.
+      *
+      * @param left  Abstract value of the left operand.
+      * @param right Abstract value of the right operand.
+      */
     def eq(left: AbstractValue, right: AbstractValue): AbstractValue =
         (left, right) match {
             case (IntConstant(a), IntConstant(b))   => BoolConstant(a == b)
@@ -434,12 +690,24 @@ object AbstractValue {
             case _                                  => Unknown
         }
 
+    /**
+      * Abstract inequality comparison.
+      *
+      * @param left  Abstract value of the left operand.
+      * @param right Abstract value of the right operand.
+      */
     def neq(left: AbstractValue, right: AbstractValue): AbstractValue =
         eq(left, right) match {
             case BoolConstant(v) => BoolConstant(!v)
             case other           => other
         }
 
+    /**
+      * Abstract logical AND of two boolean values.
+      *
+      * @param left  Abstract value of the left operand.
+      * @param right Abstract value of the right operand.
+      */
     def and(left: AbstractValue, right: AbstractValue): AbstractValue =
         (left, right) match {
             case (BoolConstant(a), BoolConstant(b)) => BoolConstant(a && b)
@@ -447,6 +715,12 @@ object AbstractValue {
             case _ => Unknown
         }
 
+    /**
+      * Abstract logical OR of two boolean values.
+      *
+      * @param left  Abstract value of the left operand.
+      * @param right Abstract value of the right operand.
+      */
     def or(left: AbstractValue, right: AbstractValue): AbstractValue =
         (left, right) match {
             case (BoolConstant(a), BoolConstant(b)) => BoolConstant(a || b)
@@ -454,7 +728,9 @@ object AbstractValue {
             case _ => Unknown
         }
 
-    /** Helper for integer binary operations */
+    /* ============================ HELPERS ============================ */
+
+    /** Applies a binary integer operation to two abstract values */
     private def intBinaryOp(
         left: AbstractValue,
         right: AbstractValue,
@@ -464,6 +740,7 @@ object AbstractValue {
         case _                                => Unknown
     }
 
+    /** Guards a division-style operation against a definite zero divisor. */
     private def checkedDivOp(
         left: AbstractValue,
         right: AbstractValue,
@@ -472,7 +749,7 @@ object AbstractValue {
         if (isDefinitelyZero(right)) None
         else Some(intBinaryOp(left, right, op))
 
-    /** Helper for integer comparison operations */
+    /** Applies an integer comparison predicate to two abstract values. */
     private def compareInts(
         left: AbstractValue,
         right: AbstractValue,

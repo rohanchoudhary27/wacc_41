@@ -3,8 +3,44 @@ package wacc.backend
 import wacc.backend.Arm
 import java.io.BufferedWriter
 
+/** Assembly-level string constants used when emitting the final `.s` file */
+private object AsmDirectives {
+
+    /* ======================== Section headers ========================  */
+
+    /** Marks the start of the data section. */
+    val DataSection: String = ".data\n"
+
+    /** Marks the start of the text (code) section. */
+    val TextSection: String = ".text\n"
+
+    /** Marks the `main` symbol as globally visible. */
+    val GlobalMain: String = ".global main\n"
+
+    /** Aligns the next item to a 4-byte boundary (word alignment). */
+    val Align4: String = s".align ${Constants.ALIGN_WORD}\n"
+
+    /* ======================== Data directive keywords ======================== */
+
+    /**
+      * Assembler keyword for a 32-bit word value.
+      * Used to emit the length header that precedes every WACC string in
+      * the data section.
+      */
+    val WordKeyword: String = ".word"
+
+    /**
+      * Assembler keyword for a null terminated ASCII string.
+      * Used to emit string literal payloads in the data section.
+      */
+    val AscizKeyword: String = ".asciz"
+}
+
 /**
   * Outputter for generating final ARM64 assembly from the low-level IR.
+  * 
+  * Translates an `Arm.Program` to the textual assembly format expected by the
+  * GNU assembler (`aarch64-linux-gnu-gcc`). 
   */
 object Outputter {
     
@@ -21,15 +57,15 @@ object Outputter {
 
         /* Data section */
         if (prog.data.nonEmpty) {
-            bw.write(".data\n")
-            bw.write(".align 4\n")
+            bw.write(AsmDirectives.DataSection)
+            bw.write(AsmDirectives.Align4)
             prog.data.foreach(d => emitDirective(d, bw))
             bw.write("\n")
         }
         
         /* GNU assembler directives and code section */
-        bw.write(".text\n")
-        bw.write(".global main\n")
+        bw.write(AsmDirectives.TextSection)
+        bw.write(AsmDirectives.GlobalMain)
         prog.body.foreach(i => emitInstruction(i, bw))
     }
 
@@ -40,10 +76,10 @@ object Outputter {
       * @param bw the buffered writer to write to
       */
     private def emitDirective(dir: Arm.DataDirective, bw: BufferedWriter): Unit = {
-        bw.write(s"${INDENT}.word ${dir.storedValue.length}\n")
+        bw.write(s"${INDENT}${AsmDirectives.WordKeyword} ${dir.storedValue.length}\n")
         bw.write(s"${dir.label.name}:\n")
-        bw.write(s"${INDENT}.asciz \"${dir.storedValue}\"\n")
-        bw.write(".align 4\n")
+        bw.write(s"${INDENT}${AsmDirectives.AscizKeyword} \"${dir.storedValue}\"\n")
+        bw.write(s"${AsmDirectives.Align4}\n")
     }
     
     /**
