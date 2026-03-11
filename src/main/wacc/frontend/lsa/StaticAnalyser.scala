@@ -4,8 +4,6 @@ import wacc.frontend.*
 import wacc.frontend.lsa.*
 import wacc.frontend.TypeChecker.~
 
-import scala.collection.mutable.ListBuffer
-
 /*
  * Performs local static analysis on the typed AST to catch
  * runtime errors at compile time and identify redundant runtime checks.
@@ -16,96 +14,6 @@ import scala.collection.mutable.ListBuffer
  * know about every variable (its `AbstractValue`), and we use this knowledge
  * to detect guaranteed errors and to prove that certain runtime checks are unnecessary
  */
-
-/** Context accumulated during the analysis traversal of the AST.
-  *
-  * @param diagnostics Accumulated analysis diagnostics
-  */
-class AnalyserState {
-
-    /* List of diagnostics produced by the analyser. */
-    private val diagnostics: ListBuffer[AnalysisDiagnostic] = ListBuffer.empty
-
-    /* Set of PairElem AST nodes where the base pointer is provably non null. */
-    private val safePairAccesses: scala.collection.mutable.Set[PairElem[SemanticData]] =
-        scala.collection.mutable.Set.empty
-
-    /* Set of BinaryExpr AST nodes (Div/Mod) where the divisor is provably
-       nonzero, so the runtime division by zero check can be skipped. */
-    private val safeDivisions: scala.collection.mutable.Set[BinaryExpr[SemanticData]] =
-        scala.collection.mutable.Set.empty
-
-    /* Set of ArrayElem AST nodes where the index is provably within bounds */
-    private val safeArrayAccesses: scala.collection.mutable.Set[ArrayElem[SemanticData]] =
-        scala.collection.mutable.Set.empty
-
-    /* Set of UnaryExpr AST nodes where the chr function provably received safe value */
-    private val safeChrCalls: scala.collection.mutable.Set[UnaryExpr[SemanticData]] =
-        scala.collection.mutable.Set.empty
-
-    /* Set of Expr AST nodes (BinaryExpr for + - *, UnaryExpr for -)
-       where the operation provably cannot overflow 32 bit signed range */
-    private val safeOverflowOps: scala.collection.mutable.Set[Expr[SemanticData]] =
-        scala.collection.mutable.Set.empty
-
-    /** Record a `PairElem` AST node whose base pointer is provably non null,
-      * so the flattener can skip the runtime null check.
-      *
-      * @param pairElem The `PairElem` AST node with a proven-safe access
-      */
-    def markSafePairAccess(pairElem: PairElem[SemanticData]): Unit = safePairAccesses += pairElem
-
-    /** Record a `BinaryExpr` (Div/Mod) AST node whose divisor is provably
-      * nonzero, so the flattener can skip the runtime zero check.
-      *
-      * @param divExpr The `BinaryExpr` AST node with a proven-safe divisor
-      */
-    def markSafeDivision(divExpr: BinaryExpr[SemanticData]): Unit = safeDivisions += divExpr
-
-    /** Record a `ArrayElem` AST node whose index is provably within bounds,
-      * so the flattener can skip the runtime bounds check.
-      *
-      * @param arrayElem The `ArrayElem` AST node with a safe index
-      */
-    def markSafeArrayAccess(arrayElem: ArrayElem[SemanticData]): Unit = safeArrayAccesses += arrayElem
-
-     /** Record an chr `UnaryExpr` AST node whose value is provably within ASCII bounds,
-      * so the flattener can skip the runtime bounds check.
-      *
-      * @param chrExpr The chr `UnaryExpr` AST node with a safe value
-      */
-    def markSafeChrCall(chrExpr: UnaryExpr[SemanticData]): Unit = safeChrCalls += chrExpr
-
-    /** Record a `Expr` AST node where we don't need to check for integer overflow.
-     * 
-     * @param expr The `Expr` AST node that is proven to not overflow or underflow
-     */
-    def markSafeOverflowOp(expr: Expr[SemanticData]): Unit = safeOverflowOps += expr
-
-    /** Emit a diagnostic finding. */
-    def emit(diagnostic: AnalysisDiagnostic): Unit = diagnostics += diagnostic
-
-    /** Retrieve all diagnostics found so far */
-    def getAllDiagnostics: List[AnalysisDiagnostic] = diagnostics.toList
-
-    /** Retrieve the set of `PairElem` nodes where null checks can be eliminated */
-    def getSafePairAccesses: Set[PairElem[SemanticData]] = safePairAccesses.toSet
-
-    /** Retrieve the set of safe `BinaryExpr` (Div/Mod) nodes */
-    def getSafeDivisions: Set[BinaryExpr[SemanticData]] = safeDivisions.toSet
-
-    /** Retrieve the set of `ArrayElem` nodes where bounds checks can be eliminated */
-    def getSafeArrayAccesses: Set[ArrayElem[SemanticData]] = safeArrayAccesses.toSet
-
-    /** Retrieve the set of `UnaryExpr` nodes where bounds checks can be eliminated */
-    def getSafeChrCalls: Set[UnaryExpr[SemanticData]] = safeChrCalls.toSet  
-
-    /** Retrieve the set of `Expr` nodes where overflow checks can be eliminated */
-    def getSafeOverflowOps: Set[Expr[SemanticData]] = safeOverflowOps.toSet
-
-    /** Check whether any error level diagnostics have been emitted */
-    def hasErrors: Boolean = diagnostics.exists(_.severity == DiagnosticSeverity.Error)
-}
 
 /** Result of running the static analyser on a program.
   *
@@ -144,13 +52,13 @@ object StaticAnalyser {
 
         analyseStmt(prog.stmt)(using AnalysisState.empty, analyserState)
         AnalysisResult(
-            analyserState.getAllDiagnostics,
-            analyserState.hasErrors,
-            analyserState.getSafePairAccesses,
-            analyserState.getSafeDivisions,
-            analyserState.getSafeArrayAccesses,
-            analyserState.getSafeChrCalls,
-            analyserState.getSafeOverflowOps
+            diagnostics = analyserState.getAllDiagnostics,
+            hasErrors = analyserState.hasErrors,
+            safePairAccesses = analyserState.getSafePairAccesses,
+            safeDivisions = analyserState.getSafeDivisions,
+            safeArrayAccesses = analyserState.getSafeArrayAccesses,
+            safeChrCalls = analyserState.getSafeChrCalls,
+            safeOverflowOps = analyserState.getSafeOverflowOps
         )
     }
 
@@ -640,25 +548,25 @@ object StaticAnalyser {
 
         op match {
             case UnaryOperator.Neg => 
-                if (AbstractValue.doesProvablyOverflowNeg(operandVal))
-                    analyserState.emit(
-                        AnalysisDiagnostic.negationOverflow(u.info.pos, operandVal)
-                    )
-                else if (AbstractValue.isProvablySafeNeg(operandVal))
-                    analyserState.markSafeOverflowOp(u)
+                analyserState.applyVerdict(SafetyVerdict.fromChecks(
+                    isError = AbstractValue.doesProvablyOverflowNeg(operandVal),
+                    isSafe  = AbstractValue.isProvablySafeNeg(operandVal)
+                ))(
+                    onError = _.emit(AnalysisDiagnostic.negationOverflow(u.info.pos, operandVal)),
+                    onSafe  = _.markSafeOverflowOp(u)
+                )
                 AbstractValue.neg(operandVal)
             case UnaryOperator.Not => AbstractValue.not(operandVal)
             case UnaryOperator.Len => AbstractValue.len(operandVal)
             case UnaryOperator.Ord => AbstractValue.ord(operandVal)
             case UnaryOperator.Chr =>
-                /* check chr argument for ASCII range */
-                if (AbstractValue.isProvablyInvalidChr(operandVal)) {
-                    analyserState.emit(
-                        AnalysisDiagnostic.invalidChrArgument(info.pos, operandVal)
-                    )
-                } else if (AbstractValue.isProvablyValidChr(operandVal)) {
-                    analyserState.markSafeChrCall(u)
-                }
+                analyserState.applyVerdict(SafetyVerdict.fromChecks(
+                    isError = AbstractValue.isProvablyInvalidChr(operandVal),
+                    isSafe  = AbstractValue.isProvablyValidChr(operandVal)
+                ))(
+                    onError = _.emit(AnalysisDiagnostic.invalidChrArgument(info.pos, operandVal)),
+                    onSafe  = _.markSafeChrCall(u)
+                )
                 AbstractValue.chr(operandVal)
         }
     }
@@ -744,22 +652,23 @@ object StaticAnalyser {
         divOp: (AbstractValue, AbstractValue) => Option[AbstractValue]
     )(using analyserState: AnalyserState): AbstractValue = {
         val BinaryExpr(_, _, rightExpr, info) = b
-        divOp(leftVal, rightVal) match {
-            case Some(result) => 
-                if (AbstractValue.isDefinitelyNonZero(rightVal)) {
-                    analyserState.markSafeDivision(b)
-                }
-                result
-            case None =>
+
+        analyserState.applyVerdict(SafetyVerdict.fromChecks(
+            isError = AbstractValue.isDefinitelyZero(rightVal),
+            isSafe = AbstractValue.isDefinitelyNonZero(rightVal)
+        ))(
+            onError = {
                 val divisorName = rightExpr match {
                     case ident: Ident[SemanticData] => ident.name
                     case _ => "<expression>"
                 }
-                analyserState.emit(
+                _.emit(
                     AnalysisDiagnostic.divisionByZero(info.pos, divisorName, rightVal)
                 )
-                Unknown
-        }
+            },
+            onSafe = _.markSafeDivision(b)
+        )
+        divOp(leftVal, rightVal).getOrElse(Unknown)
     }
 
     /** Evaluate an array element access, checking bounds and marking
@@ -795,15 +704,15 @@ object StaticAnalyser {
            unknown (we don't track array contents). */
         (arrayVal, indexVals.headOption) match {
             case (ArrayInfo(Some(length)), Some(indexVal)) =>
-                if (AbstractValue.isProvablyOutOfBounds(indexVal, length)) {
-                    analyserState.emit(
-                        AnalysisDiagnostic.arrayOutOfBounds(
-                            info.pos, ident.name, length, indexVal
-                        )
+                analyserState.applyVerdict(
+                    SafetyVerdict.fromChecks(
+                        isError = AbstractValue.isProvablyOutOfBounds(indexVal, length),
+                        isSafe  = AbstractValue.isProvablyInBounds(indexVal, length)
                     )
-                } else if (AbstractValue.isProvablyInBounds(indexVal, length)) {
-                    analyserState.markSafeArrayAccess(array)
-                }
+                )(
+                    onError = _.emit(AnalysisDiagnostic.arrayOutOfBounds(info.pos, ident.name, length, indexVal)),
+                    onSafe  = _.markSafeArrayAccess(array)
+                )
             case _ => () /* we keep runtime check for unkown cases */
         }
         Unknown /* we don't track individual array elems in state so return unknown */
@@ -884,20 +793,6 @@ object StaticAnalyser {
                 evaluateLValue(innerLval)
         }
 
-    /** Check whether an lvalue points to a null or freed pointer and emit
-      * diagnostics accordingly.
-      *
-      * @param lval  The lvalue being dereferenced (the pair being accessed)
-      * @param info The semantic data of the access expression (for source position)
-      */
-    private def checkPointerSafety(
-        lval: LValue[SemanticData],
-        info: SemanticData
-    )(using state: AnalysisState, analyserState: AnalyserState): Unit = {
-        val (ptrName, ptrVal) = evaluateLValue(lval)
-        emitPointerErrorIfStale(ptrName, ptrVal, info)
-    }
-
     /** Check whether a pair element is safe to use, and if is nonnnull mark it as nonnull
       * in the state for future use in the Backend.
       *
@@ -907,14 +802,15 @@ object StaticAnalyser {
         pairElem: PairElem[SemanticData]
     )(using state: AnalysisState, analyserState: AnalyserState): Unit = {
         val pairPointer = pairElem.lval
-        val (_, pairPointerAbstract) = evaluateLValue(pairPointer)
-        checkPointerSafety(pairPointer, pairElem.info)
+        val (ptrName, ptrAbstract) = evaluateLValue(pairPointer)
 
-        if (AbstractValue.isDefinitelyNonNull(pairPointerAbstract)) {
-            /* Pointer is provably nonnull, record the PairElem AST node
-               so the flattener can skip the runtime null check */
-            analyserState.markSafePairAccess(pairElem)
-        }
+        analyserState.applyVerdict(SafetyVerdict.fromChecks(
+            isError = AbstractValue.isDefinitelyNull(ptrAbstract) || ptrAbstract == Freed,
+            isSafe = AbstractValue.isDefinitelyNonNull(ptrAbstract)
+        ))(
+            onError = s => emitPointerErrorIfStale(ptrName, ptrAbstract, pairElem.info)(using s),
+            onSafe = _.markSafePairAccess(pairElem)
+        )
     }
 
     /** Emits an Error Diagnostic if the pointer is stale, i.e., if it is null or free'd before
@@ -987,12 +883,14 @@ object StaticAnalyser {
         doesOverflow: (AbstractValue, AbstractValue) => Boolean,
         isSafe: (AbstractValue, AbstractValue) => Boolean,
     )(using analyserState: AnalyserState): Unit = {
-        if (doesOverflow(leftVal, rightVal))
-            analyserState.emit(
-                AnalysisDiagnostic.integerOverflow(e.info.pos, sym, leftVal, rightVal)
-            )
-        else if (isSafe(leftVal, rightVal))
-            analyserState.markSafeOverflowOp(e)
+        
+        analyserState.applyVerdict(SafetyVerdict.fromChecks(
+            isError = doesOverflow(leftVal, rightVal),
+            isSafe  = isSafe(leftVal, rightVal)
+        ))(
+            onError = _.emit(AnalysisDiagnostic.integerOverflow(e.info.pos, sym, leftVal, rightVal)),
+            onSafe  = _.markSafeOverflowOp(e)
+        )
     }
 }
 
