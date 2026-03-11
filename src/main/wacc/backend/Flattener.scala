@@ -56,33 +56,13 @@ private class FunctionState(
     }
 
     /**
-      * Define a new virtual register mapping with given size.
-      *
-      * @param varName the string name of the variable
-      * @param renameId the renamed ID from the frontend of the variable
-      * @param size the `Size` of the variable
-      * @return a new virtual register
-      */
-    def defineReg(varName: String, renameId: Int, size: Size): TAC.VirtualReg = {
-        val nextReg = TAC.VirtualReg(nextVirtualId, size)
-        virtualRegMap +=
-            QualifiedName(varName, renameId) -> nextReg
-        nextVirtualId += 1
-        nextReg
-    }
-
-    /**
       * Allocate a register as part of computing an expression (not to a variable) with
       * the given type.
       *
       * @param typ the `KnownType` of the variable
       * @return
       */
-    def anonymousReg(typ: KnownType): TAC.VirtualReg = {
-        val nextReg = TAC.VirtualReg(nextVirtualId, Size.fromType(typ))
-        nextVirtualId += 1
-        nextReg
-    }
+    def anonymousReg(typ: KnownType): TAC.VirtualReg = anonymousReg(Size.fromType(typ))
 
     /**
       * Allocate a register as part of computing an expression (not to a variable) with
@@ -220,19 +200,8 @@ object Flattener {
       * @return The virtual register for the operand
       */
     private def toReg(op: TAC.Operand, targetType: KnownType = KnownType.Int)
-                     (using funcState: FunctionState): TAC.VirtualReg = op match {
-        case reg: TAC.VirtualReg => reg
-        case imm: TAC.Immediate => 
-            val newReg = funcState.anonymousReg(targetType)
-            funcState.emitInstruction(TAC.Mov(newReg, imm))
-            newReg
-        case label: TAC.Label => 
-            /* Labels are memory addresses so they must go into a 64-bit 
-               register (Size.X) regardless of the targetType parameter */
-            val newReg = funcState.anonymousReg(Size.X)
-            funcState.emitInstruction(TAC.Mov(newReg, label))
-            newReg
-    }
+                     (using FunctionState): TAC.VirtualReg =
+        toReg(op, Size.fromType(targetType))
     
     /**
       * Converts an operand to a virtual register by returning the register if the operand
