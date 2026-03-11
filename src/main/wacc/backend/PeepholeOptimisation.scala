@@ -35,6 +35,8 @@ object PeepholeOptimisation{
                 .pipe(coalesceMove(_, Nil))
                 .pipe(alternateMoves(_, Nil))
                 .pipe(immediateMinimise(_, Nil))
+                .pipe(removeOverwrite(_,Nil))
+                .pipe(copyRegisters(_,Nil))
         }
 
         /* Wrap data and optimised body in Arm.Program for Outputter. */
@@ -183,6 +185,7 @@ object PeepholeOptimisation{
         case Nil => acc.reverse
     }
 
+    @tailrec
     private def immediateMinimise(body: List[Instruction], acc: List[Instruction]): List[Instruction] = body match {
         case AddImm(s1, d1, src1, Immediate(i1)) :: AddImm(s2, d2, src2, Immediate(i2)) :: xs
         if (s1 == s2 && d1 == d2 && src1 == src2 && d1 == src1) => 
@@ -195,6 +198,50 @@ object PeepholeOptimisation{
             immediateMinimise(xs, SubImm(s1, d1, src1, Immediate(i1 + i2)) :: acc)
         
         case x :: xs => immediateMinimise(xs, x :: acc)
+        case Nil => acc.reverse
+    }
+
+    /**
+      * Remove overwriting to registers immediately after
+      *
+      * @param body list of low level IR instructions to be optimised
+      * @param acc list of low level IR instructions that have been optimised
+      */
+    @tailrec
+    private def removeOverwrite(body: List[Instruction], acc: List[Instruction]): List[Instruction] = body match {
+        case MovReg(_, d1, _) :: Movz(s2, d2, imm) :: xs if d1 == d2 =>
+            ruleHits("removeOverwriteMovReg") += 1
+            removeOverwrite(xs, Movz(s2, d2, imm) :: acc)
+
+        case Movz(_, d1, _) :: Movz(s2, d2, imm) :: xs if d1 == d2 =>
+            ruleHits("removeOverwriteMovz") += 1
+            removeOverwrite(xs, Movz(s2, d2, imm) :: acc)
+        
+        case x :: xs => removeOverwrite(xs, x :: acc)
+        case Nil => acc.reverse
+    }
+
+    /**
+      * Removes redundant register copy chains
+      * 
+      * mov w26, w25
+      * mov w20, w26
+      * 
+      * -> 
+      * 
+      * mov w26, w25
+      * mow w20, w25
+      *
+      * @param body list of low level IR instructions to be optimised
+      * @param acc list of low level IR instructions that have been optimised
+      */
+    @tailrec
+    private def copyRegisters(body: List[Instruction], acc: List[Instruction]): List[Instruction] = body match {
+        case MovReg(s1, d1, src1) :: MovReg(s2, d2, src2) :: xs if s1 == s2 && d1 == src2 =>
+            ruleHits("copyRegisters") += 1
+            copyRegisters(xs, MovReg(s2, d2, src1) :: MovReg(s1, d1, src1) :: acc)
+
+        case x :: xs => copyRegisters(xs, x :: acc)
         case Nil => acc.reverse
     }
 }
