@@ -105,6 +105,7 @@ class PeepholeOptimisationTest extends AnyFlatSpec with Matchers {
             MovReg(X, r2, r1)
         )
         val expected = List(
+            Movz(X, r1, Immediate(42)),
             Movz(X, r2, Immediate(42))
         )
         
