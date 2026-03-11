@@ -1045,7 +1045,7 @@ object CodeGenerator {
         index: TAC.Operand,
         elemSize: Size,
         isStore: Boolean,
-        isUnchecked: Boolean = false
+        isUnchecked: Boolean
     )(using st: GenState): Unit = {
         val arrayPtrReg = PhysicalReg.widgetResultRegister  // x7
         val indexReg = PhysicalReg.ipcScratch2       // x17
