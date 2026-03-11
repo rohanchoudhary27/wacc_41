@@ -179,7 +179,7 @@ object Renamer {
 
   private def renameStructDef(
       structDef: StructDef[SyntacticData]
-  )(using state: RenamerState): StructDef[SemanticData] = {
+  ): StructDef[SemanticData] = {
     val StructDef(ident, fields, synPos) = structDef
     val renamedIdent = Ident[SemanticData](ident.name, synPos.toSemanticPos)
     val renamedFields = fields.map { f =>
