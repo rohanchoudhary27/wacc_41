@@ -100,7 +100,7 @@ case class AnalysisState(
       */
     def join(other: AnalysisState): AnalysisState = {
         if (this.unreachable) other
-        if (other.unreachable) this
+        else if (other.unreachable) this
         else {
             val allKeys = this.bindings.keySet ++ other.bindings.keySet
 
