@@ -872,8 +872,13 @@ object Flattener {
     }
 
     /** 
-     * Flatten an arithmetic (+, -, *, /, %) operation with overflow
+     * Flatten an arithmetic (+, -, *, /, %) operation with overflow checks
      * 
+     * @param b The binary expression AST node
+     * @param leftOp The left operand of the binary expression
+     * @param rightOp The right operand of the binary expression
+     * @param constr The constructor function to generate the High Level IR
+     * @param constrUnchecked The constructor function to generate the unchecked High Level IR
      */ 
     private def flattenArithmetic(
         b: BinaryExpr[SemanticData], 

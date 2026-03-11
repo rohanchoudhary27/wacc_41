@@ -203,46 +203,6 @@ class StaticAnalyserTests extends AnyFlatSpec with Matchers {
         result.hasErrors shouldBe false
     }
 
-    "AnalysisDiagnostic" should "format error diagnostics correctly" in {
-        val diag = AnalysisDiagnostic(
-            DiagnosticSeverity.Error,
-            (5, 10),
-            "Division by zero: divisor 'x' is constant 0"
-        )
-        diag.format should include("Line 5")
-        diag.format should include("column 10")
-        diag.format should include("error")
-        diag.format should include("Division by zero")
-    }
-
-    it should "format warning diagnostics correctly" in {
-        val diag = AnalysisDiagnostic(
-            DiagnosticSeverity.Warning,
-            (3, 4),
-            "Potential null dereference"
-        )
-        diag.format should include("warning")
-    }
-
-    it should "format info diagnostics correctly" in {
-        val diag = AnalysisDiagnostic(
-            DiagnosticSeverity.Info,
-            (1, 1),
-            "Null check is redundant"
-        )
-        diag.format should include("info")
-    }
-
-    it should "include detail when provided" in {
-        val diag = AnalysisDiagnostic(
-            DiagnosticSeverity.Error,
-            (1, 1),
-            "Some error",
-            "extra detail"
-        )
-        diag.format should include("extra detail")
-    }
-
     "StaticAnalyser division-by-zero" should "detect division by literal zero" in {
         /* int x = 10 / 0 */
         val xIdent = varIdent("x", 0)

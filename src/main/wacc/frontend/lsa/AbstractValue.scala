@@ -375,7 +375,6 @@ object AbstractValue {
         case _ => false
     }
 
-
     def add(l: AbstractValue, r: AbstractValue) = intBinaryOp(l, r, _ + _)
     def sub(l: AbstractValue, r: AbstractValue) = intBinaryOp(l, r, _ - _)
 
@@ -414,19 +413,15 @@ object AbstractValue {
         case _ => Unknown
     }
 
-    /** Abstract greater-than */
     def gt(left: AbstractValue, right: AbstractValue): AbstractValue =
         compareInts(left, right, _ > _)
 
-    /** Abstract greater-than-or-equal */
     def gte(left: AbstractValue, right: AbstractValue): AbstractValue =
         compareInts(left, right, _ >= _)
 
-    /** Abstract less-than */
     def lt(left: AbstractValue, right: AbstractValue): AbstractValue =
         compareInts(left, right, _ < _)
 
-    /** Abstract less-than-or-equal */
     def lte(left: AbstractValue, right: AbstractValue): AbstractValue =
         compareInts(left, right, _ <= _)
 
