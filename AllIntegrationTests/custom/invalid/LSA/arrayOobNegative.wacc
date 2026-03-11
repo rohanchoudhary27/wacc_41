@@ -1,0 +1,11 @@
+# Array out of bounds: negative index, caught at compile time
+# Output:
+# Exit: 200
+
+# Program:
+begin
+  int[] a = [1, 2, 3];
+  int x = a[0 - 1];
+  println x;
+  exit 0
+end

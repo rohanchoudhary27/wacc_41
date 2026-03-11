@@ -3,6 +3,7 @@ package wacc.frontend
 import java.nio.file.Path
 import scala.io.Source
 import wacc.ExitCodes._
+import wacc.frontend.lsa.*
 
 /** A class holding the result of compilation. `exitCode` is the exit code of
   * the program compilation and `errors` is None if there were no errors and
@@ -22,15 +23,20 @@ case class FrontendCompilationResult(
   * @param tailRecCalls A set of `Call` AST nodes which are tail recursive
   */
 case class FrontendOptimState(
-    selfTailRecCalls: Set[Call[SemanticData]],
-    generalTailRecCalls: Set[Call[SemanticData]]
+    selfTailRecCalls: Set[Call[SemanticData]] = Set.empty,
+    generalTailRecCalls: Set[Call[SemanticData]] = Set.empty,
+    safePairAccesses: Set[PairElem[SemanticData]] = Set.empty,
+    safeDivisions: Set[BinaryExpr[SemanticData]] = Set.empty,
+    safeArrayAccesses: Set[ArrayElem[SemanticData]] = Set.empty,
+    safeChrCalls: Set[UnaryExpr[SemanticData]] = Set.empty,
+    safeOverflowExprs: Set[Expr[SemanticData]] = Set.empty
 )
 
 /**
   * Companion object for `FrontendOptimState`
   */
 object FrontendOptimState {
-    val empty: FrontendOptimState = FrontendOptimState(Set.empty, Set.empty)
+    val empty: FrontendOptimState = FrontendOptimState()
 }
 
 /** The top level object of the WACC compiler frontend. Contains the `main`
@@ -144,13 +150,25 @@ object WaccFrontend {
                 if (semanticErrors.hasErrors())
                   FrontendCompilationResult(SemanticError, Some(semanticErrors), None)
                 else {
-
-                  /* Frontend optimisation passes */
-                  val (selfTailRecCalls, generalisedTailRecCalls) = CheckTailRec.checkTailRec(typedAST.get)
-                  val optimState = FrontendOptimState(selfTailRecCalls, generalisedTailRecCalls)
-                  FrontendCompilationResult(CompilerSuccess, None, typedAST, Some(optimState))
+                  /* (Phase 6 - Static Analysis) */
+                  val typedASTRes = typedAST.get
+                  val analysisResult = StaticAnalyser.run(typedASTRes, semanticErrors)
+                  if (semanticErrors.hasErrors())
+                    FrontendCompilationResult(SemanticError, Some(semanticErrors), None)
+                  else {
+                    /* Frontend optimisation passes */
+                    val (selfTailRecCalls, generalisedTailRecCalls) = CheckTailRec.checkTailRec(typedASTRes)
+                    val optimState = FrontendOptimState(
+                      selfTailRecCalls, generalisedTailRecCalls, 
+                      analysisResult.safePairAccesses, 
+                      analysisResult.safeDivisions,
+                      analysisResult.safeArrayAccesses,
+                      analysisResult.safeChrCalls,
+                      analysisResult.safeOverflowOps
+                    )
+                    FrontendCompilationResult(CompilerSuccess, None, typedAST, Some(optimState))
+                  }
                 }
-
               }
           }
       }

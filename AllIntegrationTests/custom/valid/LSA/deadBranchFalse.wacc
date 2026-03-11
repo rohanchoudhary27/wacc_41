@@ -1,0 +1,16 @@
+# Dead branch: condition is always false so only else runs
+# Output: 1
+# Exit: 0
+
+# Program:
+begin
+  int x = 4;
+  if false then
+    x = 0
+  else
+    x = 4
+  fi;
+  int y = 4 / x;
+  println y;
+  exit 0
+end

@@ -1,0 +1,11 @@
+# Division by known non-zero constant is safe
+# Output: 2
+# Exit: 0
+
+# Program:
+begin
+  int x = 4;
+  int y = 10 / x;
+  println y;
+  exit 0
+end

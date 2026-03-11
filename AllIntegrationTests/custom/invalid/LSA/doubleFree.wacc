@@ -1,0 +1,11 @@
+# Double free: freeing a pair that was already freed - caught at compile time
+# Output:
+# Exit: 200
+
+# Program:
+begin
+  pair(int, int) p = newpair(1, 2);
+  free p;
+  free p;
+  exit 0
+end

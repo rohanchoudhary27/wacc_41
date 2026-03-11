@@ -1,0 +1,11 @@
+# Array out of bounds: index 5 on array of length 3, caught at compile time
+# Output:
+# Exit: 200
+
+# Program:
+begin
+  int[] a = [10, 20, 30];
+  int x = a[5];
+  println x;
+  exit 0
+end

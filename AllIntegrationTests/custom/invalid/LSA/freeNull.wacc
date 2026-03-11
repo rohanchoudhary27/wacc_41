@@ -1,0 +1,10 @@
+# Free of null: freeing a null pointer - caught at compile time
+# Output:
+# Exit: 200
+
+# Program:
+begin
+  pair(int, int) p = null;
+  free p;
+  exit 0
+end

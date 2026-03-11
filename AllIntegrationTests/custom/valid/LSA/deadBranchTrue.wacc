@@ -1,0 +1,16 @@
+# Dead branch: condition is always true so only then runs
+# Output: 2
+# Exit: 0
+
+# Program:
+begin
+  int x = 10;
+  if true then
+    x = 5
+  else
+    x = 0
+  fi;
+  int y = 10 / x;
+  println y;
+  exit 0
+end

@@ -1,0 +1,15 @@
+# Nested scope: outer variable x retains its value through inner scope
+# Output: 2
+# Exit: 0
+
+# Program:
+begin
+  int x = 5;
+  begin
+    int y = 10;
+    skip
+  end;
+  int z = 10 / x;
+  println z;
+  exit 0
+end

@@ -1,0 +1,11 @@
+# Array access with known in-bounds index, bounds check can be eliminated
+# Output: 30
+# Exit: 0
+
+# Program:
+begin
+  int[] a = [10, 20, 30];
+  int x = a[2];
+  println x;
+  exit 0
+end

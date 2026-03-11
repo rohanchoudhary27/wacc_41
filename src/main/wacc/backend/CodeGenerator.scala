@@ -557,16 +557,29 @@ object CodeGenerator {
                 /* Post main operation instruction emission*/
                 emit(Arm.BranchCond(Condition.VS, Arm.AddrLabel(IntOverflowErrorWidget.label)))
             })
+        case TAC.AddUnchecked(dest, src1, src2) => 
+            generateStandardBinOp(dest, src1, src2, Arm.AddsReg.apply, Arm.AddsImm.apply, None)
+
         case TAC.Sub(dest, src1, src2) => 
             generateStandardBinOp(dest, src1, src2, Arm.SubsReg.apply, Arm.SubsImm.apply, Some(IntOverflowErrorWidget), {
                 /* Post main operation instruction emission*/
                 emit(Arm.BranchCond(Condition.VS, Arm.AddrLabel(IntOverflowErrorWidget.label)))
             })
+        case TAC.SubUnchecked(dest, src1, src2) => 
+            generateStandardBinOp(dest, src1, src2, Arm.SubsReg.apply, Arm.SubsImm.apply, None)
 
         case TAC.Mul(dest, src1, src2) => generateMul(dest, src1, src2)
+        case TAC.MulUnchecked(dest, src1, src2) => generateMul(dest, src1, src2, isUnchecked = true)
+
+
         case TAC.Div(dest, src1, src2) => generateDivMod(dest, src1, src2, isMod = false)
         case TAC.Mod(dest, src1, src2) => generateDivMod(dest, src1, src2, isMod = true)
+        case TAC.DivUnchecked(dest, src1, src2) => 
+            generateDivMod(dest, src1, src2, isMod = false, isUnchecked = true)
+        case TAC.ModUnchecked(dest, src1, src2) => 
+            generateDivMod(dest, src1, src2, isMod = true, isUnchecked = true)
         case TAC.Neg(dest, src) => generateNeg(dest, src)
+        case TAC.NegUnchecked(dest, src) => generateNeg(dest, src, isUnchecked = true)
         
         /* Bitwise operations */
         case TAC.And(dest, src1, src2) => 
@@ -611,6 +624,10 @@ object CodeGenerator {
             generateArrayLoad(array, index, dest)
         case TAC.ArrayStore(array, index, src, elemSize) => 
             generateArrayStore(array, index, src, elemSize)
+         case TAC.ArrayLoadUnchecked(array, index, dest) => 
+            generateArrayLoad(array, index, dest, isUnchecked = true)
+        case TAC.ArrayStoreUnchecked(array, index, src, elemSize) => 
+            generateArrayStore(array, index, src, elemSize, isUnchecked = true)
         case TAC.ArrayLen(array, dest) => generateArrayLen(array, dest)
         
         /* Pair operations */
@@ -724,14 +741,16 @@ object CodeGenerator {
      * @param dest: destination virtual register to store result to
      * @param src1: first source virtual register
      * @param src1: second operand (can be an immediate  or virtual register)
+     * @param isUnchecked: whether the result is unchecked/checked for overflow/underflow
      */
     private def generateMul(dest: TAC.VirtualReg,
                             src1: TAC.VirtualReg,
-                            src2: TAC.Operand)
+                            src2: TAC.Operand,
+                            isUnchecked: Boolean = false)
                            (using st: GenState): Unit = {
-
+        val widget = if (isUnchecked) None else Some(IntOverflowErrorWidget)
         /* Binary context handles  register loading, storing and widget */
-        generateComplexBinOp(dest, src1, src2, Some(IntOverflowErrorWidget)) {
+        generateComplexBinOp(dest, src1, src2, widget) {
             (resultReg, src1Reg, src2Reg) =>
 
                 /* Take two 32 bit (w) numbers and multiply, store as a 64 bit (x) register */
@@ -743,9 +762,9 @@ object CodeGenerator {
                 val scratch3 = PhysicalReg.mathScratch
                 emit(Arm.Sxtw(scratch3, resultReg))
                 emit(Arm.CmpReg(Size.X, resultReg, scratch3))
-
-                /* If comparison not equal then an overflow occured, so branch to error widget */
-                emit(Arm.BranchCond(Condition.NE, Arm.AddrLabel(IntOverflowErrorWidget.label)))
+                if (!isUnchecked)
+                    /* If comparison not equal then an overflow occured, so branch to error widget */
+                    emit(Arm.BranchCond(Condition.NE, Arm.AddrLabel(IntOverflowErrorWidget.label)))
         }
     }
 
@@ -756,18 +775,22 @@ object CodeGenerator {
      * @param src1: first source virtual register
      * @param src1: second operand (can be an immediate  or virtual register)
      * @param isMod: flag to indicate whether integer division or modulo is to be carried out
+     * @param isUnchecked: flag to indicate whether a div by zero check should be included
      */
     private def generateDivMod(dest: TAC.VirtualReg,
                                src1: TAC.VirtualReg,
                                src2: TAC.Operand,
-                               isMod: Boolean)
+                               isMod: Boolean,
+                               isUnchecked: Boolean = false)
                               (using st: GenState): Unit = {
 
         /* Binary context handles  register loading, storing and widget */
-        generateComplexBinOp(dest, src1, src2, Some(DivByZeroErrorWidget)) {
+        val widget: Option[Widget] = if (isUnchecked) None else Some(DivByZeroErrorWidget)
+        generateComplexBinOp(dest, src1, src2, widget) {
             (resultReg, src1Reg, src2Reg) => 
                 /* Divide by zero check, if so jump to divide by zero widget */
-                emit(Arm.Cbz(dest.size, src2Reg, Arm.AddrLabel(DivByZeroErrorWidget.label)))
+                if (!isUnchecked)
+                    emit(Arm.Cbz(dest.size, src2Reg, Arm.AddrLabel(DivByZeroErrorWidget.label)))
 
                 /* Use flag to pick either integer division or modulo */
                 if (isMod) {
@@ -1006,9 +1029,24 @@ object CodeGenerator {
         case (true, Size.X)  => ArrayStore8Widget
     }
 
+    /* Retrieves the appropriate array runtime widget based on size and operation. */
+    private def getArrayWidgetUnchecked(elemSize: Size, isStore: Boolean): Widget = (isStore, elemSize) match {
+        case (false, Size.B) => ArrayLoad1UncheckedWidget
+        case (false, Size.W) => ArrayLoad4UncheckedWidget
+        case (false, Size.X) => ArrayLoad8UncheckedWidget
+        case (true, Size.B)  => ArrayStore1UncheckedWidget
+        case (true, Size.W)  => ArrayStore4UncheckedWidget
+        case (true, Size.X)  => ArrayStore8UncheckedWidget
+    }
+
     /* Loads the array pointer into x7, the index into x17, and calls the appropriate widget. */
-    private def emitArrayWidgetCall(array: TAC.VirtualReg, index: TAC.Operand, elemSize: Size, isStore: Boolean)
-                                   (using st: GenState): Unit = {
+    private def emitArrayWidgetCall(
+        array: TAC.VirtualReg,
+        index: TAC.Operand,
+        elemSize: Size,
+        isStore: Boolean,
+        isUnchecked: Boolean = false
+    )(using st: GenState): Unit = {
         val arrayPtrReg = PhysicalReg.widgetResultRegister  // x7
         val indexReg = PhysicalReg.ipcScratch2       // x17
 
@@ -1017,7 +1055,8 @@ object CodeGenerator {
         loadOperandToTarget(index, Size.W, indexReg, strict = true)
 
         /* retrieve, register, and call the correct widget */
-        val widget = getArrayWidget(elemSize, isStore)
+        val widget = if (isUnchecked) getArrayWidgetUnchecked(elemSize, isStore) 
+                     else getArrayWidget(elemSize, isStore)
         useWidget(widget)
         emit(Arm.Bl(Arm.AddrLabel(widget.label)))
     }
@@ -1031,11 +1070,12 @@ object CodeGenerator {
       * @param array the virtual register holding the array pointer
       * @param index the operand specifying the index to load from
       * @param dest the destination virtual register to store the loaded value
+      * @param isUnchecked whether the load operation is bounds-checked
       */
-    private def generateArrayLoad(array: TAC.VirtualReg, index: TAC.Operand, dest: TAC.VirtualReg)
-                                 (using st: GenState): Unit = {
-        emitArrayWidgetCall(array, index, dest.size, isStore = false)
-        
+    private def generateArrayLoad(
+        array: TAC.VirtualReg, index: TAC.Operand, dest: TAC.VirtualReg, isUnchecked: Boolean = false
+    )(using st: GenState): Unit = {
+        emitArrayWidgetCall(array, index, dest.size, isStore = false, isUnchecked = isUnchecked)
         /* Result is in X7, move to destination */
         storeToLoc(PhysicalReg.widgetResultRegister, locOf(dest), dest.size)
     }
@@ -1046,13 +1086,17 @@ object CodeGenerator {
       *
       * Calling convention: array ptr in X7, index in X17, value in X8.
       */
-    private def generateArrayStore(array: TAC.VirtualReg, index: TAC.Operand, src: TAC.Operand, elemSize: Size)
-                                  (using st: GenState): Unit = {
+    private def generateArrayStore(
+        array: TAC.VirtualReg,
+        index: TAC.Operand,
+        src: TAC.Operand,
+        elemSize: Size,
+        isUnchecked: Boolean = false
+    )(using st: GenState): Unit = {
         val valueReg = PhysicalReg.mathScratch // x8
         loadOperandToTarget(src, elemSize, valueReg, strict = true)
-        
         /* setup x7, x17, and call the store widget */
-        emitArrayWidgetCall(array, index, elemSize, isStore = true)
+        emitArrayWidgetCall(array, index, elemSize, isStore = true, isUnchecked = isUnchecked)
     }
 
     /**
@@ -1182,18 +1226,21 @@ object CodeGenerator {
       * @param widget
       * @param st
       */
-    private def generateChr(dest: TAC.VirtualReg, src: TAC.VirtualReg, widget: Widget)
+    private def generateChr(dest: TAC.VirtualReg, src: TAC.VirtualReg, widget: Option[Widget])
                            (using st: GenState): Unit = {
 
-        generateUnaryOp(dest, src, Some(widget), {(d, s) => {
+        generateUnaryOp(dest, src, widget, {(d, s) => {
 
             /* Move the operand into w0 for the error function */
             emit(Arm.MovReg(Size.W, PhysicalReg.returnRegister, s))
-
-            /* If the int value is not 0-127 inclusive, runtime error */
-            emit(Arm.CmpImm(Size.W, s, Arm.Immediate(Constants.ASCII_MAX)))
-            emit(Arm.BranchCond(Condition.HI, Arm.AddrLabel(widget.label)))
-
+            
+            /* if the widget is None we won't emit checks */
+            widget.foreach(w => {
+                /* If the int value is not 0-127 inclusive, runtime error */
+                emit(Arm.CmpImm(Size.W, s, Arm.Immediate(Constants.ASCII_MAX)))
+                emit(Arm.BranchCond(Condition.HI, Arm.AddrLabel(w.label)))
+            })
+            
             if (d != s) {
                 emit(Arm.MovReg(Size.W, d, s))
             }
@@ -1457,11 +1504,18 @@ object CodeGenerator {
       *
       * @param dest the destination virtual register
       * @param src the source virtual register to not
+      * @param checked whether to check for overflows
       */
-    private def generateNeg(dest: TAC.VirtualReg, src: TAC.VirtualReg)(using st: GenState): Unit = {
-        generateUnaryOp(dest, src, Some(IntOverflowErrorWidget), { (destReg, srcReg) =>
+    private def generateNeg(
+        dest: TAC.VirtualReg, 
+        src: TAC.VirtualReg, 
+        isUnchecked: Boolean = false
+    )(using st: GenState): Unit = {
+        val widget = if (isUnchecked) None else Some(IntOverflowErrorWidget)
+        generateUnaryOp(dest, src, widget, { (destReg, srcReg) =>
             emit(Arm.Negs(dest.size, destReg, srcReg))
-            emit(Arm.BranchCond(Condition.VS, Arm.AddrLabel(IntOverflowErrorWidget.label)))
+            if (!isUnchecked)
+                emit(Arm.BranchCond(Condition.VS, Arm.AddrLabel(IntOverflowErrorWidget.label)))
         })
     }
 }

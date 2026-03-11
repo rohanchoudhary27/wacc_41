@@ -1,0 +1,12 @@
+# Array access at len a - 1 is safe via constant propagation
+# Output: 50
+# Exit: 0
+
+# Program:
+begin
+  int[] a = [10, 20, 30, 40, 50];
+  int n = len a;
+  int last = a[n - 1];
+  println last;
+  exit 0
+end

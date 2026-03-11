@@ -1,0 +1,13 @@
+# Read invalidates x so no false alarm on division by zero
+# Input: 5
+# Output: 2
+# Exit: 0
+
+# Program:
+begin
+  int x = 0;
+  read x;
+  int y = 10 / x;
+  println y;
+  exit 0
+end

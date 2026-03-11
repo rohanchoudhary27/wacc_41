@@ -1,0 +1,10 @@
+# Division by literal zero - caught at compile time
+# Output:
+# Exit: 200
+
+# Program:
+begin
+  int x = 10 / 0;
+  println x;
+  exit 0
+end
