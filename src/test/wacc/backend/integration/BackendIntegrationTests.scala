@@ -86,7 +86,8 @@ object BackendAdapter extends AnyFlatSpec {
                 val backendRes = wacc.backend.WaccBackend.run(
                     destination.toString,
                     frontendRes.typedAST.get,
-                    frontendRes.optimState.get
+                    frontendRes.optimState.get,
+                    optimiseFlag = true
                 )
                 code(backendRes.exitCode)
 
