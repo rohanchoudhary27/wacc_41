@@ -15,6 +15,7 @@ object Constants {
     val TRUE = 1
     val FALSE = 0
     val ASCII_MAX = 127
+    val ALIGN_WORD = 4
 }
 
 object AARch64Limits {

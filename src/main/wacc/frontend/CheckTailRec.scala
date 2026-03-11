@@ -163,6 +163,6 @@ object CheckTailRec {
                 Stmt.Return(Ident(returnName, _), _)
             ) => registerIfTailRec(callNode, returnName, lvalName, argList.length)
 
-            case _ =>
+            case _ => () /* No tail recursion, do nothing */
     }
 }

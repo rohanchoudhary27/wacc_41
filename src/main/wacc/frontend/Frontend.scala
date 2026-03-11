@@ -21,6 +21,12 @@ case class FrontendCompilationResult(
   * WACC extensions.
   *
   * @param tailRecCalls A set of `Call` AST nodes which are tail recursive
+  * @param generalTailRecCalls `Call` nodes that are generally tail-recursive.
+  * @param safePairAccesses    `PairElem` nodes whose base pointer is provably non-null.
+  * @param safeDivisions       `BinaryExpr` (Div/Mod) nodes whose divisor is provably non-zero.
+  * @param safeArrayAccesses   `ArrayElem` nodes whose index is provably within bounds.
+  * @param safeChrCalls        `UnaryExpr` (chr) nodes whose argument is provably in ASCII range.
+  * @param safeOverflowExprs   `Expr` nodes that provably cannot overflow 32-bit signed range.
   */
 case class FrontendOptimState(
     selfTailRecCalls: Set[Call[SemanticData]] = Set.empty,
@@ -42,136 +48,258 @@ object FrontendOptimState {
 /** The top level object of the WACC compiler frontend. Contains the `main`
   * function as well as a `compile` function which doesn't do printing (to be
   * re-used by the integration test runner)
+  * 
+  * `WaccFrontend.run` drives every compilation phase in order.  Each phase is
+  * expressed as a private method that returns `Either[FrontendCompilationResult, T]`:
+  *  - `Left(result)` short circuits the pipeline and returns `result` immediately
+  *  - `Right(value)` passes `value` to the next phase
+  *
+  * Compilation phases:
+  *   1. loadSource      — read the file from disk.
+  *   2. sanitise        — reject non-ASCII characters.
+  *   3. parse           — source text to syntactic AST.
+  *   4. resolveImports  — inline imported functions
+  *   5. syntaxCheck     — reject functions with non returning paths
+  *   6. rename          — assign unique ids to variables and eliminate scopes
+  *   7. typeCheck       — verify type correctness
+  *   8. staticAnalysis  — detect guaranteed runtime errors, identify safe checks
+  *
+  * Exit codes: `0` success , `100` syntax/import error, `200` semantic error
   */
 object WaccFrontend {
 
-  /** Compiles a WACC program, returning a Compilation with its exit code and
-    * any errors logged in an ErrorLogger object.
-    *
-    * Stages:
-    *   Sanitising:      Source text checked for non-ASCII chars, Exit code 100 on failure
-    *   Parsing:         Source text to a SyntacticAST, Exit code 100 on failure
-    *   Import Resolution: Resolve imports & merge all imported Func nodes into the
-    *                    program AST, Exit code 100 on failure
-    *   Syntax Check:    Check SyntacticAST for non-returning paths in functions,
-    *                    Exit code 100 on failure
-    *   Renaming:        Transforms SyntacticAST to use SemanticData, Log errors on failure
-    *   Type Checker:    Verifies type correctness, Log errors on failure
-    *
-    * Exit Codes: 0 - Success  100 - Syntactic/Import Errors  200 - Semantic Errors
-    *
-    * @param path:
-    *   The path of the file to compile
-    *
-    * @return:
-    *   A `FrontendCompilationResult` object which contains the exit code and
-    *   Option[ErrorLogger]
-    */
-  def run(path: Path): FrontendCompilationResult = {
+    /** Compiles a WACC source file end-to-end, returning a `FrontendCompilationResult`
+      *
+      * @param path Path to the `.wacc` source file to compile.
+      * @return A `FrontendCompilationResult` whose `exitCode` reflects the
+      *         outcome and whose `typedAST`, `optimState` are populated on success.
+      */
+    def run(path: Path): FrontendCompilationResult = {
+        val pipeline = for {
+            /* read source from disk */
+            (codeLines, sourceCode) <- loadSource(path)
 
-    /* Load file as a list of code lines */
-    val source = Source.fromFile(path.toFile)
-    val codeLines: Vector[String] =
-      try source.getLines().toVector
-      finally source.close()
+            /* Shared logger for all syntactic errors*/
+            syntacticErrors = new ErrorLogger(codeLines)
 
-    /* Get the code as a single string */
-    val sourceCode: String = codeLines.mkString("\n")
+            /* reject non-ASCII characters */
+            _  <- sanitise(sourceCode, syntacticErrors)
 
-    /* Object to log syntax errors to */
-    val syntacticErrors = new ErrorLogger(codeLines)
+            /* parse source text into a syntactic AST */
+            syntacticAST <- parse(sourceCode, syntacticErrors)
 
-    /* (Phase 1 - Sanitise): Initial sanitise check of the string
-           (no-non ASCII chars allowed) */
-    Sanitiser.sanitise(sourceCode, syntacticErrors)
+            /* resolve imports and merge imported funcs into the program */
+            mergedAST <- resolveImports(syntacticAST, path, syntacticErrors)
 
-    if (syntacticErrors.hasErrors()) {
-      FrontendCompilationResult(SyntaxError, Some(syntacticErrors), None)
+            /* reject functions with non-returning paths */
+            _ <- syntaxCheck(mergedAST, syntacticErrors)
 
-    } else {
+            /* Logger for semantic errors */
+            semanticErrors = new ErrorLogger(codeLines)
 
-      /* (Phase 2 - Parse) */
-      val result = parser.parse(sourceCode)
+            /* renamer */
+            renamedAST <- rename(mergedAST, semanticErrors)
 
-      result match {
+            /* type-checker */
+            typedAST <- typeCheck(renamedAST, semanticErrors)
 
-        /* Parser syntax error */
-        case Left(parseError) =>
-          syntacticErrors.logSyntaxError(parseError)
-          FrontendCompilationResult(SyntaxError, Some(syntacticErrors), None)
+            /* local static analysis */
+            analysisResult <- staticAnalysis(typedAST, semanticErrors)
 
-        case Right(syntacticAST) =>
+            /* gather tail call and safe check metadata */
+            optimState = buildOptimState(typedAST, analysisResult)
+        } yield FrontendCompilationResult(CompilerSuccess, None, Some(typedAST), Some(optimState))
 
-          /* (Phase 3 - Import Resolution): Resolve all imports and merge their
-             Func nodes into the program. Imported functions already have their
-             names qualified by the resolver (i.e. fileName.func). */
-          val sourceDir = path.toAbsolutePath.getParent
-
-          ImportResolver.resolveAll(syntacticAST.imports, sourceDir) match {
-            case Left(importErrors) =>
-              importErrors.foreach(err => syntacticErrors.logImportError(err.pos, err.errMsg))
-              FrontendCompilationResult(SyntaxError, Some(syntacticErrors), None)
-
-            case Right(resolvedModules) =>
-              /* Merge imported funcs (already name-qualified) with the main
-                 program's funcs. Imported funcs come first so their definitions
-                 are visible to each other and to the main body. */
-              val importedFuncs = resolvedModules.flatMap(_.funcs)
-              val mergedAST = syntacticAST.copy(
-                imports = Nil, // to signify that they've all been resolved
-                funcs   = importedFuncs ++ syntacticAST.funcs
-              )
-
-              /* (Phase 4 - Additional Syntax Check): Check more complex syntax
-                         rules (functions must have no non-returning paths) */
-              SyntaxPass.syntaxCheck(mergedAST, syntacticErrors)
-
-              if (syntacticErrors.hasErrors()) {
-                FrontendCompilationResult(SyntaxError, Some(syntacticErrors), None)
-
-              } else {
-
-                /* Object to log semantic errors */
-                val semanticErrors = new ErrorLogger(codeLines)
-
-                /* (Phase 5 - Renamer) */
-                val renamedAST = Renamer.rename(mergedAST, semanticErrors)
-
-                /* Retrieve table of function signatures */
-                val funcTable = renamedAST.info match {
-                  case wacc.frontend.SemanticData.TopLevel(ft) => ft
-                  case _ => Map.empty[String, wacc.frontend.SemanticData.Func]
-                }
-
-                /* (Phase 6 - Type Checker) */
-                val typedAST = TypeChecker.check(renamedAST, semanticErrors, funcTable)
-
-                /* Log any semantic errors */
-                if (semanticErrors.hasErrors())
-                  FrontendCompilationResult(SemanticError, Some(semanticErrors), None)
-                else {
-                  /* (Phase 6 - Static Analysis) */
-                  val typedASTRes = typedAST.get
-                  val analysisResult = StaticAnalyser.run(typedASTRes, semanticErrors)
-                  if (semanticErrors.hasErrors())
-                    FrontendCompilationResult(SemanticError, Some(semanticErrors), None)
-                  else {
-                    /* Frontend optimisation passes */
-                    val (selfTailRecCalls, generalisedTailRecCalls) = CheckTailRec.checkTailRec(typedASTRes)
-                    val optimState = FrontendOptimState(
-                      selfTailRecCalls, generalisedTailRecCalls, 
-                      analysisResult.safePairAccesses, 
-                      analysisResult.safeDivisions,
-                      analysisResult.safeArrayAccesses,
-                      analysisResult.safeChrCalls,
-                      analysisResult.safeOverflowOps
-                    )
-                    FrontendCompilationResult(CompilerSuccess, None, typedAST, Some(optimState))
-                  }
-                }
-              }
-          }
-      }
+        pipeline.merge
     }
-  }
+
+    /** File loader: reads the source file, returning the lines and the full string
+      *
+      * @param path Path to the source file.
+      */
+    private def loadSource(
+        path: Path
+    ): Either[FrontendCompilationResult, (Vector[String], String)] = {
+        val source = Source.fromFile(path.toFile)
+        val codeLines: Vector[String] =
+            try source.getLines().toVector
+            finally source.close()
+        Right((codeLines, codeLines.mkString("\n")))
+    }
+
+    /** Sanitiser: rejects source text containing non-ASCII characters.
+      *
+      * Returns `Left` immediately with a `SyntaxError` result if the sanitiser
+      * finds any disallowed characters; otherwise returns `Right`
+      *
+      * @param sourceCode    The full source text.
+      * @param errorLogger   Logger to record the sanitiser's error message.
+      */
+    private def sanitise(
+        sourceCode: String,
+        errorLogger: ErrorLogger
+    ): Either[FrontendCompilationResult, Unit] = {
+        Sanitiser.sanitise(sourceCode, errorLogger)
+        failOnErrors(errorLogger, SyntaxError)
+    }
+
+    /** Parser: parses the source text into a syntactic AST
+      *
+      * Returns `Left` with a `SyntaxError` result on a parse error;
+      * otherwise returns `Right(syntacticAST)`
+      *
+      * @param sourceCode    The full source text.
+      * @param errorLogger   Logger to record any parse error message.
+      */
+    private def parse(
+        sourceCode: String,
+        errorLogger: ErrorLogger
+    ): Either[FrontendCompilationResult, Program[SyntacticData]] =
+        parser.parse(sourceCode) match {
+            case Right(ast) => Right(ast)
+            case Left(parseError) =>
+                errorLogger.logSyntaxError(parseError)
+                Left(syntaxFailure(errorLogger))
+        }
+
+    /** Import resolver: resolves all imports and merges their `Func` nodes
+      *
+      * Imported functions are prepended to the program's function list so they
+      * are visible to each other and to the main body.  Returns `Left` with a
+      * `SyntaxError` result if any import cannot be resolved.
+      *
+      * @param ast           The syntactic AST before import resolution.
+      * @param sourcePath    Path to the main source file; its parent is the search root.
+      * @param errorLogger   Logger to record any import errors.
+      */
+    private def resolveImports(
+        ast: Program[SyntacticData],
+        sourcePath: Path,
+        errorLogger: ErrorLogger
+    ): Either[FrontendCompilationResult, Program[SyntacticData]] = {
+        val sourceDir = sourcePath.toAbsolutePath.getParent
+        ImportResolver.resolveAll(ast.imports, sourceDir) match {
+            case Left(importErrors) =>
+                importErrors.foreach(err => errorLogger.logImportError(err.pos, err.errMsg))
+                Left(syntaxFailure(errorLogger))
+            case Right(resolvedModules) =>
+                val importedFuncs = resolvedModules.flatMap(_.funcs)
+                Right(ast.copy(
+                    imports = Nil,  /* all imports have been resolved */
+                    funcs = importedFuncs ++ ast.funcs
+                ))
+        }
+    }
+
+    /** Syntax checker: checks that every function has no non returning control flow paths
+      *
+      * Returns `Left` with a `SyntaxError` result if any function can reach
+      * the end without returning; otherwise returns `Right`
+      *
+      * @param ast         The merged syntactic AST.
+      * @param errorLogger Logger to record any non-returning-path errors.
+      */
+    private def syntaxCheck(
+        ast: Program[SyntacticData],
+        errorLogger: ErrorLogger
+    ): Either[FrontendCompilationResult, Unit] = {
+        SyntaxPass.syntaxCheck(ast, errorLogger)
+        failOnErrors(errorLogger, SyntaxError)
+    }
+
+    /** Renamer: renames all binders to unique IDs, producing a renamed AST.
+      *
+      * Returns `Left` with a `SemanticError` result if the renamer finds any
+      * scoping errors, otherwise returns `Right(renamedAST)`.
+      *
+      * @param ast         The merged syntactic AST.
+      * @param errorLogger Logger to record renamer errors.
+      */
+    private def rename(
+        ast: Program[SyntacticData],
+        errorLogger: ErrorLogger
+    ): Either[FrontendCompilationResult, Program[SemanticData]] = {
+        val renamedAST = Renamer.rename(ast, errorLogger)
+        failOnErrors(errorLogger, SemanticError).map(_ => renamedAST)
+    }
+
+    /** Type checker: typechecks the renamed AST
+      * 
+      * Returns `Left` with a `SemanticError` result on type
+      * errors, otherwise returns `Right(typedAST)`
+      *
+      * @param renamedAST  The AST produced by phase 6.
+      * @param errorLogger Logger to record type errors.
+      */
+    private def typeCheck(
+        renamedAST: Program[SemanticData],
+        errorLogger: ErrorLogger
+    ): Either[FrontendCompilationResult, Program[SemanticData]] = {
+        val funcTable = renamedAST.info match {
+            case SemanticData.TopLevel(ft) => ft
+            case _ => Map.empty[String, SemanticData.Func]
+        }
+        val typedAST = TypeChecker.check(renamedAST, errorLogger, funcTable)
+        failOnErrors(errorLogger, SemanticError).map(_ => typedAST.get)
+    }
+
+    /** LSA: runs the static analyser over the typed AST
+      *
+      * Detects guaranteed runtime errors and identifies checks that
+      * can be safely removed by the backend. 
+      * 
+      * Returns `Left` with a `SemanticError` result if any
+      * error-level diagnostics are emitted, otherwise returns
+      * `Right(analysisResult)`.
+      *
+      * @param typedAST    The AST produced by phase 7.
+      * @param errorLogger Logger that receives any error-level diagnostics.
+      */
+    private def staticAnalysis(
+        typedAST: Program[SemanticData],
+        errorLogger: ErrorLogger
+    ): Either[FrontendCompilationResult, AnalysisResult] = {
+        val analysisResult = StaticAnalyser.run(typedAST, errorLogger)
+        failOnErrors(errorLogger, SemanticError).map(_ => analysisResult)
+    }
+
+    /** Collects tail call and safe-check metadata into a `FrontendOptimState`
+      *
+      * @param typedAST       The fully-typed AST.
+      * @param analysisResult The safe-check sets from phase 8.
+      */
+    private def buildOptimState(
+        typedAST: Program[SemanticData],
+        analysisResult: AnalysisResult
+    ): FrontendOptimState = {
+        val (selfTailRecCalls, generalTailRecCalls) = CheckTailRec.checkTailRec(typedAST)
+        FrontendOptimState(
+            selfTailRecCalls    = selfTailRecCalls,
+            generalTailRecCalls = generalTailRecCalls,
+            safePairAccesses    = analysisResult.safePairAccesses,
+            safeDivisions       = analysisResult.safeDivisions,
+            safeArrayAccesses   = analysisResult.safeArrayAccesses,
+            safeChrCalls        = analysisResult.safeChrCalls,
+            safeOverflowExprs   = analysisResult.safeOverflowOps
+        )
+    }
+
+    /** Returns `Left(failure)` if `errorLogger` has recorded any errors,
+      * otherwise returns `Right(())` so the pipeline can continue.
+      *
+      * @param errorLogger The logger to inspect.
+      * @param exitCode    The `ExitCode` to embed in the failure result
+      */
+    private def failOnErrors(
+        errorLogger: ErrorLogger,
+        exitCode: ExitCode
+    ): Either[FrontendCompilationResult, Unit] =
+        if (errorLogger.hasErrors())
+            Left(FrontendCompilationResult(exitCode, Some(errorLogger), None))
+        else
+            Right(())
+
+    /** Constructs a `SyntaxError` failure result carrying the given logger. */
+    private def syntaxFailure(errorLogger: ErrorLogger): FrontendCompilationResult =
+        FrontendCompilationResult(SyntaxError, Some(errorLogger), None)
 }
