@@ -4,13 +4,10 @@ import csv
 import re
 import shutil
 
-# --- Configuration ---
 ITERATIONS = 10
 ASSEMBLY_DIR = "assembly"
 BIN_DIR = "binaries"
 OUTPUT_CSV = "benchmark_results.csv"
-
-# The specific versions you want to test
 VERSIONS = [
     "unoptimised",
     "optimised",
@@ -124,7 +121,7 @@ def main():
         shutil.rmtree(BIN_DIR)
         print("Temporary binaries removed.")
 
-    print("Done!")
+    print(f"Done! Output in {OUTPUT_CSV}")
 
 if __name__ == "__main__":
     main()
