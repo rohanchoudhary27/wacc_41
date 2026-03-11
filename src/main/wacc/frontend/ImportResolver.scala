@@ -4,6 +4,38 @@ import java.nio.file.{Files, Path, Paths}
 import scala.io.Source
 import scala.collection.mutable
 
+/** Filesystem and module/path constants used throughout import resolution. */
+private object ImportResolverConstants {
+
+    /**
+      * Classpath resource root for bundled standard library modules.
+      *
+      * Any module whose dot-path begins with `"wacc."` is resolved against
+      * this directory via the classloader rather than the filesystem.
+      *
+      * Example: `import wacc.math` -> `/stdlib/math.wacc`
+      */
+    val StdlibResourceRoot: String = "/stdlib/"
+
+    /**
+      * The reserved top-level namespace that maps to the bundled stdlib.
+      *
+      * When the first segment of a dot-separated module path equals this
+      * string, the module is read from `StdlibResourceRoot` rather than
+      * from the user's filesystem.
+      */
+    val StdlibNamespace: String = "wacc"
+
+    /** File extension appended when converting a module path to a filename. */
+    val WaccFileExtension: String = ".wacc"
+
+    /** Separator used to split a dot-separated module path into segments. */
+    val ModulePathSeparator: String = "\\."
+
+    /** Character used as a directory separator when building file paths. */
+    val PathSeparator: String = "/"
+}
+
 /** Errors that can occur during import resolution. All contain the `SourcePos`
   * of the import declaration that triggered the error, and the error message. */
 sealed trait ImportError {
@@ -47,13 +79,15 @@ case class ResolvedModule(
   * the main `Program` AST.
   *
   * Path resolution rules:
-  * `import xyz`       -> `<sourceDir>/xyz.wacc`
-  * `import utils.xyz` -> `<sourceDir>/utils/xyz.wacc`
-  * `import wacc.xyz`  -> bundled `/stdlib/xyz.wacc`
+
+  * | Import declaration     | Resolved path                                |
+  * |------------------------|----------------------------------------------|
+  * | `import xyz`           | `<sourceDir>/xyz.wacc`                       |
+  * | `import utils.xyz`     | `<sourceDir>/utils/xyz.wacc`                 |
+  * | `import wacc.xyz`      | classloader resource `/stdlib/xyz.wacc`      |
+  * 
   */
 object ImportResolver {
-
-  private val StdlibPath = "/stdlib/" /* Folder for bundled stdlib resources. */
 
   /** Resolve a sequence of import declarations, recursively resolving any
     * nested imports found inside imported files.
@@ -94,14 +128,17 @@ object ImportResolver {
     * @return The resolved path.
     */
   def resolveModulePath(modulePath: String, sourceDir: Path): Path = {
-    val segments = modulePath.split("\\.").toList
+    val segments = modulePath.split(ImportResolverConstants.ModulePathSeparator).toList
     segments match {
-      case "wacc" :: rest =>
+      case ImportResolverConstants.StdlibNamespace :: rest =>
         // Bundled stdlib resource. Actual reading is done via classloader in readSource().
-        Paths.get(s"$StdlibPath${rest.mkString("/")}.wacc")
+        Paths.get(
+          s"${ImportResolverConstants.StdlibResourceRoot}${rest.mkString(ImportResolverConstants.PathSeparator)}${ImportResolverConstants.WaccFileExtension}"
+        )
       case _ =>
         // Relative to the importing file's directory.
-        val relPath = (segments.init :+ (segments.last + ".wacc")).mkString("/")
+        val relPath = (segments.init :+ (segments.last + ImportResolverConstants.WaccFileExtension))
+            .mkString(ImportResolverConstants.PathSeparator)
         sourceDir.resolve(relPath)
     }
   }
@@ -115,7 +152,9 @@ object ImportResolver {
   ): Either[List[ImportError], List[ResolvedModule]] = imp match {
 
     case ModuleImport(modulePath, aliasOpt, info) =>
-      val qualifier = aliasOpt.getOrElse(modulePath.split("\\.").last)
+      val qualifier = aliasOpt.getOrElse(
+        modulePath.split(ImportResolverConstants.ModulePathSeparator).last
+      )
       val absPath   = resolveModulePath(modulePath, sourceDir)
       resolveFile(modulePath, absPath, qualifier, fullImport = true, None, info.pos, 
       visited, resolved)
@@ -127,13 +166,19 @@ object ImportResolver {
   }
 
   /** Core resolution logic for a single file.
+    * 
+    * Reads and parses the file, applies qualifier prefixes to function names,
+    * and recurses into any imports found within.
     *
-    * @param modulePath   Original dot-separated module path (for error messages).
-    * @param filePath     The resolved filesystem path.
-    * @param qualifier    Effective prefix/name for functions from this module.
-    * @param fullImport   If true: take all funcs and qualify with `qualifier`.
-    *                     If false: take only `onlyFunc` and register as-is.
-    * @param onlyFunc     Non-None when `fullImport = false` (from import).
+    * @param modulePath  Original dot-separated module path (used in error messages).
+    * @param filePath    The resolved filesystem / resource path.
+    * @param qualifier   Effective prefix applied to function names from this module.
+    * @param fullImport  If `true`, import all functions; if `false`, import only `onlyFunc`.
+    * @param onlyFunc    Non-`None` when `fullImport = false`.
+    * @param pos         Source position of the import declaration (for error reporting).
+    * @param visited     Canonical paths on the current DFS stack.
+    * @param resolved    Canonical paths already fully resolved.
+    * @return `Right` with newly discovered modules, or `Left` with errors.
     */
   private def resolveFile(
       modulePath: String,
@@ -212,7 +257,7 @@ object ImportResolver {
   /** Read the source of a module file. */
   private def readSource(filePath: Path): Option[String] = {
     val pathStr = filePath.toString
-    if (pathStr.startsWith(StdlibPath)) {
+    if (pathStr.startsWith(ImportResolverConstants.StdlibResourceRoot)) {
       // Classloader resource
       Option(getClass.getResourceAsStream(pathStr)).map { resource =>
         val src = Source.fromInputStream(resource)
