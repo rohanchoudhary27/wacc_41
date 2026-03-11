@@ -18,7 +18,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         val decl = Stmt.Decl(SyntaxType.Char, ident, rval, semPos)
 
         val inputAST =
-            Program(Nil, Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
+            Program(Nil, Nil, Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
 
         TypeChecker.check(inputAST, errorLogger, funcTable)
 
@@ -34,7 +34,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         val decl = Stmt.Decl(SyntaxType.String, ident, rval, semPos)
 
         val inputAST =
-            Program(Nil, Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
+            Program(Nil, Nil, Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
 
         TypeChecker.check(inputAST, errorLogger, funcTable)
 
@@ -59,7 +59,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         val asgn = Stmt.Asgn(identAsgn, rvalAsgn, semPos)
 
         val inputAST =
-            Program(Nil, Nil, Stmt.Block(List(decl, asgn), semPos), SemanticData.TopLevel(funcTable))
+            Program(Nil, Nil, Nil, Stmt.Block(List(decl, asgn), semPos), SemanticData.TopLevel(funcTable))
 
         TypeChecker.check(inputAST, errorLogger, funcTable)
 
@@ -94,7 +94,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         val inputAST = Program(
             Nil,
             Nil, 
-            Stmt.Block(List(declY, declX, asgn), semPos), 
+            Nil, Stmt.Block(List(declY, declX, asgn), semPos), 
             SemanticData.TopLevel(funcTable)
         )
 
@@ -119,7 +119,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         val rvalAsgn = IntLiter(2, SemanticData.Typed(synPos.pos, KnownType.Int))
         val asgn = Stmt.Asgn(identAsgn, rvalAsgn, semPos)
 
-        val inputAST = Program(Nil, Nil,
+        val inputAST = Program(Nil, Nil, Nil,
                                Stmt.Block(List(decl, asgn), semPos),
                                SemanticData.TopLevel(funcTable))
 
@@ -243,6 +243,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         val inputAST =
         Program(
             Nil,
+            Nil,
             List(),
             Stmt.Block(List(decl), semPos),
             SemanticData.TopLevel(funcTable)
@@ -261,6 +262,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         val returnStmt = Stmt.Return(typedLiteral, semPos)
 
         val inputAST = Program(
+            Nil,
             Nil,
             List(),
             Stmt.Block(List(returnStmt), semPos),
@@ -294,7 +296,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         )
 
         val inputAST =
-            Program(Nil, List(), Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
+            Program(Nil, Nil, List(), Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
         val errorLogger = new ErrorLogger()
 
         TypeChecker.check(inputAST, errorLogger, funcTable)
@@ -316,7 +318,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         val func = Func(SyntaxType.Int, Ident("f", semPos), List(), returnStmt, semPos)
 
         val inputAST =
-            Program(Nil, List(func),
+            Program(Nil, Nil, List(func),
                     Stmt.Block(List(Stmt.Skip(semPos)), semPos),
                     SemanticData.TopLevel(funcTable))
         val errorLogger = new ErrorLogger()
@@ -339,7 +341,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         val elseBranch: Stmt.Block[SemanticData] = Stmt.Block(List(Stmt.Skip(semPos)), semPos)
 
         val ifStmt = Stmt.If(badCondition, thenBranch, elseBranch, semPos)
-        val inputAST = Program(Nil, Nil,
+        val inputAST = Program(Nil, Nil, Nil,
                                Stmt.Block(List(ifStmt), semPos),
                                SemanticData.TopLevel(funcTable))
 
@@ -360,7 +362,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         val body: Stmt.Block[SemanticData] = Stmt.Block(List(Stmt.Skip(semPos)), semPos)
 
         val whileStmt = Stmt.While(badCondition, body, semPos)
-        val inputAST = Program(Nil, Nil,
+        val inputAST = Program(Nil, Nil, Nil,
                                Stmt.Block(List(whileStmt), semPos),
                                SemanticData.TopLevel(funcTable))
 
@@ -426,7 +428,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         Program(
             Nil,
             Nil,
-            Stmt.Block(List(declP, declX, declY), semPos),
+            Nil, Stmt.Block(List(declP, declX, declY), semPos),
             SemanticData.TopLevel(funcTable)
         )
 
@@ -470,7 +472,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         Program(
             Nil,
             Nil,
-            Stmt.Block(List(declP), semPos),
+            Nil, Stmt.Block(List(declP), semPos),
             SemanticData.TopLevel(funcTable)
         )
 
@@ -508,7 +510,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         Program(
             Nil,
             Nil,
-            Stmt.Block(List(declX, declY), semPos),
+            Nil, Stmt.Block(List(declX, declY), semPos),
             SemanticData.TopLevel(funcTable)
         )
 
@@ -583,7 +585,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         val inputAST = Program(
             Nil,
             Nil,
-            Stmt.Block(List(declP, declQ, asgn), semPos),
+            Nil, Stmt.Block(List(declP, declQ, asgn), semPos),
             SemanticData.TopLevel(funcTable)
         )
 
@@ -623,7 +625,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         val inputAST = Program(
             Nil,
             Nil,
-            Stmt.Block(List(pairDecl, pairElemAsgn), semPos),
+            Nil, Stmt.Block(List(pairDecl, pairElemAsgn), semPos),
             SemanticData.TopLevel(funcTable)
         )
         TypeChecker.check(inputAST, errorLogger, funcTable)
@@ -653,7 +655,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         val inputAST = Program(
             Nil,
             Nil,
-            Stmt.Block(List(decl), semPos),
+            Nil, Stmt.Block(List(decl), semPos),
             SemanticData.TopLevel(funcTable)
         )
         
@@ -919,7 +921,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         val notExpr = UnaryExpr(UnaryOperator.Not, BoolLiter(true, SemanticData.Typed(synPos.pos, KnownType.Bool)), semPos)
         val decl = Stmt.Decl(SyntaxType.Bool, bVar, notExpr, semPos)
 
-        val inputAST = Program(Nil, Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
+        val inputAST = Program(Nil, Nil, Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
         TypeChecker.check(inputAST, errorLogger, funcTable)
 
         errorLogger.hasErrors() shouldBe false
@@ -941,7 +943,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         val inputAST = Program(
             Nil,
             Nil,
-            Stmt.Block(List(printStmt), semPos),
+            Nil, Stmt.Block(List(printStmt), semPos),
             SemanticData.TopLevel(funcTable)
         )
         TypeChecker.check(inputAST, errorLogger, funcTable)
@@ -965,7 +967,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         )
         val decl = Stmt.Decl(SyntaxType.Bool, bVar, notExpr, semPos)
 
-        val inputAST = Program(Nil, Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
+        val inputAST = Program(Nil, Nil, Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
         TypeChecker.check(inputAST, errorLogger, funcTable)
 
         errorLogger.hasErrors() shouldBe true
@@ -980,7 +982,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         val notExpr = UnaryExpr(UnaryOperator.Neg, IntLiter(5, SemanticData.Typed(synPos.pos, KnownType.Int)), semPos)
         val decl = Stmt.Decl(SyntaxType.Int, iVar, notExpr, semPos)
 
-        val inputAST = Program(Nil, Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
+        val inputAST = Program(Nil, Nil, Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
         TypeChecker.check(inputAST, errorLogger, funcTable)
 
         errorLogger.hasErrors() shouldBe false
@@ -1000,7 +1002,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         )
         val decl = Stmt.Decl(SyntaxType.Int, iVar, negExpr, semPos)
 
-        val inputAST = Program(Nil, Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
+        val inputAST = Program(Nil, Nil, Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
         TypeChecker.check(inputAST, errorLogger, funcTable)
 
         errorLogger.hasErrors() shouldBe true
@@ -1015,7 +1017,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         val ordExpr = UnaryExpr(UnaryOperator.Neg, IntLiter(5, SemanticData.Typed(synPos.pos, KnownType.Int)), semPos)
         val decl = Stmt.Decl(SyntaxType.Int, iVar, ordExpr, semPos)
 
-        val inputAST = Program(Nil, Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
+        val inputAST = Program(Nil, Nil, Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
         TypeChecker.check(inputAST, errorLogger, funcTable)
 
         errorLogger.hasErrors() shouldBe false
@@ -1034,7 +1036,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         )
         val decl = Stmt.Decl(SyntaxType.Int, iVar, ordExpr, semPos)
 
-        val inputAST = Program(Nil, Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
+        val inputAST = Program(Nil, Nil, Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
         TypeChecker.check(inputAST, errorLogger, funcTable)
 
         errorLogger.hasErrors() shouldBe true
@@ -1049,7 +1051,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         val chrExpr = UnaryExpr(UnaryOperator.Chr, IntLiter(100, SemanticData.Typed(synPos.pos, KnownType.Int)), semPos)
         val decl = Stmt.Decl(SyntaxType.Char, cVar, chrExpr, semPos)
 
-        val inputAST = Program(Nil, Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
+        val inputAST = Program(Nil, Nil, Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
         TypeChecker.check(inputAST, errorLogger, funcTable)
 
         errorLogger.hasErrors() shouldBe false
@@ -1068,7 +1070,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         )
         val decl = Stmt.Decl(SyntaxType.Int, cVar, chrExpr, semPos)
 
-        val inputAST = Program(Nil, Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
+        val inputAST = Program(Nil, Nil, Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
         TypeChecker.check(inputAST, errorLogger, funcTable)
 
         errorLogger.hasErrors() shouldBe true
@@ -1090,7 +1092,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         // int x = 10 + 20
         val decl = Stmt.Decl(SyntaxType.Int, xVar, addExpr, semPos)
 
-        val inputAST = Program(Nil, Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
+        val inputAST = Program(Nil, Nil, Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
 
         TypeChecker.check(inputAST, errorLogger, funcTable)
 
@@ -1113,7 +1115,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         // int x = 10 + true
         val decl = Stmt.Decl(SyntaxType.Int, xVar, addExpr, semPos)
 
-        val inputAST = Program(Nil, Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
+        val inputAST = Program(Nil, Nil, Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
 
         TypeChecker.check(inputAST, errorLogger, funcTable)
 
@@ -1140,7 +1142,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         // bool b = 10 > 5
         val decl = Stmt.Decl(SyntaxType.Bool, bVar, gtExpr, semPos)
 
-        val inputAST = Program(Nil, Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
+        val inputAST = Program(Nil, Nil, Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
 
         TypeChecker.check(inputAST, errorLogger, funcTable)
 
@@ -1163,7 +1165,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         // bool b = 'a' < 'z'
         val decl = Stmt.Decl(SyntaxType.Bool, bVar, ltExpr, semPos)
 
-        val inputAST = Program(Nil, Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
+        val inputAST = Program(Nil, Nil, Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
 
         TypeChecker.check(inputAST, errorLogger, funcTable)
 
@@ -1186,7 +1188,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         // bool b = 5 > 'a'
         val decl = Stmt.Decl(SyntaxType.Bool, bVar, gtExpr, semPos)
 
-        val inputAST = Program(Nil, Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
+        val inputAST = Program(Nil, Nil, Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
 
         TypeChecker.check(inputAST, errorLogger, funcTable)
 
@@ -1212,7 +1214,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         // bool b = true == false
         val decl = Stmt.Decl(SyntaxType.Bool, bVar, eqExpr, semPos)
 
-        val inputAST = Program(Nil, Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
+        val inputAST = Program(Nil, Nil, Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
 
         TypeChecker.check(inputAST, errorLogger, funcTable)
 
@@ -1235,7 +1237,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         // bool b = 5 == true
         val decl = Stmt.Decl(SyntaxType.Bool, bVar, eqExpr, semPos)
 
-        val inputAST = Program(Nil, Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
+        val inputAST = Program(Nil, Nil, Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
 
         TypeChecker.check(inputAST, errorLogger, funcTable)
 
@@ -1262,7 +1264,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         // bool b = true && false
         val decl = Stmt.Decl(SyntaxType.Bool, bVar, andExpr, semPos)
 
-        val inputAST = Program(Nil, Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
+        val inputAST = Program(Nil, Nil, Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
 
         TypeChecker.check(inputAST, errorLogger, funcTable)
 
@@ -1285,7 +1287,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         // bool b = true && 5
         val decl = Stmt.Decl(SyntaxType.Bool, bVar, andExpr, semPos)
 
-        val inputAST = Program(Nil, Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
+        val inputAST = Program(Nil, Nil, Nil, Stmt.Block(List(decl), semPos), SemanticData.TopLevel(funcTable))
 
         TypeChecker.check(inputAST, errorLogger, funcTable)
 
@@ -1324,7 +1326,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         val inputAST = Program(
             Nil,
             Nil,
-            Stmt.Block(List(declStmt, freeStmt), semPos),
+            Nil, Stmt.Block(List(declStmt, freeStmt), semPos),
             SemanticData.TopLevel(funcTable)
         )
         TypeChecker.check(inputAST, errorLogger, funcTable)
@@ -1358,7 +1360,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         val inputAST = Program(
             Nil,
             Nil,
-            Stmt.Block(List(declStmt, freeStmt), semPos),
+            Nil, Stmt.Block(List(declStmt, freeStmt), semPos),
             SemanticData.TopLevel(funcTable)
         )
         TypeChecker.check(inputAST, errorLogger, funcTable)
@@ -1392,7 +1394,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         val inputAST = Program(
             Nil,
             Nil,
-            Stmt.Block(List(declStmt, freeStmt), semPos),
+            Nil, Stmt.Block(List(declStmt, freeStmt), semPos),
             SemanticData.TopLevel(funcTable)
         )
         TypeChecker.check(inputAST, errorLogger, funcTable)
@@ -1424,7 +1426,7 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         val inputAST = Program(
             Nil,
             Nil,
-            Stmt.Block(List(freeStmt), semPos),
+            Nil, Stmt.Block(List(freeStmt), semPos),
             SemanticData.TopLevel(funcTable)
         )
         TypeChecker.check(inputAST, errorLogger, funcTable)
