@@ -1,0 +1,61 @@
+begin
+  # Partition function for Quicksort
+  int partition(int[] arr, int low, int high) is
+    int pivot = arr[high] ;
+    int i = low - 1 ;
+    int j = low ;
+    
+    while j < high do
+      if arr[j] <= pivot then
+        i = i + 1 ;
+        # Swap arr[i] and arr[j]
+        int temp = arr[i] ;
+        arr[i] = arr[j] ;
+        arr[j] = temp
+      else
+        skip
+      fi ;
+      j = j + 1
+    done ;
+    
+    # Swap arr[i + 1] and arr[high] (put pivot in correct place)
+    int temp2 = arr[i + 1] ;
+    arr[i + 1] = arr[high] ;
+    arr[high] = temp2 ;
+    
+    return i + 1
+  end
+
+  # Recursive Quicksort function
+  int quicksort(int[] arr, int low, int high) is
+    if low < high then
+      int pi = call partition(arr, low, high) ;
+      
+      # Recursively sort the two halves
+      int dummy1 = call quicksort(arr, low, pi - 1) ;
+      int dummy2 = call quicksort(arr, pi + 1, high)
+    else
+      skip
+    fi ;
+    return 0
+  end
+
+  # Main Benchmark Loop
+  int iters = 20000 ;
+  int n = 0 ;
+  
+  println "Starting Quicksort benchmark..." ;
+  
+  while n < iters do
+    # Allocate an unsorted array of 40 elements on the heap
+    int[] arr = [89, 34, 23, 12, 45, 67, 90, 11, 2, 5, 78, 56, 43, 21, 9, 87, 65, 4, 32, 1, 99, 88, 77, 66, 55, 44, 33, 22, 10, 8, 7, 6, 3, 13, 14, 15, 16, 17, 18, 19] ;
+    int length = len arr ;
+    
+    # Sort the array
+    int dummy3 = call quicksort(arr, 0, length - 1) ;
+    
+    n = n + 1
+  done ;
+  
+  println "Quicksort benchmark complete!"
+end

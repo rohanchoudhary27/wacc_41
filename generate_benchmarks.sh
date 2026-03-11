@@ -19,7 +19,6 @@ for FILE in "$BENCHMARK_DIR"/*.wacc; do
     BASENAME=$(basename "$FILE" .wacc)
     echo "Processing: $BASENAME"
 
-    # 1. Compile Unoptimised
     ./compile "$FILE" > /dev/null 2>&1
     
     if [ -f "${BASENAME}.s" ]; then
@@ -30,10 +29,8 @@ for FILE in "$BENCHMARK_DIR"/*.wacc; do
         echo "  [!] Could not find unoptimised .s file for $BASENAME"
     fi
 
-    # 2. Compile Optimised
     ./compile -O "$FILE" > /dev/null 2>&1
     
-    # Check for the optimized file with the _O suffix!
     if [ -f "${BASENAME}_O.s" ]; then
         mv "${BASENAME}_O.s" "${OPT_DIR}/${BASENAME}.s"
     elif [ -f "${BENCHMARK_DIR}/${BASENAME}_O.s" ]; then
@@ -45,8 +42,5 @@ for FILE in "$BENCHMARK_DIR"/*.wacc; do
 done
 
 echo "========================================"
-echo "Done! Ready for the Raspberry Pi."
-echo "Output directory structure:"
-echo "  ./${BASE_OUT_DIR}/"
-echo "  ├── unoptimised/"
-echo "  └── optimised/"
+echo "Done!"
+echo "========================================"

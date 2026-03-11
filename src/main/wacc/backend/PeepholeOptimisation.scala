@@ -3,8 +3,12 @@ package wacc.backend
 import scala.util.chaining.*
 import wacc.backend.Arm.*
 import scala.annotation.tailrec
+import scala.collection.mutable
 
 object PeepholeOptimisation{
+
+    var iterations = 0
+    val ruleHits = mutable.Map[String, Int]().withDefaultValue(0)
 
     /**
       * Peephole optimiser that takes in the low level IR, runs through a pass of the optimising pipeline
@@ -15,12 +19,13 @@ object PeepholeOptimisation{
     def allOptimisations(prog: Program): Arm.Program = {
         var body = prog.body
         var prev: List[Instruction] = Nil
-        var iteration = 0
+        iterations = 0
+        ruleHits.clear()
 
         /* Repeat until length constant, this will always terminate as optimisations
            cause the length to be smaller than or equal to previous size. */
         while(prev != body) {
-            iteration += 1
+            iterations += 1
             prev = body
             body = body
                 .pipe(optimisedBranches(_, Nil))
@@ -29,10 +34,12 @@ object PeepholeOptimisation{
                 .pipe(redundantLoads(_, Nil))
                 .pipe(coalesceMove(_, Nil))
                 .pipe(alternateMoves(_, Nil))
+                .pipe(immediateMinimise(_, Nil))
         }
 
         /* Wrap data and optimised body in Arm.Program for Outputter. */
-        println(iteration)
+        println(s"METRIC_ITERATIONS: ${iterations}")
+        ruleHits.foreach {case(rule, count) => println(s"METRIC_RULE ${rule}: $count")}
         Program(prog.data, body)
     }
 
@@ -50,7 +57,9 @@ object PeepholeOptimisation{
       */
     @tailrec
     private def selfMove(body: List[Instruction], acc: List[Instruction]): List[Instruction] = body match {
-        case MovReg(size, reg, src) :: xs if reg == src => selfMove(xs, acc)
+        case MovReg(size, reg, src) :: xs if reg == src => 
+            ruleHits("selfMove") += 1
+            selfMove(xs, acc)
         case x :: xs => selfMove(xs, x :: acc)
         case Nil => acc.reverse
     }
@@ -74,7 +83,8 @@ object PeepholeOptimisation{
       */
     @tailrec
     private def optimisedBranches(body: List[Instruction], acc: List[Instruction]): List[Instruction] = body match {
-        case BranchUncond(bLabel) :: LabelDef(lLabel) :: xs if bLabel == lLabel => 
+        case BranchUncond(bLabel) :: LabelDef(lLabel) :: xs if bLabel == lLabel =>
+            ruleHits("optimisedBranches") += 1
             optimisedBranches(xs, LabelDef(lLabel) :: acc)
         case x :: xs => optimisedBranches(xs, x :: acc)
         case Nil => acc.reverse
@@ -88,18 +98,25 @@ object PeepholeOptimisation{
     @tailrec
     private def constBinary(body: List[Instruction], acc: List[Instruction]): List[Instruction] = body match {
         case AddImm(size, reg, src, Immediate(0)) :: xs =>
+            ruleHits("constBinaryAdd") += 1
             if (reg == src) constBinary(xs, acc) else constBinary(xs, MovReg(size, reg, src) :: acc)
         case SubImm(size, reg, src, Immediate(0)) :: xs =>
+            ruleHits("constBinarySub") += 1
             if (reg == src) constBinary(xs, acc) else constBinary(xs, MovReg(size, reg, src) :: acc)
         case OrImm(size, reg, src, Immediate(0)) :: xs =>
+            ruleHits("constBinaryOr") += 1
             if (reg == src) constBinary(xs, acc) else constBinary(xs, MovReg(size, reg, src) :: acc)
         case LslImm(size, reg, src, Immediate(0)) :: xs =>
+            ruleHits("constBinaryLsl") += 1
             if (reg == src) constBinary(xs, acc) else constBinary(xs, MovReg(size, reg, src) :: acc)
         case LsrImm(size, reg, src, Immediate(0)) :: xs =>
+            ruleHits("constBinaryLsr") += 1
             if (reg == src) constBinary(xs, acc) else constBinary(xs, MovReg(size, reg, src) :: acc)
         case AsrImm(size, reg, src, Immediate(0)) :: xs =>
+            ruleHits("constBinaryAsr") += 1
             if (reg == src) constBinary(xs, acc) else constBinary(xs, MovReg(size, reg, src) :: acc)
         case AndImm(size, reg, _, Immediate(0)) :: xs => 
+            ruleHits("constBinaryAnd") += 1
             constBinary(xs, Movz(size, reg, Immediate(0)) :: acc)
         case x :: xs => constBinary(xs, x :: acc)
         case Nil => acc.reverse
@@ -114,11 +131,13 @@ object PeepholeOptimisation{
     private def redundantLoads(body: List[Instruction], acc: List[Instruction]): List[Instruction] = body match {
         case Stur(sSize, sReg, sSrc) :: Ldur(lSize, lReg, lSrc) :: xs 
         if (sSize == lSize && sSrc == lSrc) =>
+            ruleHits("redundantLoadsStur") += 1
             if (sReg == lReg) redundantLoads(xs, Stur(sSize, sReg, sSrc):: acc)
             else redundantLoads(xs, MovReg(sSize, lReg, sReg) :: Stur(sSize, sReg, sSrc) :: acc)
 
         case Store(sSize, sReg, sSrc) :: Load(lSize, lReg, lSrc) :: xs 
         if (sSize == lSize && sSrc == lSrc) =>
+            ruleHits("redundantLoadsStore") += 1
             if (sReg == lReg) redundantLoads(xs, Store(sSize, sReg, sSrc) :: acc)
             else redundantLoads(xs, MovReg(sSize, lReg, sReg) :: Store(sSize, sReg, sSrc) :: acc)
 
@@ -135,6 +154,7 @@ object PeepholeOptimisation{
     private def coalesceMove(body: List[Instruction], acc: List[Instruction]): List[Instruction] = body match {
         case Movz(s1, scratch, imm) :: MovReg(s2, dest, src) :: xs 
         if scratch == src && s1 == s2 =>
+            ruleHits("coalesceMove") += 1
             coalesceMove(xs, Movz(s2, dest, imm) :: acc)
         case x :: xs => coalesceMove(xs, x :: acc)
         case Nil => acc.reverse
@@ -157,8 +177,24 @@ object PeepholeOptimisation{
     private def alternateMoves(body: List[Instruction], acc: List[Instruction]): List[Instruction] = body match {
         case MovReg(size1, dest1, src1) :: MovReg(size2, dest2, src2) :: xs 
         if size1 == size2 && dest1 == src2 && dest2 == src1 =>
+            ruleHits("alternateMoves") += 1
             alternateMoves(xs, MovReg(size1, dest1, src1) :: acc)
         case x :: xs => alternateMoves(xs, x :: acc)
+        case Nil => acc.reverse
+    }
+
+    private def immediateMinimise(body: List[Instruction], acc: List[Instruction]): List[Instruction] = body match {
+        case AddImm(s1, d1, src1, Immediate(i1)) :: AddImm(s2, d2, src2, Immediate(i2)) :: xs
+        if (s1 == s2 && d1 == d2 && src1 == src2 && d1 == src1) => 
+            ruleHits("immediateMinimiseAdd") += 1
+            immediateMinimise(xs, AddImm(s1, d1, src1, Immediate(i1 + i2)) :: acc)
+        
+        case SubImm(s1, d1, src1, Immediate(i1)) :: SubImm(s2, d2, src2, Immediate(i2)) :: xs
+        if (s1 == s2 && d1 == d2 && src1 == src2 && d1 == src1) => 
+            ruleHits("immediateMinimiseSub") += 1
+            immediateMinimise(xs, SubImm(s1, d1, src1, Immediate(i1 + i2)) :: acc)
+        
+        case x :: xs => immediateMinimise(xs, x :: acc)
         case Nil => acc.reverse
     }
 }
