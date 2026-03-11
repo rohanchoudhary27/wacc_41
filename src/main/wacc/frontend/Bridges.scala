@@ -45,6 +45,7 @@ object Bridges {
   val Ident = bridge[Ident[SyntacticData]]
   val ArrayElem = bridge[ArrayElem[SyntacticData]]
   val PairElem = bridge[PairElem[SyntacticData]]
+  val FieldAccess = bridge[FieldAccess[SyntacticData]] 
 
   /* Complex RValues */
   val NewPair = bridge[NewPair[SyntacticData]]

@@ -226,8 +226,8 @@ object parser {
 
   /* Field access as a postfix operation: expr.field.field... */
   private lazy val atom = chain.postfix(baseAtom)(
-    ("." ~> identLit <~> pos).map { case (fieldIdent, p) =>
-      (base: Expr[SyntacticData]) => FieldAccess(base, fieldIdent, SyntacticData.Pos(p))
+    ("." ~> identLit).map { field =>
+      (base: Expr[SyntacticData]) => new FieldAccess(base, field, field.info)
     }
   )
 
@@ -240,14 +240,11 @@ object parser {
 
   /* Field access for lvalues: ident.field.field... (at least one dot) */
   private lazy val fieldAccessLValue: Parsley[LValue[SyntacticData]] =
-    (identLit <~> some("." ~> identLit <~> pos)).map { case (base, accesses) =>
-      val first = accesses.head
-      val rest = accesses.tail
-      val init: FieldAccess[SyntacticData] = FieldAccess(base, first._1, SyntacticData.Pos(first._2))
-      rest.foldLeft[FieldAccess[SyntacticData]](init) { case (acc, (fieldIdent, p)) =>
-        FieldAccess(acc, fieldIdent, SyntacticData.Pos(p))
-      }: LValue[SyntacticData]
-    }
+    chain.postfix1(identLit: Parsley[Expr[SyntacticData]])(
+      ("." ~> identLit).map { field =>
+        (base: Expr[SyntacticData]) => new FieldAccess(base, field, field.info)
+      }
+    )
 
   private lazy val arrayElem = ArrayElem(
     identLit,
