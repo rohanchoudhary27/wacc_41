@@ -157,7 +157,7 @@ object PeepholeOptimisation{
         case Movz(s1, scratch, imm) :: MovReg(s2, dest, src) :: xs 
         if scratch == src && s1 == s2 =>
             ruleHits("coalesceMove") += 1
-            coalesceMove(xs, Movz(s2, dest, imm) :: acc)
+            coalesceMove(xs, Movz(s2, dest, imm) :: Movz(s1, scratch, imm) :: acc)
         case x :: xs => coalesceMove(xs, x :: acc)
         case Nil => acc.reverse
     }
