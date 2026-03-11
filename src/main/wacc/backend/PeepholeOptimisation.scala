@@ -28,15 +28,15 @@ object PeepholeOptimisation{
             iterations += 1
             prev = body
             body = body
-                .pipe(optimisedBranches(_, Nil))
-                .pipe(selfMove(_, Nil))
                 .pipe(constBinary(_, Nil))
+                .pipe(optimisedBranches(_, Nil))
                 .pipe(redundantLoads(_, Nil))
-                .pipe(coalesceMove(_, Nil))
-                .pipe(alternateMoves(_, Nil))
                 .pipe(immediateMinimise(_, Nil))
-                .pipe(removeOverwrite(_,Nil))
+                .pipe(alternateMoves(_, Nil))
                 .pipe(copyRegisters(_,Nil))
+                .pipe(removeOverwrite(_,Nil))
+                .pipe(coalesceMove(_, Nil))
+                .pipe(selfMove(_, Nil))
         }
 
         /* Wrap data and optimised body in Arm.Program for Outputter. */
