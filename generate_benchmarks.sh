@@ -1,13 +1,29 @@
 #!/bin/bash
 
+# 1. This points to where your raw WACC files are
 BENCHMARK_DIR="benchmark_tests"
-BASE_OUT_DIR="assembly"
-UNOPT_DIR="${BASE_OUT_DIR}/unoptimised"
-OPT_DIR="${BASE_OUT_DIR}/optimised"
 
+# 2. This creates the 'assembly' directory in your project root!
+BASE_OUT_DIR="assembly"
+
+# Define configurations for true ablation testing
+# Format: "FolderName|CompilerFlags|ExpectedFileSuffix"
+CONFIGS=(
+    "unoptimised||"
+    "optimised|-o|_o"
+    "unoptimised-binary|-oBranches -oMemory -oRegisters|_oBranches_Memory_Registers"
+    "unoptimised-branches|-oBinary -oMemory -oRegisters|_oBinary_Memory_Registers"
+    "unoptimised-memory|-oBinary -oBranches -oRegisters|_oBinary_Branches_Registers"
+    "unoptimised-registers|-oBinary -oBranches -oMemory|_oBinary_Branches_Memory"
+)
+
+# Clean and prepare output directories inside the root 'assembly' folder
 rm -rf "$BASE_OUT_DIR"
-mkdir -p "$UNOPT_DIR"
-mkdir -p "$OPT_DIR"
+for CONFIG in "${CONFIGS[@]}"; do
+    DIR_NAME="${CONFIG%%|*}"
+    # This creates: assembly/unoptimised, assembly/unoptimised-branches, etc.
+    mkdir -p "$BASE_OUT_DIR/$DIR_NAME"
+done
 
 echo "========================================"
 echo "Generating Benchmark Assembly Files..."
@@ -19,28 +35,29 @@ for FILE in "$BENCHMARK_DIR"/*.wacc; do
     BASENAME=$(basename "$FILE" .wacc)
     echo "Processing: $BASENAME"
 
-    ./compile "$FILE" > /dev/null 2>&1
-    
-    if [ -f "${BASENAME}.s" ]; then
-        mv "${BASENAME}.s" "${UNOPT_DIR}/${BASENAME}.s"
-    elif [ -f "${BENCHMARK_DIR}/${BASENAME}.s" ]; then
-        mv "${BENCHMARK_DIR}/${BASENAME}.s" "${UNOPT_DIR}/${BASENAME}.s"
-    else
-        echo "  [!] Could not find unoptimised .s file for $BASENAME"
-    fi
-
-    ./compile -O "$FILE" > /dev/null 2>&1
-    
-    if [ -f "${BASENAME}_O.s" ]; then
-        mv "${BASENAME}_O.s" "${OPT_DIR}/${BASENAME}.s"
-    elif [ -f "${BENCHMARK_DIR}/${BASENAME}_O.s" ]; then
-        mv "${BENCHMARK_DIR}/${BASENAME}_O.s" "${OPT_DIR}/${BASENAME}.s"
-    else
-        echo "  [!] Could not find optimised .s file for $BASENAME. Looking for ${BASENAME}_O.s"
-    fi
+    for CONFIG in "${CONFIGS[@]}"; do
+        IFS='|' read -r DIR_NAME FLAGS SUFFIX <<< "$CONFIG"
+        
+        # Run the compiler
+        ./compile $FLAGS "$FILE" > /dev/null 2>&1
+        
+        EXPECTED_FILE="${BASENAME}${SUFFIX}.s"
+        
+        # This is where the file is going to end up (e.g., assembly/unoptimised-branches/)
+        TARGET_DIR="${BASE_OUT_DIR}/${DIR_NAME}"
+        
+        # Find the generated file and move it to the correct ablation folder
+        if [ -f "$EXPECTED_FILE" ]; then
+            mv "$EXPECTED_FILE" "${TARGET_DIR}/${BASENAME}.s"
+        elif [ -f "${BENCHMARK_DIR}/${EXPECTED_FILE}" ]; then
+            mv "${BENCHMARK_DIR}/${EXPECTED_FILE}" "${TARGET_DIR}/${BASENAME}.s"
+        else
+            echo "  [!] Could not find generated $EXPECTED_FILE for $DIR_NAME"
+        fi
+    done
 
 done
 
 echo "========================================"
-echo "Done!"
+echo "Done! Check the 'assembly' folder in your root directory."
 echo "========================================"
