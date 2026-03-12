@@ -68,36 +68,8 @@ object Renamer {
     /* The current scope table */
     given scope: RenamerScope = RenamerScope.empty
 
-    /* Set for finding duplicate struct names */
-    val seenStructNames: mutable.Set[String] = mutable.Set()
-
     /* Process struct definitions */
-    prog.structs.foreach { s =>
-      val structName = s.ident.name
-
-      if (seenStructNames.contains(structName)) {
-        val errorMsg =
-          s"Scope error: '${structName}' is already defined as a struct"
-        state.emit(s.ident.info.pos, errorMsg)
-      } else {
-        seenStructNames += structName
-      }
-
-      val fieldNames = mutable.Set[String]()
-      val fields = s.fields.map { f =>
-        val fieldName = f.ident.name
-        if (fieldNames.contains(fieldName)) {
-          val errorMsg =
-            s"Scope error: Field '${fieldName}' is already defined in struct '${structName}'"
-          state.emit(f.ident.info.pos, errorMsg)
-        }
-        fieldNames += fieldName
-        (fieldName, syntaxToSemantics(f.typ))
-      }
-
-      val recordType: KnownType.Record = KnownType.Record(structName, fields)
-      state.structSignatureTable += (structName -> recordType)
-    }
+    processStructDefinitions(prog.structs)
 
     /* Set for finding duplicate function names */
     val seenFuncNames: mutable.Set[String] = mutable.Set()
@@ -141,6 +113,47 @@ object Renamer {
       stmt = newStmt,
       info = SemanticData.TopLevel(state.allFuncs, state.structSignatureTable.toMap)
     )
+  }
+
+  /** Processes struct definitions and populates the struct signature table.
+    * Checks for duplicate struct names and duplicate field names within structs.
+    *
+    * @param structs:
+    *   The list of struct definitions to process
+    * @param state:
+    *   A `RenamerState` containing the struct signature table and error logger
+    */
+  private def processStructDefinitions(
+      structs: List[StructDef[SyntacticData]]
+  )(using state: RenamerState): Unit = {
+    val seenStructNames = mutable.Set[String]()
+
+    structs.foreach { s =>
+      val structName = s.ident.name
+
+      if (seenStructNames.contains(structName)) {
+        val errorMsg =
+          s"Scope error: '${structName}' is already defined as a struct"
+        state.emit(s.ident.info.pos, errorMsg)
+      } else {
+        seenStructNames += structName
+      }
+
+      val fieldNames = mutable.Set[String]()
+      val fields = s.fields.map { f =>
+        val fieldName = f.ident.name
+        if (fieldNames.contains(fieldName)) {
+          val errorMsg =
+            s"Scope error: Field '${fieldName}' is already defined in struct '${structName}'"
+          state.emit(f.ident.info.pos, errorMsg)
+        }
+        fieldNames += fieldName
+        (fieldName, syntaxToSemantics(f.typ))
+      }
+
+      val recordType: KnownType.Record = KnownType.Record(structName, fields)
+      state.structSignatureTable += (structName -> recordType)
+    }
   }
 
   /** Renames a `Func` AST node
