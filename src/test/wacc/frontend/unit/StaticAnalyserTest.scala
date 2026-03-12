@@ -15,18 +15,20 @@ class StaticAnalyserTests extends AnyFlatSpec with Matchers {
 
     private def programWith(stmt: Stmt[SemanticData]): Program[SemanticData] =
         Program(
-            List(),
-            List(),
-            Stmt.Block(List(stmt), semPos),
-            SemanticData.TopLevel(Map.empty)
+            imports = List(),
+            structs = List(),
+            funcs = List(),
+            stmt = Stmt.Block(List(stmt), semPos),
+            info = SemanticData.TopLevel(Map.empty)
         )
 
     private def programWithStmts(stmts: List[Stmt[SemanticData]]): Program[SemanticData] =
         Program(
-            List(),
-            List(),
-            Stmt.Block(stmts, semPos),
-            SemanticData.TopLevel(Map.empty)
+            imports = List(),
+            structs = List(),
+            funcs = List(),
+            stmt = Stmt.Block(stmts, semPos),
+            info = SemanticData.TopLevel(Map.empty)
         )
 
     private def varIdent(name: String, renameId: Int, semType: SemanticType = KnownType.Int): Ident[SemanticData] =
@@ -193,10 +195,11 @@ class StaticAnalyserTests extends AnyFlatSpec with Matchers {
         )
 
         val ast = Program(
-            List(),
-            List(func),
-            Stmt.Block(List(Stmt.Skip(semPos)), semPos),
-            SemanticData.TopLevel(funcTable)
+            imports = List(),
+            structs = List(),
+            funcs = List(func),
+            stmt = Stmt.Block(List(Stmt.Skip(semPos)), semPos),
+            info = SemanticData.TopLevel(funcTable)
         )
 
         val result = StaticAnalyser.analyse(ast)

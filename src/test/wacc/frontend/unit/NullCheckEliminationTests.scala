@@ -13,10 +13,11 @@ class NullCheckEliminationTests extends AnyFlatSpec with Matchers {
 
     private def programWithStmts(stmts: List[Stmt[SemanticData]]): Program[SemanticData] =
         Program(
-            List(),
-            List(),
-            Stmt.Block(stmts, semPos),
-            SemanticData.TopLevel(Map.empty)
+            imports = List(),
+            structs = List(),
+            funcs = List(),
+            stmt = Stmt.Block(stmts, semPos),
+            info = SemanticData.TopLevel(Map.empty)
         )
 
     private def varIdent(name: String, renameId: Int, semType: SemanticType = KnownType.Int): Ident[SemanticData] =
