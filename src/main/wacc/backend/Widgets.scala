@@ -115,6 +115,32 @@ object WidgetHelpers {
         )
     }
 
+    /** IR template for an array load or store without bounds checking.
+      *
+      * @param label The label pointing to the start of the widget
+      * @param actionInstr The specific load/store instruction
+      * @return A template list of `Arm.Instruction` for unchecked array access
+      */
+    def buildArrayDirectCall(label: String, actionInstr: Arm.Instruction): List[Arm.Instruction] = {
+        List(
+            LabelDef(AddrLabel(label)),
+            StorePair(Size.X,
+                      PhysicalReg.linkReg,
+                      PhysicalReg.returnRegister,
+                      AddrPreIndex(PhysicalReg.stackPointer, Immediate(-AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
+
+            /* No bounds checking, the static analyser has proven the index is in range */
+
+            actionInstr,
+
+            LoadPair(Size.X,
+                     PhysicalReg.linkReg,
+                     PhysicalReg.returnRegister,
+                     AddrPostIndex(PhysicalReg.stackPointer, Immediate(AARch64Limits.ARM_STACK_ALIGNMENT_BYTES))),
+            Ret
+        )
+    }
+
     /**
       * IR template for a heap allocation
       *
@@ -544,6 +570,26 @@ object ArrayStore1Widget extends Widget {
     )
 }
 
+object ArrayLoad1UncheckedWidget extends Widget {
+    override val label: String = "_arrLoad1Unchecked"
+    override val description: String = "unchecked array load for 1-byte elements (char/bool)"
+
+    override val instrs = WidgetHelpers.buildArrayDirectCall(label,
+        LoadByte(Size.W, PhysicalReg.widgetResultRegister,
+                 AddrRegOffset(PhysicalReg.widgetResultRegister, PhysicalReg.ipcScratch2))
+    )
+}
+
+object ArrayStore1UncheckedWidget extends Widget {
+    override val label: String = "_arrStore1Unchecked"
+    override val description: String = "unchecked array store for 1-byte elements (char/bool)"
+
+    override val instrs = WidgetHelpers.buildArrayDirectCall(label,
+        StoreByte(Size.W, PhysicalReg.mathScratch,
+                  AddrRegOffset(PhysicalReg.widgetResultRegister, PhysicalReg.ipcScratch2))
+    )
+}
+
 object ArrayLoad4Widget extends Widget {
     override val label: String = "_arrLoad4"
     override val description: String = "bounds-checked array load for 4-byte elements (int)"
@@ -566,6 +612,26 @@ object ArrayStore4Widget extends Widget {
     )
 }
 
+object ArrayLoad4UncheckedWidget extends Widget {
+    override val label: String = "_arrLoad4Unchecked"
+    override val description: String = "unchecked array load for 4-byte elements (int)"
+
+    override val instrs = WidgetHelpers.buildArrayDirectCall(label,
+        Load(Size.W, PhysicalReg.widgetResultRegister,
+             AddrRegShift(PhysicalReg.widgetResultRegister, PhysicalReg.ipcScratch2, ShiftAmounts._2))
+    )
+}
+
+object ArrayStore4UncheckedWidget extends Widget {
+    override val label: String = "_arrStore4Unchecked"
+    override val description: String = "unchecked array store for 4-byte elements (int)"
+
+    override val instrs = WidgetHelpers.buildArrayDirectCall(label,
+        Store(Size.W, PhysicalReg.mathScratch,
+              AddrRegShift(PhysicalReg.widgetResultRegister, PhysicalReg.ipcScratch2, ShiftAmounts._2))
+    )
+}
+
 object ArrayLoad8Widget extends Widget {
     override val label: String = "_arrLoad8"
     override val description: String = "bounds-checked array load for 8-byte elements (pointers)"
@@ -584,6 +650,26 @@ object ArrayStore8Widget extends Widget {
 
     override val instrs = WidgetHelpers.buildArrayBoundsCall(label, 
         Store(Size.X, PhysicalReg.mathScratch, 
+              AddrRegShift(PhysicalReg.widgetResultRegister, PhysicalReg.ipcScratch2, ShiftAmounts._3))
+    )
+}
+
+object ArrayLoad8UncheckedWidget extends Widget {
+    override val label: String = "_arrLoad8Unchecked"
+    override val description: String = "unchecked array load for 8-byte elements (pointers)"
+
+    override val instrs = WidgetHelpers.buildArrayDirectCall(label,
+        Load(Size.X, PhysicalReg.widgetResultRegister,
+             AddrRegShift(PhysicalReg.widgetResultRegister, PhysicalReg.ipcScratch2, ShiftAmounts._3))
+    )
+}
+
+object ArrayStore8UncheckedWidget extends Widget {
+    override val label: String = "_arrStore8Unchecked"
+    override val description: String = "unchecked array store for 8-byte elements (pointers)"
+
+    override val instrs = WidgetHelpers.buildArrayDirectCall(label,
+        Store(Size.X, PhysicalReg.mathScratch,
               AddrRegShift(PhysicalReg.widgetResultRegister, PhysicalReg.ipcScratch2, ShiftAmounts._3))
     )
 }

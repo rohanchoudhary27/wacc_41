@@ -620,7 +620,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         val prog = TAC.RegProgram(
             List.empty,
             List.empty,
-            List(TAC.Chr(dest, src, BadCharWidgetError))
+            List(TAC.Chr(dest, src, Some(BadCharWidgetError)))
         )
 
         val alloc = RegisterAllocator.allocate(prog)
@@ -657,7 +657,7 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
             dest -> (PhysicalReg.argRegisters(1): Location)
         )
 
-        val result = programWith(List(TAC.Chr(dest, src, BadCharWidgetError)), alloc)
+        val result = programWith(List(TAC.Chr(dest, src, Some(BadCharWidgetError))), alloc)
 
         val cmpInstrs = result.body.collect { case c: Arm.CmpImm => c }
         cmpInstrs should have length 1
@@ -1074,4 +1074,95 @@ class CodeGeneratorTest extends AnyFlatSpec with Matchers {
         branchInstrs should not be empty
         branchInstrs.exists(_.label.name == "func") shouldBe true
     }
+
+    /* ========================= Record Tests ========================= */
+
+    "CodeGenerator for records" should "generate Load with correct offset for RecordLoad field 0" in {
+        val recordPtr = TAC.VirtualReg(0, Size.X)
+        val dest = TAC.VirtualReg(1, Size.X)
+        val allocMap = Map[TAC.VirtualReg, Location](
+            recordPtr -> PhysicalReg.returnRegister,
+            dest -> PhysicalReg.argRegisters(1)
+        )
+
+        val result = programWith(List(TAC.RecordLoad(recordPtr, 0, dest)), allocMap)
+
+        val loads = result.body.collect { case l: Arm.Load => l }
+        loads should not be empty
+        val memAddr = (loads.last.src: @unchecked) match {
+            case x: Arm.AddrImmOffset => x
+        }
+        memAddr.offset shouldBe Arm.Immediate(0)
+    }
+
+    it should "generate Load with correct offset for RecordLoad field 1" in {
+        val recordPtr = TAC.VirtualReg(0, Size.X)
+        val dest = TAC.VirtualReg(1, Size.X)
+        val allocMap = Map[TAC.VirtualReg, Location](
+            recordPtr -> PhysicalReg.returnRegister,
+            dest -> PhysicalReg.argRegisters(1)
+        )
+
+        val result = programWith(List(TAC.RecordLoad(recordPtr, 1, dest)), allocMap)
+
+        val loads = result.body.collect { case l: Arm.Load => l }
+        loads should not be empty
+        val memAddr = (loads.last.src: @unchecked) match {
+            case x: Arm.AddrImmOffset => x
+        }
+        memAddr.offset shouldBe Arm.Immediate(MemoryLayout.RECORD_FIELD_SIZE)
+    }
+
+    it should "generate Store with correct offset for RecordStore field 0" in {
+        val recordPtr = TAC.VirtualReg(0, Size.X)
+        val src = TAC.VirtualReg(1, Size.X)
+        val allocMap = Map[TAC.VirtualReg, Location](
+            recordPtr -> PhysicalReg.returnRegister,
+            src -> PhysicalReg.argRegisters(1)
+        )
+
+        val result = programWith(List(TAC.RecordStore(recordPtr, 0, src)), allocMap)
+
+        val stores = result.body.collect { case s: Arm.Store => s }
+        stores should not be empty
+        val memAddr = (stores.last.src: @unchecked) match {
+            case x: Arm.AddrImmOffset => x
+        }
+        memAddr.offset shouldBe Arm.Immediate(0)
+    }
+
+    it should "generate Store with correct offset for RecordStore field 2" in {
+        val recordPtr = TAC.VirtualReg(0, Size.X)
+        val src = TAC.VirtualReg(1, Size.X)
+        val allocMap = Map[TAC.VirtualReg, Location](
+            recordPtr -> PhysicalReg.returnRegister,
+            src -> PhysicalReg.argRegisters(1)
+        )
+
+        val result = programWith(List(TAC.RecordStore(recordPtr, 2, src)), allocMap)
+
+        val stores = result.body.collect { case s: Arm.Store => s }
+        stores should not be empty
+        val memAddr = (stores.last.src: @unchecked) match {
+            case x: Arm.AddrImmOffset => x
+        }
+        memAddr.offset shouldBe Arm.Immediate(2 * MemoryLayout.RECORD_FIELD_SIZE)
+    }
+
+    it should "generate Store with immediate source for RecordStore" in {
+        val recordPtr = TAC.VirtualReg(0, Size.X)
+        val allocMap = Map[TAC.VirtualReg, Location](
+            recordPtr -> PhysicalReg.returnRegister
+        )
+
+        val result = programWith(
+            List(TAC.RecordStore(recordPtr, 0, TAC.Immediate(42))),
+            allocMap
+        )
+
+        val stores = result.body.collect { case s: Arm.Store => s }
+        stores should not be empty
+    }
+
+    /* ========================= {/Record Tests} ========================= */
 }

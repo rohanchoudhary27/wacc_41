@@ -10,7 +10,7 @@ import wacc.ExitCodes._
 /** Integration tests for the WACC standard library modules. */
 class StdlibIntegrationSpec extends AnyFlatSpec with Matchers {
 
-    private val stdlibTestDir = Paths.get("AllIntegrationTests/custom/ExtensionsMilestone/Stdlib")
+    private val stdlibTestDir = Paths.get("AllIntegrationTests/custom/ExtensionsMilestone/Stdlib/valid")
 
     private def registerTests(dir: Path): Unit = {
         if (Files.exists(dir)) {

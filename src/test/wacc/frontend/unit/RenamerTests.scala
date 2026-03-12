@@ -36,7 +36,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
             pos
         )
 
-        val inputAST = Program(Nil, List[Func[SyntacticData]](), testBlock, pos)
+        val inputAST = Program(Nil, Nil, List[Func[SyntacticData]](), testBlock, pos)
 
         val renamedAST = Renamer.rename(inputAST, new ErrorLogger())
 
@@ -83,7 +83,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         )
 
         val testBlock = Stmt.Block(List(decl1, decl2), pos)
-        val inputAST = Program(Nil, List[Func[SyntacticData]](), testBlock, pos)
+        val inputAST = Program(Nil, Nil, List[Func[SyntacticData]](), testBlock, pos)
 
         val errorLogger = new ErrorLogger() 
         Renamer.rename(inputAST, errorLogger)
@@ -108,7 +108,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         val ifStmt = Stmt.If(cond, ifBlock, elseBlock, pos)
 
         val testBlock = Stmt.Block(List(ifStmt), pos)
-        val inputAST = Program(Nil, List[Func[SyntacticData]](), testBlock, pos)
+        val inputAST = Program(Nil, Nil, List[Func[SyntacticData]](), testBlock, pos)
 
         val errorLogger = new ErrorLogger() 
         Renamer.rename(inputAST, errorLogger)
@@ -135,7 +135,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         )
 
         val testBlock = Stmt.Block(List(decl, printStmt), pos)
-        val inputAST = Program(Nil, List[Func[SyntacticData]](), testBlock, pos)
+        val inputAST = Program(Nil, Nil, List[Func[SyntacticData]](), testBlock, pos)
 
         val errorLogger = new ErrorLogger() 
         Renamer.rename(inputAST, errorLogger)
@@ -163,7 +163,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         val innerBlock = Stmt.Block(List(innerPrint), pos)
 
         val testBlock = Stmt.Block(List(outerDecl, innerBlock), pos)
-        val inputAST = Program(Nil, List[Func[SyntacticData]](), testBlock, pos)
+        val inputAST = Program(Nil, Nil, List[Func[SyntacticData]](), testBlock, pos)
 
         val errorLogger = new ErrorLogger()
         Renamer.rename(inputAST, errorLogger)
@@ -189,7 +189,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         )
 
         val testBlock = Stmt.Block(List(decl, printStmt), pos)
-        val inputAST = Program(Nil, List[Func[SyntacticData]](), testBlock, pos)
+        val inputAST = Program(Nil, Nil, List[Func[SyntacticData]](), testBlock, pos)
 
         val errorLogger = new ErrorLogger()
         Renamer.rename(inputAST, errorLogger)
@@ -218,7 +218,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         )
 
         val testBlock = Stmt.Block(List(decl1, decl2), pos)
-        val inputAST = Program(Nil, List[Func[SyntacticData]](), testBlock, pos)
+        val inputAST = Program(Nil, Nil, List[Func[SyntacticData]](), testBlock, pos)
 
         val errorLogger = new ErrorLogger()
         Renamer.rename(inputAST, errorLogger)
@@ -243,7 +243,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         val readStmt = Stmt.Read(Ident("x", pos), pos)
         
         val testBlock = Stmt.Block(List(decl, readStmt), pos)
-        val inputAST = Program(Nil, List[Func[SyntacticData]](), testBlock, pos)
+        val inputAST = Program(Nil, Nil, List[Func[SyntacticData]](), testBlock, pos)
         
         val errorLogger = ErrorLogger()
         val renamedAST = Renamer.rename(inputAST, errorLogger)
@@ -274,7 +274,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         val func2 = Func(SyntaxType.Int, Ident("f", pos), List(), 
                         Stmt.Block(List(Stmt.Return(IntLiter(1, pos), pos)), pos), pos)
 
-        val inputAST = Program(Nil, List(func1, func2), Stmt.Skip(pos), pos)
+        val inputAST = Program(imports = Nil, structs = Nil, funcs = List(func1, func2), stmt = Stmt.Skip(pos), info = pos)
         val errorLogger = new ErrorLogger()
         
         Renamer.rename(inputAST, errorLogger)
@@ -293,7 +293,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         val func = Func(SyntaxType.Int, Ident("f", pos), List(paramX), 
                        Stmt.Block(List(returnStmt), pos), pos)
 
-        val inputAST = Program(Nil, List(func), Stmt.Skip(pos), pos)
+        val inputAST = Program(imports = Nil, structs = Nil, funcs = List(func), stmt = Stmt.Skip(pos), info = pos)
         val renamedAST = Renamer.rename(inputAST, new ErrorLogger())
 
         val renamedFunc = renamedAST.funcs.head
@@ -313,7 +313,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         val bodyF = Stmt.Block(List(Stmt.Decl(SyntaxType.Int, Ident("u", pos), callG, pos)), pos)
         val funcF = Func(SyntaxType.Int, Ident("f", pos), List(), bodyF, pos)
 
-        val inputAST = Program(Nil, List(funcF, funcG), Stmt.Skip(pos), pos)
+        val inputAST = Program(imports = Nil, structs = Nil, funcs = List(funcF, funcG), stmt = Stmt.Skip(pos), info = pos)
 
         val errorLogger = new ErrorLogger()
         Renamer.rename(inputAST, errorLogger)
@@ -332,7 +332,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
                          List(Param(SyntaxType.Int, Ident("p", pos), pos)), 
                          Stmt.Block(List(Stmt.Return(IntLiter(0, pos), pos)), pos), pos)
 
-        val inputAST = Program(Nil, List(funcF), Stmt.Block(List(declX, declResult), pos), pos)
+        val inputAST = Program(Nil, Nil, List(funcF), Stmt.Block(List(declX, declResult), pos), pos)
         val renamedAST = Renamer.rename(inputAST, new ErrorLogger())
 
         val Stmt.Block(stmts, _) = renamedAST.stmt: @unchecked
@@ -352,7 +352,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         val callExpr = Call(Ident("imaginaryFunc", pos), List(), pos)
         val decl = Stmt.Decl(SyntaxType.Int, Ident("x", pos), callExpr, pos)
         
-        val inputAST = Program(Nil, List(), Stmt.Block(List(decl), pos), pos)
+        val inputAST = Program(imports = Nil, structs = Nil, funcs = List(), stmt = Stmt.Block(List(decl), info = pos), pos)
         val errorLogger = new ErrorLogger()
         
         Renamer.rename(inputAST, errorLogger)
@@ -368,7 +368,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         val call = Call(Ident("f", pos), List(StrLiter("hello", pos)), pos)
         val decl = Stmt.Decl(SyntaxType.Int, Ident("x", pos), call, pos)
 
-        val inputAST = Program(Nil, List(func), Stmt.Block(List(decl), pos), pos)
+        val inputAST = Program(imports = Nil, structs = Nil, funcs = List(func), stmt = Stmt.Block(List(decl), info = pos), pos)
         val errorLogger = new ErrorLogger()
         
         Renamer.rename(inputAST, errorLogger)
@@ -394,7 +394,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
             pos
         )
 
-        val inputAST = Program(Nil, Nil, Stmt.Block(List(declP, declX), pos), pos)
+        val inputAST = Program(Nil, Nil, Nil, Stmt.Block(List(declP, declX), pos), pos)
         val renamedAST = Renamer.rename(inputAST, new ErrorLogger())
 
         val Stmt.Block(stmts, _) = renamedAST.stmt: @unchecked
@@ -421,7 +421,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
 
         val declQ = Stmt.Decl(SyntaxType.Int, Ident("q", pos), nested, pos)
 
-        val inputAST = Program(Nil, Nil, Stmt.Block(List(declP, declQ), pos), pos)
+        val inputAST = Program(Nil, Nil, Nil, Stmt.Block(List(declP, declQ), pos), pos)
         val renamedAST = Renamer.rename(inputAST, new ErrorLogger())
 
         val Stmt.Block(stmts, _) = renamedAST.stmt: @unchecked
@@ -442,7 +442,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
             pos
         )
 
-        val inputAST = Program(Nil, Nil, Stmt.Block(List(declX), pos), pos)
+        val inputAST = Program(imports = Nil, structs = Nil, funcs = Nil, stmt = Stmt.Block(List(declX), info = pos), pos)
         val errorLogger = new ErrorLogger()
 
         Renamer.rename(inputAST, errorLogger)
@@ -481,7 +481,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         )
 
         val innerBlock = Stmt.Block(List(innerDeclP, innerDeclX), pos)
-        val inputAST = Program(Nil, Nil, Stmt.Block(List(outerDeclP, innerBlock), pos), pos)
+        val inputAST = Program(Nil, Nil, Nil, Stmt.Block(List(outerDeclP, innerBlock), pos), pos)
 
         val renamedAST = Renamer.rename(inputAST, new ErrorLogger())
 
@@ -514,7 +514,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
             pos
         )
 
-        val inputAST = Program(Nil, Nil, Stmt.Block(List(declArr, declX), pos), pos)
+        val inputAST = Program(Nil, Nil, Nil, Stmt.Block(List(declArr, declX), pos), pos)
         val renamedAST = Renamer.rename(inputAST, new ErrorLogger())
 
         val Stmt.Block(stmts, _) = renamedAST.stmt: @unchecked
@@ -539,7 +539,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
             pos
         )
 
-        val inputAST = Program(Nil, Nil, Stmt.Block(List(declArr, asgn), pos), pos)
+        val inputAST = Program(Nil, Nil, Nil, Stmt.Block(List(declArr, asgn), pos), pos)
         val errorLogger = new ErrorLogger()
         val renamedAST = Renamer.rename(inputAST, errorLogger)
 
@@ -561,7 +561,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
             pos
         )
 
-        val inputAST = Program(Nil, Nil, Stmt.Block(List(declX), pos), pos)
+        val inputAST = Program(imports = Nil, structs = Nil, funcs = Nil, stmt = Stmt.Block(List(declX), info = pos), pos)
         val errorLogger = new ErrorLogger()
 
         Renamer.rename(inputAST, errorLogger)
@@ -578,7 +578,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         
         val freeStmt = Stmt.Free(Ident("p", pos), pos)
 
-        val inputAST = Program(Nil, Nil, Stmt.Block(List(declP, freeStmt), pos), pos)
+        val inputAST = Program(Nil, Nil, Nil, Stmt.Block(List(declP, freeStmt), pos), pos)
         val renamedAST = Renamer.rename(inputAST, new ErrorLogger())
 
         val Stmt.Block(stmts, _) = renamedAST.stmt: @unchecked
@@ -599,7 +599,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         val innerExpr = ArrayElem(Ident("arr", pos), List(IntLiter(0, pos)), pos)
         val freeStmt = Stmt.Free(innerExpr, pos)
 
-        val inputAST = Program(Nil, Nil, Stmt.Block(List(declArr, freeStmt), pos), pos)
+        val inputAST = Program(Nil, Nil, Nil, Stmt.Block(List(declArr, freeStmt), pos), pos)
         val renamedAST = Renamer.rename(inputAST, new ErrorLogger())
 
         val Stmt.Block(stmts, _) = renamedAST.stmt: @unchecked
@@ -614,7 +614,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         // free x;
         val freeStmt = Stmt.Free(Ident("x", pos), pos)
 
-        val inputAST = Program(Nil, Nil, Stmt.Block(List(freeStmt), pos), pos)
+        val inputAST = Program(imports = Nil, structs = Nil, funcs = Nil, stmt = Stmt.Block(List(freeStmt), info = pos), pos)
         val errorLogger = new ErrorLogger()
         Renamer.rename(inputAST, errorLogger)
 
@@ -634,7 +634,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
             pos
         )
 
-        val inputAST = Program(Nil, Nil, Stmt.Block(List(decl), pos), pos)
+        val inputAST = Program(imports = Nil, structs = Nil, funcs = Nil, stmt = Stmt.Block(List(decl), info = pos), pos)
         val errorLogger = new ErrorLogger()
 
         Renamer.rename(inputAST, errorLogger)
@@ -657,7 +657,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
             pos
         )
 
-        val inputAST = Program(Nil, Nil, Stmt.Block(List(declX, declY), pos), pos)
+        val inputAST = Program(Nil, Nil, Nil, Stmt.Block(List(declX, declY), pos), pos)
         val renamedAST = Renamer.rename(inputAST, new ErrorLogger())
 
         val Stmt.Block(stmts, _) = renamedAST.stmt: @unchecked
@@ -679,7 +679,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
             pos
         )
 
-        val inputAST = Program(Nil, Nil, Stmt.Block(List(declB, declRes), pos), pos)
+        val inputAST = Program(Nil, Nil, Nil, Stmt.Block(List(declB, declRes), pos), pos)
         val renamedAST = Renamer.rename(inputAST, new ErrorLogger())
 
         val Stmt.Block(stmts, _) = renamedAST.stmt: @unchecked
@@ -701,7 +701,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
             pos
         )
 
-        val inputAST = Program(Nil, Nil, Stmt.Block(List(declC, declI), pos), pos)
+        val inputAST = Program(Nil, Nil, Nil, Stmt.Block(List(declC, declI), pos), pos)
         val renamedAST = Renamer.rename(inputAST, new ErrorLogger())
 
         val Stmt.Block(stmts, _) = renamedAST.stmt: @unchecked
@@ -723,7 +723,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
             pos
         )
 
-        val inputAST = Program(Nil, Nil, Stmt.Block(List(declI, declC), pos), pos)
+        val inputAST = Program(Nil, Nil, Nil, Stmt.Block(List(declI, declC), pos), pos)
         val renamedAST = Renamer.rename(inputAST, new ErrorLogger())
 
         val Stmt.Block(stmts, _) = renamedAST.stmt: @unchecked
@@ -744,7 +744,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
 
         val declY = Stmt.Decl(SyntaxType.Int, Ident("y", pos), outerNeg, pos)
 
-        val inputAST = Program(Nil, Nil, Stmt.Block(List(declX, declY), pos), pos)
+        val inputAST = Program(Nil, Nil, Nil, Stmt.Block(List(declX, declY), pos), pos)
         val renamedAST = Renamer.rename(inputAST, new ErrorLogger())
 
         val Stmt.Block(stmts, _) = renamedAST.stmt: @unchecked
@@ -768,7 +768,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         val addExpr = BinaryExpr(BinaryOperator.Add, Ident("x", pos), Ident("y", pos), pos)
         val declRes = Stmt.Decl(SyntaxType.Int, Ident("res", pos), addExpr, pos)
 
-        val inputAST = Program(Nil, Nil, Stmt.Block(List(declX, declY, declRes), pos), pos)
+        val inputAST = Program(Nil, Nil, Nil, Stmt.Block(List(declX, declY, declRes), pos), pos)
         val renamedAST = Renamer.rename(inputAST, new ErrorLogger())
 
         val Stmt.Block(stmts, _) = renamedAST.stmt: @unchecked
@@ -793,7 +793,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         val gtExpr = BinaryExpr(BinaryOperator.GT, Ident("a", pos), Ident("b", pos), pos)
         val declRes = Stmt.Decl(SyntaxType.Bool, Ident("res", pos), gtExpr, pos)
 
-        val inputAST = Program(Nil, Nil, Stmt.Block(List(declA, declB, declRes), pos), pos)
+        val inputAST = Program(Nil, Nil, Nil, Stmt.Block(List(declA, declB, declRes), pos), pos)
         val renamedAST = Renamer.rename(inputAST, new ErrorLogger())
 
         val Stmt.Block(stmts, _) = renamedAST.stmt: @unchecked
@@ -818,7 +818,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         val andExpr = BinaryExpr(BinaryOperator.And, Ident("p", pos), Ident("q", pos), pos)
         val declRes = Stmt.Decl(SyntaxType.Bool, Ident("res", pos), andExpr, pos)
 
-        val inputAST = Program(Nil, Nil, Stmt.Block(List(declP, declQ, declRes), pos), pos)
+        val inputAST = Program(Nil, Nil, Nil, Stmt.Block(List(declP, declQ, declRes), pos), pos)
         val renamedAST = Renamer.rename(inputAST, new ErrorLogger())
 
         val Stmt.Block(stmts, _) = renamedAST.stmt: @unchecked
@@ -843,7 +843,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         val eqExpr = BinaryExpr(BinaryOperator.EQ, Ident("c1", pos), Ident("c2", pos), pos)
         val declRes = Stmt.Decl(SyntaxType.Bool, Ident("res", pos), eqExpr, pos)
 
-        val inputAST = Program(Nil, Nil, Stmt.Block(List(declC1, declC2, declRes), pos), pos)
+        val inputAST = Program(Nil, Nil, Nil, Stmt.Block(List(declC1, declC2, declRes), pos), pos)
         val renamedAST = Renamer.rename(inputAST, new ErrorLogger())
 
         val Stmt.Block(stmts, _) = renamedAST.stmt: @unchecked
@@ -862,7 +862,7 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
         // int x = y + 5;
         val addExpr = BinaryExpr(BinaryOperator.Add, Ident("y", pos), IntLiter(5, pos), pos)
         val decl = Stmt.Decl(SyntaxType.Int, Ident("x", pos), addExpr, pos)
-        val inputAST = Program(Nil, Nil, Stmt.Block(List(decl), pos), pos)
+        val inputAST = Program(imports = Nil, structs = Nil, funcs = Nil, stmt = Stmt.Block(List(decl), info = pos), pos)
         val errorLogger = new ErrorLogger()
         Renamer.rename(inputAST, errorLogger)
 
@@ -871,4 +871,194 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
 
         errors should include ("Variable 'y' is not defined")
     }
+
+    "The Renamer for records" should "detect duplicate struct names" in {
+        val struct1 = StructDef(
+            Ident("Point", pos),
+            List(Field(SyntaxType.Int, Ident("x", pos), pos)),
+            pos
+        )
+        val struct2 = StructDef(
+            Ident("Point", pos),
+            List(Field(SyntaxType.Int, Ident("y", pos), pos)),
+            pos
+        )
+        val inputAST = Program(
+            imports = Nil,
+            structs = List(struct1, struct2),
+            funcs = List(),
+            stmt = Stmt.Skip(pos),
+            info = pos
+        )
+        val errorLogger = new ErrorLogger()
+        Renamer.rename(inputAST, errorLogger)
+
+        errorLogger.hasErrors() shouldBe true
+        errorLogger.retrieveAllErrors() should include("'Point' is already defined as a struct")
+    }
+
+    it should "detect duplicate field names in a struct" in {
+        val struct = StructDef(
+            Ident("Point", pos),
+            List(
+                Field(SyntaxType.Int, Ident("x", pos), pos),
+                Field(SyntaxType.Int, Ident("x", pos), pos)
+            ),
+            pos
+        )
+        val inputAST = Program(
+            imports = Nil,
+            structs = List(struct),
+            funcs = List(),
+            stmt = Stmt.Skip(pos),
+            info = pos
+        )
+        val errorLogger = new ErrorLogger()
+        Renamer.rename(inputAST, errorLogger)
+
+        errorLogger.hasErrors() shouldBe true
+        errorLogger.retrieveAllErrors() should include("Field 'x' is already defined in struct 'Point'")
+    }
+
+    it should "detect undefined struct in new record expression" in {
+        val decl = Stmt.Decl(
+            SyntaxType.Record("UndefinedStruct"),
+            Ident("s", pos),
+            NewRecord(Ident("UndefinedStruct", pos), List(IntLiter(42, pos)), pos),
+            pos
+        )
+        val inputAST = Program(
+            imports = Nil,
+            structs = Nil,
+            funcs = List(),
+            stmt = decl,
+            info = pos
+        )
+        val errorLogger = new ErrorLogger()
+        Renamer.rename(inputAST, errorLogger)
+
+        errorLogger.hasErrors() shouldBe true
+        errorLogger.retrieveAllErrors() should include("Struct 'UndefinedStruct' is not defined")
+    }
+
+    it should "detect argument count mismatch in new record expression" in {
+        val struct = StructDef(
+            Ident("Point", pos),
+            List(
+                Field(SyntaxType.Int, Ident("x", pos), pos),
+                Field(SyntaxType.Int, Ident("y", pos), pos)
+            ),
+            pos
+        )
+        val decl = Stmt.Decl(
+            SyntaxType.Record("Point"),
+            Ident("p", pos),
+            NewRecord(Ident("Point", pos), List(IntLiter(10, pos)), pos),
+            pos
+        )
+        val inputAST = Program(
+            imports = Nil,
+            structs = List(struct),
+            funcs = List(),
+            stmt = decl,
+            info = pos
+        )
+        val errorLogger = new ErrorLogger()
+        Renamer.rename(inputAST, errorLogger)
+
+        errorLogger.hasErrors() shouldBe true
+        errorLogger.retrieveAllErrors() should include("Struct 'Point' has 2")
+        errorLogger.retrieveAllErrors() should include("but 1 arguments were given")
+    }
+
+    it should "successfully rename a valid struct definition and usage" in {
+        val struct = StructDef(
+            Ident("Point", pos),
+            List(
+                Field(SyntaxType.Int, Ident("x", pos), pos),
+                Field(SyntaxType.Int, Ident("y", pos), pos)
+            ),
+            pos
+        )
+        val decl = Stmt.Decl(
+            SyntaxType.Record("Point"),
+            Ident("p", pos),
+            NewRecord(
+                Ident("Point", pos),
+                List(IntLiter(10, pos), IntLiter(20, pos)),
+                pos
+            ),
+            pos
+        )
+        val inputAST = Program(
+            imports = Nil,
+            structs = List(struct),
+            funcs = List(),
+            stmt = decl,
+            info = pos
+        )
+        val errorLogger = new ErrorLogger()
+        Renamer.rename(inputAST, errorLogger)
+
+        errorLogger.hasErrors() shouldBe false
+    }
+
+    it should "allow multiple structs with distinct names" in {
+        val struct1 = StructDef(
+            Ident("Point", pos),
+            List(Field(SyntaxType.Int, Ident("x", pos), pos)),
+            pos
+        )
+        val struct2 = StructDef(
+            Ident("Colour", pos),
+            List(Field(SyntaxType.Int, Ident("r", pos), pos)),
+            pos
+        )
+        val inputAST = Program(
+            imports = Nil,
+            structs = List(struct1, struct2),
+            funcs = List(),
+            stmt = Stmt.Skip(pos),
+            info = pos
+        )
+        val errorLogger = new ErrorLogger()
+        Renamer.rename(inputAST, errorLogger)
+
+        errorLogger.hasErrors() shouldBe false
+    }
+
+    it should "detect too many arguments in new record expression" in {
+        val struct = StructDef(
+            Ident("Point", pos),
+            List(
+                Field(SyntaxType.Int, Ident("x", pos), pos),
+                Field(SyntaxType.Int, Ident("y", pos), pos)
+            ),
+            pos
+        )
+        val decl = Stmt.Decl(
+            SyntaxType.Record("Point"),
+            Ident("p", pos),
+            NewRecord(
+                Ident("Point", pos),
+                List(IntLiter(1, pos), IntLiter(2, pos), IntLiter(3, pos)),
+                pos
+            ),
+            pos
+        )
+        val inputAST = Program(
+            imports = Nil,
+            structs = List(struct),
+            funcs = List(),
+            stmt = decl,
+            info = pos
+        )
+        val errorLogger = new ErrorLogger()
+        Renamer.rename(inputAST, errorLogger)
+
+        errorLogger.hasErrors() shouldBe true
+        errorLogger.retrieveAllErrors() should include("but 3 arguments were given")
+    }
+
+    /* ==================== {/RECORD/STRUCT TESTS} ==================== */
 }

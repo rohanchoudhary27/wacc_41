@@ -6,6 +6,7 @@ object MemoryLayout {
     val NULL_PTR = 0 /* Null pointer (pair) representation */
     val PAIR_SLOT_SIZE = 8 /* Store pair elemens in 8 byte sized slots */
     val PAIR_HEAP_SIZE_B = 16 /* Pairs are always stored in 16 bytes in heap (each slot 8 bytes) */
+    val RECORD_FIELD_SIZE = 8 /* Store record fields in uniform 8 byte sized slots */
     val ARRAY_LEN_HEADER_SIZE_B = 4 /* Size of the integer length header preceding array elements. */
     val VIRTUAL_RETURN_REG_ID = -1 /* Identifier for the return register */
     val BYTES_PER_STACK_ARG = 8
@@ -15,6 +16,7 @@ object Constants {
     val TRUE = 1
     val FALSE = 0
     val ASCII_MAX = 127
+    val ALIGN_WORD = 4
 }
 
 object AARch64Limits {
@@ -51,7 +53,7 @@ object Size {
     def fromType(typ: KnownType): Size = typ match {
         case KnownType.Char | KnownType.Bool => Size.B
         case KnownType.Int => Size.W
-        case KnownType.String | _: KnownType.Array | _: KnownType.Pair => Size.X
+        case KnownType.String | _: KnownType.Array | _: KnownType.Pair | _: KnownType.Record => Size.X
     }
 
     /* Get the size of a semantic type */
@@ -103,4 +105,5 @@ enum PairPos {
 enum FreeType {
     case Pair
     case Array
+    case Record
 }

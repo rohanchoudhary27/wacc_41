@@ -464,7 +464,13 @@ object AstGenerator {
             funcs <- Gen.listOfN(funcCount, Gen.resize(n, genFunc))
             mainStmts <- genStmtListWith(stmtGen)
             pos <- genPos
-        } yield Program(Nil, funcs, Stmt.Block(mainStmts, pos), pos)
+        } yield Program(
+          imports = Nil,
+          structs = Nil,
+          funcs = funcs,
+          stmt = Stmt.Block(mainStmts, pos),
+          info = pos
+        )
     }
 
     /** Generate a program with a specific size */

@@ -1,0 +1,22 @@
+stages:
+  - publish
+
+variables:
+  MANUAL: WACCRefManual.pdf
+  SPEC: WACCLangSpec.pdf
+
+publish:
+  stage: publish
+  script:
+    # this touch is needed to get the cache to be invalidated when a file is added or removed (but not when just changed, that's separate)
+    - if [[ $(rsync -ahin --delete --ignore-existing valid/ $SERVER/$BACKEND_RESOURCES/wacc-examples/valid/) ]] ||
+         [[ $(rsync -ahin --delete --ignore-existing invalid/ $SERVER/$BACKEND_RESOURCES/wacc-examples/invalid/) ]]; then touch $SERVER/$BACKEND_RESOURCES/wacc-examples; fi
+    - rsync -avh --delete valid/ $SERVER/$BACKEND_RESOURCES/wacc-examples/valid/
+    - rsync -avh --delete invalid/ $SERVER/$BACKEND_RESOURCES/wacc-examples/invalid/
+    - cp $MANUAL $SERVER/$STATIC_FILES/$MANUAL
+    - cp $SPEC $SERVER/$STATIC_FILES/$SPEC
+    - gzip -krf9 $SERVER/$STATIC_FILES/$MANUAL $SERVER/$STATIC_FILES/$SPEC
+  only:
+    refs:
+      # only we get to publish
+      - master@teaching-fellows/wacc/examples

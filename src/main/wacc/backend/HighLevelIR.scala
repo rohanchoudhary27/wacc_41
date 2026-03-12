@@ -84,8 +84,27 @@ object TAC {
     case class Add(reg: VirtualReg, src1: VirtualReg, src2: Operand) extends BinOp(reg, src1, src2)
     case class Sub(reg: VirtualReg, src1: VirtualReg, src2: Operand) extends BinOp(reg, src1, src2)
     case class Mul(reg: VirtualReg, src1: VirtualReg, src2: Operand) extends BinOp(reg, src1, src2)
+
+    case class AddUnchecked(
+        reg: VirtualReg, src1: VirtualReg, src2: Operand) extends BinOp(reg, src1, src2
+    )
+    case class SubUnchecked(
+        reg: VirtualReg, src1: VirtualReg, src2: Operand) extends BinOp(reg, src1, src2
+    )
+    case class MulUnchecked(
+        reg: VirtualReg, src1: VirtualReg, src2: Operand) extends BinOp(reg, src1, src2
+    )
+
     case class Div(reg: VirtualReg, src1: VirtualReg, src2: Operand) extends BinOp(reg, src1, src2)
     case class Mod(reg: VirtualReg, src1: VirtualReg, src2: Operand) extends BinOp(reg, src1, src2)
+
+    case class DivUnchecked(
+        reg: VirtualReg, src1: VirtualReg, src2: Operand
+    ) extends BinOp(reg, src1, src2)
+    case class ModUnchecked(
+        reg: VirtualReg, src1: VirtualReg, src2: Operand
+    ) extends BinOp(reg, src1, src2)
+
     case class Lsl(reg: VirtualReg, src1: VirtualReg, src2: Operand) extends BinOp(reg, src1, src2)
     case class Lsr(reg: VirtualReg, src1: VirtualReg, src2: Operand) extends BinOp(reg, src1, src2)
     case class Asr(reg: VirtualReg, src1: VirtualReg, src2: Operand) extends BinOp(reg, src1, src2)
@@ -94,9 +113,11 @@ object TAC {
 
     /* Unary operations */
     case class Neg(reg: VirtualReg, src: VirtualReg) extends UnOp(reg, src)
+    case class NegUnchecked(reg: VirtualReg, src: VirtualReg) extends UnOp(reg, src)
+    
     case class Not(reg: VirtualReg, src: VirtualReg) extends UnOp(reg, src)
     case class Mov(reg: VirtualReg, src: Operand) extends UnOp(reg, src)
-    case class Chr(reg: VirtualReg, src: VirtualReg, widget: Widget) extends UnOp(reg, src)
+    case class Chr(reg: VirtualReg, src: VirtualReg, widget: Option[Widget]) extends UnOp(reg, src)
 
     /* Branching instructions */
     case class Cmp(src1: VirtualReg, src2: Operand) extends CmpOp(src1, src2)
@@ -124,7 +145,14 @@ object TAC {
     case class ArrayLoad(array: VirtualReg,
                         index: Operand,
                         dest: VirtualReg) extends ArrayInstr(array, index)
+    case class ArrayLoadUnchecked(array: VirtualReg,
+                        index: Operand,
+                        dest: VirtualReg) extends ArrayInstr(array, index)
     case class ArrayStore(array: VirtualReg,
+                        index: Operand,
+                        src: Operand,
+                        elemSize: Size) extends ArrayInstr(array, index)
+    case class ArrayStoreUnchecked(array: VirtualReg,
                         index: Operand,
                         src: Operand,
                         elemSize: Size) extends ArrayInstr(array, index)
@@ -133,6 +161,10 @@ object TAC {
     /* Pair put/get instructions */
     case class PairLoad(pair: VirtualReg, index: PairPos, dest: VirtualReg) extends PtrInstr(pair)
     case class PairStore(pair: VirtualReg, index: PairPos, src: Operand) extends PtrInstr(pair)
+
+    /* Record (struct) field access instructions */
+    case class RecordLoad(record: VirtualReg, fieldIndex: Int, dest: VirtualReg) extends PtrInstr(record)
+    case class RecordStore(record: VirtualReg, fieldIndex: Int, src: Operand) extends PtrInstr(record)
 
     /* Check if a pointer is null, throwing a runtime error if so */
     case class NullCheck(ptr: VirtualReg) extends PtrInstr(ptr)

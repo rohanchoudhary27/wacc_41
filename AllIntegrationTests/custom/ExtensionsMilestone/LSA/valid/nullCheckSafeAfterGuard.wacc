@@ -1,0 +1,17 @@
+# Null check safe via condition refinement: p != null in then-branch
+# Input: 1
+# Output: 10
+# Exit: 0
+
+# Program:
+begin
+  pair(int, int) p = newpair(10, 20);
+  int x = 0;
+  if p != null then
+    x = fst p
+  else
+    x = 0
+  fi;
+  println x;
+  exit 0
+end

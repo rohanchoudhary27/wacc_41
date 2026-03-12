@@ -46,9 +46,11 @@ object Constraint {
   /* Read can only take int or char types */
   val IsReadable = Constraint.OneOf(Set(KnownType.Int, KnownType.Char))
 
-  /* Free can only take any array or pair type */
+  /* Free can only take any array, pair, or record type */
   val IsFreeable =
-    Constraint.OneOf(Set(KnownType.Array(?), KnownType.Pair(?, ?)))
+    Constraint.OneOf(
+      Set(KnownType.Array(?), KnownType.Pair(?, ?), KnownType.Record("", Nil))
+    )
 }
 
 /** State that remains fixed throughout type checking. Contains the error logger
@@ -57,6 +59,7 @@ object Constraint {
 class TCState(
     val errorLogger: ErrorLogger,
     val funcSignatureTable: Map[String, SemanticData.Func],
+    val structTable: Map[String, KnownType.Record] = Map.empty,
     var currFuncName: String = ""
 ) {
 
@@ -93,7 +96,12 @@ object TypeChecker {
       funcSignatureTable: Map[String, SemanticData.Func]
   ): Option[Program[SemanticData]] = {
 
-    given state: TCState = TCState(errorLogger, funcSignatureTable)
+    val structTable = prog.info match {
+      case SemanticData.TopLevel(_, st) => st
+      case _                            => Map.empty[String, KnownType.Record]
+    }
+
+    given state: TCState = TCState(errorLogger, funcSignatureTable, structTable)
 
     /* Type-check each function */
     val typedFuncs = prog.funcs.map(f => checkFunc(f))
@@ -110,10 +118,11 @@ object TypeChecker {
     else
       Some(
         Program(
-          Nil,
-          typedFuncs,
-          typedStmt,
-          info = SemanticData.TopLevel(funcTable = funcSignatureTable)
+          imports = prog.imports,
+          structs = prog.structs,
+          funcs = typedFuncs,
+          stmt = typedStmt,
+          info = SemanticData.TopLevel(funcTable = funcSignatureTable, structTable = structTable)
         )
       )
   }
@@ -398,7 +407,16 @@ object TypeChecker {
       case p @ PairElem(isFst, lval, info) =>
         checkPairElem(isFst, lval, info, extractLValueType(p), c)
       case a @ ArrayElem(_, _, _) => checkArrayAccess(a, c)
+      case f @ FieldAccess(_, _, _) => checkFieldAccess(f, c)
     }
+
+  /** Resolve a placeholder Record type (with Nil fields) to its full definition
+    * from the struct table.
+    */
+  private def resolveRecordType(ty: SemanticType)(using tcState: TCState): SemanticType = ty match {
+    case KnownType.Record(name, Nil) if name.nonEmpty => tcState.structTable.getOrElse(name, ty)
+    case other                                        => other
+  }
 
   /** Extract the type of an lvalue
     *
@@ -407,7 +425,7 @@ object TypeChecker {
     * @return:
     *   The `SemanticType` of lvalue
     */
-  private def extractLValueType(lval: LValue[SemanticData]): SemanticType =
+  private def extractLValueType(lval: LValue[SemanticData])(using tcState: TCState): SemanticType =
     lval match {
       /* renamer already encodes identifier types in its info field */
       case Ident(_, SemanticData.Var(_, _, semType)) => semType
@@ -437,6 +455,18 @@ object TypeChecker {
           }
         }
         arrType
+
+      /* for field access, look up the field type in the record */
+      case FieldAccess(expr, field, _) =>
+        val exprType = expr match {
+          case lv: LValue[SemanticData @unchecked] => extractLValueType(lv)
+          case _                                   => expr.expressionType
+        }
+        resolveRecordType(exprType) match {
+          case KnownType.Record(_, fields) =>
+            fields.find(_._1 == field.name).map(_._2).getOrElse(?)
+          case _ => ?
+        }
 
       case _ => ?
     }
@@ -683,6 +713,8 @@ object TypeChecker {
                depending on `fst/snd`, matches the constraint. Any errors will get reported to
                the logger and the resultant node will have `SemanticData.Error` annotation. */
       case p: PairElem[SemanticData] => checkPairAccess(p, c)
+
+      case NewRecord(name, args, info) => checkNewRecord(name, args, info, c)
     }
 
   /** Type-check pair access.
@@ -813,6 +845,56 @@ object TypeChecker {
         ArrayElem(typedIdent, typedIndices, SemanticData.Error(info.pos))
     }
 
+  /** Type-check a field access expression (e.g. `x.field`).
+    *
+    * Resolves the record type from the struct table if needed,
+    * checks the field exists, and validates the field type against the constraint.
+    */
+  private def checkFieldAccess(
+      fieldAccess: FieldAccess[SemanticData],
+      c: Constraint
+  )(using tcState: TCState): FieldAccess[SemanticData] =
+    val FieldAccess(expr, field, info) = fieldAccess
+    val typedExpr = checkExpr(expr, Constraint.Infer)
+    val exprType = resolveRecordType(typedExpr.expressionType)
+    exprType match {
+      case KnownType.Record(_, fields) =>
+        fields.find(_._1 == field.name) match {
+          case Some((_, fieldType)) =>
+            val finalType = fieldType.satisfies(c, info.pos, tcState.errorLogger).getOrElse(?)
+            FieldAccess(typedExpr, field, SemanticData.Typed(info.pos, finalType))
+          case None =>
+            tcState.emit(info.pos, s"Type error: Record has no field '${field.name}'")
+            FieldAccess(typedExpr, field, SemanticData.Error(info.pos))
+        }
+      case _ =>
+        tcState.emit(info.pos, s"Type error: Field access on non-record type '${exprType.outputFormat}'")
+        FieldAccess(typedExpr, field, SemanticData.Error(info.pos))
+    }
+
+  /** Type-check a new record expression (e.g. `new Foo(1, 2)`).
+    *
+    * Looks up the struct in the struct table, checks argument types match
+    * the field types, and validates the record type against the constraint.
+    */
+  private def checkNewRecord(
+      name: Ident[SemanticData],
+      args: List[Expr[SemanticData]],
+      info: SemanticData,
+      c: Constraint
+  )(using tcState: TCState): NewRecord[SemanticData] =
+    tcState.structTable.get(name.name) match {
+      case Some(recordType) =>
+        val typedArgs = args.zip(recordType.fields).map { case (arg, (_, fieldType)) =>
+          checkExpr(arg, Is(fieldType))
+        }
+        val finalType = (recordType: SemanticType).satisfies(c, info.pos, tcState.errorLogger).getOrElse(?)
+        NewRecord(name, typedArgs, SemanticData.Typed(info.pos, finalType))
+      case None =>
+        /* Renamer should have caught this, but handle gracefully */
+        NewRecord(name, args, SemanticData.Error(info.pos))
+    }
+
   /** Type-check an Ident
     *
     * @param ident:
@@ -920,6 +1002,8 @@ object TypeChecker {
     case bExpr: BinaryExpr[SemanticData] => checkBinaryExpr(bExpr, c)
 
     case a: ArrayElem[SemanticData] => checkArrayAccess(a, c)
+
+    case f: FieldAccess[SemanticData] => checkFieldAccess(f, c)
   }
 
   /** Type-check a unary expression
@@ -1084,6 +1168,14 @@ object TypeChecker {
           t1 <- ty11 ~! ty21 /* strict check */
           t2 <- ty12 ~! ty22 /* strict check */
         } yield KnownType.Pair(t1, t2)
+
+      /* wildcard record (from IsFreeable) matches any record */
+      case (KnownType.Record("", Nil), r: KnownType.Record) => Some(r)
+      case (r: KnownType.Record, KnownType.Record("", Nil)) => Some(r)
+
+      /* placeholder record matches full record with same name */
+      case (KnownType.Record(n1, Nil), r @ KnownType.Record(n2, _)) if n1 == n2 => Some(r)
+      case (r @ KnownType.Record(n1, _), KnownType.Record(n2, Nil)) if n1 == n2 => Some(r)
 
       /* exact type match */
       case (ty1, ty2) if ty1 == ty2 => Some(ty1)

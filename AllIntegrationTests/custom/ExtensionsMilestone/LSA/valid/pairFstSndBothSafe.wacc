@@ -1,0 +1,16 @@
+# Both fst and snd access on newpair, both null-check-safe
+# Output: 
+# 42
+# 99
+
+# Exit: 0
+
+# Program:
+begin
+  pair(int, int) p = newpair(42, 99);
+  int x = fst p;
+  int y = snd p;
+  println x;
+  println y;
+  exit 0
+end

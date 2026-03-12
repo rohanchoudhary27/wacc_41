@@ -1,0 +1,12 @@
+# Array out of bounds: a[len a] is always OOB, caught at compile time
+# Output:
+# Exit: 200
+
+# Program:
+begin
+  int[] a = [1, 2, 3];
+  int n = len a;
+  int x = a[n];
+  println x;
+  exit 0
+end
