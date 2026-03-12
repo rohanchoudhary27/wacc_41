@@ -20,7 +20,7 @@ private enum CompilerExitStatus {
 private object CompilerCLI {
 
     /** The CLI flag that enables backend optimisations */
-    val OptimisationFlag: String = "-O"
+    val OptimisationFlag: String = "-o"
 
     /** Expected number of non flag arguments (just the source file path) */
     val ExpectedArgCount: Int = 1
@@ -32,7 +32,21 @@ private object CompilerCLI {
     val AsmExtension: String = ".s"
 
     /** File extension suffix of optimised assembly output files */
-    val OptimisedAsmExtension: String = "_O.s"
+    val OptimisedAsmExtension: String = "_o.s"
+
+    /* Individual optimisation flags */
+    val OptimisationBinaryFlag = s"${OptimisationFlag}Binary"
+    val OptimisationBranchesFlag = s"${OptimisationFlag}Branches"
+    val OptimisationMemoryFlag = s"${OptimisationFlag}Memory"
+    val OptimisationRegistersFlag = s"${OptimisationFlag}Registers"
+
+     /** The complete set of flags the compiler accepts */
+    val knownFlags: Set[String] = Set(
+        OptimisationBinaryFlag,
+        OptimisationBranchesFlag,
+        OptimisationMemoryFlag,
+        OptimisationRegistersFlag
+    )
 }
 
 
@@ -41,9 +55,11 @@ private object CompilerCLI {
   */
 object WaccCompiler {
 
-    /** Main function for the WACC compiler.
+    /** Main function for the WACC compiler. Parses command-line arguments, validates them, 
+      * and drives the full compilation pipeline.
+      * 
+      * Argument layout: `[flags...] <path.wacc>`
       *
-      * Runs the frontend and then the backend on the read .wacc file. 
       *
       * @param args:
       *   Command Line arguments. Only 1 is expected (the path of the file to
@@ -51,18 +67,26 @@ object WaccCompiler {
       */
     def main(args: Array[String]): Unit = {
 
-        val (optFlags, remainingArgs) = args.partition(_.startsWith("-o"))
+        val (optFlags, remainingArgs) = args.partition(_.startsWith(CompilerCLI.OptimisationFlag))
+        
+        val unknownFlags = optFlags.filterNot(CompilerCLI.knownFlags.contains)
+        if (unknownFlags.nonEmpty) {
+            unknownFlags.foreach { flag =>
+                Console.err.println(s"Unknown compiler flag: '$flag'")
+            }
+            sys.exit(code(CompilerFailure))
+        }
 
         /* Set the flags that for the optimisations that want to be used.
            They have been grouped into Binary, Branches, Memory, Registers. */
         val config = OptConfig(
-            binary = optFlags.contains("-o") || optFlags.contains("-oBinary"),
-            branches = optFlags.contains("-o") || optFlags.contains("-oBranches"),
-            memory = optFlags.contains("-o") || optFlags.contains("-oMemory"),
-            registers = optFlags.contains("-o") || optFlags.contains("-oRegisters")
+            binary = optFlags.contains(s"${CompilerCLI.OptimisationBinaryFlag}"),
+            branches = optFlags.contains(s"${CompilerCLI.OptimisationBranchesFlag}"),
+            memory = optFlags.contains(s"${CompilerCLI.OptimisationMemoryFlag}"),
+            registers = optFlags.contains(s"${CompilerCLI.OptimisationRegistersFlag}")
         )
 
-        if (remainingArgs.length != 1) {
+        if (remainingArgs.length != CompilerCLI.ExpectedArgCount) {
             Console.err.println(TopLevelError.FileSystemError("Requires a file").outputFormat)
             sys.exit(code(CompilerFailure))
         }
