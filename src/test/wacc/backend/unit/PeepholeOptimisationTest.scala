@@ -7,6 +7,7 @@ import wacc.backend.PhysicalReg
 import wacc.backend.Arm.*
 import wacc.backend.LabelNameFormatter
 import wacc.backend.PeepholeOptimisation
+import wacc.backend.OptConfig
 
 class PeepholeOptimisationTest extends AnyFlatSpec with Matchers {
 
@@ -18,7 +19,8 @@ class PeepholeOptimisationTest extends AnyFlatSpec with Matchers {
 
     private def optimise(instructions: List[Instruction]): List[Instruction] = {
         val prog = Program(data = Nil, body = instructions)
-        PeepholeOptimisation.allOptimisations(prog).body
+        val config = OptConfig(binary=true, branches=true, memory=true, registers=true)
+        PeepholeOptimisation.optimisations(prog, config).body
     }
 
     "The PeepholeOptimiser" should "remove self moves" in {

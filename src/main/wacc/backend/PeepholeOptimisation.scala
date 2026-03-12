@@ -5,6 +5,17 @@ import wacc.backend.Arm.*
 import scala.annotation.tailrec
 import scala.collection.mutable
 
+// Holds the state of which optimizations are turned on
+case class OptConfig(
+    binary: Boolean = false,
+    branches: Boolean = false,
+    memory: Boolean = false,
+    registers: Boolean = false
+) {
+    // Helper to check if any optimizations are turned on
+    def isOptimised: Boolean = binary || branches || memory || registers
+}
+
 object PeepholeOptimisation{
 
     var iterations = 0
@@ -16,7 +27,7 @@ object PeepholeOptimisation{
       *
       * @param prog: low level IR representation of the Arm assembly
       */
-    def allOptimisations(prog: Program): Arm.Program = {
+    def optimisations(prog: Program, config: OptConfig): Arm.Program = {
         var body = prog.body
         var prev: List[Instruction] = Nil
         iterations = 0
@@ -30,7 +41,7 @@ object PeepholeOptimisation{
             body = body
                 .pipe(constBinary(_, Nil))
                 .pipe(optimisedBranches(_, Nil))
-                .pipe(redundantLoads(_, Nil))
+                .pipe(redundantLoads(_, Nil)) 
                 .pipe(immediateMinimise(_, Nil))
                 .pipe(alternateMoves(_, Nil))
                 .pipe(copyRegisters(_,Nil))
