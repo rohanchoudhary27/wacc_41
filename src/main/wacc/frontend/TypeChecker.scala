@@ -118,10 +118,10 @@ object TypeChecker {
     else
       Some(
         Program(
-          prog.imports,
-          prog.structs,
-          typedFuncs,
-          typedStmt,
+          imports = prog.imports,
+          structs = prog.structs,
+          funcs = typedFuncs,
+          stmt = typedStmt,
           info = SemanticData.TopLevel(funcTable = funcSignatureTable, structTable = structTable)
         )
       )

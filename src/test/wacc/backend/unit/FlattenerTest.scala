@@ -15,10 +15,10 @@ class FlattenerTest extends AnyFlatSpec with Matchers with TailRecPrebuiltTrees 
 
     /** Helper to create a minimal typed AST with no functions */
     private def programWith(stmt: Stmt[SemanticData]): Program[SemanticData] =
-        Program(Nil, Nil, List.empty, stmt, SemanticData.Pos((0, 0)))
+        Program(imports = Nil, structs = Nil, funcs = List.empty, stmt = stmt, info = SemanticData.Pos((0, 0)))
 
     private def programWith(stmts: List[Stmt[SemanticData]]): Program[SemanticData] =
-        Program(Nil, Nil, List.empty, Stmt.Block(stmts, SemanticData.Pos(0, 0)), SemanticData.Pos((0, 0)))
+        Program(imports = Nil, structs = Nil, funcs = List.empty, stmt = Stmt.Block(stmts, SemanticData.Pos(0, 0)), info = SemanticData.Pos((0, 0)))
 
     "The flattener for exit" should "flatten with int literal to a Call instruction" in {
         val ast = programWith(
@@ -782,11 +782,11 @@ class FlattenerTest extends AnyFlatSpec with Matchers with TailRecPrebuiltTrees 
         val mainBody: Stmt[SemanticData] = Stmt.Block(List(Stmt.Skip(semPos)), semPos)
 
         val inputAST = Program(
-            Nil,
-            Nil,
-            List(funcF),
-            mainBody,
-            SemanticData.TopLevel(funcTable)
+            imports = Nil,
+            structs = Nil,
+            funcs = List(funcF),
+            stmt = mainBody,
+            info = SemanticData.TopLevel(funcTable)
         )
 
         val flatFuncs = Flattener.flatten(inputAST).funcs

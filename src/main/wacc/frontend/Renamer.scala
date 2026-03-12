@@ -59,10 +59,10 @@ object Renamer {
 
     /* Initialise state */
     given state: RenamerState = RenamerState(
-      mutable.Map.empty,
-      mutable.Map.empty,
-      mutable.Map.empty,
-      errorLogger
+      variableIdMap = mutable.Map.empty,
+      funcSignatureTable = mutable.Map.empty,
+      structSignatureTable = mutable.Map.empty,
+      errorLogger = errorLogger
     )
 
     /* The current scope table */
@@ -135,11 +135,11 @@ object Renamer {
     val newStmt = renameStmt(prog.stmt)
 
     Program(
-      Nil,
-      newStructs,
-      newFuncs,
-      newStmt,
-      SemanticData.TopLevel(state.allFuncs, state.structSignatureTable.toMap)
+      imports = Nil,
+      structs = newStructs,
+      funcs = newFuncs,
+      stmt = newStmt,
+      info = SemanticData.TopLevel(state.allFuncs, state.structSignatureTable.toMap)
     )
   }
 
