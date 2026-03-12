@@ -430,7 +430,7 @@ object Flattener {
         case NewRecord(name, args, _) =>
             val flatArgs = args.map(flattenExpr(_))
             val numFields = flatArgs.length
-            val heapSize = numFields * MemoryLayout.PAIR_SLOT_SIZE
+            val heapSize = numFields * MemoryLayout.RECORD_FIELD_SIZE
             val recordPtr = funcState.anonymousReg(Size.X)
             funcState.emitInstruction(TAC.HeapAlloc(recordPtr, TAC.Immediate(heapSize)))
             flatArgs.zipWithIndex.foreach { case (src, idx) =>

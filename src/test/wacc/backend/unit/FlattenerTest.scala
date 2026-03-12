@@ -1391,5 +1391,244 @@ class FlattenerTest extends AnyFlatSpec with Matchers with TailRecPrebuiltTrees 
         val generalTailCallNodes = testFunc.body.collect { case call: TAC.GeneralTailCall => call }
         generalTailCallNodes.length shouldBe 1
     }
+
+    /* ==================== RECORDS TESTS ==================== */
+
+    /** Helper to create a record-aware program with a struct table */
+    private def recordProgramWith(
+        stmt: Stmt[SemanticData],
+        structTable: Map[String, KnownType.Record]
+    ): Program[SemanticData] =
+        Program(
+            imports = Nil, structs = Nil, funcs = List.empty,
+            stmt = stmt,
+            info = SemanticData.TopLevel(Map.empty, structTable)
+        )
+
+    "The flattener for records" should "flatten new record allocation with HeapAlloc" in {
+        val pointType: KnownType.Record = KnownType.Record("Point", List(("x", KnownType.Int), ("y", KnownType.Int)))
+        val structTable: Map[String, KnownType.Record] = Map("Point" -> pointType)
+        val pVar = SemanticData.Var(synPos.pos, 0, pointType)
+
+        val decl = Stmt.Decl(
+            SyntaxType.Record("Point"),
+            Ident("p", pVar),
+            NewRecord(
+                Ident("Point", semPos),
+                List(
+                    IntLiter(10, SemanticData.Typed(synPos.pos, KnownType.Int)),
+                    IntLiter(20, SemanticData.Typed(synPos.pos, KnownType.Int))
+                ),
+                SemanticData.Typed(synPos.pos, pointType)
+            ),
+            semPos
+        )
+
+        val result = Flattener.flatten(recordProgramWith(decl, structTable))
+
+        result.body.exists {
+            case _: TAC.HeapAlloc => true
+            case _ => false
+        } shouldBe true
+    }
+
+    it should "emit RecordStore for each field during new record allocation" in {
+        val pointType: KnownType.Record = KnownType.Record("Point", List(("x", KnownType.Int), ("y", KnownType.Int)))
+        val structTable: Map[String, KnownType.Record] = Map("Point" -> pointType)
+        val pVar = SemanticData.Var(synPos.pos, 0, pointType)
+
+        val decl = Stmt.Decl(
+            SyntaxType.Record("Point"),
+            Ident("p", pVar),
+            NewRecord(
+                Ident("Point", semPos),
+                List(
+                    IntLiter(10, SemanticData.Typed(synPos.pos, KnownType.Int)),
+                    IntLiter(20, SemanticData.Typed(synPos.pos, KnownType.Int))
+                ),
+                SemanticData.Typed(synPos.pos, pointType)
+            ),
+            semPos
+        )
+
+        val result = Flattener.flatten(recordProgramWith(decl, structTable))
+
+        val recordStores = result.body.collect { case rs: TAC.RecordStore => rs }
+        recordStores should have length 2
+        recordStores(0).fieldIndex shouldBe 0
+        recordStores(1).fieldIndex shouldBe 1
+    }
+
+    it should "flatten field access as RecordLoad" in {
+        val pointType: KnownType.Record = KnownType.Record("Point", List(("x", KnownType.Int), ("y", KnownType.Int)))
+        val structTable: Map[String, KnownType.Record] = Map("Point" -> pointType)
+        val pVar = SemanticData.Var(synPos.pos, 0, pointType)
+        val xVar = SemanticData.Var(synPos.pos, 1, KnownType.Int)
+
+        val declP = Stmt.Decl(
+            SyntaxType.Record("Point"),
+            Ident("p", pVar),
+            NewRecord(
+                Ident("Point", semPos),
+                List(
+                    IntLiter(10, SemanticData.Typed(synPos.pos, KnownType.Int)),
+                    IntLiter(20, SemanticData.Typed(synPos.pos, KnownType.Int))
+                ),
+                SemanticData.Typed(synPos.pos, pointType)
+            ),
+            semPos
+        )
+        val declX = Stmt.Decl(
+            SyntaxType.Int,
+            Ident("x", xVar),
+            FieldAccess(
+                Ident("p", pVar),
+                Ident("x", semPos),
+                SemanticData.Typed(synPos.pos, KnownType.Int)
+            ),
+            semPos
+        )
+
+        val stmts = Stmt.Block(List(declP, declX), semPos)
+        val result = Flattener.flatten(recordProgramWith(stmts, structTable))
+
+        val recordLoads = result.body.collect { case rl: TAC.RecordLoad => rl }
+        recordLoads should have length 1
+        recordLoads.head.fieldIndex shouldBe 0
+    }
+
+    it should "flatten field assignment as RecordStore" in {
+        val pointType: KnownType.Record = KnownType.Record("Point", List(("x", KnownType.Int), ("y", KnownType.Int)))
+        val structTable: Map[String, KnownType.Record] = Map("Point" -> pointType)
+        val pVar = SemanticData.Var(synPos.pos, 0, pointType)
+
+        val declP = Stmt.Decl(
+            SyntaxType.Record("Point"),
+            Ident("p", pVar),
+            NewRecord(
+                Ident("Point", semPos),
+                List(
+                    IntLiter(10, SemanticData.Typed(synPos.pos, KnownType.Int)),
+                    IntLiter(20, SemanticData.Typed(synPos.pos, KnownType.Int))
+                ),
+                SemanticData.Typed(synPos.pos, pointType)
+            ),
+            semPos
+        )
+        val asgn = Stmt.Asgn(
+            FieldAccess(
+                Ident("p", pVar),
+                Ident("y", semPos),
+                SemanticData.Typed(synPos.pos, KnownType.Int)
+            ),
+            IntLiter(99, SemanticData.Typed(synPos.pos, KnownType.Int)),
+            semPos
+        )
+
+        val stmts = Stmt.Block(List(declP, asgn), semPos)
+        val result = Flattener.flatten(recordProgramWith(stmts, structTable))
+
+        /* Should have 2 RecordStores from NewRecord + 1 from assignment */
+        val recordStores = result.body.collect { case rs: TAC.RecordStore => rs }
+        recordStores.length should be >= 3
+        recordStores.last.fieldIndex shouldBe 1
+    }
+
+    it should "allocate correct heap size for records" in {
+        val tripleType: KnownType.Record = KnownType.Record("Triple", List(
+            ("a", KnownType.Int), ("b", KnownType.Int), ("c", KnownType.Int)
+        ))
+        val structTable: Map[String, KnownType.Record] = Map("Triple" -> tripleType)
+        val tVar = SemanticData.Var(synPos.pos, 0, tripleType)
+
+        val decl = Stmt.Decl(
+            SyntaxType.Record("Triple"),
+            Ident("t", tVar),
+            NewRecord(
+                Ident("Triple", semPos),
+                List(
+                    IntLiter(1, SemanticData.Typed(synPos.pos, KnownType.Int)),
+                    IntLiter(2, SemanticData.Typed(synPos.pos, KnownType.Int)),
+                    IntLiter(3, SemanticData.Typed(synPos.pos, KnownType.Int))
+                ),
+                SemanticData.Typed(synPos.pos, tripleType)
+            ),
+            semPos
+        )
+
+        val result = Flattener.flatten(recordProgramWith(decl, structTable))
+
+        val heapAllocs = result.body.collect { case ha: TAC.HeapAlloc => ha }
+        heapAllocs should have length 1
+        /* 3 fields * 8 bytes = 24 */
+        heapAllocs.head.size shouldBe TAC.Immediate(24)
+    }
+
+    it should "flatten second field access with correct index" in {
+        val pointType: KnownType.Record = KnownType.Record("Point", List(("x", KnownType.Int), ("y", KnownType.Int)))
+        val structTable: Map[String, KnownType.Record] = Map("Point" -> pointType)
+        val pVar = SemanticData.Var(synPos.pos, 0, pointType)
+        val yVar = SemanticData.Var(synPos.pos, 1, KnownType.Int)
+
+        val declP = Stmt.Decl(
+            SyntaxType.Record("Point"),
+            Ident("p", pVar),
+            NewRecord(
+                Ident("Point", semPos),
+                List(
+                    IntLiter(10, SemanticData.Typed(synPos.pos, KnownType.Int)),
+                    IntLiter(20, SemanticData.Typed(synPos.pos, KnownType.Int))
+                ),
+                SemanticData.Typed(synPos.pos, pointType)
+            ),
+            semPos
+        )
+        val declY = Stmt.Decl(
+            SyntaxType.Int,
+            Ident("y", yVar),
+            FieldAccess(
+                Ident("p", pVar),
+                Ident("y", semPos),
+                SemanticData.Typed(synPos.pos, KnownType.Int)
+            ),
+            semPos
+        )
+
+        val stmts = Stmt.Block(List(declP, declY), semPos)
+        val result = Flattener.flatten(recordProgramWith(stmts, structTable))
+
+        val recordLoads = result.body.collect { case rl: TAC.RecordLoad => rl }
+        recordLoads should have length 1
+        recordLoads.head.fieldIndex shouldBe 1
+    }
+
+    it should "flatten single-field record" in {
+        val wrapperType: KnownType.Record = KnownType.Record("Wrapper", List(("value", KnownType.Int)))
+        val structTable: Map[String, KnownType.Record] = Map("Wrapper" -> wrapperType)
+        val wVar = SemanticData.Var(synPos.pos, 0, wrapperType)
+
+        val decl = Stmt.Decl(
+            SyntaxType.Record("Wrapper"),
+            Ident("w", wVar),
+            NewRecord(
+                Ident("Wrapper", semPos),
+                List(IntLiter(42, SemanticData.Typed(synPos.pos, KnownType.Int))),
+                SemanticData.Typed(synPos.pos, wrapperType)
+            ),
+            semPos
+        )
+
+        val result = Flattener.flatten(recordProgramWith(decl, structTable))
+
+        val heapAllocs = result.body.collect { case ha: TAC.HeapAlloc => ha }
+        heapAllocs should have length 1
+        heapAllocs.head.size shouldBe TAC.Immediate(8)
+
+        val recordStores = result.body.collect { case rs: TAC.RecordStore => rs }
+        recordStores should have length 1
+        recordStores.head.fieldIndex shouldBe 0
+    }
+
+    /* ==================== {/RECORDS TESTS} ==================== */
 }
 

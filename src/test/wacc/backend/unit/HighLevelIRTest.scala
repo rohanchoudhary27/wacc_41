@@ -106,4 +106,55 @@ class HighLevelIRTest extends AnyFlatSpec with Matchers {
             TAC.AddrRegOffset(reg64, reg32)
         }
     }
+
+    it should "validate record pointer size on RecordLoad" in {
+        val reg32 = TAC.VirtualReg(1, Size.W)
+        val reg64 = TAC.VirtualReg(2, Size.X)
+
+        /* Record pointer must be 64 bit */
+        an [IllegalArgumentException] should be thrownBy {
+            TAC.RecordLoad(reg32, 0, reg64)
+        }
+
+        noException should be thrownBy {
+            TAC.RecordLoad(reg64, 0, reg64)
+        }
+    }
+
+    it should "validate record pointer size on RecordStore" in {
+        val reg32 = TAC.VirtualReg(1, Size.W)
+        val reg64 = TAC.VirtualReg(2, Size.X)
+
+        /* Record pointer must be 64 bit */
+        an [IllegalArgumentException] should be thrownBy {
+            TAC.RecordStore(reg32, 0, reg64)
+        }
+
+        noException should be thrownBy {
+            TAC.RecordStore(reg64, 0, reg64)
+        }
+    }
+
+    it should "allow RecordLoad with different field indices" in {
+        val reg64 = TAC.VirtualReg(1, Size.X)
+        val dest = TAC.VirtualReg(2, Size.X)
+
+        noException should be thrownBy {
+            TAC.RecordLoad(reg64, 0, dest)
+        }
+        noException should be thrownBy {
+            TAC.RecordLoad(reg64, 1, dest)
+        }
+        noException should be thrownBy {
+            TAC.RecordLoad(reg64, 5, dest)
+        }
+    }
+
+    it should "allow RecordStore with immediate source" in {
+        val reg64 = TAC.VirtualReg(1, Size.X)
+
+        noException should be thrownBy {
+            TAC.RecordStore(reg64, 0, TAC.Immediate(42))
+        }
+    }
 }
