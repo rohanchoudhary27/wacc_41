@@ -31,18 +31,24 @@ object WaccCompiler {
       */
     def main(args: Array[String]): Unit = {
 
-        /* Check optimisation flag and remove */
-        val optimisationFlag = args.contains("-O")
-        val filteredArgs = args.filterNot(_ == "-O")
+        val (optFlags, remainingArgs) = args.partition(_.startsWith("-o"))
 
-        /* Expect one argument for file name */
-        if (filteredArgs.length != 1) {
+        /* Set the flags that for the optimisations that want to be used.
+           They have been grouped into Binary, Branches, Memory, Registers. */
+        val config = OptConfig(
+            binary = optFlags.contains("-o") || optFlags.contains("-oBinary"),
+            branches = optFlags.contains("-o") || optFlags.contains("-oBranches"),
+            memory = optFlags.contains("-o") || optFlags.contains("-oMemory"),
+            registers = optFlags.contains("-o") || optFlags.contains("-oRegisters")
+        )
+
+        if (remainingArgs.length != 1) {
             Console.err.println(TopLevelError.FileSystemError("Requires a file").outputFormat)
             sys.exit(code(CompilerFailure))
         }
 
         /* Remaining arguments should just be path name */
-        val path = Paths.get(filteredArgs(0))
+        val path = Paths.get(remainingArgs(0))
 
         /* Validate file exists */
         if (!Files.exists(path)) {
@@ -51,7 +57,7 @@ object WaccCompiler {
         }
 
         /* Run the compiler */
-        val finalExitCode = compilePipeline(path, optimisationFlag) 
+        val finalExitCode = compilePipeline(path, config) 
 
         /* Exit with exit code and message */
         if (finalExitCode == CompilerSuccess) {
@@ -70,9 +76,9 @@ object WaccCompiler {
       * @param path The path of the wacc file to compile
       * @return An `ExitCode` representing the success/failure status of the compilation
       */
-    private def compilePipeline(path: Path, optimisationFlag: Boolean): ExitCode = runFrontend(path) match {
+    private def compilePipeline(path: Path, config: OptConfig): ExitCode = runFrontend(path) match {
         case Left(frontendErrorCode) => frontendErrorCode
-        case Right(ast, optimState) => runBackend(path, ast, optimState, optimisationFlag)
+        case Right(ast, optimState) => runBackend(path, ast, optimState, config: OptConfig)
     }
 
     /**
@@ -133,15 +139,28 @@ object WaccCompiler {
     private def runBackend(path: Path,
                            ast: Program[SemanticData],
                            optimState: FrontendOptimState,
-                           optimisationFlag: Boolean): ExitCode = {
+                           config: OptConfig): ExitCode = {
+        
+        /* Collect optimisations that are wanted */
+        val activeOpts = Seq(
+            if (config.binary) "Binary" else "",
+            if (config.branches) "Branches" else "",
+            if (config.memory) "Memory" else "",
+            if (config.registers) "Registers" else ""
+        ).filter(_.nonEmpty)
 
-        /* Change the filename to a .s assembly file but keep the name the same */
-        val outFilename = if (optimisationFlag)
-                then path.getFileName.toString.replaceAll("\\.wacc$", "_O.s")
-                else path.getFileName.toString.replaceAll("\\.wacc$", ".s")
+        val suffix = if (!config.isOptimised) {
+            ""
+        } else if (activeOpts.length == 4) {
+            "_o" // All optimizations
+        } else {
+            s"_o${activeOpts.mkString("_")}" // Specific ablations (e.g., _oMemory_Registers)
+        }
+
+        val outFilename = path.getFileName.toString.replaceAll("\\.wacc$", s"$suffix.s")
 
         /* Run the ast through the backend of the compiler */
-        val backendResult = WaccBackend.run(outFilename, ast, optimState, optimisationFlag)
+        val backendResult = WaccBackend.run(outFilename, ast, optimState, config)
 
         backendResult.error.foreach { 
             errMsg => Console.err.println(TopLevelError.BackendPipelineError(errMsg).outputFormat)
