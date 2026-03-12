@@ -36,9 +36,9 @@ object WaccBackend {
     def run(outputFilename: String,
             ast: Program[SemanticData],
             optimState: FrontendOptimState = FrontendOptimState.empty, 
-            optimiseFlag: Boolean = false): BackendCompilationResult = {
+            config: OptConfig): BackendCompilationResult = {
 
-        compileToFile(outputFilename, ast, optimState, optimiseFlag) match
+        compileToFile(outputFilename, ast, optimState, config) match
             case Success(_) =>
                 BackendCompilationResult(CompilerSuccess, Some(outputFilename))
 
@@ -63,7 +63,7 @@ object WaccBackend {
     private def compileToFile(outputFilename: String,
                               ast: Program[SemanticData],
                               optimState: FrontendOptimState,
-                              optimiseFlag: Boolean): Try[Unit] = for {
+                              config: OptConfig): Try[Unit] = for {
 
         /* Phase 1 - Flatten */
         highLevelIR <- Try(Flattener.flatten(ast, optimState))
@@ -75,7 +75,7 @@ object WaccBackend {
         lowLevelIR <- Try(CodeGenerator.generate(highLevelIR, registerAllocation))
 
         /* Phase 4 - Optimise assembly if flag is true */
-        lowLevelIR <- Try(if (optimiseFlag) PeepholeOptimisation.allOptimisations(lowLevelIR) else lowLevelIR)
+        lowLevelIR <- Try(if (config.isOptimised) PeepholeOptimisation.optimisations(lowLevelIR, config) else lowLevelIR)
 
         /* Phase 5 - Write optimised assembly to file */
         _ <- {

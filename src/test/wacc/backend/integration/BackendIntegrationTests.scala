@@ -8,6 +8,7 @@ import scala.sys.process.stringSeqToProcess
 import wacc.*
 import wacc.ExitCodes.*
 import wacc.integration.WaccIntegrationTestBase
+import wacc.backend.OptConfig
 import scala.sys.process.*
 
 /**
@@ -86,7 +87,8 @@ object BackendAdapter extends AnyFlatSpec {
                 val backendRes = wacc.backend.WaccBackend.run(
                     destination.toString,
                     frontendRes.typedAST.get,
-                    frontendRes.optimState.get
+                    frontendRes.optimState.get,
+                    config = OptConfig(binary=true, branches=true, memory=true, registers=true)
                 )
                 code(backendRes.exitCode)
 
