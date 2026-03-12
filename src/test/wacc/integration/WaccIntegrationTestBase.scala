@@ -23,7 +23,8 @@ abstract class WaccIntegrationTestBase(
 
     /* Directories under custom/ that have their own dedicated test specs */
     private val customExcludedDirs: Set[Path] = Set(
-        rootTestPath.resolve("custom/ExtensionsMilestone/Imports")
+        rootTestPath.resolve("custom/ExtensionsMilestone/Imports"),
+        rootTestPath.resolve("custom/ExtensionsMilestone/Stdlib")
     )
       
     /* All the example WACC programs in the examples dir */
@@ -72,11 +73,13 @@ abstract class WaccIntegrationTestBase(
         /* Make the file relative to examples root to get the scope */
         val rel = rootTestPath.relativize(file).toString 
 
-        if (rel.startsWith("examples/valid/") || rel.startsWith("custom/valid")) code(CompilerSuccess)
-        else if (rel.startsWith("custom/invalid/")) code(SemanticError)
-        else if (rel.startsWith("examples/invalid/syntaxErr/") ||
-                 rel.startsWith("examples/invalid/whack/")) code(SyntaxError)
+        if (rel.startsWith("examples/invalid/syntaxErr/") ||
+            rel.startsWith("examples/invalid/whack/")) code(SyntaxError)
         else if (rel.startsWith("examples/invalid/semanticErr/")) code(SemanticError)
+        else if (rel.startsWith("examples/valid/")) code(CompilerSuccess)
+        /* Custom tests: infer from valid/ or invalid/ in path */
+        else if (rel.startsWith("custom/") && rel.contains("/invalid/")) code(SemanticError)
+        else if (rel.startsWith("custom/")) code(CompilerSuccess)
         else code(CompilerFailure)
     }
 

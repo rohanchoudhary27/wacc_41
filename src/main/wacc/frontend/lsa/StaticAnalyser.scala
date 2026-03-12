@@ -186,6 +186,7 @@ object StaticAnalyser {
             case p: PairElem[SemanticData]  => 
                 checkPairElemSafety(p)
                 state
+            case _: FieldAccess[SemanticData] => state
         }
     }
 
@@ -528,6 +529,7 @@ object StaticAnalyser {
             case u: UnaryExpr[SemanticData] => evaluateUnaryExpr(u)
             case b: BinaryExpr[SemanticData] => evaluateBinaryExpr(b)
             case a: ArrayElem[SemanticData] => evaluateArrayElem(a)
+            case _: FieldAccess[SemanticData] => Unknown
         }
     
     /** Evaluate a unary expression to its abstract value.
@@ -737,6 +739,7 @@ object StaticAnalyser {
                 /* Array literals have a known length and are nonnull */
                 AbstractValue.fromArrayLiteral(elements.length)
             case Call(_, _, _) => Unknown /* we do local analysis, can't know function returns */
+            case NewRecord(_, _, _) => NonNull /* heap-allocated, always non-null */
             case p @ PairElem(isFst, lval, info) => 
                 /* Checks if the pair pointer being accessed via fst/snd is provably
                     Null (emits null dereference error) or Freed (emits use after free error) */
@@ -791,6 +794,8 @@ object StaticAnalyser {
                 (ident.name, Unknown)
             case PairElem(_, innerLval, _) =>
                 evaluateLValue(innerLval)
+            case FieldAccess(expr, field, _) =>
+                (field.name, Unknown)
         }
 
     /** Check whether a pair element is safe to use, and if is nonnnull mark it as nonnull
@@ -872,6 +877,11 @@ object StaticAnalyser {
                 VariableId.fromIdent(ident).toSet
             case PairElem(_, innerLval, _) =>
                 collectLValueTarget(innerLval)
+            case FieldAccess(expr, _, _) =>
+                expr match {
+                    case ident: Ident[SemanticData] => VariableId.fromIdent(ident).toSet
+                    case _ => Set.empty
+                }
         }
      
     /* Helper to check if the binary expression for +, -, * overflows and handle it */
