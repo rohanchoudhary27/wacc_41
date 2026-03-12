@@ -190,6 +190,14 @@ object Renamer {
     )
   }
 
+  /** Renames a `StructDef` AST node
+    *
+    * @param structDef:
+    *   The `StructDef` abstract syntax tree node to rename
+    *
+    * @return:
+    *   The renamed `StructDef` node with semantic type annotations
+    */
   private def renameStructDef(
       structDef: StructDef[SyntacticData]
   ): StructDef[SemanticData] = {
@@ -512,6 +520,24 @@ object Renamer {
     Call(funcIdent, exprList.map(renameExpr), semInfo)
   }
 
+  /** Renames a `NewRecord` AST node.
+    * Validates that the struct exists and that the correct number of arguments
+    * are provided for the struct's fields.
+    *
+    * @param name:
+    *   The identifier of the struct being instantiated
+    * @param args:
+    *   The list of arguments provided for field initialization
+    * @param synPos:
+    *   The syntactic position of the new record expression
+    * @param scope:
+    *   A `RenamerScope` tracking in scope variables
+    * @param state:
+    *   A `RenamerState` containing the struct signature table and error logger
+    *
+    * @return:
+    *   The renamed `NewRecord` node
+    */
   private def renameNewRecord(
       name: Ident[SyntacticData],
       args: Args[SyntacticData],
