@@ -871,4 +871,194 @@ class RenamerSpec extends AnyFlatSpec with Matchers {
 
         errors should include ("Variable 'y' is not defined")
     }
+
+    "The Renamer for records" should "detect duplicate struct names" in {
+        val struct1 = StructDef(
+            Ident("Point", pos),
+            List(Field(SyntaxType.Int, Ident("x", pos), pos)),
+            pos
+        )
+        val struct2 = StructDef(
+            Ident("Point", pos),
+            List(Field(SyntaxType.Int, Ident("y", pos), pos)),
+            pos
+        )
+        val inputAST = Program(
+            imports = Nil,
+            structs = List(struct1, struct2),
+            funcs = List(),
+            stmt = Stmt.Skip(pos),
+            info = pos
+        )
+        val errorLogger = new ErrorLogger()
+        Renamer.rename(inputAST, errorLogger)
+
+        errorLogger.hasErrors() shouldBe true
+        errorLogger.retrieveAllErrors() should include("'Point' is already defined as a struct")
+    }
+
+    it should "detect duplicate field names in a struct" in {
+        val struct = StructDef(
+            Ident("Point", pos),
+            List(
+                Field(SyntaxType.Int, Ident("x", pos), pos),
+                Field(SyntaxType.Int, Ident("x", pos), pos)
+            ),
+            pos
+        )
+        val inputAST = Program(
+            imports = Nil,
+            structs = List(struct),
+            funcs = List(),
+            stmt = Stmt.Skip(pos),
+            info = pos
+        )
+        val errorLogger = new ErrorLogger()
+        Renamer.rename(inputAST, errorLogger)
+
+        errorLogger.hasErrors() shouldBe true
+        errorLogger.retrieveAllErrors() should include("Field 'x' is already defined in struct 'Point'")
+    }
+
+    it should "detect undefined struct in new record expression" in {
+        val decl = Stmt.Decl(
+            SyntaxType.Record("UndefinedStruct"),
+            Ident("s", pos),
+            NewRecord(Ident("UndefinedStruct", pos), List(IntLiter(42, pos)), pos),
+            pos
+        )
+        val inputAST = Program(
+            imports = Nil,
+            structs = Nil,
+            funcs = List(),
+            stmt = decl,
+            info = pos
+        )
+        val errorLogger = new ErrorLogger()
+        Renamer.rename(inputAST, errorLogger)
+
+        errorLogger.hasErrors() shouldBe true
+        errorLogger.retrieveAllErrors() should include("Struct 'UndefinedStruct' is not defined")
+    }
+
+    it should "detect argument count mismatch in new record expression" in {
+        val struct = StructDef(
+            Ident("Point", pos),
+            List(
+                Field(SyntaxType.Int, Ident("x", pos), pos),
+                Field(SyntaxType.Int, Ident("y", pos), pos)
+            ),
+            pos
+        )
+        val decl = Stmt.Decl(
+            SyntaxType.Record("Point"),
+            Ident("p", pos),
+            NewRecord(Ident("Point", pos), List(IntLiter(10, pos)), pos),
+            pos
+        )
+        val inputAST = Program(
+            imports = Nil,
+            structs = List(struct),
+            funcs = List(),
+            stmt = decl,
+            info = pos
+        )
+        val errorLogger = new ErrorLogger()
+        Renamer.rename(inputAST, errorLogger)
+
+        errorLogger.hasErrors() shouldBe true
+        errorLogger.retrieveAllErrors() should include("Struct 'Point' has 2")
+        errorLogger.retrieveAllErrors() should include("but 1 arguments were given")
+    }
+
+    it should "successfully rename a valid struct definition and usage" in {
+        val struct = StructDef(
+            Ident("Point", pos),
+            List(
+                Field(SyntaxType.Int, Ident("x", pos), pos),
+                Field(SyntaxType.Int, Ident("y", pos), pos)
+            ),
+            pos
+        )
+        val decl = Stmt.Decl(
+            SyntaxType.Record("Point"),
+            Ident("p", pos),
+            NewRecord(
+                Ident("Point", pos),
+                List(IntLiter(10, pos), IntLiter(20, pos)),
+                pos
+            ),
+            pos
+        )
+        val inputAST = Program(
+            imports = Nil,
+            structs = List(struct),
+            funcs = List(),
+            stmt = decl,
+            info = pos
+        )
+        val errorLogger = new ErrorLogger()
+        Renamer.rename(inputAST, errorLogger)
+
+        errorLogger.hasErrors() shouldBe false
+    }
+
+    it should "allow multiple structs with distinct names" in {
+        val struct1 = StructDef(
+            Ident("Point", pos),
+            List(Field(SyntaxType.Int, Ident("x", pos), pos)),
+            pos
+        )
+        val struct2 = StructDef(
+            Ident("Colour", pos),
+            List(Field(SyntaxType.Int, Ident("r", pos), pos)),
+            pos
+        )
+        val inputAST = Program(
+            imports = Nil,
+            structs = List(struct1, struct2),
+            funcs = List(),
+            stmt = Stmt.Skip(pos),
+            info = pos
+        )
+        val errorLogger = new ErrorLogger()
+        Renamer.rename(inputAST, errorLogger)
+
+        errorLogger.hasErrors() shouldBe false
+    }
+
+    it should "detect too many arguments in new record expression" in {
+        val struct = StructDef(
+            Ident("Point", pos),
+            List(
+                Field(SyntaxType.Int, Ident("x", pos), pos),
+                Field(SyntaxType.Int, Ident("y", pos), pos)
+            ),
+            pos
+        )
+        val decl = Stmt.Decl(
+            SyntaxType.Record("Point"),
+            Ident("p", pos),
+            NewRecord(
+                Ident("Point", pos),
+                List(IntLiter(1, pos), IntLiter(2, pos), IntLiter(3, pos)),
+                pos
+            ),
+            pos
+        )
+        val inputAST = Program(
+            imports = Nil,
+            structs = List(struct),
+            funcs = List(),
+            stmt = decl,
+            info = pos
+        )
+        val errorLogger = new ErrorLogger()
+        Renamer.rename(inputAST, errorLogger)
+
+        errorLogger.hasErrors() shouldBe true
+        errorLogger.retrieveAllErrors() should include("but 3 arguments were given")
+    }
+
+    /* ==================== {/RECORD/STRUCT TESTS} ==================== */
 }

@@ -915,4 +915,248 @@ class ParserTests extends AnyFlatSpec with Matchers {
     }
 
     /* ==================== {/PREVENTATIVE ERRORS} ==================== */
+
+    /* ========================== {RECORDS} =========================== */
+
+    "The parser for records" should "parse a struct definition" in {
+        val input =
+            """struct Point is
+              |  int x;
+              |  int y;
+              |end
+              |begin
+              |  skip
+              |end""".stripMargin
+        val prog = parseOk(input)
+        prog.structs should have length 1
+        prog.structs.head.ident.name shouldBe "Point"
+        prog.structs.head.fields should have length 2
+        prog.structs.head.fields(0).ident.name shouldBe "x"
+        prog.structs.head.fields(1).ident.name shouldBe "y"
+    }
+
+    it should "parse multiple struct definitions" in {
+        val input =
+            """struct Point is
+              |  int x;
+              |  int y;
+              |end
+              |struct Person is
+              |  string name;
+              |  int age;
+              |end
+              |begin
+              |  skip
+              |end""".stripMargin
+        val prog = parseOk(input)
+        prog.structs should have length 2
+        prog.structs(0).ident.name shouldBe "Point"
+        prog.structs(1).ident.name shouldBe "Person"
+    }
+
+    it should "parse a struct with a single field" in {
+        val input =
+            """struct Wrapper is
+              |  int value;
+              |end
+              |begin
+              |  skip
+              |end""".stripMargin
+        val prog = parseOk(input)
+        prog.structs should have length 1
+        prog.structs.head.fields should have length 1
+        prog.structs.head.fields.head.ident.name shouldBe "value"
+    }
+
+    it should "parse a struct with various field types" in {
+        val input =
+            """struct Mixed is
+              |  int a;
+              |  bool b;
+              |  char c;
+              |  string s;
+              |end
+              |begin
+              |  skip
+              |end""".stripMargin
+        val prog = parseOk(input)
+        prog.structs.head.fields should have length 4
+    }
+
+    it should "parse a struct with a struct-typed field" in {
+        val input =
+            """struct Inner is
+              |  int value;
+              |end
+              |struct Outer is
+              |  struct Inner inner;
+              |end
+              |begin
+              |  skip
+              |end""".stripMargin
+        val prog = parseOk(input)
+        prog.structs should have length 2
+    }
+
+    it should "parse new record expression" in {
+        val input =
+            """struct Point is
+              |  int x;
+              |  int y;
+              |end
+              |begin
+              |  struct Point p = new Point(10, 20)
+              |end""".stripMargin
+        val prog = parseOk(input)
+        prog.stmt match {
+            case Stmt.Block(stmts, _) =>
+                stmts.head match {
+                    case Stmt.Decl(_, _, nr: NewRecord[?], _) =>
+                        nr.name.name shouldBe "Point"
+                        nr.args should have length 2
+                    case other => fail(s"Expected Decl with NewRecord but got: $other")
+                }
+            case Stmt.Decl(_, _, nr: NewRecord[?], _) =>
+                nr.name.name shouldBe "Point"
+                nr.args should have length 2
+            case other => fail(s"Expected Decl statement but got: $other")
+        }
+    }
+
+    it should "parse field access expression" in {
+        val input =
+            """struct Point is
+              |  int x;
+              |  int y;
+              |end
+              |begin
+              |  struct Point p = new Point(10, 20);
+              |  int a = p.x
+              |end""".stripMargin
+        val stmts = stmtsOf(parseOk(input))
+        stmts should have length 2
+        stmts(1) match {
+            case Stmt.Decl(_, _, fa: FieldAccess[?], _) =>
+                fa.field.name shouldBe "x"
+            case other => fail(s"Expected Decl with FieldAccess but got: $other")
+        }
+    }
+
+    it should "parse nested field access" in {
+        val input =
+            """struct Inner is
+              |  int value;
+              |end
+              |struct Outer is
+              |  struct Inner inner;
+              |end
+              |begin
+              |  struct Inner i = new Inner(42);
+              |  struct Outer o = new Outer(i);
+              |  int x = o.inner.value
+              |end""".stripMargin
+        parseOk(input)
+    }
+
+    it should "parse field assignment" in {
+        val input =
+            """struct Point is
+              |  int x;
+              |  int y;
+              |end
+              |begin
+              |  struct Point p = new Point(10, 20);
+              |  p.x = 42
+              |end""".stripMargin
+        val stmts = stmtsOf(parseOk(input))
+        stmts should have length 2
+        stmts(1) match {
+            case Stmt.Asgn(fa: FieldAccess[?], _, _) =>
+                fa.field.name shouldBe "x"
+            case other => fail(s"Expected Asgn with FieldAccess but got: $other")
+        }
+    }
+
+    it should "parse free record" in {
+        val input =
+            """struct Point is
+              |  int x;
+              |  int y;
+              |end
+              |begin
+              |  struct Point p = new Point(10, 20);
+              |  free p
+              |end""".stripMargin
+        val stmts = stmtsOf(parseOk(input))
+        stmts should have length 2
+        stmts(1) shouldBe a [Stmt.Free[?]]
+    }
+
+    it should "parse struct declaration type as Record" in {
+        val input =
+            """struct Point is
+              |  int x;
+              |  int y;
+              |end
+              |begin
+              |  struct Point p = new Point(1, 2)
+              |end""".stripMargin
+        val prog = parseOk(input)
+        prog.stmt match {
+            case Stmt.Block(stmts, _) =>
+                stmts.head match {
+                    case Stmt.Decl(typ, _, _, _) =>
+                        typ shouldBe SyntaxType.Record("Point")
+                    case other => fail(s"Expected Decl but got: $other")
+                }
+            case Stmt.Decl(typ, _, _, _) =>
+                typ shouldBe SyntaxType.Record("Point")
+            case other => fail(s"Expected Decl statement but got: $other")
+        }
+    }
+
+    it should "parse struct with pair-typed field" in {
+        val input =
+            """struct Container is
+              |  pair(int, int) p;
+              |end
+              |begin
+              |  skip
+              |end""".stripMargin
+        val prog = parseOk(input)
+        prog.structs should have length 1
+        prog.structs.head.fields should have length 1
+    }
+
+    it should "parse struct with array-typed field" in {
+        val input =
+            """struct Container is
+              |  int[] arr;
+              |end
+              |begin
+              |  skip
+              |end""".stripMargin
+        val prog = parseOk(input)
+        prog.structs should have length 1
+        prog.structs.head.fields should have length 1
+    }
+
+    it should "parse struct alongside functions" in {
+        val input =
+            """struct Point is
+              |  int x;
+              |  int y;
+              |end
+              |begin
+              |  int getX(struct Point p) is
+              |    return p.x
+              |  end
+              |  struct Point p = new Point(10, 20);
+              |  int x = call getX(p)
+              |end""".stripMargin
+        val prog = parseOk(input)
+        prog.structs should have length 1
+    }
+
+    /* ========================== {/RECORDS} =========================== */
 }

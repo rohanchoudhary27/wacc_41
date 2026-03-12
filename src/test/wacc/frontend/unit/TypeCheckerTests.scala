@@ -1480,4 +1480,286 @@ class TypeCheckerTests extends AnyFlatSpec with Matchers {
         errors should include ("or pair")
         errors should include ("but got 'int'")
     }
+
+    "The type checker for records" should "allow creating a record with correct types" in {
+        val funcTable: Map[String, SemanticData.Func] = Map.empty
+        val structTable: Map[String, KnownType.Record] = Map(
+            "Point" -> KnownType.Record("Point", List(("x", KnownType.Int), ("y", KnownType.Int)))
+        )
+        val errorLogger = new ErrorLogger()
+
+        val pVar = SemanticData.Var(synPos.pos, 0, KnownType.Record("Point", Nil))
+        val decl = Stmt.Decl(
+            SyntaxType.Record("Point"),
+            Ident("p", pVar),
+            NewRecord(
+                Ident("Point", semPos),
+                List(
+                    IntLiter(10, SemanticData.Typed(synPos.pos, KnownType.Int)),
+                    IntLiter(20, SemanticData.Typed(synPos.pos, KnownType.Int))
+                ),
+                semPos
+            ),
+            semPos
+        )
+
+        val inputAST = Program(
+            Nil, Nil, Nil,
+            Stmt.Block(List(decl), semPos),
+            SemanticData.TopLevel(funcTable, structTable)
+        )
+        TypeChecker.check(inputAST, errorLogger, funcTable)
+        errorLogger.hasErrors() shouldBe false
+    }
+
+    it should "reject creating a record with incorrect field types" in {
+        val funcTable: Map[String, SemanticData.Func] = Map.empty
+        val structTable: Map[String, KnownType.Record] = Map(
+            "Point" -> KnownType.Record("Point", List(("x", KnownType.Int), ("y", KnownType.Int)))
+        )
+        val errorLogger = new ErrorLogger()
+
+        val pVar = SemanticData.Var(synPos.pos, 0, KnownType.Record("Point", Nil))
+        val decl = Stmt.Decl(
+            SyntaxType.Record("Point"),
+            Ident("p", pVar),
+            NewRecord(
+                Ident("Point", semPos),
+                List(
+                    IntLiter(10, SemanticData.Typed(synPos.pos, KnownType.Int)),
+                    BoolLiter(true, SemanticData.Typed(synPos.pos, KnownType.Bool))
+                ),
+                semPos
+            ),
+            semPos
+        )
+
+        val inputAST = Program(
+            Nil, Nil, Nil,
+            Stmt.Block(List(decl), semPos),
+            SemanticData.TopLevel(funcTable, structTable)
+        )
+        TypeChecker.check(inputAST, errorLogger, funcTable)
+        errorLogger.hasErrors() shouldBe true
+    }
+
+    it should "allow valid field access" in {
+        val funcTable: Map[String, SemanticData.Func] = Map.empty
+        val pointFields = List(("x", KnownType.Int), ("y", KnownType.Int))
+        val structTable: Map[String, KnownType.Record] = Map(
+            "Point" -> KnownType.Record("Point", pointFields)
+        )
+        val errorLogger = new ErrorLogger()
+
+        val pVar = SemanticData.Var(synPos.pos, 0, KnownType.Record("Point", pointFields))
+        val xVar = SemanticData.Var(synPos.pos, 1, KnownType.Int)
+
+        val declP = Stmt.Decl(
+            SyntaxType.Record("Point"),
+            Ident("p", pVar),
+            NewRecord(
+                Ident("Point", semPos),
+                List(
+                    IntLiter(10, SemanticData.Typed(synPos.pos, KnownType.Int)),
+                    IntLiter(20, SemanticData.Typed(synPos.pos, KnownType.Int))
+                ),
+                semPos
+            ),
+            semPos
+        )
+        val declX = Stmt.Decl(
+            SyntaxType.Int,
+            Ident("x", xVar),
+            FieldAccess(Ident("p", pVar), Ident("x", semPos), semPos),
+            semPos
+        )
+
+        val inputAST = Program(
+            Nil, Nil, Nil,
+            Stmt.Block(List(declP, declX), semPos),
+            SemanticData.TopLevel(funcTable, structTable)
+        )
+        TypeChecker.check(inputAST, errorLogger, funcTable)
+        errorLogger.hasErrors() shouldBe false
+    }
+
+    it should "reject field access on non-record types" in {
+        val funcTable: Map[String, SemanticData.Func] = Map.empty
+        val structTable: Map[String, KnownType.Record] = Map.empty
+        val errorLogger = new ErrorLogger()
+
+        val xVar = SemanticData.Var(synPos.pos, 0, KnownType.Int)
+        val yVar = SemanticData.Var(synPos.pos, 1, KnownType.Int)
+
+        val declX = Stmt.Decl(
+            SyntaxType.Int,
+            Ident("x", xVar),
+            IntLiter(42, SemanticData.Typed(synPos.pos, KnownType.Int)),
+            semPos
+        )
+        val declY = Stmt.Decl(
+            SyntaxType.Int,
+            Ident("y", yVar),
+            FieldAccess(Ident("x", xVar), Ident("field", semPos), semPos),
+            semPos
+        )
+
+        val inputAST = Program(
+            Nil, Nil, Nil,
+            Stmt.Block(List(declX, declY), semPos),
+            SemanticData.TopLevel(funcTable, structTable)
+        )
+        TypeChecker.check(inputAST, errorLogger, funcTable)
+        errorLogger.hasErrors() shouldBe true
+    }
+
+    it should "reject access to undefined field" in {
+        val funcTable: Map[String, SemanticData.Func] = Map.empty
+        val pointFields = List(("x", KnownType.Int), ("y", KnownType.Int))
+        val structTable: Map[String, KnownType.Record] = Map(
+            "Point" -> KnownType.Record("Point", pointFields)
+        )
+        val errorLogger = new ErrorLogger()
+
+        val pVar = SemanticData.Var(synPos.pos, 0, KnownType.Record("Point", pointFields))
+        val zVar = SemanticData.Var(synPos.pos, 1, KnownType.Int)
+
+        val declP = Stmt.Decl(
+            SyntaxType.Record("Point"),
+            Ident("p", pVar),
+            NewRecord(
+                Ident("Point", semPos),
+                List(
+                    IntLiter(10, SemanticData.Typed(synPos.pos, KnownType.Int)),
+                    IntLiter(20, SemanticData.Typed(synPos.pos, KnownType.Int))
+                ),
+                semPos
+            ),
+            semPos
+        )
+        val declZ = Stmt.Decl(
+            SyntaxType.Int,
+            Ident("z", zVar),
+            FieldAccess(Ident("p", pVar), Ident("undefined_field", semPos), semPos),
+            semPos
+        )
+
+        val inputAST = Program(
+            Nil, Nil, Nil,
+            Stmt.Block(List(declP, declZ), semPos),
+            SemanticData.TopLevel(funcTable, structTable)
+        )
+        TypeChecker.check(inputAST, errorLogger, funcTable)
+        errorLogger.hasErrors() shouldBe true
+    }
+
+    it should "allow field assignment with matching types" in {
+        val funcTable: Map[String, SemanticData.Func] = Map.empty
+        val pointFields = List(("x", KnownType.Int), ("y", KnownType.Int))
+        val structTable: Map[String, KnownType.Record] = Map(
+            "Point" -> KnownType.Record("Point", pointFields)
+        )
+        val errorLogger = new ErrorLogger()
+
+        val pVar = SemanticData.Var(synPos.pos, 0, KnownType.Record("Point", pointFields))
+
+        val declP = Stmt.Decl(
+            SyntaxType.Record("Point"),
+            Ident("p", pVar),
+            NewRecord(
+                Ident("Point", semPos),
+                List(
+                    IntLiter(10, SemanticData.Typed(synPos.pos, KnownType.Int)),
+                    IntLiter(20, SemanticData.Typed(synPos.pos, KnownType.Int))
+                ),
+                semPos
+            ),
+            semPos
+        )
+        val asgn = Stmt.Asgn(
+            FieldAccess(Ident("p", pVar), Ident("x", semPos), semPos),
+            IntLiter(42, SemanticData.Typed(synPos.pos, KnownType.Int)),
+            semPos
+        )
+
+        val inputAST = Program(
+            Nil, Nil, Nil,
+            Stmt.Block(List(declP, asgn), semPos),
+            SemanticData.TopLevel(funcTable, structTable)
+        )
+        TypeChecker.check(inputAST, errorLogger, funcTable)
+        errorLogger.hasErrors() shouldBe false
+    }
+
+    it should "reject field assignment with mismatched types" in {
+        val funcTable: Map[String, SemanticData.Func] = Map.empty
+        val pointFields = List(("x", KnownType.Int), ("y", KnownType.Int))
+        val structTable: Map[String, KnownType.Record] = Map(
+            "Point" -> KnownType.Record("Point", pointFields)
+        )
+        val errorLogger = new ErrorLogger()
+
+        val pVar = SemanticData.Var(synPos.pos, 0, KnownType.Record("Point", pointFields))
+
+        val declP = Stmt.Decl(
+            SyntaxType.Record("Point"),
+            Ident("p", pVar),
+            NewRecord(
+                Ident("Point", semPos),
+                List(
+                    IntLiter(10, SemanticData.Typed(synPos.pos, KnownType.Int)),
+                    IntLiter(20, SemanticData.Typed(synPos.pos, KnownType.Int))
+                ),
+                semPos
+            ),
+            semPos
+        )
+        val asgn = Stmt.Asgn(
+            FieldAccess(Ident("p", pVar), Ident("x", semPos), semPos),
+            BoolLiter(true, SemanticData.Typed(synPos.pos, KnownType.Bool)),
+            semPos
+        )
+
+        val inputAST = Program(
+            Nil, Nil, Nil,
+            Stmt.Block(List(declP, asgn), semPos),
+            SemanticData.TopLevel(funcTable, structTable)
+        )
+        TypeChecker.check(inputAST, errorLogger, funcTable)
+        errorLogger.hasErrors() shouldBe true
+    }
+
+    it should "allow freeing a record" in {
+        val funcTable: Map[String, SemanticData.Func] = Map.empty
+        val pointFields = List(("x", KnownType.Int), ("y", KnownType.Int))
+        val structTable: Map[String, KnownType.Record] = Map(
+            "Point" -> KnownType.Record("Point", pointFields)
+        )
+        val errorLogger = new ErrorLogger()
+
+        val pVar = SemanticData.Var(synPos.pos, 0, KnownType.Record("Point", pointFields))
+
+        val declP = Stmt.Decl(
+            SyntaxType.Record("Point"),
+            Ident("p", pVar),
+            NewRecord(
+                Ident("Point", semPos),
+                List(
+                    IntLiter(10, SemanticData.Typed(synPos.pos, KnownType.Int)),
+                    IntLiter(20, SemanticData.Typed(synPos.pos, KnownType.Int))
+                ),
+                semPos
+            ),
+            semPos
+        )
+        val freeStmt = Stmt.Free(Ident("p", pVar), semPos)
+
+        val inputAST = Program(
+            Nil, Nil, Nil,
+            Stmt.Block(List(declP, freeStmt), semPos),
+            SemanticData.TopLevel(funcTable, structTable)
+        )
+        TypeChecker.check(inputAST, errorLogger, funcTable)
+        errorLogger.hasErrors() shouldBe false
+    }
 }
