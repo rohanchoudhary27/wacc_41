@@ -236,7 +236,7 @@ object WaccFrontend {
         errorLogger: ErrorLogger
     ): Either[FrontendCompilationResult, Program[SemanticData]] = {
         val funcTable = renamedAST.info match {
-            case SemanticData.TopLevel(ft) => ft
+            case SemanticData.TopLevel(ft, _) => ft
             case _ => Map.empty[String, SemanticData.Func]
         }
         val typedAST = TypeChecker.check(renamedAST, errorLogger, funcTable)

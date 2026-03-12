@@ -16,6 +16,8 @@ object Bridges {
   val Program = bridge[Program[SyntacticData]]
   val Func = bridge[Func[SyntacticData]]
   val Param = bridge[Param[SyntacticData]]
+  val StructDef = bridge[StructDef[SyntacticData]]
+  val Field = bridge[Field[SyntacticData]]
 
   /* Import declarations */
   val ModuleImport = bridge[ModuleImport[SyntacticData]]
@@ -43,10 +45,12 @@ object Bridges {
   val Ident = bridge[Ident[SyntacticData]]
   val ArrayElem = bridge[ArrayElem[SyntacticData]]
   val PairElem = bridge[PairElem[SyntacticData]]
+  val FieldAccess = bridge[FieldAccess[SyntacticData]] 
 
   /* Complex RValues */
   val NewPair = bridge[NewPair[SyntacticData]]
   val Call = bridge[Call[SyntacticData]]
+  val NewRecord = bridge[NewRecord[SyntacticData]]
 
   /* Literal nodes */
   val IntLiter = bridge[IntLiter[SyntacticData]]

@@ -634,6 +634,10 @@ object CodeGenerator {
         case TAC.PairLoad(pair, index, dest) => generatePairLoad(pair, index, dest)
         case TAC.PairStore(pair, index, src) => generatePairStore(pair, index, src)
         case TAC.NullCheck(ptr) => generateNullCheck(ptr)
+
+        /* Record operations */
+        case TAC.RecordLoad(record, fieldIndex, dest) => generateRecordLoad(record, fieldIndex, dest)
+        case TAC.RecordStore(record, fieldIndex, src) => generateRecordStore(record, fieldIndex, src)
         
         /* Memory management */
         case TAC.HeapAlloc(dest, size) => generateHeapAlloc(dest, size)
@@ -878,6 +882,7 @@ object CodeGenerator {
         val widget = freeType match {
             case FreeType.Pair => FreePairWidget
             case FreeType.Array => FreeArrayWidget
+            case FreeType.Record => FreePairWidget /* records use the same free logic as pairs */
         }
         useWidget(widget)
         generateCall(TAC.Label(widget.label), List(ptr), destOpt=None)
@@ -984,6 +989,30 @@ object CodeGenerator {
         val finalSrcReg = loadOperandToTarget(src, Size.X, srcScratch)
         
         /* Store the 8 byte scrath register into heap memory */
+        emit(Arm.Store(Size.X, finalSrcReg, Arm.AddrImmOffset(ptrReg, Arm.Immediate(offset))))
+    }
+
+    /** Generates low level IR to load a field from a record.
+      * Records use uniform 8-byte slots, similar to pairs.
+      */
+    private def generateRecordLoad(recordPtr: TAC.VirtualReg, fieldIndex: Int, dest: TAC.VirtualReg)
+                                  (using st: GenState): Unit = {
+        val ptrReg = loadToReg(locOf(recordPtr), Size.X, PhysicalReg.ipcScratch1)
+        val offset = fieldIndex * MemoryLayout.RECORD_FIELD_SIZE
+        val destScratch = PhysicalReg.ipcScratch2
+        emit(Arm.Load(Size.X, destScratch, Arm.AddrImmOffset(ptrReg, Arm.Immediate(offset))))
+        storeToLoc(destScratch, locOf(dest), dest.size)
+    }
+
+    /** Generates low level IR to store a value into a record field.
+      * Records use uniform 8-byte slots, similar to pairs.
+      */
+    private def generateRecordStore(recordPtr: TAC.VirtualReg, fieldIndex: Int, src: TAC.Operand)
+                                   (using st: GenState): Unit = {
+        val ptrReg = loadToReg(locOf(recordPtr), Size.X, PhysicalReg.ipcScratch1)
+        val offset = fieldIndex * MemoryLayout.RECORD_FIELD_SIZE
+        val srcScratch = PhysicalReg.ipcScratch2
+        val finalSrcReg = loadOperandToTarget(src, Size.X, srcScratch)
         emit(Arm.Store(Size.X, finalSrcReg, Arm.AddrImmOffset(ptrReg, Arm.Immediate(offset))))
     }
 

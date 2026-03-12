@@ -32,6 +32,7 @@ enum SyntaxType {
   case Int, Bool, Char, String, ErasedPair
   case Pair(fst: SyntaxType, snd: SyntaxType)
   case Array(arrType: SyntaxType)
+  case Record(name: String)
 }
 
 /* WACC operators */
@@ -45,7 +46,7 @@ enum UnaryOperator {
 }
 
 /* The top-level program */
-case class Program[A](imports: List[Import[A]], funcs: List[Func[A]], stmt: Stmt[A], @isMeta info: A)
+case class Program[A](imports: List[Import[A]], structs: List[StructDef[A]], funcs: List[Func[A]], stmt: Stmt[A], @isMeta info: A)
 
 /* Import declarations */
 sealed trait Import[A] { val info: A }
@@ -61,6 +62,10 @@ case class FromImport[A](
     funcName: String,
     @isMeta info: A
 ) extends Import[A]
+
+/* Record (struct) definitions */
+case class StructDef[A](ident: Ident[A], fields: List[Field[A]], @isMeta info: A)
+case class Field[A](typ: SyntaxType, ident: Ident[A], @isMeta info: A)
 
 /* Function nodes */
 case class Func[A](
@@ -111,11 +116,16 @@ case class ArrayElem[A](
 case class PairElem[A](isFst: Boolean, lval: LValue[A], @isMeta info: A)
     extends LValue[A]
     with RValue[A]
+case class FieldAccess[A](expr: Expr[A], field: Ident[A], @isMeta info: A)
+    extends LValue[A]
+    with Expr[A]
 
 /* Complex RValues */
 case class NewPair[A](e1: Expr[A], e2: Expr[A], @isMeta info: A)
     extends RValue[A]
 case class Call[A](ident: Ident[A], argList: Args[A], @isMeta info: A)
+    extends RValue[A]
+case class NewRecord[A](name: Ident[A], args: Args[A], @isMeta info: A)
     extends RValue[A]
 
 /* Literal nodes */

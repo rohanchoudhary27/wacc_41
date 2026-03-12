@@ -162,6 +162,10 @@ object TAC {
     case class PairLoad(pair: VirtualReg, index: PairPos, dest: VirtualReg) extends PtrInstr(pair)
     case class PairStore(pair: VirtualReg, index: PairPos, src: Operand) extends PtrInstr(pair)
 
+    /* Record (struct) field access instructions */
+    case class RecordLoad(record: VirtualReg, fieldIndex: Int, dest: VirtualReg) extends PtrInstr(record)
+    case class RecordStore(record: VirtualReg, fieldIndex: Int, src: Operand) extends PtrInstr(record)
+
     /* Check if a pointer is null, throwing a runtime error if so */
     case class NullCheck(ptr: VirtualReg) extends PtrInstr(ptr)
 

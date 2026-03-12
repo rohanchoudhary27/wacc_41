@@ -1,0 +1,25 @@
+# basic record creation and field access
+
+# Output:
+# 42
+#
+
+# Exit:
+# 0
+
+struct Point is
+  int x;
+  int y;
+end
+
+begin
+  struct Point p = new Point(42, 100);
+  int x = p.x;
+  println x;
+  free p;
+
+  struct Point q = new Point(0, 0);
+  q.x = 99;
+  q.y = 200;
+  free q
+end
