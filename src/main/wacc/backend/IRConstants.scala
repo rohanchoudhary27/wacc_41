@@ -19,6 +19,14 @@ object Constants {
     val ALIGN_WORD = 4
 }
 
+object OptimisationConstants {
+    val NUM_PEEPHOLE_GROUPS = 4 /* Similar peepholes are enabled together */
+    val BINARY_PEEPHOLE_GROUP = "Binary"
+    val BRANCHES_PEEPHOLE_GROUP = "Branches"
+    val MEMORY_PEEPHOLE_GROUP = "Memory"
+    val REGISTERS_PEEPHOLE_GROUP = "Registers"
+}
+
 object AARch64Limits {
     val ARM_NUM_REGS_FOR_FUNC_ARGS = 8 /* Arm allocates params into registers for the first 8 args */
     val ARM_STACK_ALIGNMENT_BYTES = 16 /* ARM requires that the stack MUST be aligned to 16 bytes */

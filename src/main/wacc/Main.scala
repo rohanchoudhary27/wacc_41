@@ -32,7 +32,7 @@ private object CompilerCLI {
     val AsmExtension: String = ".s"
 
     /** File extension suffix of optimised assembly output files */
-    val OptimisedAsmExtension: String = "_o.s"
+    val OptimisedAsmExtensionSuffix: String = "_o"
 
     /* Individual optimisation flags */
     val OptimisationBinaryFlag = s"${OptimisationFlag}Binary"
@@ -71,9 +71,7 @@ object WaccCompiler {
         
         val unknownFlags = optFlags.filterNot(CompilerCLI.knownFlags.contains)
         if (unknownFlags.nonEmpty) {
-            unknownFlags.foreach { flag =>
-                Console.err.println(s"Unknown compiler flag: '$flag'")
-            }
+            TopLevelError.FileArgumentError(unknownFlags).outputFormat
             sys.exit(code(CompilerFailure))
         }
 
@@ -189,21 +187,22 @@ object WaccCompiler {
         
         /* Collect optimisations that are wanted */
         val activeOpts = Seq(
-            if (config.binary) "Binary" else "",
-            if (config.branches) "Branches" else "",
-            if (config.memory) "Memory" else "",
-            if (config.registers) "Registers" else ""
+            if (config.binary) OptimisationConstants.BINARY_PEEPHOLE_GROUP  else "",
+            if (config.branches) OptimisationConstants.BRANCHES_PEEPHOLE_GROUP else "",
+            if (config.memory) OptimisationConstants.MEMORY_PEEPHOLE_GROUP else "",
+            if (config.registers) OptimisationConstants.REGISTERS_PEEPHOLE_GROUP  else ""
         ).filter(_.nonEmpty)
 
         val suffix = if (!config.isOptimised) {
             ""
-        } else if (activeOpts.length == 4) {
-            "_o" // All optimizations
+        } else if (activeOpts.length == OptimisationConstants.NUM_PEEPHOLE_GROUPS) {
+            CompilerCLI.OptimisedAsmExtensionSuffix // All optimizations
         } else {
-            s"_o${activeOpts.mkString("_")}" // Specific ablations (e.g., _oMemory_Registers)
+            // Specific ablations (e.g., _oMemory_Registers)
+            s"${CompilerCLI.OptimisedAsmExtensionSuffix}${activeOpts.mkString("_")}"
         }
 
-        val outFilename = path.getFileName.toString.replaceAll("\\.wacc$", s"$suffix.s")
+        val outFilename = path.getFileName.toString.replaceAll(s"\\${CompilerCLI.WaccExtension}$$", s"$suffix.s")
 
         /* Run the ast through the backend of the compiler */
         val backendResult = WaccBackend.run(outFilename, ast, optimState, config)
