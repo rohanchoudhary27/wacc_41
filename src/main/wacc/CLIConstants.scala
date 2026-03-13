@@ -1,5 +1,7 @@
 package wacc
 
+import wacc.backend.OptimisationConstants
+
 
 /** Constants for the compiler CLI. */
 private object CompilerCLI {
@@ -20,10 +22,10 @@ private object CompilerCLI {
     val OptimisedAsmExtensionSuffix: String = "_o"
 
     /* Individual optimisation flags */
-    val OptimisationBinaryFlag = s"${OptimisationFlag}Binary"
-    val OptimisationBranchesFlag = s"${OptimisationFlag}Branches"
-    val OptimisationMemoryFlag = s"${OptimisationFlag}Memory"
-    val OptimisationRegistersFlag = s"${OptimisationFlag}Registers"
+    val OptimisationBinaryFlag = s"${OptimisationFlag}${OptimisationConstants.BINARY_PEEPHOLE_GROUP}"
+    val OptimisationBranchesFlag = s"${OptimisationFlag}${OptimisationConstants.BRANCHES_PEEPHOLE_GROUP}"
+    val OptimisationMemoryFlag = s"${OptimisationFlag}${OptimisationConstants.MEMORY_PEEPHOLE_GROUP}"
+    val OptimisationRegistersFlag = s"${OptimisationFlag}${OptimisationConstants.REGISTERS_PEEPHOLE_GROUP}"
 
      /** The complete set of flags the compiler accepts */
     val knownFlags: Set[String] = Set(
