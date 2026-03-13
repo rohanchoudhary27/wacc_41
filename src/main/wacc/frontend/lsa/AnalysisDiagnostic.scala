@@ -45,6 +45,8 @@ case class AnalysisDiagnostic(
 
 object AnalysisDiagnostic {
 
+    val ASCII_BOUND = 127
+
     /** Division by a value that is provably zero */
     def divisionByZero(
         pos: SourcePos, divisorName: String, divisorValue: AbstractValue
@@ -120,7 +122,7 @@ object AnalysisDiagnostic {
         AnalysisDiagnostic(
             DiagnosticSeverity.Error,
             pos,
-            s"Invalid chr argument: value is ${argValue.describe} but must be in range [0, 127]"
+            s"Invalid chr argument: value is ${argValue.describe} but must be in range [0, ${ASCII_BOUND}]"
         )
 
     /** Integer arithmetic that provably overflows 32-bit signed range */

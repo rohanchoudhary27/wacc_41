@@ -1,6 +1,7 @@
 package wacc.frontend.generator
 
 import wacc.frontend.*
+import wacc.backend.PairPos
 
 /** Configuration for the WACC pretty printer
   *
@@ -259,7 +260,7 @@ object Pretty {
                     val base = ident(id)
                     idxs.foldLeft(base)((acc, i) => s"$acc[${expr(i)}]")
                 case PairElem(isFst, inner, _) =>
-                    val kw = if isFst then "fst" else "snd"
+                    val kw = if isFst then PairPos.Fst.outputFormat else PairPos.Snd.outputFormat
                     s"$kw ${lvalue(inner)}"
 
         /** Render an rvalue in source text
@@ -280,7 +281,7 @@ object Pretty {
                     val as = args.map(expr).mkString(", ")
                     s"call ${ident(id)}($as)"
                 case PairElem(isFst, inner, _) =>
-                    val kw = if isFst then "fst" else "snd"
+                    val kw = if isFst then PairPos.Fst.outputFormat else PairPos.Snd.outputFormat
                     s"$kw ${lvalue(inner)}"
 
         /** Render an expression in source text

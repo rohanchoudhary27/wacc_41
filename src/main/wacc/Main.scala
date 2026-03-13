@@ -1,6 +1,7 @@
 package wacc
 
 import java.nio.file.{Files, Path, Paths}
+import wacc.CompilerCLI
 import wacc.frontend.*
 import wacc.backend.*
 import wacc.ExitCodes.*
@@ -15,40 +16,6 @@ private enum CompilerExitStatus {
         case Success(c)  => s"Success - finished with exit code $c"
         case Info(m, c)  => s"\n$m - finished with exit code $c"
 }
-
-/** Constants for the compiler CLI. */
-private object CompilerCLI {
-
-    /** The CLI flag that enables backend optimisations */
-    val OptimisationFlag: String = "-o"
-
-    /** Expected number of non flag arguments (just the source file path) */
-    val ExpectedArgCount: Int = 1
-
-    /** File extension suffix of every WACC source file */
-    val WaccExtension: String = ".wacc"
-
-    /** File extension suffix of unoptimised assembly output files */
-    val AsmExtension: String = ".s"
-
-    /** File extension suffix of optimised assembly output files */
-    val OptimisedAsmExtension: String = "_o.s"
-
-    /* Individual optimisation flags */
-    val OptimisationBinaryFlag = s"${OptimisationFlag}Binary"
-    val OptimisationBranchesFlag = s"${OptimisationFlag}Branches"
-    val OptimisationMemoryFlag = s"${OptimisationFlag}Memory"
-    val OptimisationRegistersFlag = s"${OptimisationFlag}Registers"
-
-     /** The complete set of flags the compiler accepts */
-    val knownFlags: Set[String] = Set(
-        OptimisationBinaryFlag,
-        OptimisationBranchesFlag,
-        OptimisationMemoryFlag,
-        OptimisationRegistersFlag
-    )
-}
-
 
 /** 
   * Main entry point for the WACC compiler which runs the frontend and backend.
@@ -67,24 +34,17 @@ object WaccCompiler {
       */
     def main(args: Array[String]): Unit = {
 
-        val (optFlags, remainingArgs) = args.partition(_.startsWith(CompilerCLI.OptimisationFlag))
+        val (optFlags, remainingArgs) = args.toList.partition(_.startsWith("-"))
         
         val unknownFlags = optFlags.filterNot(CompilerCLI.knownFlags.contains)
         if (unknownFlags.nonEmpty) {
-            unknownFlags.foreach { flag =>
-                Console.err.println(s"Unknown compiler flag: '$flag'")
-            }
+            Console.err.println(TopLevelError.FileArgumentError(unknownFlags).outputFormat)
             sys.exit(code(CompilerFailure))
         }
 
         /* Set the flags that for the optimisations that want to be used.
            They have been grouped into Binary, Branches, Memory, Registers. */
-        val config = OptConfig(
-            binary = optFlags.contains(s"${CompilerCLI.OptimisationBinaryFlag}"),
-            branches = optFlags.contains(s"${CompilerCLI.OptimisationBranchesFlag}"),
-            memory = optFlags.contains(s"${CompilerCLI.OptimisationMemoryFlag}"),
-            registers = optFlags.contains(s"${CompilerCLI.OptimisationRegistersFlag}")
-        )
+        val config = OptConfig.fromFlags(optFlags.toIndexedSeq)
 
         if (remainingArgs.length != CompilerCLI.ExpectedArgCount) {
             Console.err.println(TopLevelError.FileSystemError("Requires a file").outputFormat)
@@ -189,21 +149,22 @@ object WaccCompiler {
         
         /* Collect optimisations that are wanted */
         val activeOpts = Seq(
-            if (config.binary) "Binary" else "",
-            if (config.branches) "Branches" else "",
-            if (config.memory) "Memory" else "",
-            if (config.registers) "Registers" else ""
+            if (config.binary) OptimisationConstants.BINARY_PEEPHOLE_GROUP  else "",
+            if (config.branches) OptimisationConstants.BRANCHES_PEEPHOLE_GROUP else "",
+            if (config.memory) OptimisationConstants.MEMORY_PEEPHOLE_GROUP else "",
+            if (config.registers) OptimisationConstants.REGISTERS_PEEPHOLE_GROUP  else ""
         ).filter(_.nonEmpty)
 
         val suffix = if (!config.isOptimised) {
             ""
-        } else if (activeOpts.length == 4) {
-            "_o" // All optimizations
+        } else if (activeOpts.length == OptimisationConstants.NUM_PEEPHOLE_GROUPS) {
+            CompilerCLI.OptimisedAsmExtensionSuffix // All optimizations
         } else {
-            s"_o${activeOpts.mkString("_")}" // Specific ablations (e.g., _oMemory_Registers)
+            // Specific ablations (e.g., _oMemory_Registers)
+            s"${CompilerCLI.OptimisedAsmExtensionSuffix}${activeOpts.mkString("_")}"
         }
 
-        val outFilename = path.getFileName.toString.replaceAll("\\.wacc$", s"$suffix.s")
+        val outFilename = path.getFileName.toString.replaceAll(s"\\${CompilerCLI.WaccExtension}$$", s"$suffix.s")
 
         /* Run the ast through the backend of the compiler */
         val backendResult = WaccBackend.run(outFilename, ast, optimState, config)
