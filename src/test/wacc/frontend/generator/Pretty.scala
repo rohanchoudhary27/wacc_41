@@ -254,7 +254,7 @@ object Pretty {
           *   Source string for the l-valu.
           */
         def lvalue(lv: LValue[A]): String =
-            lv match
+            (lv: @unchecked) match
                 case i: Ident[A] => ident(i)
                 case ArrayElem(id, idxs, _) =>
                     val base = ident(id)
@@ -271,7 +271,7 @@ object Pretty {
           *   Source string for the rvalue
           */
         def rvalue(rv: RValue[A]): String =
-            rv match
+            (rv: @unchecked) match
                 case e: Expr[A] => expr(e)
                 case ArrayLiter(elems, _) =>
                     elems.map(expr).mkString("[", ", ", "]")
@@ -292,7 +292,7 @@ object Pretty {
           *   Source string for the expression
           */
         def expr(e: Expr[A]): String =
-            e match
+            (e: @unchecked) match
                 case i: Ident[A]         => ident(i)
                 case a: ArrayElem[A] => lvalue(a)
                 case UnaryExpr(op, x, _) =>
@@ -320,7 +320,7 @@ object Pretty {
           *   `expr(e)` if atomic otherwise the parenthesised rendering
           */
         private def atomOrNested(e: Expr[A]): String =
-            e match
+            (e: @unchecked) match
                 // atomic cases
                 case _: IntLiter[A] | _: BoolLiter[A] | _: CharLiter[A] | _: StrLiter[A] |
                      _: PairLiter[A] | _: Ident[A] | _: ArrayElem[A] =>
@@ -336,7 +336,7 @@ object Pretty {
       * @return
       *   Source string for the type
       */
-    private def showSynType(t: SyntaxType): String = t match
+    private def showSynType(t: SyntaxType): String = (t: @unchecked) match
         case SyntaxType.Int => "int"
         case SyntaxType.Bool => "bool"
         case SyntaxType.Char => "char"
