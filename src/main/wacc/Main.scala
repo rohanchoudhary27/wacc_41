@@ -44,12 +44,7 @@ object WaccCompiler {
 
         /* Set the flags that for the optimisations that want to be used.
            They have been grouped into Binary, Branches, Memory, Registers. */
-        val config = OptConfig(
-            binary = optFlags.contains(s"${CompilerCLI.OptimisationBinaryFlag}"),
-            branches = optFlags.contains(s"${CompilerCLI.OptimisationBranchesFlag}"),
-            memory = optFlags.contains(s"${CompilerCLI.OptimisationMemoryFlag}"),
-            registers = optFlags.contains(s"${CompilerCLI.OptimisationRegistersFlag}")
-        )
+        val config = OptConfig.fromFlags(optFlags.toIndexedSeq)
 
         if (remainingArgs.length != CompilerCLI.ExpectedArgCount) {
             Console.err.println(TopLevelError.FileSystemError("Requires a file").outputFormat)

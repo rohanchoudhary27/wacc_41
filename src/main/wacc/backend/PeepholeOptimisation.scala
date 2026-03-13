@@ -2,6 +2,7 @@ package wacc.backend
 
 import scala.util.chaining.*
 import wacc.backend.Arm.*
+import wacc.CompilerCLI
 import scala.annotation.tailrec
 import scala.collection.mutable
 
@@ -14,6 +15,22 @@ case class OptConfig(
 ) {
     // Helper to check if any optimizations are turned on
     def isOptimised: Boolean = binary || branches || memory || registers
+}
+
+object OptConfig {
+
+    /** Create  an OptFlags from an array of flag strings */
+    def fromFlags(optFlags: Seq[String]): OptConfig = {
+        val allOpts = optFlags.contains(CompilerCLI.OptimisationFlag)
+        def isEnabled(flag: String): Boolean = allOpts || optFlags.contains(flag)
+
+        OptConfig(
+            binary = isEnabled(CompilerCLI.OptimisationBinaryFlag),
+            branches = isEnabled(CompilerCLI.OptimisationBranchesFlag),
+            memory = isEnabled(CompilerCLI.OptimisationMemoryFlag),
+            registers = isEnabled(CompilerCLI.OptimisationRegistersFlag)
+        )
+    }
 }
 
 object PeepholeOptimisation{
