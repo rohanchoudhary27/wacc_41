@@ -38,33 +38,37 @@ object PeepholeOptimisation{
     var iterations = 0
     val ruleHits = mutable.Map[String, Int]().withDefaultValue(0)
 
-    /* Peephole names */
-    val selfMovePeephole = "selfMove"
+    /* Peephole hit names grouped into their peephole groups */
+    sealed trait OptimisationGroup
+    object OptRegisters extends OptimisationGroup {
+        val selfMove = "selfMove"
+        val coalesceMove = "coalesceMove"
+        val alternateMoves = "alternateMoves"
+        val removeOverwriteMovReg = "removeOverwriteMovReg"
+        val removeOverwriteMovz = "removeOverwriteMovz"
+        val copyRegisters = "copyRegisters"
+    }
 
-    val optimisedBranchesPeephole = "optimisedBranches"
+    object OptBinary extends OptimisationGroup {
+        val constAdd = "constBinaryAdd"
+        val constSub = "constBinarySub"
+        val constOr = "constBinaryOr"
+        val constLsl = "constBinaryLsl"
+        val constLsr = "constBinaryLsr"
+        val constAsr = "constBinaryAsr"
+        val constAnd = "constBinaryAnd"
+        val immediateMinimiseAdd = "immediateMinimiseAdd"
+        val immediateMinimiseSub = "immediateMinimiseSub"
+    }
 
-    val constBinaryAddPeephole = "constBinaryAdd"
-    val constBinarySubPeephole = "constBinarySub"
-    val constBinaryOrPeephole = "constBinaryOr"
-    val constBinaryLslPeephole = "constBinaryLsl"
-    val constBinaryLsrPeephole = "constBinaryLsr"
-    val constBinaryAsrPeephole = "constBinaryAsr"
-    val constBinaryAndPeephole = "constBinaryAnd"
+    object OptMemory extends OptimisationGroup {
+        val redundantLoadsStur = "redundantLoadsStur"
+        val redundantLoadsStore = "redundantLoadsStore"
+    }
 
-    val redundantLoadsSturPeephole = "redundantLoadsStur"
-    val redundantLoadsStorePeephole = "redundantLoadsStore"
-
-    val coalesceMovePeephole = "coalesceMove"
-
-    val alternateMovesPeephole = "alternateMoves"
-
-    val immediateMinimiseAddPeephole = "immediateMinimiseAdd"
-    val immediateMinimiseSubPeephole = "immediateMinimiseSub"
-
-    val  removeOverwriteMovRegPeephole = "removeOverwriteMovReg"
-    val removeOverwriteMovzPeephole = "removeOverwriteMovz"
-
-    val copyRegistersPeephole = "copyRegisters"
+    object OptBranches extends OptimisationGroup {
+        val optimisedBranches = "optimisedBranches"
+    }
 
     /**
       * Peephole optimiser that takes in the low level IR, runs through a pass of the optimising pipeline
@@ -130,7 +134,7 @@ object PeepholeOptimisation{
     @tailrec
     private def selfMove(body: List[Instruction], acc: List[Instruction]): List[Instruction] = body match {
         case MovReg(size, reg, src) :: xs if reg == src => 
-            ruleHits(selfMovePeephole) += 1
+            ruleHits(OptRegisters.selfMove) += 1
             selfMove(xs, acc)
         case x :: xs => selfMove(xs, x :: acc)
         case Nil => acc.reverse
@@ -156,7 +160,7 @@ object PeepholeOptimisation{
     @tailrec
     private def optimisedBranches(body: List[Instruction], acc: List[Instruction]): List[Instruction] = body match {
         case BranchUncond(bLabel) :: LabelDef(lLabel) :: xs if bLabel == lLabel =>
-            ruleHits(optimisedBranchesPeephole) += 1
+            ruleHits(OptBranches.optimisedBranches) += 1
             optimisedBranches(xs, LabelDef(lLabel) :: acc)
         case x :: xs => optimisedBranches(xs, x :: acc)
         case Nil => acc.reverse
@@ -170,25 +174,25 @@ object PeepholeOptimisation{
     @tailrec
     private def constBinary(body: List[Instruction], acc: List[Instruction]): List[Instruction] = body match {
         case AddImm(size, reg, src, Immediate(0)) :: xs =>
-            ruleHits(constBinaryAddPeephole) += 1
+            ruleHits(OptBinary.constAdd) += 1
             if (reg == src) constBinary(xs, acc) else constBinary(xs, MovReg(size, reg, src) :: acc)
         case SubImm(size, reg, src, Immediate(0)) :: xs =>
-            ruleHits(constBinarySubPeephole) += 1
+            ruleHits(OptBinary.constSub) += 1
             if (reg == src) constBinary(xs, acc) else constBinary(xs, MovReg(size, reg, src) :: acc)
         case OrImm(size, reg, src, Immediate(0)) :: xs =>
-            ruleHits(constBinaryOrPeephole) += 1
+            ruleHits(OptBinary.constOr) += 1
             if (reg == src) constBinary(xs, acc) else constBinary(xs, MovReg(size, reg, src) :: acc)
         case LslImm(size, reg, src, Immediate(0)) :: xs =>
-            ruleHits(constBinaryLslPeephole) += 1
+            ruleHits(OptBinary.constLsl) += 1
             if (reg == src) constBinary(xs, acc) else constBinary(xs, MovReg(size, reg, src) :: acc)
         case LsrImm(size, reg, src, Immediate(0)) :: xs =>
-            ruleHits(constBinaryLsrPeephole) += 1
+            ruleHits(OptBinary.constLsr) += 1
             if (reg == src) constBinary(xs, acc) else constBinary(xs, MovReg(size, reg, src) :: acc)
         case AsrImm(size, reg, src, Immediate(0)) :: xs =>
-            ruleHits(constBinaryAsrPeephole) += 1
+            ruleHits(OptBinary.constAsr) += 1
             if (reg == src) constBinary(xs, acc) else constBinary(xs, MovReg(size, reg, src) :: acc)
         case AndImm(size, reg, _, Immediate(0)) :: xs => 
-            ruleHits(constBinaryAndPeephole) += 1
+            ruleHits(OptBinary.constAnd) += 1
             constBinary(xs, Movz(size, reg, Immediate(0)) :: acc)
         case x :: xs => constBinary(xs, x :: acc)
         case Nil => acc.reverse
@@ -203,13 +207,13 @@ object PeepholeOptimisation{
     private def redundantLoads(body: List[Instruction], acc: List[Instruction]): List[Instruction] = body match {
         case Stur(sSize, sReg, sSrc) :: Ldur(lSize, lReg, lSrc) :: xs 
         if (sSize == lSize && sSrc == lSrc) =>
-            ruleHits(redundantLoadsSturPeephole) += 1
+            ruleHits(OptMemory.redundantLoadsStur) += 1
             if (sReg == lReg) redundantLoads(xs, Stur(sSize, sReg, sSrc):: acc)
             else redundantLoads(xs, MovReg(sSize, lReg, sReg) :: Stur(sSize, sReg, sSrc) :: acc)
 
         case Store(sSize, sReg, sSrc) :: Load(lSize, lReg, lSrc) :: xs 
         if (sSize == lSize && sSrc == lSrc) =>
-            ruleHits(redundantLoadsStorePeephole) += 1
+            ruleHits(OptMemory.redundantLoadsStore) += 1
             if (sReg == lReg) redundantLoads(xs, Store(sSize, sReg, sSrc) :: acc)
             else redundantLoads(xs, MovReg(sSize, lReg, sReg) :: Store(sSize, sReg, sSrc) :: acc)
 
@@ -226,7 +230,7 @@ object PeepholeOptimisation{
     private def coalesceMove(body: List[Instruction], acc: List[Instruction]): List[Instruction] = body match {
         case Movz(s1, scratch, imm) :: MovReg(s2, dest, src) :: xs 
         if scratch == src && s1 == s2 =>
-            ruleHits(coalesceMovePeephole) += 1
+            ruleHits(OptRegisters.coalesceMove) += 1
             coalesceMove(xs, Movz(s2, dest, imm) :: Movz(s1, scratch, imm) :: acc)
         case x :: xs => coalesceMove(xs, x :: acc)
         case Nil => acc.reverse
@@ -249,7 +253,7 @@ object PeepholeOptimisation{
     private def alternateMoves(body: List[Instruction], acc: List[Instruction]): List[Instruction] = body match {
         case MovReg(size1, dest1, src1) :: MovReg(size2, dest2, src2) :: xs 
         if size1 == size2 && dest1 == src2 && dest2 == src1 =>
-            ruleHits(alternateMovesPeephole) += 1
+            ruleHits(OptRegisters.alternateMoves) += 1
             alternateMoves(xs, MovReg(size1, dest1, src1) :: acc)
         case x :: xs => alternateMoves(xs, x :: acc)
         case Nil => acc.reverse
@@ -259,12 +263,12 @@ object PeepholeOptimisation{
     private def immediateMinimise(body: List[Instruction], acc: List[Instruction]): List[Instruction] = body match {
         case AddImm(s1, d1, src1, Immediate(i1)) :: AddImm(s2, d2, src2, Immediate(i2)) :: xs
         if (s1 == s2 && d1 == d2 && src1 == src2 && d1 == src1) => 
-            ruleHits(immediateMinimiseAddPeephole) += 1
+            ruleHits(OptBinary.immediateMinimiseAdd) += 1
             immediateMinimise(xs, AddImm(s1, d1, src1, Immediate(i1 + i2)) :: acc)
         
         case SubImm(s1, d1, src1, Immediate(i1)) :: SubImm(s2, d2, src2, Immediate(i2)) :: xs
         if (s1 == s2 && d1 == d2 && src1 == src2 && d1 == src1) => 
-            ruleHits(immediateMinimiseSubPeephole) += 1
+            ruleHits(OptBinary.immediateMinimiseSub) += 1
             immediateMinimise(xs, SubImm(s1, d1, src1, Immediate(i1 + i2)) :: acc)
         
         case x :: xs => immediateMinimise(xs, x :: acc)
@@ -280,11 +284,11 @@ object PeepholeOptimisation{
     @tailrec
     private def removeOverwrite(body: List[Instruction], acc: List[Instruction]): List[Instruction] = body match {
         case MovReg(_, d1, _) :: Movz(s2, d2, imm) :: xs if d1 == d2 =>
-            ruleHits(removeOverwriteMovRegPeephole) += 1
+            ruleHits(OptRegisters.removeOverwriteMovReg) += 1
             removeOverwrite(xs, Movz(s2, d2, imm) :: acc)
 
         case Movz(_, d1, _) :: Movz(s2, d2, imm) :: xs if d1 == d2 =>
-            ruleHits(removeOverwriteMovzPeephole) += 1
+            ruleHits(OptRegisters.removeOverwriteMovz) += 1
             removeOverwrite(xs, Movz(s2, d2, imm) :: acc)
         
         case x :: xs => removeOverwrite(xs, x :: acc)
@@ -308,7 +312,7 @@ object PeepholeOptimisation{
     @tailrec
     private def copyRegisters(body: List[Instruction], acc: List[Instruction]): List[Instruction] = body match {
         case MovReg(s1, d1, src1) :: MovReg(s2, d2, src2) :: xs if s1 == s2 && d1 == src2 =>
-            ruleHits(copyRegistersPeephole) += 1
+            ruleHits(OptRegisters.copyRegisters) += 1
             copyRegisters(xs, MovReg(s2, d2, src1) :: MovReg(s1, d1, src1) :: acc)
 
         case x :: xs => copyRegisters(xs, x :: acc)
