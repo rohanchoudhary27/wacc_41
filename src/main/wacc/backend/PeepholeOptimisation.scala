@@ -84,8 +84,6 @@ object PeepholeOptimisation{
         }
 
         /* Wrap data and optimised body in Arm.Program for Outputter. */
-        println(s"METRIC_ITERATIONS: ${iterations}")
-        ruleHits.foreach {case(rule, count) => println(s"METRIC_RULE ${rule}: $count")}
         Program(prog.data, body)
     }
 
