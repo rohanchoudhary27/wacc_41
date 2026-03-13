@@ -172,31 +172,32 @@ object PeepholeOptimisation{
       * @param body: list of low level IR instructions to be optimised
       */
     @tailrec
-    private def constBinary(body: List[Instruction], acc: List[Instruction]): List[Instruction] = body match {
-        case AddImm(size, reg, src, Immediate(0)) :: xs =>
-            ruleHits(OptBinary.constAdd) += 1
-            if (reg == src) constBinary(xs, acc) else constBinary(xs, MovReg(size, reg, src) :: acc)
-        case SubImm(size, reg, src, Immediate(0)) :: xs =>
-            ruleHits(OptBinary.constSub) += 1
-            if (reg == src) constBinary(xs, acc) else constBinary(xs, MovReg(size, reg, src) :: acc)
-        case OrImm(size, reg, src, Immediate(0)) :: xs =>
-            ruleHits(OptBinary.constOr) += 1
-            if (reg == src) constBinary(xs, acc) else constBinary(xs, MovReg(size, reg, src) :: acc)
-        case LslImm(size, reg, src, Immediate(0)) :: xs =>
-            ruleHits(OptBinary.constLsl) += 1
-            if (reg == src) constBinary(xs, acc) else constBinary(xs, MovReg(size, reg, src) :: acc)
-        case LsrImm(size, reg, src, Immediate(0)) :: xs =>
-            ruleHits(OptBinary.constLsr) += 1
-            if (reg == src) constBinary(xs, acc) else constBinary(xs, MovReg(size, reg, src) :: acc)
-        case AsrImm(size, reg, src, Immediate(0)) :: xs =>
-            ruleHits(OptBinary.constAsr) += 1
-            if (reg == src) constBinary(xs, acc) else constBinary(xs, MovReg(size, reg, src) :: acc)
-        case AndImm(size, reg, _, Immediate(0)) :: xs => 
-            ruleHits(OptBinary.constAnd) += 1
-            constBinary(xs, Movz(size, reg, Immediate(0)) :: acc)
-        case x :: xs => constBinary(xs, x :: acc)
-        case Nil => acc.reverse
+    private def constBinary(body: List[Instruction], acc: List[Instruction]): List[Instruction] = {
+        
+        /** Squash redundant binary operations */
+        def resolveZeroAcc(rule: String, size: Size, reg: PhysicalReg, src: PhysicalReg): List[Instruction] = {
+            ruleHits(rule) += 1
+            if (reg == src) acc 
+            else MovReg(size, reg, src) :: acc
+        }
+
+        body match {
+            case AddImm(s, r, src, Immediate(0)) :: xs => constBinary(xs, resolveZeroAcc(OptBinary.constAdd, s, r, src))
+            case SubImm(s, r, src, Immediate(0)) :: xs => constBinary(xs, resolveZeroAcc(OptBinary.constSub, s, r, src))
+            case OrImm(s, r, src, Immediate(0)) :: xs  => constBinary(xs, resolveZeroAcc(OptBinary.constOr, s, r, src))
+            case LslImm(s, r, src, Immediate(0)) :: xs => constBinary(xs, resolveZeroAcc(OptBinary.constLsl, s, r, src))
+            case LsrImm(s, r, src, Immediate(0)) :: xs => constBinary(xs, resolveZeroAcc(OptBinary.constLsr, s, r, src))
+            case AsrImm(s, r, src, Immediate(0)) :: xs => constBinary(xs, resolveZeroAcc(OptBinary.constAsr, s, r, src))
+            
+            case AndImm(size, reg, _, Immediate(0)) :: xs => 
+                ruleHits(OptBinary.constAnd) += 1
+                constBinary(xs, Movz(size, reg, Immediate(0)) :: acc)
+                
+            case x :: xs => constBinary(xs, x :: acc)
+            case Nil => acc.reverse
+        }
     }
+
 
     /**
       * Removes redundant store then load for registers
@@ -204,21 +205,30 @@ object PeepholeOptimisation{
       * @param body: list of low level IR instructions to be optimised
       */
     @tailrec
-    private def redundantLoads(body: List[Instruction], acc: List[Instruction]): List[Instruction] = body match {
-        case Stur(sSize, sReg, sSrc) :: Ldur(lSize, lReg, lSrc) :: xs 
-        if (sSize == lSize && sSrc == lSrc) =>
-            ruleHits(OptMemory.redundantLoadsStur) += 1
-            if (sReg == lReg) redundantLoads(xs, Stur(sSize, sReg, sSrc):: acc)
-            else redundantLoads(xs, MovReg(sSize, lReg, sReg) :: Stur(sSize, sReg, sSrc) :: acc)
+    private def redundantLoads(body: List[Instruction], acc: List[Instruction]): List[Instruction] = {
 
-        case Store(sSize, sReg, sSrc) :: Load(lSize, lReg, lSrc) :: xs 
-        if (sSize == lSize && sSrc == lSrc) =>
-            ruleHits(OptMemory.redundantLoadsStore) += 1
-            if (sReg == lReg) redundantLoads(xs, Store(sSize, sReg, sSrc) :: acc)
-            else redundantLoads(xs, MovReg(sSize, lReg, sReg) :: Store(sSize, sReg, sSrc) :: acc)
+        /* Optimise a given redundant load */
+        def resolveLoad(rule: String, size: Size,
+                        sReg: PhysicalReg,
+                        lReg: PhysicalReg,
+                        storeInst: Instruction): List[Instruction] = {
+            ruleHits(rule) += 1
+            if (sReg == lReg) storeInst :: acc
+            else MovReg(size, lReg, sReg) :: storeInst :: acc
+        }
 
-        case x :: xs => redundantLoads(xs, x :: acc)
-        case Nil => acc.reverse
+        body match {
+            case (st @ Stur(sSize, sReg, sSrc)) :: Ldur(lSize, lReg, lSrc) :: xs 
+                if (sSize == lSize && sSrc == lSrc) =>
+                    redundantLoads(xs, resolveLoad(OptMemory.redundantLoadsStur, sSize, sReg, lReg, st))
+
+            case (st @ Store(sSize, sReg, sSrc)) :: Load(lSize, lReg, lSrc) :: xs 
+                if (sSize == lSize && sSrc == lSrc) =>
+                    redundantLoads(xs, resolveLoad(OptMemory.redundantLoadsStore, sSize, sReg, lReg, st))
+
+            case x :: xs => redundantLoads(xs, x :: acc)
+            case Nil => acc.reverse
+        }
     }
 
     /**
@@ -276,23 +286,38 @@ object PeepholeOptimisation{
     }
 
     /**
-      * Remove overwriting to registers immediately after
-      *
-      * @param body list of low level IR instructions to be optimised
-      * @param acc list of low level IR instructions that have been optimised
-      */
+     * Removes redundant register assignments if the destination register is 
+     * immediately overwritten by a const
+     * 
+     * mov r1, r2
+     * movz r1, #5
+     * 
+     * goes to
+     * 
+     * movz r1, #5
+     *
+     * @param body list of low level IR instructions to be optimised
+     * @param acc list of low level IR instructions that have been optimised
+     */
     @tailrec
-    private def removeOverwrite(body: List[Instruction], acc: List[Instruction]): List[Instruction] = body match {
-        case MovReg(_, d1, _) :: Movz(s2, d2, imm) :: xs if d1 == d2 =>
-            ruleHits(OptRegisters.removeOverwriteMovReg) += 1
-            removeOverwrite(xs, Movz(s2, d2, imm) :: acc)
-
-        case Movz(_, d1, _) :: Movz(s2, d2, imm) :: xs if d1 == d2 =>
-            ruleHits(OptRegisters.removeOverwriteMovz) += 1
-            removeOverwrite(xs, Movz(s2, d2, imm) :: acc)
+    private def removeOverwrite(body: List[Instruction], acc: List[Instruction]): List[Instruction] = {
         
-        case x :: xs => removeOverwrite(xs, x :: acc)
-        case Nil => acc.reverse
+        /* Resolve a given register constant overwrite */
+        def resolveOverwrite(rule: String, secondInst: Instruction): List[Instruction] = {
+            ruleHits(rule) += 1
+            secondInst :: acc
+        }
+
+        body match {
+            case MovReg(_, d1, _) :: (m2 @ Movz(_, d2, _)) :: xs if d1 == d2 =>
+                removeOverwrite(xs, resolveOverwrite(OptRegisters.removeOverwriteMovReg, m2))
+
+            case Movz(_, d1, _) :: (m2 @ Movz(_, d2, _)) :: xs if d1 == d2 =>
+                removeOverwrite(xs, resolveOverwrite(OptRegisters.removeOverwriteMovz, m2))
+        
+            case x :: xs => removeOverwrite(xs, x :: acc)
+            case Nil => acc.reverse
+        }
     }
 
     /**
