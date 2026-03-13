@@ -3,6 +3,7 @@ package wacc.frontend.lsa
 import wacc.frontend.*
 import wacc.frontend.lsa.*
 import wacc.frontend.TypeChecker.~
+import wacc.backend.PairPos
 
 /*
  * Performs local static analysis on the typed AST to catch
@@ -758,7 +759,7 @@ object StaticAnalyser {
                             case _  => ?
                         }
                         if (!((actualType ~ expectedType).isDefined)) {
-                            val accessKind = if (isFst) "fst" else "snd"
+                            val accessKind = if (isFst) PairPos.Fst.outputFormat else PairPos.Snd.outputFormat 
                             analyserState.emit(
                                 AnalysisDiagnostic.unsoundPairCoercion(
                                     info.pos, accessKind, actualType, expectedType

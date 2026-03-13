@@ -102,9 +102,9 @@ enum Condition {
 /**
   * The positions in a pair
   */
-enum PairPos {
-    case Fst
-    case Snd
+enum PairPos(val outputFormat: String) {
+  case Fst extends PairPos("fst")
+  case Snd extends PairPos("snd")
 }
 
 /**
