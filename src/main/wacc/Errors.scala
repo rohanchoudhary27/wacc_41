@@ -13,7 +13,7 @@ enum TopLevelError(val message: String) {
     def outputFormat: String = s"${this.productPrefix}: $message"
     
     case FileSystemError(msg: String) extends TopLevelError(msg)
-    case FileArgumentError(args: Array[String]) extends TopLevelError(
+    case FileArgumentError(args: List[String]) extends TopLevelError(
         if args.isEmpty then "No file arguments provided" 
         else s"Invalid file arguments: ${args.mkString(", ")}"
     )

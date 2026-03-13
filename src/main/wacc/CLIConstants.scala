@@ -4,7 +4,7 @@ package wacc
 /** Constants for the compiler CLI. */
 private object CompilerCLI {
 
-    /** The CLI flag that enables backend optimisations */
+    /** The CLI flag that enables all backend peephole optimisations */
     val OptimisationFlag: String = "-o"
 
     /** Expected number of non flag arguments (just the source file path) */
@@ -30,7 +30,8 @@ private object CompilerCLI {
         OptimisationBinaryFlag,
         OptimisationBranchesFlag,
         OptimisationMemoryFlag,
-        OptimisationRegistersFlag
+        OptimisationRegistersFlag,
+        OptimisationFlag
     )
 }
 

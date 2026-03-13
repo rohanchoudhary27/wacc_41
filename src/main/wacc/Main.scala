@@ -34,7 +34,7 @@ object WaccCompiler {
       */
     def main(args: Array[String]): Unit = {
 
-        val (optFlags, remainingArgs) = args.partition(_.startsWith(CompilerCLI.OptimisationFlag))
+        val (optFlags, remainingArgs) = args.toList.partition(_.startsWith("-"))
         
         val unknownFlags = optFlags.filterNot(CompilerCLI.knownFlags.contains)
         if (unknownFlags.nonEmpty) {
