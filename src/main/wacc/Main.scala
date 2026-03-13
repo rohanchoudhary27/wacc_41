@@ -38,7 +38,7 @@ object WaccCompiler {
         
         val unknownFlags = optFlags.filterNot(CompilerCLI.knownFlags.contains)
         if (unknownFlags.nonEmpty) {
-            TopLevelError.FileArgumentError(unknownFlags).outputFormat
+            Console.err.println(TopLevelError.FileArgumentError(unknownFlags).outputFormat)
             sys.exit(code(CompilerFailure))
         }
 
